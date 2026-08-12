@@ -116,6 +116,79 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .gbtn:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);}
 @media(max-width:520px){ .reg-row{flex-direction:column;gap:0;} .reg-box{padding:20px 18px;} }
 
+
+/* ── Pantalla del estudiante ── */
+.stu-wrap{width:100%;max-width:860px;margin:0 auto;padding:4px 16px 8px;}
+.stu-hero{margin-bottom:26px;}
+.stu-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:2.2px;text-transform:uppercase;
+  color:var(--blue2);margin-bottom:10px;}
+.stu-hello{font-size:clamp(26px,5vw,40px);font-weight:800;line-height:1.18;letter-spacing:-.6px;}
+.stu-hello span{color:var(--blue2);}
+.stu-meta{font-size:12px;color:var(--muted);margin-top:10px;letter-spacing:.2px;}
+.stu-sec{display:flex;align-items:center;gap:14px;margin-bottom:20px;}
+.stu-sec-line{flex:1;height:1px;background:var(--border);}
+.stu-sec-txt{font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);}
+.tema-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+.tema{position:relative;text-align:left;background:var(--bg3);border:1px solid var(--border);
+  border-radius:16px;padding:22px 20px 18px;cursor:pointer;font-family:inherit;color:var(--text);
+  transition:border-color .18s,transform .18s,box-shadow .18s;overflow:hidden;}
+.tema::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue);
+  opacity:0;transition:opacity .18s;}
+.tema:hover{border-color:var(--blue);transform:translateY(-3px);box-shadow:0 10px 26px rgba(10,74,219,.13);}
+.tema:hover::before{opacity:1;}
+.tema-cap{font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--muted);margin-bottom:14px;}
+.tema-fig{width:110px;height:52px;color:var(--blue2);margin-bottom:16px;display:block;}
+.tema-nm{font-size:16px;font-weight:800;line-height:1.25;margin-bottom:7px;}
+.tema-desc{font-size:11.5px;color:var(--muted);line-height:1.55;margin-bottom:14px;}
+.tema-tags{display:flex;flex-wrap:wrap;gap:5px;}
+.tema-tags span{font-size:9.5px;font-weight:700;letter-spacing:.4px;color:var(--blue2);
+  background:rgba(10,74,219,.08);border:1px solid rgba(10,74,219,.16);padding:3px 8px;border-radius:5px;}
+.stu-out{margin-top:24px;}
+@media(max-width:680px){ .tema-grid{grid-template-columns:1fr;} .stu-wrap{padding:0 4px;} }
+
+
+/* ── Paneles de administración ── */
+.adm-box{max-width:600px;max-height:88vh;overflow-y:auto;padding:24px 24px 20px;}
+.adm-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:18px;}
+.adm-title{font-size:17px;font-weight:800;letter-spacing:-.2px;}
+.adm-sub{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5;}
+.adm-count{font-size:10.5px;font-weight:700;color:var(--blue2);background:rgba(10,74,219,.08);
+  border:1px solid rgba(10,74,219,.16);padding:4px 10px;border-radius:20px;white-space:nowrap;}
+.adm-form{background:var(--bg);border:1px solid var(--border);border-radius:12px;
+  padding:15px 16px;margin-bottom:18px;}
+.adm-form-t{font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--muted);margin-bottom:11px;}
+.adm-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+.adm-row .lfield{margin-bottom:0;}
+.adm-add{background:var(--blue);color:#fff;border:none;padding:10px 20px;border-radius:8px;
+  font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;
+  transition:opacity .15s;}
+.adm-add:hover{opacity:.88;}
+.adm-msg{font-size:11px;min-height:15px;margin-top:9px;}
+.adm-list{display:flex;flex-direction:column;gap:7px;max-height:320px;overflow-y:auto;}
+.adm-item{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:10px;transition:border-color .15s;}
+.adm-item:hover{border-color:var(--border2);}
+.adm-cod{font-size:12.5px;font-weight:800;color:var(--blue2);min-width:56px;letter-spacing:.3px;}
+.adm-nom{flex:1;font-size:12px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.adm-sw{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);cursor:pointer;
+  user-select:none;white-space:nowrap;}
+.adm-sw input{accent-color:var(--blue);cursor:pointer;}
+.adm-del{background:transparent;border:1px solid var(--border2);color:var(--muted);width:26px;height:26px;
+  border-radius:7px;font-size:13px;line-height:1;cursor:pointer;font-family:inherit;transition:all .15s;}
+.adm-del:hover{border-color:#e05c5c;color:#e05c5c;}
+.adm-file-hint{font-size:10.5px;color:var(--muted);line-height:1.6;margin-bottom:11px;}
+.adm-file-hint code{background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:10px;
+  color:var(--blue2);display:inline-block;margin-top:3px;}
+.adm-file{display:block;text-align:center;padding:13px;border:1px dashed var(--border2);
+  border-radius:9px;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);
+  transition:all .15s;font-family:inherit;}
+.adm-file:hover{border-color:var(--blue);color:var(--blue2);}
+.adm-empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:12px;line-height:1.6;
+  border:1px dashed var(--border2);border-radius:12px;}
+
 .lform{background:var(--bg3);border:1px solid var(--border);border-radius:17px;padding:32px 28px;width:100%;max-width:340px;flex-shrink:0;}
 .lform h2{font-size:19px;font-weight:800;margin-bottom:4px;}
 .lsub{font-size:11px;color:var(--muted);margin-bottom:22px;line-height:1.5;}
@@ -502,19 +575,59 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 
 <!-- STUDENT HOME -->
 <div id="s-student" class="scr">
-  <div class="wel-msg">Bienvenido, <span class="wel-em" id="wel-email"></span> 👋</div>
-  <div style="font-size:12px;color:var(--muted);margin-top:4px">¿Qué aplicativo quieres usar hoy?</div>
-  <div class="app-choice-grid">
-    <div class="app-choice-card blue" onclick="openApp('diag')">
-      <div class="nm">Diagramas de Fuerzas Internas</div>
-      <div class="desc">DFN · DFC · DMF · Vigas Gerber · Cap. 7</div>
+  <div class="stu-wrap">
+
+    <div class="stu-hero">
+      <div class="stu-eyebrow">Beam &amp; Section Analysis</div>
+      <h1 class="stu-hello">Bienvenido,<br><span id="wel-email"></span></h1>
+      <div class="stu-meta" id="wel-meta"></div>
     </div>
-    <div class="app-choice-card green" onclick="openApp('iner')">
-      <div class="nm">Momento de Inercia</div>
-      <div class="desc">Secciones compuestas · Ejes principales · Cap. 10</div>
+
+    <div class="stu-sec">
+      <span class="stu-sec-line"></span>
+      <span class="stu-sec-txt">Seleccione el tema</span>
+      <span class="stu-sec-line"></span>
     </div>
+
+    <div class="tema-grid">
+      <button class="tema" onclick="openApp('diag')">
+        <div class="tema-cap">Capítulo 7</div>
+        <svg class="tema-fig" viewBox="0 0 120 56" aria-hidden="true">
+          <line x1="10" y1="30" x2="110" y2="30" stroke="currentColor" stroke-width="2.5"/>
+          <path d="M10 30 L4 42 L16 42 Z" fill="currentColor"/>
+          <circle cx="110" cy="40" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="100" y1="47" x2="120" y2="47" stroke="currentColor" stroke-width="2"/>
+          <line x1="40" y1="8" x2="40" y2="26" stroke="currentColor" stroke-width="2"/>
+          <path d="M40 30 L35 20 L45 20 Z" fill="currentColor"/>
+          <line x1="62" y1="12" x2="62" y2="26" stroke="currentColor" stroke-width="2"/>
+          <path d="M62 30 L57 20 L67 20 Z" fill="currentColor"/>
+          <line x1="84" y1="12" x2="84" y2="26" stroke="currentColor" stroke-width="2"/>
+          <path d="M84 30 L79 20 L89 20 Z" fill="currentColor"/>
+          <line x1="40" y1="10" x2="84" y2="10" stroke="currentColor" stroke-width="1.6" opacity=".7"/>
+        </svg>
+        <div class="tema-nm">Diagramas de Fuerzas Internas</div>
+        <div class="tema-desc">Fuerza normal, cortante y momento flector en vigas y vigas Gerber</div>
+        <div class="tema-tags"><span>DFN</span><span>DFC</span><span>DMF</span></div>
+      </button>
+
+      <button class="tema" onclick="openApp('iner')">
+        <div class="tema-cap">Capítulo 10</div>
+        <svg class="tema-fig" viewBox="0 0 120 56" aria-hidden="true">
+          <rect x="36" y="8" width="48" height="8" fill="currentColor" opacity=".85"/>
+          <rect x="54" y="16" width="12" height="26" fill="currentColor" opacity=".85"/>
+          <rect x="30" y="42" width="60" height="8" fill="currentColor" opacity=".85"/>
+          <line x1="14" y1="29" x2="106" y2="29" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 3" opacity=".65"/>
+          <line x1="60" y1="3" x2="60" y2="53" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 3" opacity=".65"/>
+          <circle cx="60" cy="29" r="3.2" fill="currentColor"/>
+        </svg>
+        <div class="tema-nm">Momento de Inercia</div>
+        <div class="tema-desc">Secciones compuestas, ejes principales, círculo de Mohr y perfiles de acero</div>
+        <div class="tema-tags"><span>Centroide</span><span>Steiner</span><span>Mohr</span></div>
+      </button>
+    </div>
+
+    <button class="bback stu-out" onclick="signOut()">Cerrar sesión</button>
   </div>
-  <button class="bback" style="margin-top:16px" onclick="signOut()">← Cerrar sesión</button>
 </div>
 
 <!-- APP OVERLAY -->
@@ -522,7 +635,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   <div class="atbar" id="app-topbar">
     <div class="traf"><span class="tr"></span><span class="ty"></span><span class="tg"></span></div>
     <span class="atitle" id="app-title">BSA</span>
-    <button class="bclose blue-close" id="app-close-btn" onclick="closeApp()">✕ Cerrar</button>
+    <button class="bclose blue-close" id="app-close-btn" onclick="closeApp()">Cerrar</button>
   </div>
   <iframe id="appf" title="BSA App"></iframe>
 </div>
@@ -546,21 +659,34 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 <!-- ── CONTRASEÑAS INDIVIDUALES ── -->
 <!-- ── GESTIÓN DE HORARIOS ── -->
 <div class="ovl" id="ovl-hor">
-  <div class="ovl-box" style="max-width:560px;">
-    <div class="ovl-h">Horarios del curso</div>
-    <p style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:14px;">
-      Estos son los horarios que verán tus alumnos al registrarse. Solo tú puedes editarlos.
-    </p>
-    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-      <input type="text" id="hor-cod" placeholder="H346" class="reg-in" style="width:90px;">
-      <input type="text" id="hor-nom" placeholder="Lun-Mié 8:00 a.m." class="reg-in" style="flex:1;min-width:150px;">
-      <button class="ovl-btn ok" onclick="guardarHorario()">Añadir</button>
+  <div class="ovl-box adm-box">
+    <div class="adm-head">
+      <div>
+        <div class="adm-title">Horarios del curso</div>
+        <div class="adm-sub">Definen las opciones que verán tus alumnos al registrarse</div>
+      </div>
+      <span class="adm-count" id="hor-count"></span>
     </div>
-    <div id="hor-msg" style="font-size:11px;min-height:15px;margin-bottom:8px;"></div>
-    <div id="hor-lista" style="max-height:300px;overflow:auto;"></div>
-    <div class="ovl-actions" style="margin-top:14px;">
-      <button class="ovl-btn" onclick="closeOvl()">Cerrar</button>
+
+    <div class="adm-form">
+      <div class="adm-form-t">Añadir horario</div>
+      <div class="adm-row">
+        <div class="lfield" style="width:110px;flex:none;">
+          <label>Código</label>
+          <input type="text" id="hor-cod" placeholder="H346" maxlength="10">
+        </div>
+        <div class="lfield" style="flex:1;">
+          <label>Descripción</label>
+          <input type="text" id="hor-nom" placeholder="Lunes y miércoles, 8:00 a.m.">
+        </div>
+        <button class="adm-add" onclick="guardarHorario()">Añadir</button>
+      </div>
+      <div id="hor-msg" class="adm-msg"></div>
     </div>
+
+    <div class="adm-list" id="hor-lista"></div>
+
+    <div class="ovl-actions"><button class="ovl-btn" onclick="closeOvl()">Cerrar</button></div>
   </div>
 </div>
 <div class="ovl" id="ovl-reg">
@@ -648,24 +774,48 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   </div>
 </div>
 <div class="ovl" id="ovl-add">
-  <div class="modal" style="max-width:460px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h3 style="margin:0">Agregar usuario</h3>
-      <button onclick="closeOvl()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
+  <div class="ovl-box adm-box" style="max-width:520px;">
+    <div class="adm-head">
+      <div>
+        <div class="adm-title">Agregar alumnos</div>
+        <div class="adm-sub">Regístralos manualmente o carga una lista completa</div>
+      </div>
+      <button class="adm-del" onclick="closeOvl()" title="Cerrar">×</button>
     </div>
-    <div style="margin-bottom:10px;"><label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Código</label><input type="text" id="add-codigo" placeholder="" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:inherit;"></div>
-    <div style="margin-bottom:10px;"><label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Apellidos y Nombres</label><input type="text" id="add-nombre" placeholder="" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:inherit;"></div>
-    <div style="margin-bottom:14px;"><label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Correo</label><input type="email" id="add-correo" placeholder="" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:inherit;"></div>
-    <div style="margin-bottom:14px;"><label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Horario</label><input type="text" id="add-horario" placeholder="Ej. Lun-Mié 8:00" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:inherit;"></div>
-    <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px;">
-      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">¿Varios usuarios? Carga un archivo</div>
-      <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;">Formato: <code style="background:var(--bg);padding:1px 5px;border-radius:3px;color:var(--muted)">CODIGO, NOMBRE, correo</code> — una línea por usuario</div>
-      <input type="file" id="add-file-input" accept=".txt,.csv" style="font-size:11px;color:var(--muted);width:100%;" onchange="loadAddFile(this)">
+
+    <div class="adm-form">
+      <div class="adm-form-t">Datos del alumno</div>
+      <div class="adm-row" style="margin-bottom:11px;">
+        <div class="lfield" style="width:130px;flex:none;"><label>Código</label>
+          <input type="text" id="add-codigo" placeholder="20184568"></div>
+        <div class="lfield" style="flex:1;"><label>Apellidos y nombres</label>
+          <input type="text" id="add-nombre" placeholder="PÉREZ GARCÍA, JUAN"></div>
+      </div>
+      <div class="adm-row">
+        <div class="lfield" style="flex:1;"><label>Correo electrónico</label>
+          <input type="email" id="add-correo" placeholder="alumno@correo.com"></div>
+        <div class="lfield" style="width:120px;flex:none;"><label>Horario</label>
+          <input type="text" id="add-horario" placeholder="H346"></div>
+      </div>
     </div>
-    <div id="add-modal-err" style="font-size:11px;min-height:16px;margin-bottom:6px;"></div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="confirmAddUsers()" style="flex:1;background:var(--blue);color:#fff;border:none;padding:11px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ Agregar</button>
-      <button onclick="closeOvl();renderUsers();renderStats();" style="padding:11px 16px;background:var(--bg);border:1px solid var(--border2);color:var(--muted);border-radius:9px;font-size:12px;cursor:pointer;font-family:inherit;">Cerrar</button>
+
+    <div class="adm-form">
+      <div class="adm-form-t">Carga masiva</div>
+      <div class="adm-file-hint">
+        Sube un archivo <b>.csv</b> o <b>.txt</b> con una línea por alumno:
+        <code>codigo, apellidos y nombres, correo, horario</code>
+      </div>
+      <label class="adm-file">
+        <input type="file" id="add-file-input" accept=".txt,.csv" onchange="loadAddFile(this)" hidden>
+        <span>Seleccionar archivo</span>
+      </label>
+    </div>
+
+    <div id="add-modal-err" class="adm-msg"></div>
+
+    <div class="ovl-actions">
+      <button class="ovl-btn" onclick="closeOvl();renderUsers();renderStats();">Cancelar</button>
+      <button class="ovl-btn ok" onclick="confirmAddUsers()">Agregar</button>
     </div>
   </div>
 </div>
@@ -878,7 +1028,13 @@ async function api(action, body={}, timeoutMs=12000){
       // ── Registro abierto: el alumno escribe sus datos ──
       case 'registrarAlumno': {
         const correo=String(body.email||'').trim().toLowerCase();
-        const { data, error } = await SB.auth.signUp({email:correo, password:body.pass});
+        // Los datos viajan como metadatos del usuario: sobreviven a la
+        // confirmación por correo, así no hay que volver a pedirlos.
+        const { data, error } = await SB.auth.signUp({
+          email:correo, password:body.pass,
+          options:{ data:{ nombre:body.nombre, apellidos:body.apellidos,
+                           codigo:body.codigo, horario:body.horario } }
+        });
         if(error){
           if(/already registered|already been/i.test(error.message))
             return {ok:false, error:'Ya existe una cuenta con ese correo. Usa "¿Olvidaste tu contraseña?".'};
@@ -1199,6 +1355,13 @@ function enterStudent(e, found){
   role='est';user=e;updNav();
   const nm=found.nombre?found.nombre:(found.codigo?found.codigo:e);
   document.getElementById('wel-email').textContent=nm;   // textContent no interpreta HTML
+  const meta=document.getElementById('wel-meta');
+  if(meta){
+    const partes=[];
+    if(found&&found.codigo) partes.push('Código '+found.codigo);
+    if(found&&found.horario) partes.push('Horario '+found.horario);
+    meta.textContent=partes.join('   ·   ');
+  }
   showScreen('s-student');
 }
 function refreshEstCacheBg(){
@@ -1361,19 +1524,24 @@ async function pintarHorarios(){
   const box=document.getElementById('hor-lista');
   const r=await api('getHorarios');
   const lista=(r&&r.horarios)||[];
-  if(!lista.length){ box.innerHTML='<div style="font-size:11.5px;color:var(--muted);padding:16px;text-align:center;">Aún no hay horarios. Añade el primero arriba.</div>'; return; }
+  if(!lista.length){
+    box.innerHTML='<div class="adm-empty">Aún no has definido ningún horario.<br>'+
+      'Añade el primero para que tus alumnos puedan elegirlo al registrarse.</div>';
+    const c0=document.getElementById('hor-count'); if(c0) c0.textContent='0 horarios';
+    return;
+  }
   box.innerHTML=lista.map(h=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);
-                border-radius:8px;margin-bottom:5px;background:var(--bg);">
-      <b style="color:var(--blue2);min-width:56px;">${esc(h.codigo)}</b>
-      <span style="flex:1;font-size:12px;">${esc(h.nombre||'—')}</span>
-      <label style="font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;">
-        <input type="checkbox" ${h.activo?'checked':''} onchange="activarHorario('${esc(h.codigo)}',this.checked)"> visible
+    <div class="adm-item">
+      <span class="adm-cod">${esc(h.codigo)}</span>
+      <span class="adm-nom">${esc(h.nombre||'Sin descripción')}</span>
+      <label class="adm-sw" title="Si lo desactivas, deja de aparecer en el registro">
+        <input type="checkbox" ${h.activo?'checked':''} onchange="activarHorario('${esc(h.codigo)}',this.checked)">
+        Visible
       </label>
-      <button onclick="borrarHorario('${esc(h.codigo)}')" title="Eliminar"
-        style="background:transparent;border:1px solid var(--border2);color:var(--muted);
-               padding:3px 8px;border-radius:6px;font-size:10px;cursor:pointer;font-family:inherit;">✕</button>
+      <button class="adm-del" onclick="borrarHorario('${esc(h.codigo)}')" title="Eliminar horario">×</button>
     </div>`).join('');
+  const c=document.getElementById('hor-count');
+  if(c) c.textContent=lista.length+(lista.length===1?' horario':' horarios');
 }
 async function guardarHorario(){
   const cod=(document.getElementById('hor-cod').value||'').trim().toUpperCase();
@@ -1399,7 +1567,7 @@ async function borrarHorario(cod){
   await pintarHorarios();
 }
 
-function abrirRegistro(correo, modo, extra){
+async function abrirRegistro(correo, modo, extra){
   _regModo = modo||'registro';
   const esCompletar = (_regModo==='completar');
   document.getElementById('reg-titulo').textContent = esCompletar ? 'Completa tus datos' : 'Crea tu cuenta';
@@ -1418,8 +1586,32 @@ function abrirRegistro(correo, modo, extra){
   document.getElementById('reg-btn').textContent = esCompletar ? 'Guardar mis datos' : 'Crear mi cuenta';
   document.getElementById('reg-err').textContent='';
   cargarHorarios();
+
+  // Con Google ya conocemos su nombre: se rellena solo y queda de solo lectura.
+  if(esCompletar && SB){
+    try{
+      const { data:{user} } = await SB.auth.getUser();
+      const m=(user&&user.user_metadata)||{};
+      const completo=(m.full_name||m.name||'').trim();
+      let nom=m.given_name||'', ape=m.family_name||'';
+      if(!nom && completo){
+        const p=completo.split(/\s+/);
+        if(p.length>2){ nom=p.slice(0,p.length-2).join(' '); ape=p.slice(-2).join(' '); }
+        else { nom=p[0]||''; ape=p.slice(1).join(' '); }
+      }
+      const eN=document.getElementById('reg-nombre'), eA=document.getElementById('reg-apellidos');
+      if(eN&&nom){ eN.value=nom; eN.readOnly=true; eN.style.opacity='.75'; }
+      if(eA&&ape){ eA.value=ape; eA.readOnly=true; eA.style.opacity='.75'; }
+      const txt=document.getElementById('reg-texto');
+      if(txt&&nom) txt.textContent='Hola '+nom+'. Solo faltan tu código de alumno y tu horario.';
+    }catch(e){}
+  }
+
   document.getElementById('ovl-reg').classList.add('on');
-  setTimeout(()=>{const f=document.getElementById('reg-nombre'); if(f)f.focus();},120);
+  setTimeout(()=>{
+    const f=document.getElementById(esCompletar?'reg-codigo':'reg-nombre');
+    if(f)f.focus();
+  },160);
 }
 
 async function enviarRegistro(){
@@ -1454,8 +1646,9 @@ async function enviarRegistro(){
   if(!r||!r.ok){
     if(r&&r.pendienteCorreo){
       err.style.color='var(--blue2)';
-      err.innerHTML='Te enviamos un enlace de confirmación a <b>'+esc(correo)+'</b>.<br>'+
-                    'Ábrelo y <b>vuelve a completar este formulario</b> para terminar tu registro.';
+      err.innerHTML='<b>Ya casi está.</b><br>Te enviamos un enlace a <b>'+esc(correo)+'</b>.<br>'+
+                    'Ábrelo desde este mismo navegador y entrarás directamente: '+
+                    'tus datos ya quedaron guardados.';
       return;
     }
     err.style.color='#e05c5c';
@@ -1645,6 +1838,18 @@ async function restaurarSesion(){
     const { data:{session} } = await SB.auth.getSession();
     if(!session) return;
     let { data:perfil } = await SB.from('alumnos').select('*').eq('id',session.user.id).maybeSingle();
+
+    // Recién confirmó su correo: sus datos vienen en los metadatos del usuario,
+    // así que se crea la ficha sin volver a preguntarle nada.
+    if(!perfil){
+      const m = session.user.user_metadata || {};
+      if(m.codigo && m.horario){
+        const ficha={id:session.user.id, codigo:m.codigo, nombre:m.nombre||'',
+                     apellidos:m.apellidos||'', correo:session.user.email, horario:m.horario};
+        const { error:eIns } = await SB.from('alumnos').insert(ficha);
+        if(!eIns) perfil=ficha;
+      }
+    }
 
     // Entró con Google pero aún no ha completado sus datos del curso.
     // Se le lleva a la pantalla de estudiante y allí se le pide completarlos,
