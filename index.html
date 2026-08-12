@@ -83,6 +83,39 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .rbtn.e:hover{border-color:#8bc34a;}
 
 /* LOGIN */
+
+/* ── Formulario de registro ── */
+.reg-box{max-width:480px;max-height:90vh;overflow-y:auto;padding:26px 26px 22px;}
+.reg-head{display:flex;align-items:center;gap:13px;margin-bottom:18px;}
+.reg-icon{width:42px;height:42px;min-width:42px;border-radius:12px;background:var(--blue);
+  display:flex;align-items:center;justify-content:center;font-size:20px;}
+.reg-title{font-size:18px;font-weight:800;line-height:1.2;}
+.reg-sub{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4;}
+.reg-steps{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+.reg-step{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+.rs-n{width:18px;height:18px;border-radius:50%;background:var(--blue);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:10px;}
+.reg-line{flex:1;height:1px;background:var(--border);}
+.reg-sec{font-size:10px;font-weight:800;color:var(--blue2);text-transform:uppercase;
+  letter-spacing:.6px;margin:16px 0 9px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.reg-sec:first-of-type{margin-top:0;}
+.reg-row{display:flex;gap:11px;}
+.reg-row .lfield{flex:1;min-width:0;}
+.reg-box select{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;
+  color:var(--text);padding:10px 12px;font-size:13px;outline:none;font-family:inherit;cursor:pointer;}
+.reg-box select:focus{border-color:var(--blue);}
+.reg-hint{font-size:10.5px;color:var(--muted);line-height:1.5;margin:-4px 0 4px;}
+.reg-err{font-size:11.5px;min-height:17px;margin:10px 0 4px;line-height:1.5;}
+.reg-or{display:flex;align-items:center;gap:10px;margin:15px 0 11px;}
+.reg-or::before,.reg-or::after{content:'';flex:1;height:1px;background:var(--border);}
+.reg-or span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.gbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;background:#fff;
+  border:1px solid var(--border2);color:#3c4043;padding:11px;border-radius:8px;font-size:13px;
+  font-weight:600;cursor:pointer;font-family:inherit;transition:box-shadow .15s;}
+.gbtn:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);}
+@media(max-width:520px){ .reg-row{flex-direction:column;gap:0;} .reg-box{padding:20px 18px;} }
+
 .lform{background:var(--bg3);border:1px solid var(--border);border-radius:17px;padding:32px 28px;width:100%;max-width:340px;flex-shrink:0;}
 .lform h2{font-size:19px;font-weight:800;margin-bottom:4px;}
 .lsub{font-size:11px;color:var(--muted);margin-bottom:22px;line-height:1.5;}
@@ -531,76 +564,60 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   </div>
 </div>
 <div class="ovl" id="ovl-reg">
-  <div class="ovl-box" style="max-width:470px;max-height:88vh;overflow-y:auto;">
-    <div class="ovl-h" id="reg-titulo">Crea tu cuenta</div>
-    <p style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:14px;" id="reg-texto">
-      Completa tus datos para registrarte. Los usará tu profesor para identificarte en el curso.
-    </p>
-
-    <div id="reg-datos">
-      <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <div style="flex:1;">
-          <div class="slabel" style="margin-bottom:4px;">Nombres</div>
-          <input type="text" id="reg-nombre" placeholder="Juan Diego" class="reg-in">
-        </div>
-        <div style="flex:1;">
-          <div class="slabel" style="margin-bottom:4px;">Apellidos</div>
-          <input type="text" id="reg-apellidos" placeholder="Pérez García" class="reg-in">
-        </div>
-      </div>
-
-      <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <div style="flex:1;">
-          <div class="slabel" style="margin-bottom:4px;">Código de alumno</div>
-          <input type="text" id="reg-codigo" placeholder="20184568" class="reg-in">
-        </div>
-        <div style="flex:1;">
-          <div class="slabel" style="margin-bottom:4px;">Horario</div>
-          <select id="reg-horario" class="reg-in"><option value="">Cargando…</option></select>
-        </div>
-      </div>
-
-      <div style="margin-bottom:10px;">
-        <div class="slabel" style="margin-bottom:4px;">Correo electrónico</div>
-        <input type="email" id="reg-correo" placeholder="tucorreo@ejemplo.com" class="reg-in">
-      </div>
-      <div style="margin-bottom:10px;">
-        <div class="slabel" style="margin-bottom:4px;">Repite tu correo</div>
-        <input type="email" id="reg-correo2" placeholder="Escríbelo otra vez" class="reg-in"
-               onpaste="return false;" title="Escríbelo de nuevo para evitar errores">
-      </div>
-
-      <div style="margin-bottom:10px;">
-        <div class="slabel" style="margin-bottom:4px;">Contraseña</div>
-        <input type="password" id="reg-p1" placeholder="Mínimo 6 caracteres" class="reg-in">
-      </div>
-      <div style="margin-bottom:6px;">
-        <div class="slabel" style="margin-bottom:4px;">Repite tu contraseña</div>
-        <input type="password" id="reg-p2" placeholder="Escríbela otra vez" class="reg-in">
+  <div class="ovl-box reg-box">
+    <div class="reg-head">
+      <div class="reg-icon">👤</div>
+      <div>
+        <div class="reg-title" id="reg-titulo">Crea tu cuenta</div>
+        <div class="reg-sub" id="reg-texto">Completa tus datos para acceder a la plataforma</div>
       </div>
     </div>
 
-    <div id="reg-err" style="font-size:11px;min-height:16px;margin:8px 0;line-height:1.5;"></div>
-
-    <div class="ovl-actions">
-      <button class="ovl-btn" onclick="closeOvl()">Cancelar</button>
-      <button class="ovl-btn ok" id="reg-btn" onclick="enviarRegistro()">Crear mi cuenta</button>
+    <div class="reg-steps">
+      <div class="reg-step"><span class="rs-n">1</span> Datos personales</div>
+      <div class="reg-line"></div>
+      <div class="reg-step"><span class="rs-n">2</span> Acceso</div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:8px;margin:14px 0 10px;">
-      <div style="flex:1;height:1px;background:var(--border);"></div>
-      <span style="font-size:10px;color:var(--muted);">o</span>
-      <div style="flex:1;height:1px;background:var(--border);"></div>
+    <div class="reg-sec">Datos personales</div>
+    <div class="reg-row">
+      <div class="lfield"><label>Nombres</label>
+        <input type="text" id="reg-nombre" placeholder="Juan Diego" autocomplete="given-name"></div>
+      <div class="lfield"><label>Apellidos</label>
+        <input type="text" id="reg-apellidos" placeholder="Pérez García" autocomplete="family-name"></div>
     </div>
-    <button onclick="entrarConGoogle()" style="width:100%;display:flex;align-items:center;justify-content:center;
-      gap:8px;background:#fff;border:1px solid var(--border2);color:#3c4043;padding:10px;border-radius:8px;
-      font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+    <div class="reg-row">
+      <div class="lfield"><label>Código de alumno</label>
+        <input type="text" id="reg-codigo" placeholder="20184568" inputmode="numeric"></div>
+      <div class="lfield"><label>Horario</label>
+        <select id="reg-horario"><option value="">Cargando…</option></select></div>
+    </div>
+
+    <div class="reg-sec" id="reg-sec-acceso">Datos de acceso</div>
+    <div class="lfield reg-acc"><label>Correo electrónico</label>
+      <input type="email" id="reg-correo" placeholder="tucorreo@ejemplo.com" autocomplete="email"></div>
+    <div class="lfield reg-acc"><label>Confirma tu correo</label>
+      <input type="email" id="reg-correo2" placeholder="Escríbelo nuevamente" onpaste="return false;"
+             autocomplete="off" title="Escríbelo de nuevo para evitar errores"></div>
+    <div class="reg-row reg-acc">
+      <div class="lfield"><label>Contraseña</label>
+        <input type="password" id="reg-p1" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+      <div class="lfield"><label>Confirma tu contraseña</label>
+        <input type="password" id="reg-p2" placeholder="Escríbela otra vez" autocomplete="new-password"></div>
+    </div>
+    <div class="reg-hint reg-acc">Tu contraseña es personal: nadie más podrá verla, ni siquiera tu profesor.</div>
+
+    <div id="reg-err" class="reg-err"></div>
+
+    <button class="lbtn" id="reg-btn" onclick="enviarRegistro()">Crear mi cuenta</button>
+
+    <div class="reg-or"><span>o</span></div>
+    <button class="gbtn" onclick="entrarConGoogle()">
       <svg width="17" height="17" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24s.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
       Continuar con Google
     </button>
-    <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.5;">
-      Con Google también deberás completar tu código y horario la primera vez.
-    </div>
+
+    <button class="bback" style="margin-top:14px;" onclick="closeOvl()">← Cancelar</button>
   </div>
 </div>
 <div class="ovl" id="ovl-claves">
@@ -1379,11 +1396,11 @@ function abrirRegistro(correo, modo, extra){
     .forEach(id=>{const el=document.getElementById(id); if(el) el.value='';});
   if(correo){ const c=document.getElementById('reg-correo'); if(c) c.value=correo;
               const c2=document.getElementById('reg-correo2'); if(c2) c2.value=correo; }
-  // Con Google, el correo y la contraseña ya están resueltos
-  ['reg-correo','reg-correo2','reg-p1','reg-p2'].forEach(id=>{
-    const el=document.getElementById(id); if(!el) return;
-    const caja=el.parentElement; if(caja) caja.style.display = esCompletar ? 'none' : '';
-  });
+  // Con Google el correo y la contraseña ya están resueltos: se oculta esa sección
+  document.querySelectorAll('.reg-acc').forEach(el=>{ el.style.display = esCompletar ? 'none' : ''; });
+  const secAcc=document.getElementById('reg-sec-acceso');
+  if(secAcc) secAcc.style.display = esCompletar ? 'none' : '';
+  document.querySelectorAll('.reg-steps').forEach(el=>{ el.style.display = esCompletar ? 'none' : ''; });
   document.getElementById('reg-btn').textContent = esCompletar ? 'Guardar mis datos' : 'Crear mi cuenta';
   document.getElementById('reg-err').textContent='';
   cargarHorarios();
@@ -1627,10 +1644,13 @@ async function restaurarSesion(){
         }
       }catch(e){}
     }
-    // Entró con Google pero aún no ha completado sus datos del curso
+    // Entró con Google pero aún no ha completado sus datos del curso.
+    // Se le lleva a la pantalla de estudiante y allí se le pide completarlos,
+    // en lugar de abrir el formulario sobre la pantalla de bienvenida.
     if(!perfil){
       authToken=session.access_token;
-      abrirRegistro(session.user.email,'completar');
+      showEstLogin();
+      setTimeout(()=>abrirRegistro(session.user.email,'completar'), 250);
       return;
     }
     _perfil=perfil; authToken=session.access_token;
@@ -1646,7 +1666,14 @@ async function restaurarSesion(){
     }
   }catch(e){ console.warn('No se pudo restaurar la sesión:',e); }
 }
-setTimeout(restaurarSesion, 400);
+// La sesión se restaura SOLO cuando el video de intro ha terminado,
+// para no interrumpir la secuencia video → rol → acceso.
+function iniciarTrasIntro(){
+  const sp=document.getElementById('intro-splash');
+  if(sp && !sp.classList.contains('hide')){ setTimeout(iniciarTrasIntro, 250); return; }
+  restaurarSesion();
+}
+setTimeout(iniciarTrasIntro, 600);
 
 document.addEventListener('keydown',e=>{
   if(e.key==='Enter'){const a=document.querySelector('.scr.on');if(a?.id==='s-plogin')loginProf();if(a?.id==='s-elogin')loginEst();}
