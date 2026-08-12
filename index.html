@@ -861,8 +861,9 @@ async function api(action, body={}, timeoutMs=12000){
           return {ok:false, error:'Credenciales incorrectas.'};
         }
         const { data:perfil } = await SB.from('alumnos').select('*').eq('id',data.user.id).maybeSingle();
-        if(!perfil) return {ok:false, needsRegister:true, email:correo,
-                            error:'Completa tu registro para continuar.'};
+        // Cuenta creada pero registro sin terminar: se le pide completarlo.
+        if(!perfil) return {ok:false, registroIncompleto:true, email:correo,
+                            error:'Tu registro quedó incompleto. Complétalo para continuar.'};
         _perfil = perfil;
         if(body.role==='prof' && !perfil.es_profesor){
           await SB.auth.signOut();
@@ -881,16 +882,28 @@ async function api(action, body={}, timeoutMs=12000){
         if(error){
           if(/already registered|already been/i.test(error.message))
             return {ok:false, error:'Ya existe una cuenta con ese correo. Usa "¿Olvidaste tu contraseña?".'};
+          if(/rate limit|too many/i.test(error.message))
+            return {ok:false, error:'Se alcanzó el límite de correos por hora. Inténtalo más tarde o avisa a tu profesor.'};
           return {ok:false, error:error.message};
         }
         const ficha={id:data.user.id, codigo:body.codigo, nombre:body.nombre,
                      apellidos:body.apellidos, correo:correo, horario:body.horario};
+
+        // Sin sesión = la cuenta quedó pendiente de confirmar el correo.
+        // No se guarda nada: el registro se considera NO completado y el
+        // alumno puede volver a intentarlo desde cero.
         if(!data.session){
-          // Falta confirmar el correo: la ficha se guarda al primer ingreso
-          try{ localStorage.setItem('bsa_ficha_pend', JSON.stringify(ficha)); }catch(e){}
-          return {ok:false, pendienteCorreo:true};
+          try{ localStorage.removeItem('bsa_ficha_pend'); }catch(e){}
+          return {ok:false, pendienteCorreo:true, email:correo};
         }
-        await SB.from('alumnos').insert(ficha);
+
+        const { error:e2 } = await SB.from('alumnos').insert(ficha);
+        if(e2){
+          // La ficha no se pudo guardar: se deshace la sesión para no dejar
+          // una cuenta a medias que impida registrarse de nuevo.
+          await SB.auth.signOut();
+          return {ok:false, error:'No se pudieron guardar tus datos. Vuelve a intentarlo.'};
+        }
         _perfil=ficha;
         return {ok:true, email:correo,
                 student:{codigo:body.codigo, nombre:body.nombre+' '+body.apellidos,
@@ -1143,7 +1156,8 @@ async function loginEst(){
     return;
   }
   if(!r.ok){
-    if(r.needsRegister){ err.textContent=''; abrirRegistro(e,'registro'); return; }        // nunca tuvo contraseña
+    if(r.needsRegister){ err.textContent=''; abrirRegistro(e,'registro'); return; }
+    if(r.registroIncompleto){ err.textContent=''; abrirRegistro(e,'completar'); return; }        // nunca tuvo contraseña
     if(r.mustChange){    err.textContent=''; abrirRegistro(e,'cambio',pass); return; }      // provisional del profesor
     err.style.color='#e05c5c';
     err.textContent='⚠ '+(r.error||'No se pudo verificar tu acceso.');
@@ -1390,7 +1404,7 @@ function abrirRegistro(correo, modo, extra){
   const esCompletar = (_regModo==='completar');
   document.getElementById('reg-titulo').textContent = esCompletar ? 'Completa tus datos' : 'Crea tu cuenta';
   document.getElementById('reg-texto').textContent = esCompletar
-    ? 'Entraste con Google. Solo falta que completes tus datos del curso.'
+    ? 'Tu cuenta ya existe. Solo falta que completes tus datos del curso.'
     : 'Completa tus datos para registrarte. Los usará tu profesor para identificarte en el curso.';
   ['reg-nombre','reg-apellidos','reg-codigo','reg-correo','reg-correo2','reg-p1','reg-p2']
     .forEach(id=>{const el=document.getElementById(id); if(el) el.value='';});
@@ -1439,9 +1453,9 @@ async function enviarRegistro(){
 
   if(!r||!r.ok){
     if(r&&r.pendienteCorreo){
-      err.style.color='var(--green)';
-      err.innerHTML='✓ Cuenta creada.<br>Te enviamos un enlace de confirmación a <b>'+esc(correo)+'</b>.<br>'+
-                    'Ábrelo y luego inicia sesión.';
+      err.style.color='var(--blue2)';
+      err.innerHTML='Te enviamos un enlace de confirmación a <b>'+esc(correo)+'</b>.<br>'+
+                    'Ábrelo y <b>vuelve a completar este formulario</b> para terminar tu registro.';
       return;
     }
     err.style.color='#e05c5c';
@@ -1632,18 +1646,6 @@ async function restaurarSesion(){
     if(!session) return;
     let { data:perfil } = await SB.from('alumnos').select('*').eq('id',session.user.id).maybeSingle();
 
-    // Ficha pendiente de un registro que quedó a la espera de confirmar el correo
-    if(!perfil){
-      try{
-        const pend=JSON.parse(localStorage.getItem('bsa_ficha_pend')||'null');
-        if(pend && pend.correo===session.user.email){
-          pend.id=session.user.id;
-          await SB.from('alumnos').insert(pend);
-          localStorage.removeItem('bsa_ficha_pend');
-          perfil=pend;
-        }
-      }catch(e){}
-    }
     // Entró con Google pero aún no ha completado sus datos del curso.
     // Se le lleva a la pantalla de estudiante y allí se le pide completarlos,
     // en lugar de abrir el formulario sobre la pantalla de bienvenida.
