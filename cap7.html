@@ -1,0 +1,2435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSA — Diagramas de Fuerzas Internas</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+html{color-scheme:light only;}
+:root{
+  color-scheme:light only;
+  --bg:#f1f2f5;--panel:#f7f8fa;--card:#ffffff;--card2:#e9ebef;--border:#dee1e7;--border2:#c8ccd4;
+  --accent:#041d56;--accent2:#0d3a8f;--gold:#e2aa1b;
+  --text:#1e2126;--muted:#6b7280;--muted2:#c8ccd4;
+  --green:#2f9e6f;--red:#c0392b;--yellow:#d99e18;--purple:#5a4a9a;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+/* ── Botón + modal de Unidades ── */
+.units-btn{margin-left:auto;background:var(--card);border:1px solid var(--border2);color:var(--text);
+  font-size:11px;font-weight:600;padding:5px 11px;border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;}
+.units-btn:hover{border-color:var(--accent);color:var(--accent);}
+.units-btn b{color:var(--accent);}
+.modal-ov{position:fixed;inset:0;background:rgba(15,20,35,.42);backdrop-filter:blur(3px);z-index:200;
+  display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-ov.show{display:flex;}
+.modal-box{background:var(--card);border:1px solid var(--border2);border-radius:16px;max-width:360px;width:100%;
+  padding:20px 22px;box-shadow:0 20px 50px rgba(15,25,55,.28);}
+.modal-h{font-size:15px;font-weight:800;color:var(--accent);margin-bottom:6px;}
+.modal-note{font-size:10.5px;color:var(--muted);line-height:1.5;margin-bottom:14px;}
+.modal-field{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.modal-field label{font-size:12px;font-weight:600;min-width:70px;color:var(--text);}
+.modal-field select{flex:1;background:var(--bg);border:1px solid var(--border2);color:var(--text);
+  padding:6px 8px;border-radius:7px;font-size:12px;font-family:inherit;outline:none;}
+.modal-field select:focus{border-color:var(--accent);}
+.modal-preview{font-size:10.5px;color:var(--muted);background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:8px 10px;margin:6px 0 16px;line-height:1.6;}
+.modal-preview b{color:var(--accent);}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+/* ── Historial ── */
+.hist-list{max-height:340px;overflow-y:auto;margin-bottom:14px;}
+.hist-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);
+  border-radius:8px;margin-bottom:6px;background:var(--bg);}
+.hist-info{flex:1;min-width:0;}
+.hist-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hist-date{font-size:10px;color:var(--muted);margin-top:2px;}
+.hist-load{border:1px solid var(--border2);background:var(--card);font-size:11px;font-weight:700;
+  padding:5px 10px;border-radius:6px;cursor:pointer;font-family:inherit;}
+.hist-del{border:1px solid var(--border2);background:var(--card);color:var(--muted);font-size:11px;
+  padding:5px 8px;border-radius:6px;cursor:pointer;font-family:inherit;}
+.hist-empty{font-size:11.5px;color:var(--muted);text-align:center;padding:26px 10px;line-height:1.6;}
+
+.mbtn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid var(--border2);}
+.mbtn.ghost{background:var(--card);color:var(--muted);}
+.mbtn.ghost:hover{color:var(--text);border-color:var(--muted);}
+.mbtn.ok{background:var(--accent);color:#fff;border-color:var(--accent);}
+.mbtn.ok:hover{background:var(--accent2);}
+/* ── DCL por segmento (SVG) ── */
+.seg-dcl{width:100%;background:#fff;border:1px solid var(--border);border-radius:8px;margin:5px 0 7px;display:block;}
+.seg-cap{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;margin:5px 0 1px;}
+html{height:100%;}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Inter',system-ui,sans-serif;font-size:13px;
+  min-height:100%;
+  display:flex;flex-direction:column;
+}
+
+/* ── HEADER ── */
+header{
+  position:sticky;top:0;z-index:50;
+  background:rgba(255,255,255,.85);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;padding:9px 18px;flex-shrink:0;
+}
+header h1{font-size:15px;font-weight:700;}
+header .sub{color:var(--muted);font-size:11px;}
+.hbadge{background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:auto;}
+
+/* ── TWO-COLUMN LAYOUT ── */
+.layout{
+  display:grid;
+  grid-template-columns:310px 1fr;
+  flex:1;
+  min-height:0;
+}
+
+/* ── SIDEBAR ── */
+.sb{
+  background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  position:sticky;top:52px;
+  height:calc(100vh - 52px);
+  overflow:hidden;
+}
+.sb-scroll{flex:1;overflow-y:auto;padding-bottom:4px;}
+.sb-scroll::-webkit-scrollbar{width:4px;}
+.sb-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.stitle{font-size:9px;font-weight:700;letter-spacing:1.2px;color:var(--muted);padding:11px 13px 4px;text-transform:uppercase;}
+.divider{height:1px;background:var(--border);margin:5px 10px;}
+.legend-note{font-size:9px;color:#3a3f47;padding:0 11px 6px;line-height:1.5;}
+input[type=number],select{background:var(--card);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:5px;font-size:11px;width:100%;outline:none;transition:border-color .15s;font-family:inherit;}
+input[type=number]:focus,select:focus{border-color:var(--accent);}
+.unit{color:var(--muted);font-size:10px;min-width:26px;flex-shrink:0;}
+.tramo-list,.nodo-list,.load-list{padding:0 9px;}
+.tramo-item{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 8px;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.tramo-label{font-size:10px;font-weight:700;color:var(--accent);min-width:34px;}
+.tramo-item input{flex:1;}
+.tramo-item .unit{min-width:18px;}
+.rm-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 2px;flex-shrink:0;}
+.rm-btn:hover{color:var(--red);}
+.add-bar{display:flex;gap:5px;padding:3px 9px 6px;}
+.add-btn{flex:1;background:var(--card);border:1px dashed var(--border);color:var(--muted);padding:5px 2px;border-radius:5px;cursor:pointer;font-size:10px;font-weight:700;transition:all .15s;font-family:inherit;}
+.add-btn:hover{border-color:var(--accent);color:var(--accent);}
+.nodo-item{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 8px;margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.nodo-tag{font-size:10px;font-weight:700;color:var(--yellow);min-width:20px;}
+.nodo-item select{flex:1;min-width:120px;}
+.nodo-hinge{display:flex;align-items:center;gap:5px;width:100%;padding-top:3px;border-top:1px dashed var(--border);margin-top:3px;}
+.nodo-hinge label{font-size:9px;color:var(--purple);display:flex;align-items:center;gap:4px;cursor:pointer;}
+.nodo-hinge input[type=checkbox]{width:auto;accent-color:var(--purple);cursor:pointer;}
+.load-item{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 8px;margin-bottom:4px;position:relative;}
+.li-head{display:flex;align-items:center;gap:5px;margin-bottom:4px;}
+.li-badge{font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;}
+.b-pt{background:rgba(214,40,40,.14);color:#c0392b;}      /* cargas puntuales → rojo */
+.b-di{background:rgba(217,158,24,.18);color:#a9791f;}     /* distribuidas → mostaza */
+.b-mo{background:rgba(124,58,237,.15);color:#6d28d9;}     /* momentos → morado */
+.b-rc{background:rgba(31,157,99,.15);color:#1f8a58;}      /* reacciones → verde */
+.li-row{display:flex;align-items:center;gap:5px;margin-bottom:2px;}
+.li-row label{color:var(--muted);font-size:10px;min-width:58px;flex-shrink:0;}
+.li-row input,.li-row select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 5px;border-radius:4px;font-size:11px;width:100%;outline:none;}
+.li-row .unit{min-width:24px;}
+
+/* ── ACTION BAR (bottom of sidebar) ── */
+.action-bar{padding:9px 11px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px;background:rgba(4,29,86,.04);}
+.btn-calc{background:var(--accent);color:#fff;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;width:100%;box-shadow:0 0 20px rgba(31,127,184,.28);font-family:inherit;}
+.btn-calc:hover{background:#1a6d9d;}
+.btn-calc:hover{opacity:.9;}
+.btn-row{display:flex;gap:5px;}
+.btn-eg{flex:1;background:var(--card);border:1px solid var(--border);color:var(--muted);padding:7px 4px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;white-space:nowrap;}
+.btn-eg:hover{border-color:var(--accent);color:var(--text);}
+.btn-eg.pdf{border-color:#e02020;color:#fff;background:#e02020;}
+.btn-eg.pdf:hover{background:#c81c1c;border-color:#c81c1c;}
+.btn-eg.pdf:hover{background:rgba(224,92,92,.16);}
+
+/* ── MAIN RESULTS AREA (scrollable) ── */
+.main-area{
+  display:flex;flex-direction:column;
+  min-height:0;
+  overflow:visible;
+}
+
+/* ── DCL SECTION ── */
+.dcl-section{
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  padding:14px 20px;
+  flex-shrink:0;
+}
+.section-label{
+  font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:8px;
+  display:flex;align-items:center;gap:8px;
+}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+#beamCanvas{background:var(--card);border:1px solid var(--border);border-radius:8px;display:block;width:100%;}
+
+/* ── RESULTS SECTION (solution + all 3 diagrams in one scroll) ── */
+.results-section{
+  padding:16px 20px 40px;
+  display:flex;flex-direction:column;
+  gap:14px;
+}
+
+/* ── EMPTY STATE ── */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 20px;color:var(--muted);gap:12px;text-align:center;
+}
+.empty-state p{font-size:13px;line-height:1.6;max-width:360px;}
+
+/* ── SOLUTION CARD ── */
+.sol-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+.sol-title{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:12px;}
+.sol-step{border-left:2px solid var(--border);padding-left:10px;margin-bottom:10px;}
+.sol-step h4{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px;}
+.sol-step p{font-size:11px;line-height:1.6;margin-bottom:2px;}
+.eq{
+  display:block;background:var(--bg);border-radius:4px;padding:4px 10px;
+  font-family:'Latin Modern Math','STIX Two Math','Cambria Math',Georgia,serif;
+  font-size:12.5px;color:var(--green);margin:3px 0;line-height:1.8;
+  border-left:2px solid rgba(62,207,142,.2);
+}
+.val{color:var(--accent);font-weight:700;}
+.err-msg{color:var(--red);font-size:12px;text-align:center;padding:16px;}
+
+/* ── DIAGRAM CARDS ── */
+.dchart{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.dqbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;
+  background:linear-gradient(135deg,rgba(10,74,219,.14),rgba(160,110,247,.06));
+  border:1px solid var(--border2);border-radius:12px;padding:11px 16px;margin:6px 0 14px;}
+.dqbar-in{font-size:13px;color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px;}
+.dqbar-in input{width:92px;background:var(--bg);border:1px solid var(--border2);color:var(--text);
+  padding:6px 9px;border-radius:8px;font-size:13px;font-family:inherit;text-align:center;}
+.dqbar-in input:focus{outline:none;border-color:var(--accent);}
+.dqbar-in #dqclear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px;border-radius:6px;}
+.dqbar-in #dqclear:hover{color:var(--red);}
+.dqvals{display:flex;flex-wrap:wrap;gap:8px;}
+.dqvals .qv{font-size:12px;padding:5px 12px;font-weight:600;color:#1a1a1a;}
+.dqvals .qvN,.dqvals .qvV,.dqvals .qvM{color:#1a1a1a;background:none;border:none;}
+.dqvals .qv b{font-size:13px;color:#1a1a1a;}
+.dchart-head{padding:9px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.dchart-label{font-size:12px;font-weight:700;}
+.dchart-stats{font-size:10px;color:var(--muted);}
+.dchart-stats b{color:var(--text);}
+canvas.cht{display:block;width:100%;}
+
+/* ── TOOLTIP ── */
+#tooltip{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:10px;pointer-events:none;display:none;z-index:999;}
+
+@media(max-width:700px){
+  .layout{grid-template-columns:1fr;}
+  .sb{position:relative;top:0;height:auto;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Diagramas de Fuerzas Internas</h1>
+  <span class="sub">Hibbeler — Estática 12ª ed. · Cap. 7 · Método de Ecuaciones</span>
+  <button class="units-btn" onclick="openUnits()" title="Elegir sistema de unidades">⚙ Unidades: <b id="unitsTag">kN · m</b></button>
+  <button class="units-btn" id="histBtn" style="display:none" onclick="openHist()" title="Mis ejercicios recientes">🕘 Historial</button>
+  <button class="units-btn" onclick="openDec()" title="Decimales del desarrollo">⚙ Decimales: <b id="decTag">0.00 / 0.00 / 0.00</b></button>
+  <span class="hbadge">V6.1</span>
+</header>
+
+<!-- ── MODAL DE UNIDADES (req. 1) ── -->
+<div class="modal-ov" id="unitsModal">
+  <div class="modal-box">
+    <div class="modal-h">Sistema de Unidades</div>
+    <p class="modal-note">Al aplicar, los valores ya ingresados se convierten automáticamente para conservar la misma estructura física.</p>
+    <div class="modal-field">
+      <label>Longitud</label>
+      <select id="selLen" onchange="updateUnitsPreview()">
+        <option value="m">Metros (m)</option>
+        <option value="cm">Centímetros (cm)</option>
+        <option value="mm">Milímetros (mm)</option>
+        <option value="ft">Pies (ft)</option>
+        <option value="in">Pulgadas (in)</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Fuerza</label>
+      <select id="selForce" onchange="updateUnitsPreview()">
+        <option value="kN">Kilonewton (kN)</option>
+        <option value="N">Newton (N)</option>
+        <option value="tonf">Tonelada-fuerza (Tn-f)</option>
+        <option value="kip">Kip (kip)</option>
+        <option value="lbf">Libra-fuerza (lbf)</option>
+      </select>
+    </div>
+    <div class="modal-preview">Momento se expresará en: <b id="momPrev">kN·m</b> · Carga distribuida en: <b id="distPrev">kN/m</b></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="closeUnits()">Cancelar</button>
+      <button class="mbtn ok" onclick="applyUnits()">Aplicar</button>
+    </div>
+  </div>
+</div>
+<!-- ── MODAL DE DECIMALES (req. 6) ── -->
+<div class="modal-ov" id="decModal">
+  <div class="modal-box">
+    <div class="modal-h">Decimales del desarrollo</div>
+    <p class="modal-note">Define con cuántos decimales se presenta cada magnitud en el desarrollo y en los diagramas.</p>
+    <div class="modal-field"><label>Longitud</label><select id="selDecLen" onchange="updateDecPreview()"></select></div>
+    <div class="modal-field"><label>Fuerzas</label><select id="selDecForce" onchange="updateDecPreview()"></select></div>
+    <div class="modal-field"><label>Momentos</label><select id="selDecMom" onchange="updateDecPreview()"></select></div>
+    <div class="modal-preview">Ejemplo: <b id="dpL"></b> &nbsp;·&nbsp; <b id="dpF"></b> &nbsp;·&nbsp; <b id="dpM"></b></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="closeDec()">Cancelar</button>
+      <button class="mbtn ok" onclick="applyDec()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sb">
+    <div class="sb-scroll">
+      <div class="stitle">Tramos de la Viga</div>
+      <div class="tramo-list" id="tramoList"></div>
+      <div class="add-bar"><button class="add-btn" onclick="addTramo()">＋ Agregar tramo</button></div>
+
+      <div class="divider"></div>
+      <div class="stitle">Apoyos y Conexiones en Nodos</div>
+      <div class="legend-note">
+        <b style="color:#1f8a58">Rodillo</b>: solo F<sub>y</sub> &nbsp;|&nbsp;
+        <b style="color:#1f8a58">Articulación</b>: F<sub>x</sub>+F<sub>y</sub> &nbsp;|&nbsp;
+        <b style="color:#1f8a58">Empotrado</b>: F<sub>x</sub>+F<sub>y</sub>+M<br>
+        <b style="color:#6d28d9">Rótula interna</b>: libera M entre tramos
+      </div>
+      <div class="legend-note" style="padding-top:0">
+        <b>Colores del esquema:</b>
+        <span style="color:#1f8a58">■ Reacciones</span> &nbsp;
+        <span style="color:#c0392b">■ Cargas puntuales</span> &nbsp;
+        <span style="color:#a9791f">■ Distribuidas</span> &nbsp;
+        <span style="color:#6d28d9">■ Momentos</span>
+      </div>
+      <div class="nodo-list" id="nodoList"></div>
+
+      <div class="divider"></div>
+      <div class="stitle">Cargas</div>
+      <div class="load-list" id="loadList">
+        <div style="color:var(--muted);font-size:10px;text-align:center;padding:5px 0">Sin cargas</div>
+      </div>
+      <div class="add-bar">
+        <button class="add-btn" onclick="addLoad('P')">＋ Puntual Y</button>
+        <button class="add-btn" onclick="addLoad('PX')">＋ Puntual X</button>
+      </div>
+      <div class="add-bar">
+        <button class="add-btn" onclick="addLoad('U')">＋ Uniforme</button>
+        <button class="add-btn" onclick="addLoad('T')">＋ Triangular</button>
+      </div>
+      <div class="add-bar">
+        <button class="add-btn" onclick="addLoad('M')">＋ Momento</button>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn-calc" onclick="analyze()">▶ Calcular Diagramas</button>
+      <div class="btn-row">
+        <button class="btn-eg pdf" onclick="downloadPDF()">📄 Descargar PDF</button>
+        <button class="btn-eg" onclick="loadExample()">Cargar ejemplo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+    <!-- DCL always visible at top -->
+    <div class="dcl-section">
+      <div class="section-label">Diagrama de Cuerpo Libre (DCL)</div>
+      <canvas id="beamCanvas" height="150"></canvas>
+    </div>
+
+    <!-- Results: solution + diagrams all in one scroll -->
+    <div class="results-section" id="resultsSection">
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 42 42" fill="none" opacity=".25">
+          <rect x="1" y="19" width="40" height="4" rx="2" fill="currentColor"/>
+          <circle cx="1" cy="21" r="3" fill="currentColor"/>
+          <circle cx="41" cy="21" r="3" fill="currentColor"/>
+          <line x1="10" y1="19" x2="10" y2="7" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="21" y1="19" x2="21" y2="4" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="32" y1="19" x2="32" y2="10" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <p>Configura la viga y pulsa <b>▶ Calcular Diagramas</b><br>para obtener la resolución completa y los diagramas DFN, DFC y DMF.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let tramos=[{id:1,len:3},{id:2,len:5}];
+let apoyos={};       // nodeLabel -> support type ('none'|'pin'|'roller'|'fixed')
+let hinges={};       // nodeLabel -> true if internal hinge (rótula interna) at that node
+let loads=[];
+let lid=0, tid=3;
+let lastResult=null;
+const LABELS='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+// ═══════════════════════════════════════════════════════════
+//  UNIDADES (req. 1) — se convierte el valor numérico al cambiar
+//  de sistema para conservar la MISMA estructura física.
+// ═══════════════════════════════════════════════════════════
+let UNITS={len:'m',force:'kN'};
+// factor = valor de 1 unidad expresado en la base (m para longitud, kN para fuerza)
+const LEN_FAC ={m:1, cm:0.01, mm:0.001, in:0.0254, ft:0.3048};
+const FOR_FAC ={kN:1, N:0.001, tonf:9.80665, kip:4.4482216, lbf:0.0044482216};
+const LEN_LABEL={m:'m', cm:'cm', mm:'mm', in:'in', ft:'ft'};
+const FOR_LABEL={kN:'kN', N:'N', tonf:'Tn-f', kip:'kip', lbf:'lbf'};
+const uLen  =()=>LEN_LABEL[UNITS.len];
+const uForce=()=>FOR_LABEL[UNITS.force];
+const uDist =()=>FOR_LABEL[UNITS.force]+'/'+LEN_LABEL[UNITS.len];      // p.ej. kN/m
+const uMom  =()=>FOR_LABEL[UNITS.force]+'·'+LEN_LABEL[UNITS.len];      // p.ej. kN·m
+
+// ── Colores del esquema estructural (req. 2) ──
+// Reacciones→VERDE · Cargas puntuales→ROJO · Distribuidas→MOSTAZA · Momentos→MORADO
+const CLR={ react:'#1f9d63', point:'#d62828', dist:'#d99e18', mom:'#7c3aed' };
+
+// ── DECIMALES CONFIGURABLES (req. 6) ──
+// Cantidad de decimales con la que se presenta cada magnitud.
+let DEC = {len:2, force:2, mom:2};
+function decFix(v, kind){
+  const d = DEC[kind]!==undefined ? DEC[kind] : 2;
+  const n = parseFloat(v);
+  if(!isFinite(n)) return v;
+  return +n.toFixed(d);
+}
+const rL = v => decFix(v,'len');     // longitudes / posiciones
+const rF = v => decFix(v,'force');   // fuerzas (N, V)
+const rM = v => decFix(v,'mom');     // momentos (M) y cargas distribuidas
+function decTagText(){ return '0.'+'0'.repeat(DEC.len)+' / 0.'+'0'.repeat(DEC.force)+' / 0.'+'0'.repeat(DEC.mom); }
+function syncDecTag(){ const e=document.getElementById('decTag'); if(e) e.textContent=decTagText(); }
+function fillDecSelect(id,val){
+  const s=document.getElementById(id); if(!s) return;
+  s.innerHTML='';
+  for(let d=1; d<=4; d++){
+    const o=document.createElement('option');
+    o.value=String(d); o.textContent='0.'+'0'.repeat(d)+'  ('+d+' decimal'+(d>1?'es':'')+')';
+    if(d===val) o.selected=true;
+    s.appendChild(o);
+  }
+}
+function openDec(){
+  fillDecSelect('selDecLen',DEC.len);
+  fillDecSelect('selDecForce',DEC.force);
+  fillDecSelect('selDecMom',DEC.mom);
+  updateDecPreview();
+  document.getElementById('decModal').classList.add('show');
+}
+function closeDec(){ document.getElementById('decModal').classList.remove('show'); }
+function updateDecPreview(){
+  const g=id=>parseInt(document.getElementById(id).value,10)||2;
+  document.getElementById('dpL').textContent=(3.14159265).toFixed(g('selDecLen'))+' '+uLen();
+  document.getElementById('dpF').textContent=(12.3456789).toFixed(g('selDecForce'))+' '+uForce();
+  document.getElementById('dpM').textContent=(45.6789012).toFixed(g('selDecMom'))+' '+uMom();
+}
+function applyDec(){
+  const g=id=>parseInt(document.getElementById(id).value,10)||2;
+  DEC={len:g('selDecLen'), force:g('selDecForce'), mom:g('selDecMom')};
+  syncDecTag(); closeDec();
+  renderAll();
+  if(lastResult) analyze();
+}
+
+// ── Helpers de polinomios (req. 3: forma estándar) ──
+function nCk(n,k){ let r=1; for(let i=0;i<k;i++) r=r*(n-i)/(i+1); return Math.round(r); }
+// coefs en (x-s)^k  →  coefs estándar en x^j
+function expandShifted(coefs, s){
+  const std=new Array(coefs.length).fill(0);
+  for(let k=0;k<coefs.length;k++){
+    const a=coefs[k]; if(Math.abs(a)<1e-12) continue;
+    for(let j=0;j<=k;j++){
+      std[j]+=a*nCk(k,j)*Math.pow(-s,k-j);
+    }
+  }
+  return std;
+}
+const SUP={2:'²',3:'³',4:'⁴',5:'⁵'};
+function powTxt(j){ return j===0?'':(j===1?'x':('x'+(SUP[j]||('^'+j)))); }
+// Formatea un polinomio estándar [c0,c1,c2,...] como texto reducido
+function polyStd(std){
+  const terms=[];
+  for(let j=std.length-1;j>=0;j--){
+    let c=+std[j].toFixed(Math.max(DEC.mom,DEC.force)); if(c===0||Math.abs(c)<5e-5) continue;
+    const first=terms.length===0;
+    const abs=Math.abs(c);
+    // coeficiente: omitir "1" cuando multiplica a x^j (j>=1)
+    let cTxt = (j>=1 && Math.abs(abs-1)<1e-9) ? '' : r2(abs);
+    const body = j===0 ? r2(abs) : (cTxt==='' ? powTxt(j) : cTxt+powTxt(j));
+    if(first) terms.push((c<0?'−':'')+body);
+    else      terms.push((c<0?' − ':' + ')+body);
+  }
+  return terms.length?terms.join(''):'0';
+}
+// Raíces reales de un polinomio estándar dentro de (xa,xb)
+function rootsIn(std, xa, xb){
+  // recorta ceros de mayor grado
+  let deg=std.length-1; while(deg>0 && Math.abs(std[deg])<1e-10) deg--;
+  if(deg<=0) return [];
+  const f=x=>{ let v=0; for(let j=deg;j>=0;j--) v=v*x+std[j]; return v; };
+  const roots=[]; const Nsamp=400; const eps=(xb-xa)*1e-4+1e-9;
+  let xp=xa+eps, fp=f(xp);
+  if(Math.abs(fp)<1e-7) roots.push(xp);
+  for(let i=1;i<=Nsamp;i++){
+    const xc=xa+eps+(xb-eps-(xa+eps))*i/Nsamp, fc=f(xc);
+    if(fp===0){ /*ya registrado*/ }
+    if(fp*fc<0){
+      let lo=xp,hi=xc,flo=fp;
+      for(let it=0;it<60;it++){ const mid=(lo+hi)/2,fm=f(mid); if(flo*fm<=0){hi=mid;}else{lo=mid;flo=fm;} }
+      roots.push((lo+hi)/2);
+    } else if(Math.abs(fc)<1e-7){
+      roots.push(xc);
+    }
+    xp=xc; fp=fc;
+  }
+  // dedup
+  const out=[]; roots.sort((a,b)=>a-b).forEach(rt=>{ if(!out.length||Math.abs(rt-out[out.length-1])>1e-4) out.push(rt); });
+  return out.filter(rt=>rt>xa-1e-6&&rt<xb+1e-6);
+}
+
+// ── Control del modal de unidades ──
+function syncUnitsTag(){
+  const t=document.getElementById('unitsTag');
+  if(t) t.textContent=`${uForce()} · ${uLen()}`;
+}
+function updateUnitsPreview(){
+  const l=document.getElementById('selLen').value, f=document.getElementById('selForce').value;
+  document.getElementById('momPrev').textContent =FOR_LABEL[f]+'·'+LEN_LABEL[l];
+  document.getElementById('distPrev').textContent=FOR_LABEL[f]+'/'+LEN_LABEL[l];
+}
+function openUnits(){
+  document.getElementById('selLen').value=UNITS.len;
+  document.getElementById('selForce').value=UNITS.force;
+  updateUnitsPreview();
+  document.getElementById('unitsModal').classList.add('show');
+}
+function closeUnits(){ document.getElementById('unitsModal').classList.remove('show'); }
+function applyUnits(){
+  const newLen=document.getElementById('selLen').value;
+  const newForce=document.getElementById('selForce').value;
+  // factores de conversión: valor_nuevo = valor_viejo * (fac_viejo / fac_nuevo)
+  const kL = LEN_FAC[UNITS.len]/LEN_FAC[newLen];      // longitudes (posiciones, tramos)
+  const kF = FOR_FAC[UNITS.force]/FOR_FAC[newForce];  // fuerzas (P, PX)
+  const kD = kF/kL;                                   // distribuidas (fuerza/longitud)
+  const kM = kF*kL;                                   // momentos (fuerza·longitud)
+  // convertir tramos (longitud)
+  tramos.forEach(t=>{ t.len=+(t.len*kL).toFixed(6); });
+  // convertir cargas
+  loads.forEach(l=>{
+    if(l.pos!=null)  l.pos =+(l.pos*kL).toFixed(6);
+    if(l.pos2!=null) l.pos2=+(l.pos2*kL).toFixed(6);
+    if(l.type==='P'||l.type==='PX') l.mag=+(l.mag*kF).toFixed(6);
+    else if(l.type==='U'||l.type==='T') l.mag=+(l.mag*kD).toFixed(6);
+    else if(l.type==='M') l.mag=+(l.mag*kM).toFixed(6);
+  });
+  UNITS={len:newLen, force:newForce};
+  syncUnitsTag(); syncDecTag(); closeUnits(); renderAll();
+  if(lastResult) analyze();  // recalcular con las nuevas unidades
+}
+
+function getNodes(){ return tramos.map((_,i)=>LABELS[i]).concat([LABELS[tramos.length]]); }
+function nodePositions(){
+  const pos={[LABELS[0]]:0}; let acc=0;
+  tramos.forEach((t,i)=>{ acc+=t.len; pos[LABELS[i+1]]=acc; });
+  return pos;
+}
+function totalLength(){ return tramos.reduce((s,t)=>s+t.len,0); }
+function isInteriorNode(n){
+  const nodes=getNodes();
+  const idx=nodes.indexOf(n);
+  return idx>0 && idx<nodes.length-1;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TRAMOS
+// ═══════════════════════════════════════════════════════════
+function addTramo(){ tramos.push({id:tid++,len:2}); syncApoyos(); renderAll(); }
+function removeTramo(id){
+  if(tramos.length<=1) return;
+  tramos=tramos.filter(t=>t.id!==id);
+  syncApoyos(); renderAll();
+}
+function updTramo(id,val){ const t=tramos.find(x=>x.id===id); if(t) t.len=Math.max(0.1,parseFloat(val)||1); }
+function syncApoyos(){
+  const nodes=getNodes();
+  Object.keys(apoyos).forEach(k=>{ if(!nodes.includes(k)) delete apoyos[k]; });
+  Object.keys(hinges).forEach(k=>{ if(!nodes.includes(k)) delete hinges[k]; });
+  nodes.forEach((n,i)=>{
+    if(!(n in apoyos)){
+      if(i===0) apoyos[n]='pin';
+      else if(i===nodes.length-1) apoyos[n]='roller';
+      else apoyos[n]='none';
+    }
+    if(!(n in hinges)) hinges[n]=false;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOADS
+// ═══════════════════════════════════════════════════════════
+function addLoad(type){
+  const L=totalLength();
+  const defs={
+    P:{mag:-10, pos:L/2},
+    PX:{mag:10, pos:L/2},
+    U:{mag:-8,  pos:0, pos2:L},
+    T:{mag:-8,  pos:0, pos2:L, invert:false},
+    M:{mag:12,  pos:L/2}
+  };
+  loads.push({id:++lid, type, ...defs[type]});
+  renderLoads();
+}
+function removeLoad(id){ loads=loads.filter(l=>l.id!==id); renderLoads(); }
+function updLoad(id,key,val){
+  const l=loads.find(x=>x.id===id);
+  if(!l) return;
+  if(key==='invert'){ l[key]=val; return; }
+  l[key] = isNaN(+val)?val:+val;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER SIDEBAR
+// ═══════════════════════════════════════════════════════════
+function renderAll(){ renderTramos(); renderNodos(); renderLoads(); }
+
+function renderTramos(){
+  const nodes=getNodes();
+  document.getElementById('tramoList').innerHTML=tramos.map((t,i)=>`
+    <div class="tramo-item">
+      <span class="tramo-label">Tramo ${nodes[i]}${nodes[i+1]}</span>
+      <input type="number" value="${t.len}" min="0.1" step="0.5" onchange="updTramo(${t.id},this.value)" style="width:70px">
+      <span class="unit">${uLen()}</span>
+      ${tramos.length>1?`<button class="rm-btn" onclick="removeTramo(${t.id})">×</button>`:''}
+    </div>`).join('');
+}
+
+function renderNodos(){
+  syncApoyos();
+  const nodes=getNodes();
+  const opts=[
+    {v:'none',l:'Libre / Sin apoyo'},
+    {v:'pin',l:'Articulación (pasador): Fx+Fy'},
+    {v:'roller',l:'Rodillo (apoyo simple): Fy'},
+    {v:'fixed',l:'Empotrado: Fx+Fy+M'},
+  ];
+  document.getElementById('nodoList').innerHTML=nodes.map(n=>{
+    const interior=isInteriorNode(n);
+    return `
+    <div class="nodo-item">
+      <span class="nodo-tag">${n}</span>
+      <select onchange="apoyos['${n}']=this.value">
+        ${opts.map(o=>`<option value="${o.v}"${apoyos[n]===o.v?' selected':''}>${o.l}</option>`).join('')}
+      </select>
+      ${interior?`
+      <div class="nodo-hinge">
+        <label><input type="checkbox" ${hinges[n]?'checked':''} onchange="hinges['${n}']=this.checked"> Rótula interna en ${n} (M=0, libera giro entre tramos)</label>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderLoads(){
+  const L=totalLength();
+  const el=document.getElementById('loadList');
+  if(!loads.length){ el.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:5px 0">Sin cargas</div>'; return; }
+  const typeNames={P:'Puntual Y',PX:'Puntual X',U:'Uniforme',T:'Triangular',M:'Momento'};
+  const typeBadge={P:'b-pt',PX:'b-pt',U:'b-di',T:'b-di',M:'b-mo'};
+  el.innerHTML=loads.map(l=>{
+    let fields='';
+    if(l.type==='P'){
+      fields=`
+        <div class="li-row"><label>Posición</label><input type="number" value="${l.pos}" step="0.5" min="0" max="${L}" onchange="updLoad(${l.id},'pos',this.value)"><span class="unit">${uLen()}</span></div>
+        <div class="li-row"><label>Magnitud</label><input type="number" value="${l.mag}" onchange="updLoad(${l.id},'mag',this.value)"><span class="unit">${uForce()}(↑+)</span></div>`;
+    } else if(l.type==='PX'){
+      fields=`
+        <div class="li-row"><label>Posición</label><input type="number" value="${l.pos}" step="0.5" min="0" max="${L}" onchange="updLoad(${l.id},'pos',this.value)"><span class="unit">${uLen()}</span></div>
+        <div class="li-row"><label>Magnitud</label><input type="number" value="${l.mag}" onchange="updLoad(${l.id},'mag',this.value)"><span class="unit">${uForce()}(→+)</span></div>`;
+    } else if(l.type==='U'){
+      fields=`
+        <div class="li-row"><label>Inicio</label><input type="number" value="${l.pos}" step="0.5" min="0" max="${L}" onchange="updLoad(${l.id},'pos',this.value)"><span class="unit">${uLen()}</span></div>
+        <div class="li-row"><label>Fin</label><input type="number" value="${l.pos2??L}" step="0.5" min="0" max="${L}" onchange="updLoad(${l.id},'pos2',this.value)"><span class="unit">${uLen()}</span></div>
+        <div class="li-row"><label>w</label><input type="number" value="${l.mag}" onchange="updLoad(${l.id},'mag',this.value)"><span class="unit">${uDist()}(↑+)</span></div>`;
+    } else if(l.type==='T'){
+      fields=`
+        <div class="li-row"><label>Inicio</label><input type="number" value="${l.pos}" step="0.5" min="0" max="${L}" onchange="updLoad(${l.id},'pos',this.value)"><span class="unit">${uLen()}</span></div>
+        <div class="li-row"><label>Fin</label><input type="number" value="${l.pos2??L}" step="0.5" min="0" max="${L}" onchange="updLoad(${l.id},'pos2',this.value)"><span class="unit">${uLen()}</span></div>
+        <div class="li-row"><label>w_máx</label><input type="number" value="${l.mag}" onchange="updLoad(${l.id},'mag',this.value)"><span class="unit">${uDist()}(↑+)</span></div>
+        <div class="li-row"><label>Orientación</label>
+          <select onchange="updLoad(${l.id},'invert',this.value==='1')" style="width:100%">
+            <option value="0"${!l.invert?' selected':''}>w_máx en Fin (creciente →)</option>
+            <option value="1"${l.invert?' selected':''}>w_máx en Inicio (decreciente →)</option>
+          </select>
+        </div>`;
+    } else {
+      fields=`
+        <div class="li-row"><label>Posición</label><input type="number" value="${l.pos}" step="0.5" min="0" max="${L}" onchange="updLoad(${l.id},'pos',this.value)"><span class="unit">${uLen()}</span></div>
+        <div class="li-row"><label>Magnitud</label><input type="number" value="${l.mag}" onchange="updLoad(${l.id},'mag',this.value)"><span class="unit">${uMom()}(↺+)</span></div>`;
+    }
+    return `<div class="load-item">
+      <div class="li-head">
+        <span class="li-badge ${typeBadge[l.type]}">${typeNames[l.type]}</span>
+        <button class="rm-btn" style="position:static;margin-left:auto" onclick="removeLoad(${l.id})">×</button>
+      </div>${fields}</div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ANALYSIS ENGINE
+// ═══════════════════════════════════════════════════════════
+function analyze(){
+  const npos=nodePositions();
+  const nodes=getNodes();
+  const L=totalLength();
+
+  const supports=nodes
+    .filter(n=>apoyos[n]&&apoyos[n]!=='none')
+    .map(n=>({node:n, pos:npos[n], type:apoyos[n]}));
+
+  const hingeNodes=nodes.filter(n=>isInteriorNode(n)&&hinges[n]).map(n=>({node:n,pos:npos[n]}));
+
+  // Unknown count: pin=2, roller=1, fixed=3
+  const unknownCount=supports.reduce((s,sp)=>s+(sp.type==='pin'?2:sp.type==='fixed'?3:1),0);
+  // Each internal hinge adds 1 equation (M=0 at that point), reducing effective DOF by 1
+  const availableEqs = 3 + hingeNodes.length; // 3 global equilibrium + 1 per hinge condition
+
+  if(unknownCount<3 && hingeNodes.length===0){ showError('Viga sub-apoyada (agrega más soportes). Mínimo: 3 incógnitas para 3 ecuaciones de equilibrio.'); return; }
+  if(unknownCount>availableEqs){ showError(`Sistema hiperestático: ${unknownCount} incógnitas para ${availableEqs} ecuaciones disponibles. Agrega una rótula interna o reduce soportes.`); return; }
+  if(unknownCount<availableEqs){ showError(`Mecanismo inestable: ${unknownCount} incógnitas para ${availableEqs} ecuaciones. Sobran condiciones de rótula o faltan soportes.`); return; }
+
+  const R=computeReactions(supports,L,npos,hingeNodes);
+  if(!R){ showError('No se pudo resolver el sistema. Verifica la configuración de apoyos y rótulas.'); return; }
+
+  // ── Muestreo por tramos con LÍMITES LATERALES en cada punto de quiebre ──
+  // Así los saltos por cargas/momentos concentrados se dibujan como discontinuidad
+  // vertical estricta (V⁻/V⁺) y no como una recta inclinada de interpolación (req. 4).
+  const bps=getBreakpoints({L,nodes,npos,loads});
+  const EPS=1e-6, K=70;
+  const xs=[],Narr=[],Varr=[],Marr=[];
+  for(let s=0;s<bps.length-1;s++){
+    const a=bps[s], b=bps[s+1]; if(b-a<1e-9) continue;
+    const din=Math.min(EPS,(b-a)*1e-4);
+    for(let i=0;i<=K;i++){
+      const x=a+(b-a)*i/K;
+      const xe = i===0 ? a+din : (i===K ? b-din : x);  // evaluar del lado correcto
+      xs.push(x);
+      Narr.push(normalAt(xe,supports,R,loads));
+      Varr.push(shearAt(xe,supports,R,loads));
+      Marr.push(momentAt(xe,supports,R,loads));
+    }
+  }
+  // Tabla de saltos: valor por izquierda (⁻) y por derecha (⁺) en cada punto de quiebre
+  const bpsData=bps.map(bx=>{
+    const xl=Math.max(0,bx-EPS), xr=Math.min(L,bx+EPS);
+    return {x:bx,
+      Nl:normalAt(xl,supports,R,loads), Nr:normalAt(xr,supports,R,loads),
+      Vl:shearAt(xl,supports,R,loads),  Vr:shearAt(xr,supports,R,loads),
+      Ml:momentAt(xl,supports,R,loads), Mr:momentAt(xr,supports,R,loads)};
+  });
+
+  lastResult={L,npos,nodes,supports,hingeNodes,R,xs,N:Narr,V:Varr,M:Marr,loads:[...loads],tramos:[...tramos],bps,bpsData};
+  try{ histPush(); }catch(e){}
+  drawBeam(lastResult);
+  renderResultsArea(lastResult);
+}
+
+// ── REACTIONS ──────────────────────────────────────────────
+// Supports up to 3 unknowns (statically determinate) directly via 3 global equations,
+// OR up to 3+H unknowns using H internal-hinge conditions (M=0 at each hinge),
+// solved as a small linear system.
+function computeReactions(supports,L,npos,hingeNodes){
+  let sumFx=0,sumFy=0;
+  for(const ld of loads){
+    if(ld.type==='P') sumFy+=ld.mag;
+    else if(ld.type==='PX') sumFx+=ld.mag;
+    else if(ld.type==='U') sumFy+=ld.mag*((ld.pos2??L)-ld.pos);
+    else if(ld.type==='T') sumFy+=0.5*ld.mag*((ld.pos2??L)-ld.pos);
+  }
+  function momentAbout(p){
+    let M=0;
+    for(const ld of loads){
+      if(ld.type==='P') M+=ld.mag*(ld.pos-p);
+      else if(ld.type==='U'){ const a=ld.pos,b=ld.pos2??L,F=ld.mag*(b-a),xc=(a+b)/2; M+=F*(xc-p); }
+      else if(ld.type==='T'){ const a=ld.pos,b=ld.pos2??L,len=b-a,F=0.5*ld.mag*len,xc=ld.invert?a+len/3:a+2*len/3; M+=F*(xc-p); }
+      else if(ld.type==='M') M+=ld.mag;
+      // PX (horizontal) loads produce no moment about a point on the same horizontal axis
+    }
+    return M;
+  }
+  // Moment contribution of external loads located to the LEFT of cut point xc (used for hinge eqs)
+  function momentOfLoadsLeftOf(xc,aboutP){
+    let M=0;
+    for(const ld of loads){
+      if(ld.type==='P'&&ld.pos<xc) M+=ld.mag*(ld.pos-aboutP);
+      else if(ld.type==='U'){
+        const a=ld.pos,b=Math.min(ld.pos2??L,xc);
+        if(b>a){ const F=ld.mag*(b-a), xcen=(a+b)/2; M+=F*(xcen-aboutP); }
+      } else if(ld.type==='T'){
+        const a=ld.pos,b0=ld.pos2??L,len0=b0-a;
+        const b=Math.min(b0,xc);
+        if(b>a&&len0>0){
+          const dl=b-a;
+          if(ld.invert){
+            // w(a)=mag (max), w decreasing linearly to 0 at b0
+            const w_a=ld.mag, w_b=ld.mag*(1-dl/len0);
+            const F=0.5*(w_a+w_b)*dl;
+            // centroid of trapezoid with heights w_a (at a) and w_b (at b)
+            const xcen = (w_a+2*w_b)===0 ? a+dl/2 : a + dl*(w_a+2*w_b)/(3*(w_a+w_b));
+            M+=F*(xcen-aboutP);
+          } else {
+            const w_b=ld.mag*(dl/len0), F=0.5*w_b*dl, xcen=a+2*dl/3;
+            M+=F*(xcen-aboutP);
+          }
+        }
+      } else if(ld.type==='M'&&ld.pos<xc) M+=ld.mag;
+    }
+    return M;
+  }
+
+  const fixed=supports.find(s=>s.type==='fixed');
+
+  // ── Case: no hinges, single fixed support ──
+  if(hingeNodes.length===0 && fixed && supports.length===1){
+    const Ax=-sumFx, Ay=-sumFy, MA=-momentAbout(fixed.pos);
+    return {[fixed.node+'_Ax']:Ax, [fixed.node+'_Ay']:Ay, [fixed.node+'_MA']:MA};
+  }
+
+  // ── Case: no hinges, 2 or 3 vertical supports (standard determinate beam) ──
+  if(hingeNodes.length===0 && supports.length>=2){
+    const R={};
+    const sorted=[...supports].sort((a,b)=>a.pos-b.pos);
+    if(supports.length===2){
+      const s0=sorted[0], s1=sorted[1];
+      const span=s1.pos-s0.pos;
+      if(Math.abs(span)<1e-9) return null;
+      const mExt=momentAbout(s0.pos);
+      const Ay1=-mExt/span, Ay0=-sumFy-Ay1;
+      R[s0.node+'_Ay']=Ay0; R[s1.node+'_Ay']=Ay1;
+      const hSupp=sorted.find(s=>s.type==='pin'||s.type==='fixed');
+      if(hSupp) R[hSupp.node+'_Ax']=-sumFx;
+      return R;
+    }
+    if(supports.length===3){
+      const effSupp=sorted.filter(s=>s.type!=='none');
+      if(effSupp.length===2){
+        const ss0=effSupp[0],ss1=effSupp[1];
+        const sp2=ss1.pos-ss0.pos;
+        if(Math.abs(sp2)<1e-9) return null;
+        const mE=momentAbout(ss0.pos);
+        const Ay1=-mE/sp2, Ay0=-sumFy-Ay1;
+        R[ss0.node+'_Ay']=Ay0; R[ss1.node+'_Ay']=Ay1;
+        const hp=effSupp.find(s=>s.type==='pin'||s.type==='fixed');
+        if(hp) R[hp.node+'_Ax']=-sumFx;
+        return R;
+      }
+      const s0=sorted[0],s1=sorted[1],s2=sorted[2];
+      const sp=s2.pos-s0.pos;
+      if(Math.abs(sp)<1e-9) return null;
+      const mE=momentAbout(s0.pos);
+      const Ay2t=-mE/sp, Ay0t=-sumFy-Ay2t;
+      R[s0.node+'_Ay']=Ay0t; R[s1.node+'_Ay']=0; R[s2.node+'_Ay']=Ay2t;
+      const hp=sorted.find(s=>s.type==='pin'||s.type==='fixed');
+      if(hp) R[hp.node+'_Ax']=-sumFx;
+      return R;
+    }
+  }
+
+  // ── Case: WITH internal hinge(s) — Gerber-type beam ──
+  // Build unknown list: each support contributes Ay (+Ax if pin/fixed, +MA if fixed)
+  const sortedS=[...supports].sort((a,b)=>a.pos-b.pos);
+  const unknowns=[]; // {key, node, kind:'Ay'|'Ax'|'MA'}
+  sortedS.forEach(s=>{
+    unknowns.push({key:s.node+'_Ay', node:s.node, pos:s.pos, kind:'Ay'});
+    if(s.type==='pin'||s.type==='fixed') unknowns.push({key:s.node+'_Ax', node:s.node, pos:s.pos, kind:'Ax'});
+    if(s.type==='fixed') unknowns.push({key:s.node+'_MA', node:s.node, pos:s.pos, kind:'MA'});
+  });
+
+  const nU=unknowns.length;
+  if(nU===0) return null;
+
+  // Build linear system A·x = b using a robust set of physically-grounded equations:
+  //  (1) ΣFx=0
+  //  (2) ΣFy=0
+  //  (3) M=0 at each internal hinge (cut just to the right of the hinge, using only unknowns/loads to its left)
+  //  (4) If the beam's right end (x=L) has NO support there (free overhang), add M(L)=0.
+  //      If additionally needed to balance equation count, V(L)=0 is implied by ΣFy and is not independent.
+  //  (5) If still short one equation (beam ends exactly at a support, no overhang) and more than one hinge
+  //      exists, use ΣM about x=0 with care: MA enters this GLOBAL rigid-body equation with a NEGATED sign
+  //      relative to its internal-moment convention (+MA) used in M(x), because the reaction couple acts
+  //      on the body in the opposite rotational sense when summing moments of all reactions about an
+  //      external point. This sign distinction was verified numerically against rigorous segment analysis.
+  const eqs=[]; // each eq: {coeffs:{key:val}, rhs:val}
+
+  // ΣFx = 0
+  {
+    const coeffs={};
+    unknowns.forEach(u=>{ if(u.kind==='Ax') coeffs[u.key]=1; });
+    eqs.push({coeffs, rhs:-sumFx});
+  }
+  // ΣFy = 0
+  {
+    const coeffs={};
+    unknowns.forEach(u=>{ if(u.kind==='Ay') coeffs[u.key]=1; });
+    eqs.push({coeffs, rhs:-sumFy});
+  }
+  // One equation per hinge: M(x_hinge) = 0, using only reactions to the LEFT of hinge + loads left of hinge
+  hingeNodes.forEach(h=>{
+    const coeffs={};
+    unknowns.forEach(u=>{
+      if(u.pos < h.pos - 1e-9){
+        if(u.kind==='Ay') coeffs[u.key]=(coeffs[u.key]||0)+(h.pos-u.pos);
+        if(u.kind==='MA') coeffs[u.key]=(coeffs[u.key]||0)+1;
+        // Ax doesn't contribute to moment about a point on the same line (horizontal beam)
+      }
+    });
+    const rhs = momentOfLoadsLeftOf(h.pos, h.pos);
+    eqs.push({coeffs, rhs});
+  });
+
+  // Free right-end condition: if no support sits at x=L, the beam overhangs freely there, so M(L)=0
+  const hasSupportAtEnd = sortedS.some(s=>Math.abs(s.pos-L)<1e-6);
+  if(!hasSupportAtEnd){
+    const coeffs={};
+    unknowns.forEach(u=>{
+      if(u.pos < L - 1e-9){
+        if(u.kind==='Ay') coeffs[u.key]=(coeffs[u.key]||0)+(L-u.pos);
+        if(u.kind==='MA') coeffs[u.key]=(coeffs[u.key]||0)+1;
+      }
+    });
+    const rhs = momentOfLoadsLeftOf(L, L);
+    eqs.push({coeffs, rhs});
+  }
+
+  // If still short of equations (beam ends exactly at a support, no free overhang to use), fall back to
+  // the global ΣM-about-0 equation, with MA entering with a NEGATED sign (verified correct convention
+  // for this global rigid-body equilibrium equation, as opposed to the +MA used in cut/hinge equations).
+  if(eqs.length < nU){
+    const coeffs={};
+    unknowns.forEach(u=>{
+      if(u.kind==='Ay') coeffs[u.key]=(coeffs[u.key]||0)+u.pos;
+      if(u.kind==='MA') coeffs[u.key]=(coeffs[u.key]||0)-1;
+    });
+    eqs.push({coeffs, rhs:-momentAbout(0)});
+  }
+
+  if(eqs.length !== nU){
+    // Under/over-determined after all — bail out gracefully
+    return null;
+  }
+
+  // Solve eqs (nU x nU) via Gaussian elimination
+  const keys=unknowns.map(u=>u.key);
+  const Amat=eqs.map(eq=>keys.map(k=>eq.coeffs[k]||0));
+  const bvec=eqs.map(eq=>eq.rhs);
+  const sol=gaussSolve(Amat,bvec);
+  if(!sol) return null;
+
+  const R={};
+  keys.forEach((k,i)=>{ R[k]=sol[i]; });
+  return R;
+}
+
+function gaussSolve(A,b){
+  const n=A.length;
+  const M=A.map((row,i)=>[...row,b[i]]);
+  for(let col=0; col<n; col++){
+    let piv=col;
+    for(let r=col+1;r<n;r++) if(Math.abs(M[r][col])>Math.abs(M[piv][col])) piv=r;
+    if(Math.abs(M[piv][col])<1e-10) return null;
+    [M[col],M[piv]]=[M[piv],M[col]];
+    const pv=M[col][col];
+    for(let c=col;c<=n;c++) M[col][c]/=pv;
+    for(let r=0;r<n;r++){
+      if(r===col) continue;
+      const f=M[r][col];
+      if(Math.abs(f)<1e-14) continue;
+      for(let c=col;c<=n;c++) M[r][c]-=f*M[col][c];
+    }
+  }
+  return M.map(row=>row[n]);
+}
+
+// ── INTERNAL FORCES ────────────────────────────────────────
+function normalAt(x,supports,R){
+  let sum=0;
+  for(const sp of supports){
+    const key=sp.node+'_Ax';
+    if(R[key]&&x>sp.pos+1e-9) sum+=R[key];
+  }
+  for(const ld of loads){
+    if(ld.type==='PX'&&x>ld.pos+1e-9) sum+=ld.mag;
+  }
+  return -sum;
+}
+function shearAt(x,supports,R,loads){
+  const L=totalLength();
+  let V=0;
+  for(const sp of supports){
+    if(x>sp.pos+1e-9){ const Ay=R[sp.node+'_Ay']; if(Ay) V+=Ay; }
+  }
+  for(const ld of loads){
+    if(ld.type==='P'&&x>ld.pos+1e-9) V+=ld.mag;
+    if(ld.type==='U'){ const a=ld.pos,b=ld.pos2??L; if(x>a+1e-9) V+=ld.mag*(Math.min(x,b)-a); }
+    if(ld.type==='T'){
+      const a=ld.pos,b=ld.pos2??L,len=b-a;
+      if(x>a+1e-9&&len>0){
+        const xb=Math.min(x,b),dl=xb-a;
+        if(ld.invert){
+          const w_a=ld.mag, w_xb=ld.mag*(1-dl/len);
+          V+=0.5*(w_a+w_xb)*dl;
+        } else {
+          V+=0.5*ld.mag*(dl/len)*dl;
+        }
+      }
+    }
+  }
+  return V;
+}
+function momentAt(x,supports,R,loads){
+  const L=totalLength();
+  let M=0;
+  for(const sp of supports){
+    if(x>sp.pos+1e-9){
+      const Ay=R[sp.node+'_Ay']; if(Ay) M+=Ay*(x-sp.pos);
+      const MA=R[sp.node+'_MA']; if(MA) M+=MA;
+    }
+  }
+  for(const ld of loads){
+    if(ld.type==='P'&&x>ld.pos+1e-9) M+=ld.mag*(x-ld.pos);
+    if(ld.type==='U'){
+      const a=ld.pos,b=ld.pos2??L;
+      if(x>a+1e-9){ const xb=Math.min(x,b),len=xb-a; M+=ld.mag*len*(x-(a+len/2)); }
+    }
+    if(ld.type==='T'){
+      const a=ld.pos,b=ld.pos2??L,len=b-a;
+      if(x>a+1e-9&&len>0){
+        const xb=Math.min(x,b),dl=xb-a;
+        if(ld.invert){
+          const w_a=ld.mag, w_xb=ld.mag*(1-dl/len);
+          const F=0.5*(w_a+w_xb)*dl;
+          const xc=(w_a+w_xb)===0 ? a+dl/2 : a + dl*(w_a+2*w_xb)/(3*(w_a+w_xb));
+          M+=F*(x-xc);
+        } else {
+          const w_at_xb=ld.mag*(dl/len);
+          const F=0.5*w_at_xb*dl, xc=a+2*dl/3;
+          M+=F*(x-xc);
+        }
+      }
+    }
+    if(ld.type==='M'&&x>ld.pos+1e-9) M-=ld.mag;
+  }
+  return M;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRAW BEAM (DCL)
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  HELPERS DE DIBUJO (flechas, arcos de momento, anti-superposición)
+// ═══════════════════════════════════════════════════════════
+// Punta de flecha en (x,y) apuntando en la dirección (dx,dy)
+function arrowHead(ctx,x,y,dx,dy,color,size){
+  const L=Math.hypot(dx,dy)||1; dx/=L; dy/=L;
+  const px=-dy, py=dx, s=size||10, w=s*0.42;
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  ctx.lineTo(x-dx*s+px*w, y-dy*s+py*w);
+  ctx.lineTo(x-dx*s-px*w, y-dy*s-py*w);
+  ctx.closePath(); ctx.fill();
+}
+// Flecha completa: cola (x1,y1) → punta (x2,y2)
+function drawArrow(ctx,x1,y1,x2,y2,color,lw,head){
+  const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1;
+  const s=head||10;
+  ctx.strokeStyle=color; ctx.lineWidth=lw||2; ctx.lineCap='butt';
+  ctx.beginPath(); ctx.moveTo(x1,y1);
+  ctx.lineTo(x2-(dx/L)*s*0.85, y2-(dy/L)*s*0.85);
+  ctx.stroke();
+  arrowHead(ctx,x2,y2,dx,dy,color,s);
+}
+// Arco de momento con punta de flecha real y sentido CORRECTO en pantalla.
+// ccw=true → antihorario VISUAL. (En canvas el eje Y crece hacia abajo, por eso
+// hay que pasar anticlockwise=true para que se vea antihorario.)
+function drawMomentArc(ctx,cx,cy,rad,ccw,color,lw){
+  const gap=0.95;                       // hueco para que se vea como flecha circular
+  const start=-Math.PI/2+(ccw?-gap/2:gap/2);
+  const sweep=2*Math.PI-gap;
+  const end= ccw ? start-sweep : start+sweep;
+  ctx.strokeStyle=color; ctx.lineWidth=lw||2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(cx,cy,rad,start,end,ccw); ctx.stroke();
+  ctx.lineCap='butt';
+  const ex=cx+rad*Math.cos(end), ey=cy+rad*Math.sin(end);
+  // tangente en el sentido de avance
+  const tx = ccw?  Math.sin(end) : -Math.sin(end);
+  const ty = ccw? -Math.cos(end) :  Math.cos(end);
+  arrowHead(ctx,ex,ey,tx,ty,color,9);
+}
+// ── Etiquetas con anti-superposición ──
+// Se acumulan y al final se desplazan (hacia dir) hasta no solaparse.
+function newLabels(){ return []; }
+function pushLabel(set,o){ set.push(Object.assign({align:'center',dir:-1,font:'bold 9px Segoe UI'},o)); }
+function flushLabels(ctx,set,W){
+  const LH=11, placed=[];
+  // los "fijos" (etiquetas de nodo) se registran primero como obstáculos y no se mueven
+  const fixed=set.filter(i=>i.fixed), movable=set.filter(i=>!i.fixed);
+  const measure=it=>{ ctx.font=it.font; return ctx.measureText(it.text).width+5; };
+  fixed.forEach(it=>{
+    const w=measure(it);
+    const x0 = it.align==='center' ? it.x-w/2 : (it.align==='left' ? it.x-2 : it.x-w+2);
+    placed.push({x0,x1:x0+w,y0:it.y-8.5,y1:it.y+3});
+    it._x=it.x; it._y=it.y;
+  });
+  // resolver primero las que están más lejos de la viga
+  const order=[...movable].sort((a,b)=>(a.dir<0? a.y-b.y : b.y-a.y));
+  order.forEach(it=>{
+    const w=measure(it);
+    // ── recorte horizontal: la etiqueta nunca debe salirse del lienzo ──
+    let x=it.x, align=it.align;
+    if(W){
+      if(align==='center'){ x=Math.min(Math.max(x,w/2+3), W-w/2-3); }
+      else if(align==='left'){ if(x+w>W-3){ align='right'; x=Math.min(it.x,W-3); } x=Math.max(x,3); }
+      else { if(x-w<3){ align='left'; x=Math.max(it.x,3); } x=Math.min(x,W-3); }
+      if(align==='center') x=Math.min(Math.max(x,w/2+3), Math.max(w/2+3,W-w/2-3));
+    }
+    const x0 = align==='center' ? x-w/2 : (align==='left' ? x-2 : x-w+2);
+    let y=it.y, guard=0;
+    while(guard++<60){
+      const b={x0,x1:x0+w,y0:y-8.5,y1:y+3};
+      const hit=placed.some(p=>!(b.x1<p.x0||b.x0>p.x1||b.y1<p.y0||b.y0>p.y1));
+      if(!hit) break;
+      y+=it.dir*LH;
+    }
+    placed.push({x0,x1:x0+w,y0:y-8.5,y1:y+3});
+    it._x=x; it._y=y; it._align=align;
+  });
+  set.forEach(it=>{
+    ctx.font=it.font; ctx.textAlign=it._align||it.align; ctx.fillStyle=it.color;
+    ctx.fillText(it.text,it._x,it._y);
+  });
+}
+// Agrupa índices de elementos que comparten la misma posición x (para apilarlos)
+function stackIndex(list,keyFn){
+  const groups=new Map(), idx=new Map();
+  list.forEach(it=>{
+    const k=keyFn(it).toFixed(6);
+    if(!groups.has(k)) groups.set(k,0);
+    idx.set(it,groups.get(k)); groups.set(k,groups.get(k)+1);
+  });
+  const count=new Map();
+  list.forEach(it=>count.set(it,groups.get(keyFn(it).toFixed(6))));
+  return {idx,count};
+}
+
+function drawBeam(r){
+  const canvas=document.getElementById('beamCanvas');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth;
+
+  // Determine max stacking layers needed for overlapping distributed loads to size canvas height
+  const distLoadsPre = r.loads.filter(l=>l.type==='U'||l.type==='T');
+  const layerOfPre = new Map();
+  distLoadsPre.forEach((ld,idx)=>{
+    const a=Math.min(ld.pos, ld.pos2??r.L), b=Math.max(ld.pos, ld.pos2??r.L);
+    let layer=0;
+    for(let j=0;j<idx;j++){
+      const other=distLoadsPre[j];
+      const oa=Math.min(other.pos, other.pos2??r.L), ob=Math.max(other.pos, other.pos2??r.L);
+      const overlaps = a < ob-1e-6 && b > oa+1e-6;
+      if(overlaps && layerOfPre.get(other)>=layer) layer = layerOfPre.get(other)+1;
+    }
+    layerOfPre.set(ld, layer);
+  });
+  const maxLayer = distLoadsPre.length ? Math.max(...distLoadsPre.map(l=>layerOfPre.get(l))) : 0;
+  const LAYER_GAP=26;
+  const extraH = maxLayer * LAYER_GAP;
+
+  // ── Espacio extra por elementos COINCIDENTES en la misma x (apilado) ──
+  const cnt=(arr,fn)=>{ const m=new Map(); arr.forEach(o=>{const k=fn(o).toFixed(6); m.set(k,(m.get(k)||0)+1);}); return m.size?Math.max(...m.values()):0; };
+  const pDown = r.loads.filter(l=>l.type==='P'&&l.mag<0);
+  const pUp   = r.loads.filter(l=>l.type==='P'&&l.mag>0);
+  const pxAll = r.loads.filter(l=>l.type==='PX');
+  const mAll  = r.loads.filter(l=>l.type==='M');
+  const P_GAP=34, PX_GAP=17, M_GAP=10;
+  const maxPDown=cnt(pDown,l=>l.pos), maxPUp=cnt(pUp,l=>l.pos);
+  const maxPX=cnt(pxAll,l=>l.pos);
+  // momentos coincidentes (incluye reacción de empotramiento en ese punto)
+  const momPts=[...mAll.map(l=>({pos:l.pos})), ...r.supports.filter(s=>Math.abs(r.R[s.node+'_MA']||0)>1e-6).map(s=>({pos:s.pos}))];
+  const maxM=cnt(momPts,l=>l.pos);
+  const momRadMax = 15 + Math.max(0,maxM-1)*M_GAP;
+
+  const momClear   = maxM>0 ? momRadMax+8 : 0;
+  const topExtra    = Math.max(0, Math.max(0,maxPDown-1)*P_GAP + (maxPDown>0?momClear:0), momClear-20);
+  const reactDepth = r.supports.length ? 34 : 0;   // flecha de reacción + su etiqueta
+  const bottomExtra = Math.max(0, Math.max(0,maxPUp-1)*P_GAP + (maxPUp>0?momClear:0),
+                                  Math.max(0,maxPX-1)*PX_GAP + (maxPX>0?momClear:0),
+                                  momClear-20, reactDepth);
+
+  const H = 150 + extraH + topExtra + bottomExtra;
+  const beamY = 70 + extraH + topExtra;
+  const LBL=newLabels();
+
+  // ── Índices de apilado para elementos COINCIDENTES en la misma x ──
+  // Momentos (cargas M + reacción de empotramiento) comparten contador por posición.
+  const momIdx=new Map(); {
+    const per=new Map();
+    const take=pos=>{ const k=pos.toFixed(6); const v=per.get(k)||0; per.set(k,v+1); return v; };
+    r.loads.filter(l=>l.type==='M').forEach(l=>momIdx.set('l'+l.id, take(l.pos)));
+    r.supports.filter(s=>Math.abs(r.R[s.node+'_MA']||0)>1e-6).forEach(s=>momIdx.set('s'+s.node, take(s.pos)));
+  }
+  // Cargas puntuales verticales: se apilan por separado hacia arriba (↓) y hacia abajo (↑)
+  const pIdx=new Map(); {
+    const perD=new Map(), perU=new Map();
+    r.loads.filter(l=>l.type==='P').forEach(l=>{
+      const per = l.mag<0?perD:perU, k=l.pos.toFixed(6);
+      const v=per.get(k)||0; per.set(k,v+1); pIdx.set(l.id,v);
+    });
+  }
+  // Cargas puntuales horizontales
+  const pxIdx=new Map(); {
+    const per=new Map();
+    r.loads.filter(l=>l.type==='PX').forEach(l=>{
+      const k=l.pos.toFixed(6), v=per.get(k)||0; per.set(k,v+1); pxIdx.set(l.id,v);
+    });
+  }
+
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const padL=52,padR=28;
+  const bw=W-padL-padR;
+  const sc=bw/r.L;
+  const BH=12;
+
+  ctx.fillStyle='#dfe3ea'; ctx.strokeStyle='#0a4adb'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.rect(padL,beamY-BH/2,bw,BH); ctx.fill(); ctx.stroke();
+
+  // Hinge markers (small open circle on the beam)
+  r.hingeNodes.forEach(h=>{
+    const x=padL+h.pos*sc;
+    ctx.fillStyle='#ffffff'; ctx.strokeStyle='#334155'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x,beamY,5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  });
+
+  r.nodes.forEach(n=>{
+    const x=padL+r.npos[n]*sc;
+    ctx.strokeStyle='#2a3a60'; ctx.lineWidth=1; ctx.setLineDash([2,2]);
+    ctx.beginPath(); ctx.moveTo(x,beamY+BH/2+1); ctx.lineTo(x,H-20); ctx.stroke();
+    ctx.setLineDash([]);
+    pushLabel(LBL,{x, y:H-8,  text:n, color:'#7a85a3', font:'bold 10px Segoe UI', fixed:true});
+    pushLabel(LBL,{x, y:H-21, text:rL(r.npos[n])+uLen(), color:'#5a6480', font:'9px Segoe UI', fixed:true});
+  });
+
+  r.supports.forEach(sp=>{
+    const x=padL+sp.pos*sc;
+    const Ay=r.R[sp.node+'_Ay']||0;
+    const Ax=r.R[sp.node+'_Ax']||0;
+    const MA=r.R[sp.node+'_MA']||0;
+    ctx.strokeStyle='#0a4adb'; ctx.fillStyle='#0a4adb'; ctx.lineWidth=1.5;
+
+    if(sp.type==='pin'){
+      ctx.beginPath(); ctx.moveTo(x,beamY+BH/2); ctx.lineTo(x-10,beamY+BH/2+20); ctx.lineTo(x+10,beamY+BH/2+20); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#041d56'; ctx.beginPath(); ctx.arc(x,beamY+BH/2,3,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#0a4adb'; ctx.beginPath(); ctx.moveTo(x-13,beamY+BH/2+22); ctx.lineTo(x+13,beamY+BH/2+22); ctx.stroke();
+    } else if(sp.type==='roller'){
+      ctx.beginPath(); ctx.moveTo(x,beamY+BH/2); ctx.lineTo(x-8,beamY+BH/2+17); ctx.lineTo(x+8,beamY+BH/2+17); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.arc(x,beamY+BH/2+22,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#041d56'; ctx.beginPath(); ctx.arc(x,beamY+BH/2+22,3,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#0a4adb'; ctx.beginPath(); ctx.moveTo(x-12,beamY+BH/2+28); ctx.lineTo(x+12,beamY+BH/2+28); ctx.stroke();
+    } else if(sp.type==='fixed'){
+      ctx.fillStyle='#3a4a70';
+      ctx.beginPath(); ctx.rect(x-4,beamY-BH/2-10,8,BH+20); ctx.fill();
+      ctx.strokeStyle='#0a4adb'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.rect(x-4,beamY-BH/2-10,8,BH+20); ctx.stroke();
+      ctx.strokeStyle='#2a3a60'; ctx.lineWidth=1;
+      for(let i=0;i<6;i++){ const yy=beamY-BH/2-8+i*6; ctx.beginPath(); ctx.moveTo(x+4,yy); ctx.lineTo(x+13,yy+5); ctx.stroke(); }
+    }
+
+    if(Math.abs(Ay)>1e-6){
+      const len=30;
+      const supportBottom = sp.type==='roller' ? beamY+BH/2+28 : sp.type==='pin' ? beamY+BH/2+22 : beamY+BH/2+10;
+      const y0=supportBottom+6;
+      if(Ay>0){ // reacción hacia ARRIBA: bajo el apoyo apuntando hacia la viga
+        drawArrow(ctx, x, y0+len, x, y0, CLR.react, 2, 10);
+        pushLabel(LBL,{x, y:y0+len+11, text:rF(Math.abs(Ay))+' '+uForce(), color:CLR.react, dir:1});
+      } else {  // reacción hacia ABAJO
+        drawArrow(ctx, x, y0, x, y0+len, CLR.react, 2, 10);
+        pushLabel(LBL,{x, y:y0+len+11, text:rF(Math.abs(Ay))+' '+uForce(), color:CLR.react, dir:1});
+      }
+    }
+    if(Math.abs(Ax)>1e-6&&(sp.type==='pin'||sp.type==='fixed')){
+      const dir=Ax>0?1:-1, len=26;
+      // cola en el apoyo, punta en el extremo, apuntando en el sentido de Ax
+      drawArrow(ctx, x, beamY, x+dir*len, beamY, CLR.react, 2, 10);
+      pushLabel(LBL,{x:x+dir*(len+4), y:beamY-6, text:rF(Math.abs(Ax))+' '+uForce(),
+                     color:CLR.react, align:dir>0?'left':'right', dir:-1});
+    }
+    if(Math.abs(MA)>1e-6&&sp.type==='fixed'){
+      const ccw=MA>0;                       // convención del solver: +M = antihorario
+      const k=(momIdx.get('s'+sp.node)||0);
+      const rad=15+k*M_GAP;
+      drawMomentArc(ctx,x,beamY,rad,ccw,CLR.react,2);
+      pushLabel(LBL,{x:x-rad-4, y:beamY-rad-3,
+        text:'M'+sp.node+' = '+rM(Math.abs(MA))+' '+uMom()+(ccw?' ↺':' ↻'),
+        color:CLR.react, align:'right', dir:-1});
+    }
+  });
+
+  // Loads
+  // Precompute stacking layers for distributed loads (U/T) that overlap in range,
+  // so overlapping loads are drawn stacked above one another instead of superimposed.
+  const distLoads = r.loads.filter(l=>l.type==='U'||l.type==='T');
+  const layerOf = new Map();
+  distLoads.forEach((ld,idx)=>{
+    const a=Math.min(ld.pos, ld.pos2??r.L), b=Math.max(ld.pos, ld.pos2??r.L);
+    let layer=0;
+    for(let j=0;j<idx;j++){
+      const other=distLoads[j];
+      const oa=Math.min(other.pos, other.pos2??r.L), ob=Math.max(other.pos, other.pos2??r.L);
+      const overlaps = a < ob-1e-6 && b > oa+1e-6;
+      if(overlaps && layerOf.get(other)>=layer) layer = layerOf.get(other)+1;
+    }
+    layerOf.set(ld, layer);
+  });
+
+  r.loads.forEach(ld=>{
+    const x=padL+ld.pos*sc;
+    if(ld.type==='P'){
+      const k=pIdx.get(ld.id)||0, len=30;
+      // radio del mayor arco de momento dibujado en esta misma x (para no cruzarlo)
+      let mR=0;
+      r.loads.filter(l=>l.type==='M'&&Math.abs(l.pos-ld.pos)<1e-6)
+             .forEach(l=>{ mR=Math.max(mR,15+(momIdx.get('l'+l.id)||0)*M_GAP); });
+      r.supports.filter(s=>Math.abs(s.pos-ld.pos)<1e-6&&Math.abs(r.R[s.node+'_MA']||0)>1e-6)
+             .forEach(s=>{ mR=Math.max(mR,15+(momIdx.get('s'+s.node)||0)*M_GAP); });
+      if(ld.mag<0){ // hacia ABAJO: sobre la viga, apiladas hacia arriba
+        // arranca por encima de la carga distribuida más alta que cubra esta x
+        let base=beamY-BH/2;
+        if(mR>0) base=Math.min(base, beamY-mR-8);
+        r.loads.filter(l=>(l.type==='U'||l.type==='T')&&l.mag<0&&ld.pos>=Math.min(l.pos,l.pos2??r.L)-1e-6&&ld.pos<=Math.max(l.pos,l.pos2??r.L)+1e-6)
+               .forEach(l=>{ base=Math.min(base,(beamY-BH/2)-((layerOf.get(l)||0)*LAYER_GAP)-24); });
+        const tip=base-k*P_GAP, tail=tip-len;
+        drawArrow(ctx, x, tail, x, tip, CLR.point, 2, 10);
+        pushLabel(LBL,{x, y:tail-4, text:rF(Math.abs(ld.mag))+' '+uForce(), color:CLR.point, dir:-1});
+      } else {      // hacia ARRIBA: bajo la viga, apiladas hacia abajo
+        let base=beamY+BH/2;
+        if(mR>0) base=Math.max(base, beamY+mR+8);
+        const tip=base+k*P_GAP, tail=tip+len;
+        drawArrow(ctx, x, tail, x, tip, CLR.point, 2, 10);
+        pushLabel(LBL,{x, y:tail+11, text:rF(Math.abs(ld.mag))+' '+uForce(), color:CLR.point, dir:1});
+      }
+    }
+    if(ld.type==='PX'){
+      const dir=ld.mag<0?-1:1, len=28, k=pxIdx.get(ld.id)||0;
+      let mR=0;
+      r.loads.filter(l=>l.type==='M'&&Math.abs(l.pos-ld.pos)<1e-6)
+             .forEach(l=>{ mR=Math.max(mR,15+(momIdx.get('l'+l.id)||0)*M_GAP); });
+      r.supports.filter(s=>Math.abs(s.pos-ld.pos)<1e-6&&Math.abs(r.R[s.node+'_MA']||0)>1e-6)
+             .forEach(s=>{ mR=Math.max(mR,15+(momIdx.get('s'+s.node)||0)*M_GAP); });
+      const yy=Math.max(beamY+BH/2+10, mR>0?beamY+mR+10:0)+k*PX_GAP;
+      // cola atrás, punta en el punto de aplicación, apuntando en el sentido de la carga
+      drawArrow(ctx, x-dir*len, yy, x, yy, CLR.point, 2, 10);
+      pushLabel(LBL,{x:x-dir*len-4, y:yy+3.5, text:rF(Math.abs(ld.mag))+' '+uForce(),
+                     color:CLR.point, align:dir>0?'right':'left', dir:1});
+    }
+    if(ld.type==='U'||ld.type==='T'){
+      const xa=padL+ld.pos*sc, xb=padL+(ld.pos2??r.L)*sc;
+      const dir=ld.mag<0?1:-1, h=20;
+      const layer=layerOf.get(ld)||0;
+      const beamFace=(beamY-BH/2)-dir*(layer*LAYER_GAP);
+      ctx.strokeStyle=CLR.dist; ctx.lineWidth=1.5;
+      const n=Math.max(4,Math.round((xb-xa)/18));
+      for(let i=0;i<=n;i++){
+        const xi=xa+(xb-xa)*i/n;
+        let hi=h;
+        if(ld.type==='T') hi = ld.invert ? h*(1-i/n) : h*i/n;
+        const tipY=beamFace, tailY=beamFace-dir*hi, baseY=tipY-dir*8;
+        ctx.beginPath(); ctx.moveTo(xi,tailY); ctx.lineTo(xi,tipY); ctx.stroke();
+        ctx.fillStyle=CLR.dist;
+        ctx.beginPath(); ctx.moveTo(xi,tipY); ctx.lineTo(xi-3,baseY); ctx.lineTo(xi+3,baseY); ctx.closePath(); ctx.fill();
+      }
+      ctx.beginPath();
+      if(ld.type==='U'){ ctx.moveTo(xa,beamFace-dir*h); ctx.lineTo(xb,beamFace-dir*h); }
+      else if(ld.invert){ ctx.moveTo(xa,beamFace-dir*h); ctx.lineTo(xb,beamFace); }
+      else { ctx.moveTo(xa,beamFace); ctx.lineTo(xb,beamFace-dir*h); }
+      ctx.stroke();
+      pushLabel(LBL,{x:(xa+xb)/2, y:beamFace-dir*(h+10),
+        text:rM(Math.abs(ld.mag))+' '+uDist()+(ld.type==='U'?'':' (máx)'),
+        color:CLR.dist, dir:dir>0?-1:1});
+    }
+    if(ld.type==='M'){
+      const ccw=ld.mag>0;                      // convención: +M = antihorario (↺+)
+      const k=momIdx.get('l'+ld.id)||0;
+      const rad=15+k*M_GAP;
+      drawMomentArc(ctx,x,beamY,rad,ccw,CLR.mom,2);
+      pushLabel(LBL,{x, y:beamY-rad-6,
+        text:rM(Math.abs(ld.mag))+' '+uMom()+(ccw?' ↺':' ↻'), color:CLR.mom, dir:-1});
+    }
+  });
+
+  // Dibujar TODAS las etiquetas al final, desplazándolas si se superponen
+  flushLabels(ctx,LBL,W);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER RESULTS: SOLUTION FIRST, THEN 3 DIAGRAMS
+// ═══════════════════════════════════════════════════════════
+function renderResultsArea(r){
+  const area=document.getElementById('resultsSection');
+  area.innerHTML='';
+
+  showSolution(r, area);
+
+  queryX=null; chartRefs=[];
+  const qbar=document.createElement('div'); qbar.className='dqbar';
+  qbar.innerHTML=`<div class="dqbar-in">Evaluar en&nbsp; x = <input type="number" id="dqx" step="0.01" min="0" max="${r.L}" placeholder="—"> ${uLen()} <button id="dqclear" title="Quitar marcador">✕</button></div>
+    <div class="dqvals"><span class="qv qvN">N&nbsp;=&nbsp;<b id="dqN">—</b>&nbsp;${uForce()}</span><span class="qv qvV">V&nbsp;=&nbsp;<b id="dqV">—</b>&nbsp;${uForce()}</span><span class="qv qvM">M&nbsp;=&nbsp;<b id="dqM">—</b>&nbsp;${uMom()}</span></div>`;
+  area.appendChild(qbar);
+
+  const series=[
+    {key:'N', label:'DFN — Diagrama de Fuerza Normal',   data:r.N, color:'#4fc98a', unit:uForce()},
+    {key:'V', label:'DFC — Diagrama de Fuerza Cortante', data:r.V, color:'#0a4adb', unit:uForce()},
+    {key:'M', label:'DMF — Diagrama de Momento Flector', data:r.M, color:'#e05c5c', unit:uMom()},
+  ];
+
+  series.forEach(s=>{
+    const mn=Math.min(...s.data), mx=Math.max(...s.data);
+    const card=document.createElement('div'); card.className='dchart';
+    card.innerHTML=`<div class="dchart-head">
+      <span class="dchart-label" style="color:${s.color}">${s.label}</span>
+      <span class="dchart-stats">Máx: <b>${(s.key==='M'?rM:rF)(mx)}</b> &nbsp; Mín: <b>${(s.key==='M'?rM:rF)(mn)}</b> &nbsp; ${s.unit}</span>
+    </div>`;
+    const cv=document.createElement('canvas'); cv.className='cht'; cv.height=190;
+    cv.style.height='190px';
+    card.appendChild(cv);
+    area.appendChild(card);
+    chartRefs.push({cv, ys:s.data, color:s.color, unit:s.unit, qty:s.key});
+    requestAnimationFrame(()=>requestAnimationFrame(()=>drawChart(cv,r.xs,s.data,s.color,r.L,s.unit,r,s.key)));
+  });
+  const qx=document.getElementById('dqx');
+  if(qx){ qx.addEventListener('input',updateQueryMain);
+    document.getElementById('dqclear').addEventListener('click',()=>{qx.value='';updateQueryMain();}); }
+}
+
+let queryX=null, chartRefs=[];
+function valueAt(arr,x){
+  if(!lastResult)return 0; const xs=lastResult.xs;
+  if(x<=xs[0])return arr[0]; if(x>=xs[xs.length-1])return arr[arr.length-1];
+  let i=0; while(i<xs.length-1 && xs[i+1]<x) i++;
+  const x0=xs[i],x1=xs[i+1],y0=arr[i],y1=arr[i+1];
+  return x1===x0?y0:(y0+(y1-y0)*(x-x0)/(x1-x0));
+}
+function redrawCharts(){ if(!lastResult)return; chartRefs.forEach(c=>drawChart(c.cv,lastResult.xs,c.ys,c.color,lastResult.L,c.unit,lastResult,c.qty)); }
+// Devuelve el punto de quiebre (con salto) que coincide con x, o null.
+function jumpAt(x){
+  if(!lastResult||!lastResult.bpsData) return null;
+  const tol=1e-4;
+  const bp=lastResult.bpsData.find(d=>Math.abs(d.x-x)<Math.max(tol, lastResult.L*1e-4));
+  if(!bp) return null;
+  const has = Math.abs(bp.Nl-bp.Nr)>1e-4 || Math.abs(bp.Vl-bp.Vr)>1e-4 || Math.abs(bp.Ml-bp.Mr)>1e-4;
+  return has?bp:null;
+}
+function updateQueryMain(){
+  const raw=(document.getElementById('dqx')||{}).value; const x=parseFloat(raw);
+  const setH=(id,v)=>{const e=document.getElementById(id);if(e)e.innerHTML=v;};
+  if(!lastResult||raw===undefined||raw===''||!isFinite(x)||x<0||x>lastResult.L){queryX=null;setH('dqN','—');setH('dqV','—');setH('dqM','—');redrawCharts();return;}
+  queryX=x;
+  const bp=jumpAt(x);
+  // Muestra ambos lados (⁻/⁺) cuando x cae sobre una discontinuidad (req. 4.3)
+  const cell=(l,r_,fn)=>Math.abs(l-r_)>1e-4
+    ? `<span style="color:#c0392b">${fn(l)}⁻</span> / <span style="color:#1f8a58">${fn(r_)}⁺</span>`
+    : fn(l);
+  if(bp){
+    setH('dqN',cell(bp.Nl,bp.Nr,rF)); setH('dqV',cell(bp.Vl,bp.Vr,rF)); setH('dqM',cell(bp.Ml,bp.Mr,rM));
+  } else {
+    setH('dqN',rF(valueAt(lastResult.N,x))); setH('dqV',rF(valueAt(lastResult.V,x))); setH('dqM',rM(valueAt(lastResult.M,x)));
+  }
+  redrawCharts();
+}
+function drawChart(canvas,xs,ys,color,L,unit,r,qty){
+  const rq = (qty==='M') ? rM : rF;   // decimales según la magnitud del diagrama
+  const dpr=window.devicePixelRatio||1;
+  let W=canvas.offsetWidth;
+  if(!W && canvas.parentElement) W=canvas.parentElement.offsetWidth;
+  if(!W) W=700;
+  const H=190;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+
+  const pL=58,pR=22,pT=18,pB=30;
+  const gw=W-pL-pR, gh=H-pT-pB;
+  ctx.clearRect(0,0,W,H);
+
+  const ymin=Math.min(0,...ys), ymax=Math.max(0,...ys);
+  const yr=(ymax-ymin)||1;
+  const xm=x=>pL+(x/L)*gw;
+  const ym=y=>pT+((ymax-y)/yr)*gh;
+  const zero=ym(0);
+
+  for(let i=0;i<=5;i++){
+    const y=pT+i*gh/5;
+    ctx.strokeStyle='#e4e7ec'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(pL+gw,y); ctx.stroke();
+    const val=ymax-i*yr/5;
+    ctx.fillStyle='#6b7280'; ctx.font='9px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText(rq(val),pL-3,y+3.5);
+  }
+  for(let i=0;i<=8;i++){
+    const xi=pL+i*gw/8;
+    ctx.strokeStyle='#eceef2'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(xi,pT); ctx.lineTo(xi,pT+gh); ctx.stroke();
+    ctx.fillStyle='#6b7280'; ctx.font='9px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(rq(i*L/8),xi,H-pB+11);
+  }
+
+  ctx.strokeStyle='#9aa1ad'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(pL,zero); ctx.lineTo(pL+gw,zero); ctx.stroke();
+
+  if(r&&r.nodes){
+    r.nodes.forEach(n=>{
+      const xpx=xm(r.npos[n]);
+      ctx.strokeStyle='#c3c9d2'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(xpx,pT); ctx.lineTo(xpx,pT+gh); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='#3a3f47'; ctx.font='bold 9px Segoe UI'; ctx.textAlign='center';
+      ctx.fillText(n,xpx,pT+gh+11);
+    });
+  }
+
+  function fillZone(above){
+    ctx.beginPath(); ctx.moveTo(xm(xs[0]),zero);
+    for(let i=0;i<xs.length;i++){
+      const yy=ym(ys[i]);
+      ctx.lineTo(xm(xs[i]), above?(yy<zero?yy:zero):(yy>zero?yy:zero));
+    }
+    ctx.lineTo(xm(xs[xs.length-1]),zero); ctx.closePath();
+    ctx.fillStyle=above?hexA(color,.22):hexA('#e05c5c',.12); ctx.fill();
+  }
+  fillZone(true); fillZone(false);
+
+  ctx.beginPath(); ctx.moveTo(xm(xs[0]),ym(ys[0]));
+  for(let i=1;i<xs.length;i++) ctx.lineTo(xm(xs[i]),ym(ys[i]));
+  ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
+
+  ctx.strokeStyle='#d3d7de'; ctx.lineWidth=1; ctx.strokeRect(pL,pT,gw,gh);
+
+  // ── Puntos de quiebre: valores con límite izquierdo (⁻) y derecho (⁺) ──
+  const bpData = (r&&r.bpsData) ? r.bpsData : getBreakpoints(r).map(x=>({x,[qty+'l']:valueAt(ys,x),[qty+'r']:valueAt(ys,x)}));
+  bpData.forEach(bp=>{
+    const bx=bp.x, xpx=xm(bx);
+    const vl=bp[qty+'l'], vr=bp[qty+'r'];
+    const jump=Math.abs(vl-vr)>1e-4;
+    if(jump){
+      // discontinuidad vertical estricta (refuerzo visual del salto)
+      ctx.strokeStyle=color; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(xpx,ym(vl)); ctx.lineTo(xpx,ym(vr)); ctx.stroke();
+      [[vl,'⁻'],[vr,'⁺']].forEach(([v,s])=>{
+        const yv=ym(v);
+        ctx.fillStyle=color; ctx.beginPath(); ctx.arc(xpx,yv,3.2,0,Math.PI*2); ctx.fill();
+        ctx.font='bold 8.5px Segoe UI'; ctx.textAlign='center';
+        ctx.fillText(rq(v)+s, xpx, v>=0?yv-6:yv+11);
+      });
+    } else {
+      const yv=ym(vl);
+      ctx.fillStyle=color; ctx.beginPath(); ctx.arc(xpx,yv,3.5,0,Math.PI*2); ctx.fill();
+      ctx.font='bold 9px Segoe UI'; ctx.textAlign='center';
+      ctx.fillText(rq(vl)+' '+unit, xpx, vl>=0?yv-7:yv+12);
+    }
+  });
+
+  ctx.fillStyle='#6b7280'; ctx.font='9px Segoe UI'; ctx.textAlign='center';
+  ctx.fillText('x ('+uLen()+')',pL+gw/2,H-1);
+
+  // ── Marcador de consulta en x = queryX ──
+  if(queryX!==null && queryX>=0 && queryX<=L){
+    const qpx=xm(queryX);
+    const bp = (r&&r.bpsData)?r.bpsData.find(d=>Math.abs(d.x-queryX)<Math.max(1e-4,L*1e-4)):null;
+    const jump = bp && Math.abs(bp[qty+'l']-bp[qty+'r'])>1e-4;
+    ctx.strokeStyle='#f0c040'; ctx.lineWidth=1.6; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(qpx,pT); ctx.lineTo(qpx,pT+gh); ctx.stroke();
+    ctx.setLineDash([]);
+    if(jump){
+      const vl=bp[qty+'l'], vr=bp[qty+'r'];
+      [[vl,'⁻'],[vr,'⁺']].forEach(([v,s])=>{
+        const qy=ym(v);
+        ctx.beginPath(); ctx.arc(qpx,qy,4,0,Math.PI*2); ctx.fillStyle='#f0c040'; ctx.fill();
+        ctx.strokeStyle='#f7f8fa'; ctx.lineWidth=1.5; ctx.stroke();
+        ctx.fillStyle='#c88a00'; ctx.font='bold 9px Segoe UI'; ctx.textAlign='center';
+        ctx.fillText(rq(v)+s+' '+unit, qpx, v>=0?qy-9:qy+15);
+      });
+    } else {
+      const qv=valueAt(ys,queryX), qy=ym(qv);
+      ctx.beginPath(); ctx.arc(qpx,qy,4,0,Math.PI*2); ctx.fillStyle='#f0c040'; ctx.fill();
+      ctx.strokeStyle='#f7f8fa'; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.fillStyle='#c88a00'; ctx.font='bold 9.5px Segoe UI'; ctx.textAlign='center';
+      ctx.fillText(rq(qv)+' '+unit, qpx, qv>=0?qy-9:qy+15);
+    }
+    ctx.fillStyle='#b8901f'; ctx.font='8px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText('x='+rL(queryX), qpx, pT+9);
+  }
+
+  canvas._meta={xs,ys,pL,pR,pT,pB,gw,gh,L,ymax,yr,unit,color};
+  canvas.onmousemove=ev=>{
+    const rect=canvas.getBoundingClientRect();
+    const mx=(ev.clientX-rect.left)/rect.width*W;
+    const m=canvas._meta;
+    if(mx<m.pL||mx>m.pL+m.gw) return;
+    const xv=(mx-m.pL)/m.gw*m.L;
+    const tip=document.getElementById('tooltip');
+    tip.innerHTML=`x = ${rL(xv)} ${uLen()} &nbsp;|&nbsp; <b style="color:${m.color}">${r2(valueAt(m.ys,xv))} ${m.unit}</b>`;
+    tip.style.display='block'; tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY-10)+'px';
+  };
+  canvas.onmouseleave=()=>{document.getElementById('tooltip').style.display='none';};
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SOLUTION (Método de Ecuaciones §7.2)
+// ═══════════════════════════════════════════════════════════
+// ── Forma "desplazada"  a0 + a1(x−s) + a2(x−s)² … con simplificación (x−0)→x (regla 1) ──
+function shiftedStr(coefs, s){
+  const parts=[];
+  for(let k=0;k<coefs.length;k++){
+    const c=+(+coefs[k]).toFixed(Math.max(DEC.mom,DEC.force)); if(Math.abs(c)<5e-5) continue;
+    const sign = parts.length===0 ? (c<0?'−':'') : (c<0?' − ':' + ');
+    const a=Math.abs(c);
+    let factor;
+    if(k===0){ factor=r2(a); }
+    else{
+      const xterm = Math.abs(s)<1e-9 ? powTxt(k) : `(x−${r2(s)})${k>1?(SUP[k]||('^'+k)):''}`;
+      factor = (Math.abs(a-1)<1e-9) ? xterm : `${r2(a)}·${xterm}`;
+    }
+    parts.push(sign+factor);
+  }
+  return parts.length?parts.join(''):'0';
+}
+// Muestra la expresión desplazada y, si s≠0, su forma polinómica estándar reducida (regla 2)
+function polyExpr(coefs, s){
+  const shifted=shiftedStr(coefs,s);
+  if(Math.abs(s)<1e-9) return polyStd(coefs);       // ya está en forma estándar: "5x²" (regla 1)
+  const std=polyStd(expandShifted(coefs,s));
+  return `${shifted}  =  ${std}`;
+}
+
+// Arco de momento en SVG con punta de flecha real y sentido correcto (ccw = antihorario visual)
+function svgMomentArc(cx,cy,rad,ccw,color){
+  const gap=1.0;
+  const start=-Math.PI/2+(ccw?-gap/2:gap/2);
+  const sweep=2*Math.PI-gap;
+  const end= ccw ? start-sweep : start+sweep;
+  const x1=cx+rad*Math.cos(start), y1=cy+rad*Math.sin(start);
+  const x2=cx+rad*Math.cos(end),   y2=cy+rad*Math.sin(end);
+  // sweep-flag: 1 = sentido de ángulo creciente (horario en pantalla) → ccw usa 0
+  const sf = ccw?0:1;
+  const tx = ccw? Math.sin(end) : -Math.sin(end);
+  const ty = ccw?-Math.cos(end) :  Math.cos(end);
+  const L=Math.hypot(tx,ty)||1, dx=tx/L, dy=ty/L, px=-dy, py=dx, s=7, w=3;
+  const head=`<path d="M${x2},${y2} L${x2-dx*s+px*w},${y2-dy*s+py*w} L${x2-dx*s-px*w},${y2-dy*s-py*w} Z" fill="${color}"/>`;
+  return `<path d="M${x1},${y1} A ${rad} ${rad} 0 1 ${sf} ${x2},${y2}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round"/>`+head;
+}
+
+// ── Flecha en SVG con punta triangular ──
+function svgArrow(x1,y1,x2,y2,color,lw){
+  const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,s=7,w=2.9,px=-uy,py=ux;
+  return `<line x1="${x1}" y1="${y1}" x2="${x2-ux*s*0.9}" y2="${y2-uy*s*0.9}" stroke="${color}" stroke-width="${lw||1.8}"/>`+
+    `<path d="M${x2},${y2} L${x2-ux*s+px*w},${y2-uy*s+py*w} L${x2-ux*s-px*w},${y2-uy*s-py*w} Z" fill="${color}"/>`;
+}
+// ── Etiquetas SVG con anti-superposición y recorte al lienzo ──
+function newSvgLabels(){ return []; }
+function pushSvgLabel(set,o){ set.push(Object.assign({fs:8.5,anchor:'middle',dir:-1,weight:700},o)); }
+function flushSvgLabels(set,W){
+  const LH=10.5, placed=[];
+  const wOf=it=>Math.max(12,it.text.length*it.fs*0.56)+3;
+  const fixed=set.filter(i=>i.fixed), movable=set.filter(i=>!i.fixed);
+  fixed.forEach(it=>{ const w=wOf(it); const x0=it.anchor==='middle'?it.x-w/2:(it.anchor==='start'?it.x:it.x-w);
+    placed.push({x0,x1:x0+w,y0:it.y-it.fs,y1:it.y+2}); it._x=it.x; it._y=it.y; it._a=it.anchor; });
+  const order=[...movable].sort((a,b)=>(a.dir<0?a.y-b.y:b.y-a.y));
+  order.forEach(it=>{
+    const w=wOf(it); let x=it.x, a=it.anchor;
+    if(a==='middle') x=Math.min(Math.max(x,w/2+2), Math.max(w/2+2,W-w/2-2));
+    else if(a==='start'){ if(x+w>W-2){ a='end'; x=Math.min(it.x,W-2); } x=Math.max(x,2); }
+    else { if(x-w<2){ a='start'; x=Math.max(it.x,2); } x=Math.min(x,W-2); }
+    const x0 = a==='middle'? x-w/2 : (a==='start'? x : x-w);
+    let y=it.y, guard=0;
+    while(guard++<50){
+      const b={x0,x1:x0+w,y0:y-it.fs,y1:y+2};
+      if(!placed.some(p=>!(b.x1<p.x0||b.x0>p.x1||b.y1<p.y0||b.y0>p.y1))) break;
+      y+=it.dir*LH;
+    }
+    placed.push({x0,x1:x0+w,y0:y-it.fs,y1:y+2}); it._x=x; it._y=y; it._a=a;
+  });
+  return set.map(it=>`<text x="${it._x}" y="${it._y}" fill="${it.color}" font-size="${it.fs}" font-weight="${it.weight}" text-anchor="${it._a}">${it.text}</text>`).join('');
+}
+
+// ── Bosquejo del DCL de un segmento (SVG) — mismo criterio de orden que el DCL general:
+//    apilado de elementos coincidentes + etiquetas sin superposición ──
+function buildSegDCL(r, xa, xb, segIdx){
+  const VBW=340, X0=44, Xr=294;
+  const sx=p=>X0+(p/(xb||1))*(Xr-X0);
+  const Xcut=sx(xa+0.72*(xb-xa));
+  const CR=CLR.react, CP=CLR.point, CD=CLR.dist, CM=CLR.mom, CI='#16305e';
+  const L=newSvgLabels();
+
+  // Elementos que actúan sobre el cuerpo libre (a la izquierda del corte)
+  const sups = r.supports.filter(s=>s.pos<=xa+1e-6);
+  const pDown= r.loads.filter(l=>l.type==='P' &&l.pos<=xa+1e-6&&l.mag<0);
+  const pUp  = r.loads.filter(l=>l.type==='P' &&l.pos<=xa+1e-6&&l.mag>0);
+  const pxs  = r.loads.filter(l=>l.type==='PX'&&l.pos<=xa+1e-6);
+  const moms = r.loads.filter(l=>l.type==='M' &&l.pos<=xa+1e-6);
+  // El DCL es el cuerpo libre desde x=0 hasta el corte: se incluyen TODAS las
+  // distribuidas que empiecen antes del corte (aunque terminen dentro del cuerpo libre).
+  const xgPos=xa+0.72*(xb-xa);
+  const dists= r.loads.filter(l=>(l.type==='U'||l.type==='T')&&l.pos<=xa+1e-6&&(l.pos2??r.L)>l.pos+1e-9);
+
+  // ── Apilado ──
+  const DIST_H=15, DIST_GAP=20, P_H=22, P_GAPS=26, M_GAP=9, PX_GAPS=15;
+  const drawnRange=l=>({a:l.pos, b:Math.min(l.pos2??r.L, xgPos)});
+  const distLayer=new Map();
+  dists.forEach((l,i)=>{
+    const {a,b}=drawnRange(l); let lay=0;
+    for(let j=0;j<i;j++){
+      const o=dists[j], ro=drawnRange(o);
+      if(a<ro.b-1e-9 && b>ro.a+1e-9) lay=Math.max(lay,(distLayer.get(o)||0)+1);
+    }
+    distLayer.set(l,lay);
+  });
+  const maxDistLayer = dists.length ? Math.max(...dists.map(l=>distLayer.get(l)||0)) : -1;
+  const distTop = dists.length ? maxDistLayer*DIST_GAP + DIST_H + 6 : 0;
+  const idxBy=(arr,key)=>{const per=new Map(),out=new Map();
+    arr.forEach(o=>{const k=key(o).toFixed(6),v=per.get(k)||0;per.set(k,v+1);out.set(o,v);});return out;};
+  const iD=idxBy(pDown,l=>l.pos), iU=idxBy(pUp,l=>l.pos), iX=idxBy(pxs,l=>l.pos);
+  // momentos: cargas M + reacciones de empotramiento comparten contador por posición
+  const momAll=[...moms.map(l=>({pos:l.pos,ld:l})),
+                ...sups.filter(s=>Math.abs(r.R[s.node+'_MA']||0)>1e-6).map(s=>({pos:s.pos,sp:s}))];
+  const iM=idxBy(momAll,o=>o.pos);
+  const radOf=o=>12+(iM.get(o)||0)*M_GAP;
+  const momRadMax=momAll.length?Math.max(...momAll.map(radOf)):0;
+  const maxN=(map,arr)=>arr.length?Math.max(...arr.map(o=>map.get(o)||0))+1:0;
+  const nD=maxN(iD,pDown), nU=maxN(iU,pUp), nX=maxN(iX,pxs);
+
+  // ── Geometría vertical dinámica ──
+  const topH = Math.max(distTop + (nD?nD*P_GAPS+4:0), momRadMax+10, 30) + 26;
+  const botH = Math.max(sups.length?36:0, nU*P_GAPS, nX?nX*PX_GAPS+10:0, momRadMax+10, 30) + 34;
+  const beamY=topH, VBH=topH+botH;
+  let s='';
+
+  // Viga + continuación cortada + línea de corte
+  s+=`<line x1="${Xcut}" y1="${beamY}" x2="${Xr+8}" y2="${beamY}" stroke="#c4ccd8" stroke-width="6" stroke-dasharray="3 4"/>`;
+  s+=`<rect x="${X0}" y="${beamY-5}" width="${Xcut-X0}" height="10" fill="#dfe3ea" stroke="#334155" stroke-width="1.2"/>`;
+  s+=`<line x1="${Xcut}" y1="${beamY-24}" x2="${Xcut}" y2="${beamY+24}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3"/>`;
+
+  // ── Cargas distribuidas (apiladas por capas, truncadas en el corte) ──
+  dists.forEach(l=>{
+    const lay=distLayer.get(l)||0;
+    const face=beamY-7-lay*DIST_GAP;
+    const pa=l.pos, pbFull=(l.pos2??r.L), pb=Math.min(pbFull,xgPos);
+    if(pb<=pa+1e-9) return;
+    const lenFull=pbFull-pa;
+    // altura del diagrama de carga en la posición p (conserva la rampa original)
+    const hAt=p=>{
+      if(l.type==='U') return DIST_H;
+      const tt=(p-pa)/(lenFull||1);
+      return DIST_H*(l.invert ? (1-tt) : tt);
+    };
+    const n=7, tops=[];
+    for(let i=0;i<=n;i++){
+      const pp=pa+(pb-pa)*i/n, xi=sx(pp), hh=Math.max(0.5,hAt(pp));
+      tops.push([xi,face-hh]);
+      s+=`<line x1="${xi}" y1="${face-hh}" x2="${xi}" y2="${face-1}" stroke="${CD}" stroke-width="1.2"/>`+
+         `<path d="M${xi},${face} l-2.4,-5 l4.8,0 z" fill="${CD}"/>`;
+    }
+    s+=`<polyline points="${tops.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="${CD}" stroke-width="1.6"/>`;
+    // borde vertical si la carga queda cortada por la sección
+    if(pbFull>xgPos+1e-9) s+=`<line x1="${sx(pb)}" y1="${face-hAt(pb)}" x2="${sx(pb)}" y2="${face-1}" stroke="${CD}" stroke-width="1.2" stroke-dasharray="2 2"/>`;
+    const midY=face-DIST_H-3;
+    pushSvgLabel(L,{x:(sx(pa)+sx(pb))/2, y:midY, text:`${r2(Math.abs(l.mag))} ${uDist()}${l.type==='T'?' (máx)':''}`, color:CD, dir:-1});
+  });
+
+  // ── Cargas puntuales verticales (apiladas, por encima de las distribuidas) ──
+  const momRadAt=x=>{ let mr=0; momAll.forEach(o=>{ if(Math.abs(o.pos-x)<1e-6) mr=Math.max(mr,radOf(o)); }); return mr; };
+  pDown.forEach(l=>{
+    const x=sx(l.pos), k=iD.get(l)||0;
+    let base=beamY-8-distTop; const mr=momRadAt(l.pos); if(mr) base=Math.min(base,beamY-mr-8);
+    const tip=base-k*P_GAPS, tail=tip-P_H;
+    s+=svgArrow(x,tail,x,tip,CP,1.8);
+    pushSvgLabel(L,{x, y:tail-3, text:`${rF(Math.abs(l.mag))} ${uForce()}`, color:CP, dir:-1});
+  });
+  pUp.forEach(l=>{
+    const x=sx(l.pos), k=iU.get(l)||0;
+    let base=beamY+8; const mr=momRadAt(l.pos); if(mr) base=Math.max(base,beamY+mr+8);
+    const tip=base+k*P_GAPS, tail=tip+P_H;
+    s+=svgArrow(x,tail,x,tip,CP,1.8);
+    pushSvgLabel(L,{x, y:tail+9, text:`${rF(Math.abs(l.mag))} ${uForce()}`, color:CP, dir:1});
+  });
+
+  // ── Cargas puntuales horizontales (apiladas bajo la viga) ──
+  pxs.forEach(l=>{
+    const x=sx(l.pos), k=iX.get(l)||0, dir=l.mag<0?-1:1, len=24;
+    const mr=momRadAt(l.pos);
+    const yy=Math.max(beamY+14, mr?beamY+mr+10:0)+k*PX_GAPS;
+    s+=svgArrow(x-dir*len,yy,x,yy,CP,1.8);
+    pushSvgLabel(L,{x:x-dir*len-3, y:yy+3, text:`${rF(Math.abs(l.mag))} ${uForce()}`,
+                    color:CP, anchor:dir>0?'end':'start', dir:1});
+  });
+
+  // ── Momentos concentrados (radios apilados, sentido según signo) ──
+  moms.forEach(l=>{
+    const o=momAll.find(q=>q.ld===l), x=sx(l.pos), rad=radOf(o);
+    s+=svgMomentArc(x,beamY,rad,l.mag>0,CM);
+    pushSvgLabel(L,{x, y:beamY-rad-5, text:`${rM(Math.abs(l.mag))} ${uMom()} ${l.mag>0?'↺':'↻'}`, color:CM, dir:-1});
+  });
+
+  // ── Reacciones (simbólicas, dirección positiva asumida) ──
+  sups.forEach(sp=>{
+    const x=sx(sp.pos);
+    // Ay ↑ bajo la viga
+    s+=svgArrow(x,beamY+30,x,beamY+9,CR,1.9);
+    pushSvgLabel(L,{x, y:beamY+40, text:sp.node+'y', color:CR, fs:9, dir:1});
+    if(sp.type==='pin'||sp.type==='fixed'){
+      s+=svgArrow(x,beamY,x+22,beamY,CR,1.9);
+      pushSvgLabel(L,{x:x+24, y:beamY-4, text:sp.node+'x', color:CR, fs:9, anchor:'start', dir:-1});
+    }
+    if(sp.type==='fixed'){
+      const o=momAll.find(q=>q.sp===sp);
+      if(o){ const rad=radOf(o);
+        s+=svgMomentArc(x,beamY,rad,(r.R[sp.node+'_MA']||0)>=0,CR);
+        pushSvgLabel(L,{x, y:beamY-rad-5, text:'M'+sp.node, color:CR, fs:9, dir:-1});
+      }
+      // rayado del empotramiento
+      s+=`<line x1="${x-6}" y1="${beamY-13}" x2="${x-6}" y2="${beamY+13}" stroke="#334155" stroke-width="2"/>`;
+      for(let i=0;i<5;i++) s+=`<line x1="${x-6}" y1="${beamY-12+i*6}" x2="${x-12}" y2="${beamY-7+i*6}" stroke="#334155" stroke-width="1"/>`;
+    }
+  });
+
+  // ── Fuerzas internas en la cara del corte (convenio Hibbeler) ──
+  s+=svgArrow(Xcut,beamY,Xcut+26,beamY,CI,2);
+  pushSvgLabel(L,{x:Xcut+29, y:beamY-4, text:'N(x)', color:CI, fs:9.5, weight:800, anchor:'start', dir:-1});
+  s+=svgArrow(Xcut,beamY+8,Xcut,beamY+30,CI,2);
+  pushSvgLabel(L,{x:Xcut+3, y:beamY+40, text:'V(x)', color:CI, fs:9.5, weight:800, anchor:'start', dir:1});
+  s+=svgMomentArc(Xcut-3,beamY,13,true,CI);
+  pushSvgLabel(L,{x:Xcut-19, y:beamY-17, text:'M(x)', color:CI, fs:9.5, weight:800, anchor:'end', dir:-1});
+
+  // ── Cota x ──
+  const yDim=beamY+botH-14;
+  s+=`<line x1="${X0}" y1="${yDim}" x2="${Xcut}" y2="${yDim}" stroke="#64748b" stroke-width="1"/>`+
+     `<line x1="${X0}" y1="${yDim-4}" x2="${X0}" y2="${yDim+4}" stroke="#64748b" stroke-width="1"/>`+
+     `<line x1="${Xcut}" y1="${yDim-4}" x2="${Xcut}" y2="${yDim+4}" stroke="#64748b" stroke-width="1"/>`;
+  pushSvgLabel(L,{x:(X0+Xcut)/2, y:yDim-4, text:'x', color:'#475569', fs:9, weight:400, fixed:true});
+  pushSvgLabel(L,{x:X0, y:yDim+12, text:'x = 0', color:'#94a3b8', fs:8, weight:400, fixed:true});
+
+  s+=flushSvgLabels(L,VBW);
+
+  const shownH=Math.min(190,Math.max(120,VBH));
+  return `<div class="seg-cap">DCL — Segmento (corte a distancia x)</div>`+
+    `<svg class="seg-dcl" viewBox="0 0 ${VBW} ${VBH}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:${shownH}px;background:#fff;border:1px solid #dee1e7;border-radius:8px">${s}</svg>`;
+}
+
+function showSolution(r, area){
+  const card=document.createElement('div'); card.className='sol-card';
+  const R=r.R; const L=r.L;
+
+  let html=`<div class="sol-title">📋 Resolución — Método de Ecuaciones (Hibbeler §7.2)</div>`;
+
+  html+=`<div class="sol-step"><h4>1 · Ecuaciones de Equilibrio — Reacciones</h4>`;
+  html+=`<p>Se aplican ΣF_x=0, ΣF_y=0, ΣM=0${r.hingeNodes.length?` y M=0 en cada rótula interna (${r.hingeNodes.map(h=>h.node).join(', ')})`:''}:</p>`;
+
+  let sumFx=0, sumFy=0;
+  for(const ld of r.loads){
+    if(ld.type==='P') sumFy+=ld.mag;
+    else if(ld.type==='PX') sumFx+=ld.mag;
+    else if(ld.type==='U') sumFy+=ld.mag*((ld.pos2??L)-ld.pos);
+    else if(ld.type==='T') sumFy+=0.5*ld.mag*((ld.pos2??L)-ld.pos);
+  }
+
+  if(r.hingeNodes.length===0){
+    const vSupp=r.supports.filter(s=>s.type!=='none');
+    if(vSupp.length>=2){
+      const s0=vSupp[0], s1=vSupp[vSupp.length-1];
+      const span=s1.pos-s0.pos;
+      const mTerms=[];
+      for(const ld of r.loads){
+        if(ld.type==='P') mTerms.push(`(${ld.mag})(${r2(ld.pos-s0.pos)})`);
+        else if(ld.type==='U'){ const a=ld.pos,b=ld.pos2??L,F=ld.mag*(b-a),xc=(a+b)/2; mTerms.push(`(${r2(F)})(${r2(xc-s0.pos)})`); }
+        else if(ld.type==='T'){ const a=ld.pos,b=ld.pos2??L,len=b-a,F=0.5*ld.mag*len,xc=ld.invert?a+len/3:a+2*len/3; mTerms.push(`(${r2(F)})(${r2(xc-s0.pos)})`); }
+        else if(ld.type==='M') mTerms.push(`${ld.mag}`);
+      }
+      html+=`<span class="eq">+ΣM_${s0.node} = 0:  ${s1.node}_y·(${r2(span)}) + ${mTerms.length?mTerms.join(' + '):'0'} = 0</span>`;
+      html+=`<span class="eq">${s1.node}_y = <span class="val">${rF(R[s1.node+'_Ay']||0)} ${uForce()}</span></span>`;
+      html+=`<span class="eq">+ΣF_y = 0:  ${s0.node}_y + ${s1.node}_y + ${r2(sumFy)} = 0</span>`;
+      html+=`<span class="eq">${s0.node}_y = <span class="val">${rF(R[s0.node+'_Ay']||0)} ${uForce()}</span></span>`;
+    }
+    if(Math.abs(sumFx)>1e-9){
+      html+=`<span class="eq">+ΣF_x = 0:  R_x + ${r2(sumFx)} = 0  →  R_x = <span class="val">${rF(-sumFx)} ${uForce()}</span></span>`;
+    }
+  } else {
+    html+=`<p>Viga con rótula(s) interna(s): se plantea un sistema con ΣF<sub>x</sub>, ΣF<sub>y</sub>, ΣM<sub>global</sub> y M=0 en cada rótula, resuelto simultáneamente.</p>`;
+  }
+
+  r.supports.forEach(sp=>{
+    const Ay=R[sp.node+'_Ay']||0, Ax=R[sp.node+'_Ax']||0, MA=R[sp.node+'_MA']||0;
+    const tname={pin:'articulación',roller:'rodillo',fixed:'empotrado'}[sp.type];
+    html+=`<span class="eq">R_${sp.node}y = <span class="val">${rF(Ay)} ${uForce()}</span>  (${tname})</span>`;
+    if(sp.type==='pin'||sp.type==='fixed')
+      html+=`<span class="eq">R_${sp.node}x = <span class="val">${rF(Ax)} ${uForce()}</span></span>`;
+    if(sp.type==='fixed')
+      html+=`<span class="eq">M_${sp.node}  = <span class="val">${rM(MA)} ${uMom()}</span>  (empotramiento)</span>`;
+  });
+  html+=`</div>`;
+
+  html+=`<div class="sol-step"><h4>2 · Ecuaciones de N(x), V(x) y M(x) por Segmento</h4>`;
+  html+=`<p>Se corta la viga en cada segmento entre cargas/nodos. Equilibrio de la parte izquierda (convenio Hibbeler):</p>`;
+  html+=`<span class="eq">V positivo → cara izquierda sube | M positivo → concavidad hacia arriba</span>`;
+
+  const bpts=getBreakpoints(r);
+  for(let i=0;i<bpts.length-1;i++){
+    const xa=bpts[i], xb=bpts[i+1];
+    const Va=shearAt(xa+1e-4,r.supports,R,r.loads);
+    const Vb=shearAt(xb-1e-4,r.supports,R,r.loads);
+    const Ma=momentAt(xa+1e-4,r.supports,R,r.loads);
+    const Mb=momentAt(xb-1e-4,r.supports,R,r.loads);
+    const Na=normalAt(xa+1e-4,r.supports,R);
+
+    // Cargas distribuidas activas en TODO el segmento
+    const dlds=r.loads.filter(l=>(l.type==='U'||l.type==='T')&&l.pos<=xa+1e-3&&(l.pos2??L)>=xb-1e-3);
+
+    html+=`<span class="eq" style="color:#334155;background:#eef1f6;font-weight:700;margin-top:8px">── Segmento [${rL(xa)} ${uLen()}, ${rL(xb)} ${uLen()}] ──</span>`;
+
+    // (a) Bosquejo DCL del segmento
+    html+=buildSegDCL(r, xa, xb, i);
+
+    // (b) Ecuaciones N(x), V(x), M(x)
+    // w(x) = c0 + c1*(x-xa)
+    let c0=0, c1=0; const wParts=[];
+    for(const dld of dlds){
+      const len=(dld.pos2??L)-dld.pos;
+      if(dld.type==='U'){ c0+=dld.mag; wParts.push(`${signedTerm(dld.mag,wParts.length===0)}`); }
+      else if(dld.type==='T'){
+        if(dld.invert){ const offset=xa-dld.pos; c0+=dld.mag*(1-offset/len); c1+=-dld.mag/len;
+          wParts.push(`${signedTerm(dld.mag,wParts.length===0)}·(1−(x−${r2(dld.pos)})/${r2(len)})`); }
+        else{ const offset=xa-dld.pos; c0+=(dld.mag/len)*offset; c1+=dld.mag/len;
+          wParts.push(`${signedTerm(dld.mag/len,wParts.length===0)}·(x−${r2(dld.pos)})`); }
+      }
+    }
+    html+=`<span class="eq"><b>N(x)</b> = <span class="val">${rF(Na)} ${uForce()}</span>  (constante)</span>`;
+    if(dlds.length){
+      const wLabel = dlds.length>1 ? '  [combinada]' : (dlds[0].type==='T'?'  [triangular]':'  [uniforme]');
+      html+=`<span class="eq">w(x) = ${wParts.join(' ')}  ${uDist()}${wLabel}</span>`;
+    }
+    // coeficientes desplazados en (x−xa)
+    const vCoef=[Va, c0, c1/2];
+    const mCoef=[Ma, Va, c0/2, c1/6];
+    if(dlds.length===0){
+      html+=`<span class="eq"><b>V(x)</b> = <span class="val">${rF(Va)} ${uForce()}</span>  (constante)</span>`;
+      html+=`<span class="eq"><b>M(x)</b> = ${polyExpr(mCoef,xa)}  ${uMom()}</span>`;
+    } else {
+      html+=`<span class="eq"><b>V(x)</b> = ${polyExpr(vCoef,xa)}  ${uForce()}</span>`;
+      html+=`<span class="eq"><b>M(x)</b> = ${polyExpr(mCoef,xa)}  ${uMom()}</span>`;
+    }
+
+    // (c) Puntos límite del intervalo [xa, xb]
+    html+=`<span class="eq" style="color:#475569">Puntos límite:</span>`;
+    html+=`<span class="eq">N(${r2(xa)})=${r2(Na)} · N(${r2(xb)})=${rF(Na)} ${uForce()}</span>`;
+    html+=`<span class="eq">V(${r2(xa)}⁺)=${r2(Va)}  →  V(${r2(xb)}⁻)=<span class="val">${r2(Vb)}</span> ${uForce()}</span>`;
+    html+=`<span class="eq">M(${r2(xa)}⁺)=${r2(Ma)}  →  M(${r2(xb)}⁻)=<span class="val">${r2(Mb)}</span> ${uMom()}</span>`;
+
+    // (d) Cortes con el eje X (raíces dentro del tramo)
+    const vRoots=rootsIn(expandShifted(vCoef,xa),xa,xb);
+    const mRoots=rootsIn(expandShifted(mCoef,xa),xa,xb);
+    const rootTxt=[];
+    if(Math.abs(Na)<5e-4) rootTxt.push(`N(x)=0 en todo el tramo`);
+    if(vRoots.length) rootTxt.push(`V(x)=0 en x = ${vRoots.map(x=>r2(x)).join(', ')} ${uLen()}`);
+    if(mRoots.length) rootTxt.push(`M(x)=0 en x = ${mRoots.map(x=>r2(x)).join(', ')} ${uLen()}`);
+    if(rootTxt.length){
+      html+=`<span class="eq" style="color:#475569">Cortes con el eje x:</span>`;
+      rootTxt.forEach(t=>{ html+=`<span class="eq"><span class="val">${t}</span></span>`; });
+    }
+  }
+  html+=`</div>`;
+
+  if(r.hingeNodes.length){
+    html+=`<div class="sol-step"><h4>✓ Verificación de Rótula(s) Interna(s)</h4>`;
+    r.hingeNodes.forEach(h=>{
+      const Mh=momentAt(h.pos, r.supports, R, r.loads);
+      html+=`<span class="eq">M(${h.node}) = <span class="val">${rM(Mh)} ${uMom()}</span>  (debe ser ≈ 0 — condición de rótula)</span>`;
+    });
+    html+=`</div>`;
+  }
+
+  const Vmax=Math.max(...r.V.map(Math.abs));
+  const Mmax=Math.max(...r.M.map(Math.abs));
+  const Nmax=Math.max(...r.N.map(Math.abs));
+  const xVmax=r.xs[r.V.reduce((mi,v,i,a)=>Math.abs(v)>Math.abs(a[mi])?i:mi,0)];
+  const xMmax=r.xs[r.M.reduce((mi,v,i,a)=>Math.abs(v)>Math.abs(a[mi])?i:mi,0)];
+  html+=`<div class="sol-step"><h4>✓ Valores Críticos</h4>
+    <span class="eq">|N|_máx = <span class="val">${rF(Nmax)} ${uForce()}</span></span>
+    <span class="eq">|V|_máx = <span class="val">${rF(Vmax)} ${uForce()}</span>  en x ≈ ${rL(xVmax)} ${uLen()}</span>
+    <span class="eq">|M|_máx = <span class="val">${rM(Mmax)} ${uMom()}</span>  en x ≈ ${rL(xMmax)} ${uLen()}</span>
+  </div>`;
+
+  card.innerHTML=html;
+  area.appendChild(card);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════
+function r2(v){ const d=Math.max(DEC.len,DEC.force,DEC.mom); return +parseFloat(v).toFixed(d); }
+function signedTerm(v, isFirst){
+  const n = r2(v);
+  if(isFirst) return `${n}`;
+  return n>=0 ? `+ ${n}` : `− ${r2(Math.abs(n))}`;
+}
+function hexA(hex,a){
+  const rv=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `rgba(${rv},${g},${b},${a})`;
+}
+function getBreakpoints(r){
+  const pts=new Set([0,r.L]);
+  r.nodes.forEach(n=>pts.add(r.npos[n]));
+  r.loads.forEach(ld=>{
+    pts.add(ld.pos);
+    if(ld.pos2!=null) pts.add(ld.pos2);
+  });
+  return [...pts].filter(x=>x>=0&&x<=r.L+1e-9).sort((a,b)=>a-b);
+}
+function showError(msg){
+  document.getElementById('resultsSection').innerHTML=`<div class="empty"><p class="err-msg">⚠ ${msg}</p></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ABRIR DIAGRAMAS EN PESTAÑA NUEVA
+// ═══════════════════════════════════════════════════════════
+function openDiagramsTab(){
+  if(!lastResult){ alert('Primero pulsa "Calcular Diagramas".'); return; }
+  const r = lastResult;
+  const payload = {
+    L:r.L, npos:r.npos, nodes:r.nodes,
+    xs:r.xs, N:r.N, V:r.V, M:r.M,
+    breakpoints: getBreakpoints(r)
+  };
+  const json = JSON.stringify(payload);
+
+  const win = window.open('', '_blank');
+  if(!win){ alert('El navegador bloqueó la ventana emergente. Permite pop-ups para ver los diagramas.'); return; }
+
+  win.document.write(`<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Diagramas N, V, M</title>
+<style>
+  body{background:#ffffff;color:#e8ecf4;font-family:Segoe UI,system-ui,sans-serif;margin:0;padding:18px;}
+  h1{font-size:16px;margin-bottom:14px;}
+  .dchart{background:#e4e7ec;border:1px solid #d3d7de;border-radius:8px;overflow:hidden;margin-bottom:14px;}
+  .dchart-head{padding:8px 12px;display:flex;justify-content:space-between;border-bottom:1px solid #d3d7de;font-size:12px;}
+  .dchart-stats b{color:#e8ecf4;}
+  canvas{display:block;width:100%;}
+  .qbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;
+    background:linear-gradient(135deg,rgba(10,74,219,.14),rgba(160,110,247,.06));
+    border:1px solid #2a3350;border-radius:12px;padding:11px 16px;margin-bottom:14px;}
+  .qbar-in{font-size:13px;color:#c3cce0;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .qbar-in input{width:92px;background:#f7f8fa;border:1px solid #303a58;color:#eaf0ff;
+    padding:6px 9px;border-radius:8px;font-size:13px;font-family:inherit;text-align:center;}
+  .qbar-in input:focus{outline:none;border-color:#0a4adb;}
+  #qclear{background:none;border:none;color:#6b7280;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:6px;}
+  #qclear:hover{color:#e05c5c;background:#f3f4f6;}
+  .qvals{display:flex;flex-wrap:wrap;gap:8px;}
+  .qv{font-size:12px;padding:5px 12px;font-weight:600;color:#1a1a1a;}
+  .qvN,.qvV,.qvM{color:#1a1a1a;background:none;border:none;}
+  .qv b{font-size:13px;}
+</style></head>
+<body>
+  <h1>📐 Diagramas de Fuerzas Internas</h1>
+  <div class="qbar">
+    <div class="qbar-in">Evaluar en&nbsp; x = <input type="number" id="qx" step="0.01" min="0" placeholder="—"> m
+      <button id="qclear" title="Quitar">✕</button></div>
+    <div class="qvals">
+      <span class="qv qvN">N&nbsp;=&nbsp;<b id="qN">—</b>&nbsp;kN</span>
+      <span class="qv qvV">V&nbsp;=&nbsp;<b id="qV">—</b>&nbsp;kN</span>
+      <span class="qv qvM">M&nbsp;=&nbsp;<b id="qM">—</b>&nbsp;kN·m</span>
+    </div>
+  </div>
+  <div class="dchart"><div class="dchart-head"><span style="color:#4fc98a;font-weight:700">DFN — Fuerza Normal</span><span class="dchart-stats" id="statN"></span></div><canvas id="cN" height="220"></canvas></div>
+  <div class="dchart"><div class="dchart-head"><span style="color:#0a4adb;font-weight:700">DFC — Fuerza Cortante</span><span class="dchart-stats" id="statV"></span></div><canvas id="cV" height="220"></canvas></div>
+  <div class="dchart"><div class="dchart-head"><span style="color:#e05c5c;font-weight:700">DMF — Momento Flector</span><span class="dchart-stats" id="statM"></span></div><canvas id="cM" height="220"></canvas></div>
+<script>
+const data = ${json};
+function r2(v){ return +parseFloat(v).toFixed(3); }
+function hexA(hex,a){ const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return 'rgba('+r+','+g+','+b+','+a+')'; }
+
+let queryX=null;
+function valueAt(arr,x){
+  const xs=data.xs;
+  if(x<=xs[0])return arr[0];
+  if(x>=xs[xs.length-1])return arr[arr.length-1];
+  let i=0; while(i<xs.length-1 && xs[i+1]<x) i++;
+  const x0=xs[i],x1=xs[i+1],y0=arr[i],y1=arr[i+1];
+  return x1===x0?y0:(y0+(y1-y0)*(x-x0)/(x1-x0));
+}
+function updateQuery(){
+  const raw=document.getElementById('qx').value.trim();
+  const x=parseFloat(raw);
+  const set=(id,v)=>document.getElementById(id).textContent=v;
+  if(raw===''||!isFinite(x)||x<0||x>data.L){ queryX=null; set('qN','—');set('qV','—');set('qM','—'); drawAll(); return; }
+  queryX=x;
+  set('qN',r2(valueAt(data.N,x))); set('qV',r2(valueAt(data.V,x))); set('qM',r2(valueAt(data.M,x)));
+  drawAll();
+}
+
+function draw(canvas, ys, color, unit, statEl){
+  const L=data.L, xs=data.xs;
+  const mn=Math.min(...ys), mx=Math.max(...ys);
+  statEl.innerHTML = 'Máx: <b>'+r2(mx)+'</b> &nbsp; Mín: <b>'+r2(mn)+'</b> &nbsp; '+unit;
+
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.offsetWidth||800, H=220;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+
+  const pL=58,pR=22,pT=18,pB=30;
+  const gw=W-pL-pR, gh=H-pT-pB;
+  ctx.clearRect(0,0,W,H);
+
+  const ymin=Math.min(0,...ys), ymax=Math.max(0,...ys);
+  const yr=(ymax-ymin)||1;
+  const xm=x=>pL+(x/L)*gw;
+  const ym=y=>pT+((ymax-y)/yr)*gh;
+  const zero=ym(0);
+
+  for(let i=0;i<=5;i++){
+    const y=pT+i*gh/5;
+    ctx.strokeStyle='#e4e7ec'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(pL+gw,y); ctx.stroke();
+    const val=ymax-i*yr/5;
+    ctx.fillStyle='#6b7280'; ctx.font='9px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText(rq(val),pL-3,y+3.5);
+  }
+  for(let i=0;i<=8;i++){
+    const xi=pL+i*gw/8;
+    ctx.strokeStyle='#eceef2'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(xi,pT); ctx.lineTo(xi,pT+gh); ctx.stroke();
+    ctx.fillStyle='#6b7280'; ctx.font='9px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(rq(i*L/8),xi,H-pB+11);
+  }
+
+  ctx.strokeStyle='#9aa1ad'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(pL,zero); ctx.lineTo(pL+gw,zero); ctx.stroke();
+
+  data.nodes.forEach(n=>{
+    const xpx=xm(data.npos[n]);
+    ctx.strokeStyle='#c3c9d2'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(xpx,pT); ctx.lineTo(xpx,pT+gh); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#3a3f47'; ctx.font='bold 9px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(n,xpx,pT+gh+11);
+  });
+
+  function fillZone(above){
+    ctx.beginPath(); ctx.moveTo(xm(xs[0]),zero);
+    for(let i=0;i<xs.length;i++){
+      const yy=ym(ys[i]);
+      ctx.lineTo(xm(xs[i]), above?(yy<zero?yy:zero):(yy>zero?yy:zero));
+    }
+    ctx.lineTo(xm(xs[xs.length-1]),zero); ctx.closePath();
+    ctx.fillStyle=above?hexA(color,.22):hexA('#e05c5c',.12); ctx.fill();
+  }
+  fillZone(true); fillZone(false);
+
+  ctx.beginPath(); ctx.moveTo(xm(xs[0]),ym(ys[0]));
+  for(let i=1;i<xs.length;i++) ctx.lineTo(xm(xs[i]),ym(ys[i]));
+  ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
+
+  ctx.strokeStyle='#d3d7de'; ctx.lineWidth=1; ctx.strokeRect(pL,pT,gw,gh);
+
+  data.breakpoints.forEach(bx=>{
+    const idx=Math.round((bx/L)*(xs.length-1));
+    const xpx=xm(bx), ypx=ym(ys[idx]);
+    ctx.fillStyle=color; ctx.beginPath(); ctx.arc(xpx,ypx,3.5,0,Math.PI*2); ctx.fill();
+    ctx.font='bold 9px Segoe UI'; ctx.textAlign='center';
+    const above=ys[idx]>=0;
+    ctx.fillText(rq(ys[idx])+' '+unit, xpx, ypx+(above?-7:12));
+  });
+
+  ctx.fillStyle='#6b7280'; ctx.font='9px Segoe UI'; ctx.textAlign='center';
+  ctx.fillText('x (m)',pL+gw/2,H-1);
+
+  // ── Línea de consulta en x = queryX ──
+  if(queryX!==null && queryX>=0 && queryX<=L){
+    const qpx=xm(queryX), qv=valueAt(ys,queryX), qy=ym(qv);
+    ctx.strokeStyle='#f0c040'; ctx.lineWidth=1.6; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(qpx,pT); ctx.lineTo(qpx,pT+gh); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(qpx,qy,4,0,Math.PI*2);
+    ctx.fillStyle='#f0c040'; ctx.fill(); ctx.strokeStyle='#f7f8fa'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#f0c040'; ctx.font='bold 9.5px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(rq(qv)+' '+unit, qpx, qv>=0?qy-9:qy+15);
+    ctx.fillStyle='#e8b84b'; ctx.font='8px Segoe UI';
+    ctx.fillText('x='+rL(queryX), qpx, pT+9);
+  }
+}
+
+function drawAll(){
+  draw(document.getElementById('cN'), data.N, '#4fc98a', 'kN',   document.getElementById('statN'));
+  draw(document.getElementById('cV'), data.V, '#0a4adb', 'kN',   document.getElementById('statV'));
+  draw(document.getElementById('cM'), data.M, '#e05c5c', 'kN·m', document.getElementById('statM'));
+}
+window.addEventListener('resize', drawAll);
+drawAll();
+document.getElementById('qx').addEventListener('input', updateQuery);
+document.getElementById('qclear').addEventListener('click', ()=>{document.getElementById('qx').value='';updateQuery();});
+<\/script>
+</body></html>`);
+  win.document.close();
+}
+
+
+function loadExample(){
+  tramos=[{id:1,len:3},{id:2,len:4},{id:3,len:1}];
+  tid=10;
+  apoyos={A:'pin', B:'none', C:'roller', D:'none'};
+  hinges={A:false, B:false, C:false, D:false};
+  loads=[
+    {id:++lid, type:'T', mag:-2,   pos:0, pos2:3},
+    {id:++lid, type:'U', mag:-2,   pos:3, pos2:7},
+    {id:++lid, type:'P', mag:-1,   pos:3},
+    {id:++lid, type:'P', mag:-0.5, pos:8},
+    {id:++lid, type:'M', mag:-3,   pos:3},
+  ];
+  renderAll();
+  analyze();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════
+//  HISTORIAL DE EJERCICIOS (últimos 10, propios de cada usuario)
+//  El portal es el dueño del almacén; aquí sólo se pide/envía por postMessage.
+// ═══════════════════════════════════════════════════════════
+const HIST_APP = 'diag';
+let histItems = [];
+let histUser  = null;
+function histPost(msg){
+  try{ if(window.parent && window.parent!==window) window.parent.postMessage(Object.assign({app:HIST_APP},msg),'*'); }catch(e){}
+}
+function histRequest(){ histPost({bsa:'hist:list'}); }
+function histPush(){
+  if(histSuppress) return;          // no re-guardar el ejercicio que se acaba de abrir
+  const snap = histSnapshot();
+  if(!snap) return;
+  histPost({bsa:'hist:save', item:snap});
+}
+window.addEventListener('message', ev=>{
+  const d=ev.data;
+  if(!d||typeof d!=='object'||d.bsa!=='hist:data'||d.app!==HIST_APP) return;
+  histItems = Array.isArray(d.items)?d.items:[];
+  histUser  = d.user||null;
+  histRenderList();
+  const b=document.getElementById('histBtn');
+  if(b) b.style.display = histUser ? '' : 'none';   // sin sesión no tiene sentido
+});
+function histFmtDate(ts){
+  try{ const d=new Date(ts);
+    const p=n=>String(n).padStart(2,'0');
+    return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());
+  }catch(e){ return ''; }
+}
+function openHist(){ histRequest(); document.getElementById('histModal').classList.add('show'); }
+function closeHist(){ document.getElementById('histModal').classList.remove('show'); }
+function histRenderList(){
+  const box=document.getElementById('histList'); if(!box) return;
+  if(!histUser){
+    box.innerHTML='<div class="hist-empty">Inicia sesión en el portal para guardar tu historial.</div>'; return;
+  }
+  if(!histItems.length){
+    box.innerHTML='<div class="hist-empty">Aún no tienes ejercicios guardados.<br>Se guardarán automáticamente al calcular.</div>'; return;
+  }
+  box.innerHTML = histItems.map((it,i)=>
+    '<div class="hist-item">'+
+      '<div class="hist-info"><div class="hist-title">'+(i+1)+'. '+String(it.title||'Ejercicio').replace(/</g,'&lt;')+'</div>'+
+      '<div class="hist-date">'+histFmtDate(it.ts)+'</div></div>'+
+      '<button class="hist-load" onclick="histLoad(\''+String(it.id)+'\')">Abrir</button>'+
+      '<button class="hist-del" onclick="histDel(\''+String(it.id)+'\')" title="Eliminar">✕</button>'+
+    '</div>').join('');
+}
+function histDel(id){ histPost({bsa:'hist:del', id:String(id)}); }
+let histSuppress=false;   // evita volver a guardar mientras se restaura
+function histLoad(id){
+  const it=histItems.find(x=>String(x.id)===String(id));
+  if(!it||!it.state){ alert('No se encontró ese ejercicio en el historial.'); return; }
+  histSuppress=true;
+  try{ histRestore(it.state); closeHist(); }
+  catch(e){ alert('No se pudo abrir ese ejercicio guardado.'); }
+  finally{ setTimeout(()=>{ histSuppress=false; }, 400); }
+}
+
+// Estado serializable del problema
+function histSnapshot(){
+  if(!lastResult) return null;
+  const nodes=getNodes();
+  const nSup=nodes.filter(n=>apoyos[n]&&apoyos[n]!=='none').length;
+  const nHinge=nodes.filter(n=>hinges[n]).length;
+  // Título descriptivo: longitudes de tramo + tipos de carga (para diferenciar ejercicios)
+  const tramosTxt=tramos.map(tr=>r2(tr.len)).join('+')+' '+uLen();
+  const nom={P:'P',PX:'Px',U:'w',T:'w△',M:'M'};
+  const cnt={}; loads.forEach(l=>{const k=nom[l.type]||l.type; cnt[k]=(cnt[k]||0)+1;});
+  const cargasTxt=Object.keys(cnt).length
+      ? Object.keys(cnt).map(k=>(cnt[k]>1?cnt[k]+'×':'')+k).join(', ')
+      : 'sin cargas';
+  const title='Viga '+tramosTxt+' · '+cargasTxt+' · '+nSup+' apoyo'+(nSup!==1?'s':'')
+            + (nHinge?' · '+nHinge+' rótula'+(nHinge>1?'s':''):'');
+  return {title, state:{
+    tramos:JSON.parse(JSON.stringify(tramos)),
+    apoyos:JSON.parse(JSON.stringify(apoyos)),
+    hinges:JSON.parse(JSON.stringify(hinges)),
+    loads: JSON.parse(JSON.stringify(loads)),
+    lid, tid, UNITS:JSON.parse(JSON.stringify(UNITS)), DEC:JSON.parse(JSON.stringify(DEC))
+  }};
+}
+function histRestore(s){
+  tramos=JSON.parse(JSON.stringify(s.tramos));
+  apoyos=JSON.parse(JSON.stringify(s.apoyos));
+  hinges=JSON.parse(JSON.stringify(s.hinges));
+  loads =JSON.parse(JSON.stringify(s.loads));
+  if(typeof s.lid==='number') lid=s.lid;
+  if(typeof s.tid==='number') tid=s.tid;
+  if(s.UNITS) UNITS=JSON.parse(JSON.stringify(s.UNITS));
+  if(s.DEC)   DEC  =JSON.parse(JSON.stringify(s.DEC));
+  syncUnitsTag(); syncDecTag(); syncApoyos(); renderAll(); analyze();
+}
+
+syncApoyos();
+renderAll();
+syncUnitsTag();
+syncDecTag();
+histRequest();
+document.getElementById('unitsModal').addEventListener('click',e=>{ if(e.target.id==='unitsModal') closeUnits(); });
+window.addEventListener('resize',()=>{ if(lastResult){ drawBeam(lastResult); renderResultsArea(lastResult); } });
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    const c=document.getElementById('beamCanvas');
+    const dpr=window.devicePixelRatio||1;
+    const W=c.offsetWidth;
+    c.width=W*dpr; c.height=150*dpr;
+    const ctx=c.getContext('2d'); ctx.scale(dpr,dpr);
+    ctx.fillStyle='#dfe3ea'; ctx.strokeStyle='#0a4adb'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.rect(52,64,W-80,12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#6b7280'; ctx.font='11px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText('Configura la viga y pulsa ▶ Calcular Diagramas',W/2,115);
+  },80);
+});
+
+// ═══ PDF DOWNLOAD ═══
+async function downloadPDF(){
+  if(!lastResult){ alert('Primero calcula los diagramas.'); return; }
+  // Use print-to-PDF via a hidden iframe with print styles
+  const printWin = window.open('','_blank','width=1100,height=900');
+  if(!printWin){ alert('Activa pop-ups para descargar el PDF.'); return; }
+
+  // Gather all canvas images
+  const beamC = document.getElementById('beamCanvas');
+  const beamImg = beamC ? beamC.toDataURL('image/png',1) : '';
+
+  // Get chart canvases
+  const charts = document.querySelectorAll('canvas.cht');
+  const chartImgs = [];
+  for(const c of charts){
+    chartImgs.push({src: c.toDataURL('image/png',1), label: c.parentElement?.querySelector('.dchart-label')?.textContent||''});
+  }
+
+  // Get solution HTML
+  const solCard = document.querySelector('.sol-card');
+  const solHTML = solCard ? solCard.innerHTML : '';
+
+  const dt=new Date().toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
+  printWin.document.write(`<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<title>BSA — Resolución</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{--acc:#2f5aa8;--acc2:#3f6fc4;--dark:#22406f;--muted:#64748b;--border:#d3ddef;--card:#f2f6fc;--text:#1b2536;}
+  body{background:#fff;color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:12px;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .wrap{padding:22px 26px;}
+  .pdf-header{display:flex;align-items:center;gap:14px;border-bottom:2px solid var(--acc);padding-bottom:12px;margin-bottom:18px;}
+  .pdf-header .mk{font-size:20px;}
+  .pdf-title{font-size:17px;font-weight:800;color:var(--acc);line-height:1.2;}
+  .pdf-sub{font-size:10px;color:var(--muted);margin-top:2px;}
+  .pdf-date{margin-left:auto;font-size:9px;color:var(--muted);text-align:right;}
+  .section{margin-bottom:10px;}
+  .section-title{font-size:11px;font-weight:800;letter-spacing:.4px;color:var(--acc);text-transform:uppercase;border-bottom:1.5px solid var(--border);padding-bottom:4px;margin-bottom:7px;}
+  img.beam,img.chart{width:100%;display:block;border:1px solid var(--border);border-radius:8px;background:#ffffff;margin-bottom:7px;box-shadow:0 1px 3px rgba(30,50,90,.08);}
+  .chart-label{font-size:11px;font-weight:700;color:var(--dark);margin:6px 0 3px;}
+  /* Solución */
+  .sol-title{font-size:13px;font-weight:800;color:var(--acc);margin-bottom:8px;}
+  .sol-step{border-left:3px solid var(--acc2);padding:2px 0 2px 12px;margin-bottom:8px;page-break-inside:avoid;}
+  .sol-step h4{font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:3px;}
+  .sol-step p{font-size:11px;line-height:1.5;margin-bottom:2px;color:var(--text);}
+  .eq{display:block;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--acc);
+    border-radius:5px;padding:4px 10px;font-family:'Latin Modern Math','STIX Two Math','Cambria Math',Georgia,serif;
+    font-size:12px;color:var(--text);margin:3px 0;line-height:1.55;}
+  .val{color:var(--acc);font-weight:700;}
+  b{color:var(--dark);}
+  sub,sup{color:inherit;}
+  .seg-dcl{width:100%;height:auto;max-height:150px;display:block;margin:4px 0 6px;page-break-inside:avoid;}
+  .seg-cap{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;margin:5px 0 1px;}
+  .footer{margin-top:12px;font-size:9px;color:var(--muted);text-align:center;border-top:1px solid var(--border);padding-top:10px;}
+  .wm-seal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:340px;height:340px;opacity:.06;z-index:9999;pointer-events:none;}
+  .wm-seal svg{width:100%;height:100%;}
+  @page{size:A4;margin:0;}
+  @media print{ .wrap{padding:12mm 9mm 14mm;} }
+</style>
+</head><body>
+<div class="wrap">
+<div class="wm-seal"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><defs><path id="stp" d="M 26,100 A 74,74 0 0 1 174,100"/><path id="sbt" d="M 26,100 A 74,74 0 0 0 174,100"/></defs><circle cx="100" cy="100" r="94" fill="none" stroke="#2f5aa8" stroke-width="2.5"/><circle cx="100" cy="100" r="80" fill="none" stroke="#2f5aa8" stroke-width="1"/><text font-family="Inter,sans-serif" font-size="9" font-weight="800" fill="#2f5aa8" letter-spacing="1"><textPath href="#stp" startOffset="50%" text-anchor="middle">BEAM &amp; SECTION ANALYSIS</textPath></text><text font-family="Inter,sans-serif" font-size="10.5" font-weight="600" fill="#2f5aa8" letter-spacing="1"><textPath href="#sbt" startOffset="50%" text-anchor="middle">by Luis Alejandro Bazán Campos</textPath></text><text x="100" y="106" font-family="Inter,sans-serif" font-size="16" font-weight="800" fill="#2f5aa8" text-anchor="middle">BSA</text><line x1="62" y1="118" x2="138" y2="118" stroke="#2f5aa8" stroke-width="1"/><text x="100" y="133" font-family="Inter,sans-serif" font-size="9" fill="#2f5aa8" text-anchor="middle" letter-spacing="1">ESTÁTICA</text></svg></div>
+<div class="pdf-header">
+  <span class="mk">📐</span>
+  <div><div class="pdf-title">BSA — Diagramas de Fuerzas Internas</div>
+  <div class="pdf-sub">Hibbeler Estática · §7.2 · by Luis Alejandro Bazán Campos</div></div>
+  <div class="pdf-date">Generado:<br>${dt}</div>
+</div>
+
+<div class="section">
+  <div class="section-title">1 · Diagrama de Cuerpo Libre (DCL)</div>
+  <img class="beam" src="${beamImg}" alt="DCL">
+</div>
+
+<div class="section">
+  <div class="section-title">2 · Resolución — Método de Ecuaciones</div>
+  <div>${solHTML}</div>
+</div>
+
+<div class="section">
+  <div class="section-title">3 · Diagramas DFN · DFC · DMF</div>
+  ${chartImgs.map(c=>`<div class="chart-label">${c.label}</div><img class="chart" src="${c.src}" alt="${c.label}">`).join('')}
+</div>
+
+<div class="footer">BSA · by Luis Alejandro Bazán Campos</div>
+</div>
+<script>window.onload=()=>{setTimeout(()=>{window.print();},400);}<\/script>
+</body></html>`);
+  printWin.document.close();
+}
+
+</script>
+
+<!-- ── MODAL DE HISTORIAL ── -->
+<div class="modal-ov" id="histModal">
+  <div class="modal-box" style="max-width:460px;">
+    <div class="modal-h">Mis ejercicios recientes</div>
+    <p class="modal-note">Se guardan tus últimos 10 ejercicios. Al superar ese número se elimina el más
+      antiguo. El historial es personal y se borra al cerrar sesión.</p>
+    <div class="hist-list" id="histList"></div>
+    <div class="modal-actions"><button class="mbtn ghost" onclick="closeHist()">Cerrar</button></div>
+  </div>
+</div>
+</body>
+</html>
