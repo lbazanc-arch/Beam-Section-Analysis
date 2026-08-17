@@ -263,6 +263,26 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 /* APPS SECTION */
 .apps-section{margin-bottom:16px;}
 .apps-title{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;}
+.app-card.amber{border-color:rgba(180,83,9,.30);background:rgba(180,83,9,.06);}
+.app-card.amber:hover{border-color:#b45309;box-shadow:0 0 20px rgba(180,83,9,.28);}
+.app-card.amber .app-card-name{color:#d98324;}
+.app-card.teal{border-color:rgba(15,92,86,.32);background:rgba(15,92,86,.07);}
+.app-card.teal:hover{border-color:#0f5c56;box-shadow:0 0 20px rgba(15,92,86,.3);}
+.app-card.teal .app-card-name{color:#3aa79c;}
+.app-card.off{opacity:.55;}
+.app-card-top{display:flex;align-items:flex-start;gap:10px;}
+.app-card-top .app-card-name{flex:1;}
+.app-sw{position:relative;width:40px;height:22px;border-radius:22px;background:#4a4f5a;
+  border:none;cursor:pointer;flex:none;transition:background .2s;padding:0;}
+.app-sw.on{background:#2f9e5e;}
+.app-sw::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;
+  background:#fff;transition:transform .2s;}
+.app-sw.on::after{transform:translateX(18px);}
+.app-state{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-top:7px;}
+.app-state.on{color:#2f9e5e;} .app-state.off{color:#e05c5c;}
+.apps-note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5;}
+.cap.capoff{opacity:.55;}
+.cap-badge.blocked{background:rgba(224,92,92,.15);color:#e05c5c;}
 .apps-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .app-card{background:var(--bg3);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;transition:all .2s;}
 .app-card:hover{transform:translateY(-2px);}
@@ -517,16 +537,9 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
     </div>
     <div class="apps-section">
       <div class="apps-title">Aplicativos</div>
-      <div class="apps-grid">
-        <div class="app-card blue" onclick="openApp('diag')">
-          <div class="app-card-name">Diagramas de Fuerzas Internas</div>
-          <div class="app-card-desc">DFN · DFC · DMF · Vigas Gerber · Hibbeler §7.2</div>
-        </div>
-        <div class="app-card green" onclick="openApp('iner')">
-          <div class="app-card-name">Momento de Inercia</div>
-          <div class="app-card-desc">Secciones compuestas · Steiner · Ejes principales · Hibbeler Cap. 10</div>
-        </div>
-      </div>
+      <div class="apps-grid" id="appsGrid"></div>
+      <div class="apps-note">El interruptor controla el acceso <b>de los estudiantes</b> a cada capítulo.
+        Tú puedes abrirlos siempre desde aquí.</div>
     </div>
     <div class="statusbar">
       <div class="sind"><div class="sdot on" id="sdot"></div><span class="slabel" id="slabel">Aplicativos habilitados</span></div>
@@ -1289,7 +1302,9 @@ async function api(action, body={}, timeoutMs=12000){
 
       case 'getConfig': {
         const v=ls.get('app_disabled_until');
-        return {config: v?{app_disabled_until:v}:{}};
+        const co=ls.get('caps_off');
+        const cf={}; if(v)cf.app_disabled_until=v; if(co)cf.caps_off=Array.isArray(co)?co.join(','):co;
+        return {config: cf};
       }
       case 'setConfig':
         ls.set(body.key, body.value); return {ok:true};
@@ -1439,6 +1454,9 @@ async function loginEst(){
     if(cfg&&cfg.config){
       const v=cfg.config.app_disabled_until?Number(cfg.config.app_disabled_until):0;
       dis=(v&&v>Date.now())?v:null; ls.set('app_disabled_until',dis);
+      // capítulos bloqueados por el profesor
+      const co=cfg.config.caps_off;
+      if(co!==undefined) ls.set('caps_off', typeof co==='string' ? (co?co.split(','):[]) : (co||[]));
     }
   }catch(_){}
   if(dis&&Date.now()<dis){
@@ -1472,6 +1490,7 @@ function enterStudent(e, found){
     meta.textContent=partes.join('   ·   ');
   }
   showScreen('s-student');
+  aplicarBloqueoEstudiante();
 }
 function refreshEstCacheBg(){
   api('getConfig').then(cfg=>{if(cfg&&cfg.config){const v=cfg.config.app_disabled_until?Number(cfg.config.app_disabled_until):0;if(v&&v>Date.now())ls.set('app_disabled_until',v);else ls.del('app_disabled_until');}}).catch(()=>{});
@@ -1484,7 +1503,7 @@ function loadPanel(){
   if(haveCache){ renderUsers();renderLogs(); }
   else if(USE_SHEETS){ showTablesLoading(); }
   else { renderUsers();renderLogs(); }
-  renderStats();refreshStatus();
+  renderStats();refreshStatus();renderAppCards();
   if(USE_SHEETS){
     fetchAll().then(ok=>{
       renderUsers();renderLogs();renderStats();refreshStatus();
@@ -1573,6 +1592,83 @@ async function refreshPanel(){
   if(!ok) showPanelWarning(); else clearPanelWarning();
   setTimeout(()=>document.querySelectorAll('[onclick="refreshPanel()"]').forEach(b=>{b.textContent='↻';b.style.color='var(--muted)';}),500);
 }
+
+// ═══ Catálogo de capítulos y bloqueo por capítulo (solo estudiantes) ═══
+const CAPS = [
+  {key:'arma',   cap:'6',  cls:'amber', nom:'Análisis de Armaduras',
+   desc:'Método de nudos y de secciones · fuerza cero · resistencia · Hibbeler Cap. 6'},
+  {key:'diag',   cap:'7',  cls:'blue',  nom:'Diagramas de Fuerzas Internas',
+   desc:'DFN · DFC · DMF · Vigas Gerber · Hibbeler §7.2'},
+  {key:'centro', cap:'9',  cls:'teal',  nom:'Centro de Gravedad y Centroide',
+   desc:'Secciones compuestas · cuerpos homogéneos y heterogéneos · Hibbeler Cap. 9'},
+  {key:'iner',   cap:'10', cls:'green', nom:'Momento de Inercia',
+   desc:'Secciones compuestas · Steiner · Ejes principales · Hibbeler Cap. 10'}
+];
+
+// Lista de capítulos bloqueados para los estudiantes
+function capsOff(){
+  const v = ls.get('caps_off');
+  return Array.isArray(v) ? v : (typeof v === 'string' && v ? v.split(',') : []);
+}
+function capBloqueado(key){ return capsOff().indexOf(key) >= 0; }
+async function toggleAcceso(key){
+  const off = capsOff();
+  const i = off.indexOf(key);
+  if(i >= 0) off.splice(i,1); else off.push(key);
+  ls.set('caps_off', off);
+  if(typeof USE_SHEETS !== 'undefined' && USE_SHEETS){
+    try{ await api('setConfig',{key:'caps_off', value:off.join(',')}); }catch(e){}
+  }
+  renderAppCards();
+}
+
+function renderAppCards(){
+  const g = document.getElementById('appsGrid');
+  if(!g) return;
+  g.innerHTML = CAPS.map(c=>{
+    const off = capBloqueado(c.key);
+    return '<div class="app-card '+c.cls+(off?' off':'')+'">'
+      + '<div class="app-card-top">'
+      + '<div class="app-card-name" onclick="openApp(\''+c.key+'\')" style="cursor:pointer">Cap. '+c.cap+' — '+c.nom+'</div>'
+      + '<button class="app-sw'+(off?'':' on')+'" title="Acceso de estudiantes" '
+      + 'onclick="event.stopPropagation();toggleAcceso(\''+c.key+'\')"></button>'
+      + '</div>'
+      + '<div class="app-card-desc" onclick="openApp(\''+c.key+'\')" style="cursor:pointer">'+c.desc+'</div>'
+      + '<div class="app-state '+(off?'off':'on')+'">'
+      + (off ? 'Bloqueado para estudiantes' : 'Habilitado para estudiantes') + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// En la vista del estudiante se atenúan y desactivan los capítulos bloqueados
+function aplicarBloqueoEstudiante(){
+  if(role === 'prof') return;
+  const off = capsOff();
+  CAPS.forEach(c=>{
+    const cont = document.querySelector('[data-cap="'+c.cap+'"]');
+    if(!cont) return;
+    const bloq = off.indexOf(c.key) >= 0;
+    cont.classList.toggle('capoff', bloq);
+    cont.querySelectorAll('button.sub').forEach(bt=>{
+      if(bloq){
+        bt.dataset.appkey = c.key;
+        bt.onclick = ()=>alert('Tu profesor ha deshabilitado el acceso a este capítulo.');
+        const go = bt.querySelector('.sub-go'); if(go) go.textContent = 'Bloqueado';
+      } else if(bt.dataset.appkey){
+        const k = bt.dataset.appkey;
+        bt.onclick = ()=>openApp(k);
+        const go = bt.querySelector('.sub-go'); if(go) go.textContent = 'Abrir';
+      }
+    });
+    const bd = cont.querySelector('.cap-badge');
+    if(bd && !bd.classList.contains('proximo')){
+      bd.classList.toggle('blocked', bloq);
+      if(bloq) bd.textContent = 'Bloqueado';
+      else if(bd.textContent === 'Bloqueado') bd.textContent = '1 tema';
+    }
+  });
+}
+
 function refreshStatus(){
   const u=ls.get('app_disabled_until'),dot=document.getElementById('sdot'),lbl=document.getElementById('slabel'),btn=document.getElementById('btn-disable');
   if(!dot||!lbl||!btn)return;
@@ -1856,6 +1952,12 @@ function toggleCap(n){
 }
 
 function openApp(appKey){
+  // Un capítulo bloqueado no se abre para estudiantes, ni siquiera llamando
+  // directamente a esta función: el control no puede quedarse solo en la vista.
+  if(role !== 'prof' && capBloqueado(appKey)){
+    alert('Tu profesor ha deshabilitado el acceso a este capítulo.');
+    return;
+  }
   const isDiag = appKey==='diag';
   const isCentro = appKey==='centro';
   // Cada capítulo es un archivo suelto en la misma carpeta que index.html.
