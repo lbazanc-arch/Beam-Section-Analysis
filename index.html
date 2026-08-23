@@ -649,7 +649,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
           <span class="cap-ar"></span>
         </button>
         <div class="cap-body">
-          <button class="sub" onclick="openApp('arma')">
+          <button class="sub" onclick="openApp('arma')" data-appkey="arma">
             <span class="sub-n">6.1 y 6.4</span>
             <span class="sub-t">
               <b>Análisis de armaduras</b>
@@ -672,7 +672,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
           <span class="cap-ar"></span>
         </button>
         <div class="cap-body">
-          <button class="sub" onclick="openApp('diag')">
+          <button class="sub" onclick="openApp('diag')" data-appkey="diag">
             <span class="sub-n">7.2</span>
             <span class="sub-t">
               <b>Diagramas de fuerza cortante y momento flexionante</b>
@@ -690,11 +690,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
             <span class="cap-nm">Centro de Gravedad y Centroide</span>
             <span class="cap-ds">Cuerpos compuestos y presión de fluidos</span>
           </span>
-          <span class="cap-badge">1 tema</span>
+          <span class="cap-badge">2 temas</span>
           <span class="cap-ar"></span>
         </button>
         <div class="cap-body">
-          <button class="sub" onclick="openApp('centro')">
+          <button class="sub" onclick="openApp('centro')" data-appkey="centro">
             <span class="sub-n">9.1</span>
             <span class="sub-t">
               <b>Centro de gravedad, centro de masa y centroide</b>
@@ -710,14 +710,14 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
             </span>
             <span class="sub-go">Etapa 2</span>
           </div>
-          <div class="sub disabled">
+          <button class="sub" onclick="openApp('presion')" data-appkey="presion">
             <span class="sub-n">9.5</span>
             <span class="sub-t">
               <b>Presión de un fluido</b>
               <i>Placas sumergidas · Centro de presión</i>
             </span>
-            <span class="sub-go">Etapa 2</span>
-          </div>
+            <span class="sub-go">Abrir</span>
+          </button>
         </div>
       </div>
 
@@ -732,7 +732,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
           <span class="cap-ar"></span>
         </button>
         <div class="cap-body">
-          <button class="sub" onclick="openApp('iner')">
+          <button class="sub" onclick="openApp('iner')" data-appkey="iner">
             <span class="sub-n">10.2</span>
             <span class="sub-t">
               <b>Momento de inercia para áreas compuestas</b>
@@ -1601,6 +1601,8 @@ const CAPS = [
    desc:'DFN · DFC · DMF · Vigas Gerber · Hibbeler §7.2'},
   {key:'centro', cap:'9',  cls:'teal',  nom:'Centro de Gravedad y Centroide',
    desc:'Secciones compuestas · cuerpos homogéneos y heterogéneos · Hibbeler Cap. 9'},
+  {key:'presion', cap:'9',  cls:'teal',  nom:'Presión de un Fluido',
+   desc:'Placas sumergidas · centro de presión · Hibbeler §9.5'},
   {key:'iner',   cap:'10', cls:'green', nom:'Momento de Inercia',
    desc:'Secciones compuestas · Steiner · Ejes principales · Hibbeler Cap. 10'}
 ];
@@ -1644,27 +1646,35 @@ function renderAppCards(){
 function aplicarBloqueoEstudiante(){
   if(role === 'prof') return;
   const off = capsOff();
-  CAPS.forEach(c=>{
-    const cont = document.querySelector('[data-cap="'+c.cap+'"]');
+  // Un mismo contenedor [data-cap] puede alojar más de un tema (p.ej. Cap. 9:
+  // centro y presión), así que el bloqueo se aplica por botón individual
+  // (data-appkey), nunca a todos los button.sub del contenedor a la vez.
+  const byCap = {};
+  CAPS.forEach(c=>{ (byCap[c.cap] = byCap[c.cap] || []).push(c); });
+  Object.keys(byCap).forEach(capNum=>{
+    const cont = document.querySelector('[data-cap="'+capNum+'"]');
     if(!cont) return;
-    const bloq = off.indexOf(c.key) >= 0;
-    cont.classList.toggle('capoff', bloq);
-    cont.querySelectorAll('button.sub').forEach(bt=>{
+    const temas = byCap[capNum];
+    let todosBloqueados = true;
+    temas.forEach(c=>{
+      const bt = cont.querySelector('button.sub[data-appkey="'+c.key+'"]');
+      if(!bt) return;
+      const bloq = off.indexOf(c.key) >= 0;
+      if(!bloq) todosBloqueados = false;
       if(bloq){
-        bt.dataset.appkey = c.key;
         bt.onclick = ()=>alert('Tu profesor ha deshabilitado el acceso a este capítulo.');
         const go = bt.querySelector('.sub-go'); if(go) go.textContent = 'Bloqueado';
-      } else if(bt.dataset.appkey){
-        const k = bt.dataset.appkey;
-        bt.onclick = ()=>openApp(k);
+      } else {
+        bt.onclick = ()=>openApp(c.key);
         const go = bt.querySelector('.sub-go'); if(go) go.textContent = 'Abrir';
       }
     });
+    cont.classList.toggle('capoff', todosBloqueados);
     const bd = cont.querySelector('.cap-badge');
     if(bd && !bd.classList.contains('proximo')){
-      bd.classList.toggle('blocked', bloq);
-      if(bloq) bd.textContent = 'Bloqueado';
-      else if(bd.textContent === 'Bloqueado') bd.textContent = '1 tema';
+      bd.classList.toggle('blocked', todosBloqueados);
+      if(todosBloqueados) bd.textContent = 'Bloqueado';
+      else if(bd.textContent === 'Bloqueado') bd.textContent = temas.length+(temas.length>1?' temas':' tema');
     }
   });
 }
@@ -1960,9 +1970,10 @@ function openApp(appKey){
   }
   const isDiag = appKey==='diag';
   const isCentro = appKey==='centro';
+  const isPresion = appKey==='presion';
   // Cada capítulo es un archivo suelto en la misma carpeta que index.html.
   // Para añadir uno nuevo basta con agregar su entrada a este mapa.
-  const APPS = { arma:'cap6.html', diag:'cap7.html', centro:'cap9.html', iner:'cap10.html' };
+  const APPS = { arma:'cap6.html', diag:'cap7.html', centro:'cap9.html', presion:'cap9-presion.html', iner:'cap10.html' };
   document.getElementById('appf').src = APPS[appKey] || APPS.iner;
   document.getElementById('app-ov').classList.add('on');
   document.body.style.overflow='hidden';
@@ -1973,6 +1984,7 @@ function openApp(appKey){
   if(isArma){topbar.className='atbar amber-bar';closeBtn.className='bclose green-close';titleEl.textContent='BSA — Análisis de Armaduras · Hibbeler Cap. 6';}
   else if(isDiag){topbar.className='atbar blue-bar';closeBtn.className='bclose blue-close';titleEl.textContent='BSA — Diagramas de Fuerzas Internas · Hibbeler Cap. 7';}
   else if(isCentro){topbar.className='atbar green-bar';closeBtn.className='bclose green-close';titleEl.textContent='BSA — Centro de Gravedad y Centroide · Hibbeler Cap. 9';}
+  else if(isPresion){topbar.className='atbar green-bar';closeBtn.className='bclose green-close';titleEl.textContent='BSA — Presión de un Fluido · Hibbeler Cap. 9';}
   else{topbar.className='atbar green-bar';closeBtn.className='bclose green-close';titleEl.textContent='BSA — Momento de Inercia · Hibbeler Cap. 10';}
   if(user&&role==='est'){const s=ls.get('students')||[];const me=s.find(x=>x.email===user);const nm=me&&me.nombre?me.nombre:(me&&me.codigo?me.codigo:user);titleEl.textContent+=' · Bienvenido, '+nm;}
   startSession();
