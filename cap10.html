@@ -38,22 +38,23 @@ header .sub{color:var(--muted);font-size:10px;}
 }
 
 /* ── TOP ROW: left panel + canvas ── */
+/* El panel se superpone al lienzo, así que top-row debe ser el contenedor de
+   referencia: si no, el panel se posiciona respecto a la página y queda bajo
+   la barra de herramientas, que intercepta los clics. */
 .top-row{
-  display:grid;
-  grid-template-columns:290px 1fr;
-  height:calc(100vh - 48px);
-  min-height:500px;
+  position:relative;
+  display:block;
+  height:calc(100vh - 155px);
+  min-height:420px;
   overflow:hidden;
 }
 
 /* ── LEFT PANEL ── */
-.left-panel{
-  background:var(--panel);
-  border-right:1px solid var(--border);
-  display:flex;flex-direction:column;
-  overflow:hidden;
-  min-height:0;
-}
+.left-panel{position:absolute; top:0; left:0; bottom:0; width:96px; z-index:32;
+  background:#fff; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow-y:auto; padding:6px 0 10px;
+  box-shadow:2px 0 14px rgba(0,0,0,.07); transition:transform .22s ease;}
+.left-panel.plegado{transform:translateX(-100%);}
 .lp-scroll{
   flex:1;min-height:0;
   overflow-y:auto;
@@ -78,9 +79,9 @@ header .sub{color:var(--muted);font-size:10px;}
 }
 #mainCanvas{display:block;cursor:crosshair;width:100%;height:100%;}
 .canvas-controls{position:absolute;top:10px;right:10px;display:flex;gap:5px;z-index:5;}
-.cc-btn{background:rgba(15,36,32,.85);border:1px solid var(--border2);color:var(--muted);
-  width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;
-  display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.cc-btn{width:31px;height:31px;border-radius:7px;border:1px solid var(--border2);
+  background:#fff;color:var(--text);font-size:15px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-family:inherit;}
 .cc-btn:hover{border-color:var(--grn2);color:var(--text);}
 .canvas-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
   background:rgba(15,36,32,.85);border:1px solid var(--border);border-radius:6px;
@@ -239,9 +240,114 @@ header .sub{color:var(--muted);font-size:10px;}
 #tooltip{position:fixed;background:var(--card);border:1px solid var(--border);
   border-radius:6px;padding:4px 9px;font-size:10px;pointer-events:none;display:none;z-index:999;}
 
+
+/* La barra es hija de un contenedor flex: sin flex:none se COMPRIME cuando
+   aparecen los resultados y los botones quedan aplastados. Va pegada arriba
+   para seguir accesible al desplazarse por la solución. */
+.toolbar{display:flex; align-items:stretch; gap:6px; padding:7px 10px; background:#fff;
+  border-bottom:1px solid var(--border); overflow-x:auto;
+  position:sticky; top:48px; z-index:50; flex:none; min-height:59px;}
+.tb-sep{width:1px; background:var(--border2); margin:4px 6px; flex:none;}
+.tool-btn{border:1px solid var(--border2); border-radius:9px; background:#fff; cursor:pointer;
+  flex:none; padding:5px 9px 4px; display:flex; flex-direction:column; align-items:center; gap:2px;
+  font-family:inherit; transition:all .15s; min-width:62px; flex:none;}
+.tool-btn:hover{border-color:#c9930f; background:#fdf6e6;}
+.tool-btn svg{width:25px; height:21px;}
+.tool-btn span{font-size:9px; font-weight:700; color:var(--text); text-align:center; line-height:1.15;}
+
+/* ── BARRA DE HERRAMIENTAS: siempre accesible ──
+   En móvil no caben todos los botones: la barra se desplaza en horizontal y
+   queda fija arriba para que no la tape el panel de dibujo al hacer scroll. */
+.topbar{position:sticky; top:0; z-index:60; flex:none;}
+.toolbar{scrollbar-width:thin; -webkit-overflow-scrolling:touch;}
+.toolbar::-webkit-scrollbar{height:4px;}
+.toolbar::-webkit-scrollbar-thumb{background:var(--border2); border-radius:3px;}
+@media(max-width:820px){
+  /* botones más compactos para que quepan más de un vistazo */
+  .tool-btn{min-width:52px; padding:4px 6px 3px;}
+  .tool-btn svg{width:21px; height:18px;}
+  .tool-btn span{font-size:8px;}
+  .tb-sep{margin:4px 3px;}
+  .toolbar{padding:6px 8px;}
+  /* aviso de que hay más botones a la derecha */
+  .toolbar::after{content:''; position:sticky; right:0; flex:none; width:18px;
+    background:linear-gradient(to right, rgba(255,255,255,0), #fff);}
+}
+
+
+/* Botones de configuración, con el mismo aspecto que en los demás capítulos */
+.cfg-row{display:flex; gap:7px;}
+.cfg-chip{flex:1; border:1px solid var(--border2); border-radius:8px; padding:6px 9px;
+  cursor:pointer; background:#fff; text-align:left; font-family:inherit;}
+.cfg-chip:hover{border-color:#c9930f; background:#fdf6e6;}
+.cfg-lbl{font-size:8.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px;}
+.cfg-val{font-size:12px; font-weight:700; color:#c9930f; margin-top:1px;}
+
+
+/* Menú desplegable bajo el botón Figuras: se abre de arriba hacia abajo */
+.tb-menu{position:absolute; top:107px; left:60px; z-index:70; width:300px; max-width:calc(100vw - 24px);
+  background:#fff; border:1px solid var(--border2); border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18); display:none; overflow:hidden;}
+.tb-menu.abierto{display:block; animation:bajar .16s ease;}
+@keyframes bajar{from{opacity:0; transform:translateY(-8px);} to{opacity:1; transform:none;}}
+.tb-menu-head{background:#c9930f; color:#fff; font-size:11.5px; font-weight:800;
+  letter-spacing:.4px; text-transform:uppercase; padding:8px 12px;}
+.tb-menu-body{padding:10px 12px 14px; max-height:min(70vh,520px); overflow-y:auto;}
+@media(max-width:820px){ .tb-menu{left:8px; right:8px; width:auto;} }
+
+/* ── PANEL DE CONTROL ESTÁNDAR BSA (dos niveles) ── */
+.tb-zona{display:flex; align-items:stretch; gap:6px; flex:none;}
+.tb-pan{flex:none; width:40px; border:1px solid var(--border2); border-radius:9px;
+  background:#fff; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; font-family:inherit; margin-right:2px;}
+.tb-pan:hover{border-color:#c9930f; background:#fdf6e6;}
+.tb-pan.active{border-color:#c9930f; background:#fdf6e6; box-shadow:0 0 0 1px #c9930f;}
+.tb-pan svg{width:22px; height:22px;}
+.panel-toggle{position:absolute; top:10px; left:10px; z-index:35;
+  width:38px; height:38px; border-radius:10px; border:1px solid var(--border2);
+  background:#fff; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; font-family:inherit; box-shadow:0 2px 8px rgba(0,0,0,.10);
+  transition:left .22s ease;}
+.panel-toggle svg{width:20px; height:20px;}
+.panel-toggle.corrido{left:106px;}
+.panel-toggle.corrido.expandido{left:366px;}
+.rail-group{display:flex; flex-direction:column; gap:4px; padding:6px;}
+.rail-group + .rail-group{border-top:1px solid var(--border);}
+.rail-btn{border:1px solid transparent; border-radius:9px; background:none; cursor:pointer;
+  padding:7px 3px 5px; display:flex; flex-direction:column; align-items:center; gap:3px;
+  font-family:inherit; color:#c9930f; transition:all .15s;}
+.rail-btn:hover{background:#fdf6e6; border-color:var(--border2);}
+.rail-btn.active{background:#fdf6e6; border-color:#c9930f; box-shadow:0 0 0 1px #c9930f;}
+.rail-btn svg{width:21px; height:21px;}
+.rail-btn span{font-size:8.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.15;}
+.rail-btn.accion{color:#041d56;}
+.rail-btn.accion.pdf{color:#c0392b;}
+.panel-flyout{position:absolute; top:0; left:96px; bottom:0; width:260px; z-index:31;
+  background:#fff; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:3px 0 16px rgba(0,0,0,.09);
+  transition:transform .22s ease, opacity .18s ease;}
+.panel-flyout.plegado{transform:translateX(-115%); opacity:0; pointer-events:none;}
+.flyout-head{display:flex; align-items:center; gap:8px; padding:9px 12px;
+  border-bottom:1px solid var(--border); background:#c9930f; color:#fff;
+  font-size:11.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase;}
+.flyout-x{margin-left:auto; border:none; background:none; color:#fff; font-size:18px;
+  cursor:pointer; line-height:1; padding:0 2px; font-family:inherit;}
+.flyout-body{flex:1; overflow-y:auto; padding:10px 12px 14px;}
+@media(min-width:821px){
+  .left-panel.plegado{transform:none;}
+  .panel-toggle{display:none;}
+  .panel-flyout{left:96px;}
+}
+@media(max-width:820px){
+  .left-panel{width:88px; z-index:34; box-shadow:4px 0 22px rgba(0,0,0,.16);}
+  .panel-flyout{left:88px; width:calc(100vw - 96px); max-width:260px;}
+}
+
 @media(max-width:700px){
   .top-row{grid-template-columns:1fr;}
-  .left-panel{height:auto;max-height:50vh;}
+  /* La columna de control ocupa toda la altura: el antiguo max-height:50vh
+     la dejaba cortada y escondía los últimos botones. */
 }
 
 /* ── RESULTS SECTIONS ── */
@@ -441,24 +547,52 @@ header .sub{color:var(--muted);font-size:10px;}
 
 <div class="main-wrap">
   <!-- TOP ROW: left panel | canvas -->
-  <div class="top-row">
+  <div class="toolbar" id="toolbar">
+    <button class="tb-pan" id="tPan" onclick="togglePanTool()" title="Desplazarse por el panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#c9930f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3 L12 21 M3 12 L21 12"/>
+        <path d="M12 3 L9.5 5.5 M12 3 L14.5 5.5 M12 21 L9.5 18.5 M12 21 L14.5 18.5"/>
+        <path d="M3 12 L5.5 9.5 M3 12 L5.5 14.5 M21 12 L18.5 9.5 M21 12 L18.5 14.5"/>
+      </svg>
+    </button>
+    <div class="tb-sep"></div>
+    <div class="tb-zona" id="tbZona1">
+      <button class="tool-btn" onclick="abrirPaleta()" title="Insertar una figura en el panel">
+        <svg viewBox="0 0 40 34"><rect x="8" y="9" width="11" height="11" fill="none" stroke="#c9930f" stroke-width="2.2"/><circle cx="27" cy="20" r="6" fill="none" stroke="#c9930f" stroke-width="2.2"/></svg>
+        <span>Figuras</span>
+      </button>
+      <button class="tool-btn" onclick="abrirCatalogo()" title="Perfiles de acero">
+        <svg viewBox="0 0 40 34"><path d="M12 8 h16 M20 8 v18 M12 26 h16" fill="none" stroke="#c9930f" stroke-width="2.4"/></svg>
+        <span>Perfiles</span>
+      </button>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="tb-zona" id="tbZona2">
+      <button class="tool-btn" onclick="eliminarFiguraSel()" title="Eliminar la figura seleccionada">
+        <svg viewBox="0 0 40 34"><path d="M13 11 L27 11 L25 29 L15 29 Z" fill="none" stroke="#c0392b" stroke-width="2.2"/><line x1="10" y1="11" x2="30" y2="11" stroke="#c0392b" stroke-width="2.2"/><line x1="17" y1="7" x2="23" y2="7" stroke="#c0392b" stroke-width="2.2"/></svg>
+        <span>Eliminar</span>
+      </button>
+      <button class="tool-btn" onclick="clearExtraPoint()" title="Quitar punto de análisis">
+        <svg viewBox="0 0 40 34"><circle cx="20" cy="17" r="6" fill="none" stroke="#c9930f" stroke-width="2.2"/><path d="M13 10 L27 24" stroke="#c0392b" stroke-width="2.2"/></svg>
+        <span>Quitar punto</span>
+      </button>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="tb-zona" id="tbZona3">
+      <button class="tool-btn" onclick="openHist()" title="Ver ejercicios guardados">
+        <svg viewBox="0 0 40 34"><circle cx="20" cy="17" r="10" fill="none" stroke="#c9930f" stroke-width="2.2"/><path d="M20 11 v6 l4 3" fill="none" stroke="#c9930f" stroke-width="2.2" stroke-linecap="round"/></svg>
+        <span>Historial</span>
+      </button>
+      <button class="tool-btn" onclick="abrirGuardar()" title="Guardar este ejercicio">
+        <svg viewBox="0 0 40 34"><path d="M11 8 h14 l4 4 v14 h-18 Z" fill="none" stroke="#c9930f" stroke-width="2.2"/><rect x="15" y="8" width="10" height="6" fill="#c9930f"/><rect x="15" y="19" width="10" height="7" fill="none" stroke="#c9930f" stroke-width="1.8"/></svg>
+        <span>Guardar</span>
+      </button>
+    </div>
+  </div>
 
-    <!-- ── LEFT PANEL ── -->
-    <div class="left-panel">
-
-      <!-- Scrollable zone: palette + fig list + props -->
-      <div class="lp-scroll" id="lpScroll">
-
-        <!-- Unidades -->
-        <div class="panel-section">
-          <div class="panel-section-title">Unidades</div>
-          <button class="cfg-btn" onclick="openUnitsModal()">⚙ Unidad de longitud: <b id="unitTag">mm</b></button>
-          <button class="cfg-btn" id="histBtn" style="display:none" onclick="openHist()">🕘 Mis ejercicios recientes</button>
-          <button class="cfg-btn" onclick="openDecModal()">⚙ Decimales: <b id="decTag">0.00 / 0.0000</b></button>
-        </div>
-        <div class="divider"></div>
-
-        <!-- Figure palette -->
+    <div class="tb-menu" id="menuFiguras">
+    <div class="tb-menu-head">Insertar figura</div>
+    <div class="tb-menu-body"><!-- Figure palette -->
         <div id="figuresPalette">
           <div class="fig-category">Polígonos</div>
           <div class="fig-grid">
@@ -504,7 +638,61 @@ header .sub{color:var(--muted);font-size:10px;}
                    padding:3px 8px;cursor:pointer;font-family:inherit;">+ Catálogo</button>
         </div>
         <div id="misPerfiles" style="padding:0 6px 4px;"></div>
-        <div class="divider"></div>
+        </div>
+  </div>
+<div class="top-row">
+  <button class="panel-toggle" id="panelToggle" onclick="togglePanel()" title="Plegar o desplegar el panel">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#c9930f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4 L9 20"/>
+    </svg>
+  </button>
+
+    <!-- ── LEFT PANEL ── -->
+    <div class="left-panel plegado" id="leftPanel">
+    <div class="rail-group">
+      <button class="rail-btn active" id="rbConf" onclick="abrirSeccion('conf')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+        <span>Configuración</span>
+      </button>
+      <button class="rail-btn" id="rbFig" onclick="abrirSeccion('fig')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="8" height="8"/><circle cx="17" cy="16" r="4"/><path d="M3 20h8"/></svg>
+        <span>Figuras</span>
+      </button>
+    </div>
+    <div class="rail-group">
+      <button class="rail-btn accion" onclick="calculate()">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M7 4 L19 12 L7 20 Z"/></svg>
+        <span>Calcular</span>
+      </button>
+      <button class="rail-btn accion" onclick="resetAll()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1.4 13H7.4Z"/><path d="M4 7h16M10 4h4"/></svg>
+        <span>Limpiar</span>
+      </button>
+      <button class="rail-btn accion" onclick="loadExampleSection()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19V5h9l5 5v9z"/><path d="M9 12h6M9 15h4"/></svg>
+        <span>Ejemplo</span>
+      </button>
+      <button class="rail-btn accion pdf" onclick="downloadPDF()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/></svg>
+        <span>PDF</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-flyout plegado" id="panelFlyout">
+    <div class="flyout-head"><span id="flyoutTitulo">Configuración</span>
+      <button class="flyout-x" onclick="cerrarSeccion()" title="Cerrar">×</button>
+    </div>
+    <div class="flyout-body">
+      <div class="sec-cont" id="sec_conf"><div class="cfg-row">
+          <button class="cfg-chip" onclick="openUnitsModal()">
+            <div class="cfg-lbl">Unidades</div><div class="cfg-val" id="unitTag">mm</div>
+          </button>
+          <button class="cfg-chip" onclick="openDecModal()">
+            <div class="cfg-lbl">Decimales</div><div class="cfg-val" id="decTag">0.00 / 0.0000</div>
+          </button>
+        </div></div>
+      <div class="sec-cont" id="sec_fig" style="display:none"><div class="hint-sm" style="margin-bottom:8px">Propiedades de las figuras ya dibujadas. Para insertar una nueva, usa <b>Figuras</b> en la barra de herramientas.</div><div class="divider"></div>
 
         <!-- Figure list -->
         <div class="fig-list-wrap" style="padding:6px 9px;">
@@ -543,20 +731,10 @@ header .sub{color:var(--muted);font-size:10px;}
           </div>
         </div>
 
-      </div><!-- end lp-scroll -->
-
-      <!-- Sticky buttons always visible at bottom of left panel -->
-      <div class="lp-sticky">
-        <button class="btn-calc" onclick="calculate()">▶ Calcular Momento de Inercia</button>
-        <div class="btn-row">
-          <button class="btn-sm" onclick="resetAll()">🗑 Limpiar</button>
-          <button class="btn-sm" onclick="fitView()">⊙ Centrar</button>
-          <button class="btn-sm" onclick="loadExampleSection()">Ejemplo</button>
-          <button class="btn-sm pdf" onclick="downloadPDF()">📄 PDF</button>
-        </div>
-      </div>
-
-    </div><!-- end left-panel -->
+</div>
+      
+    </div>
+  </div><!-- end left-panel -->
 
     <!-- ── CANVAS ── -->
     <div class="canvas-area" id="canvasArea">
@@ -1885,6 +2063,126 @@ function setSign(s){
 // ═══════════════════════════════════════════════════════════
 //  CALCULATION ENGINE
 // ═══════════════════════════════════════════════════════════
+
+// ── Panel de control estándar BSA (dos niveles) ──
+const SECCIONES = {
+  conf:{titulo:'Configuración', btn:'rbConf'},
+  fig:{titulo:'Figuras', btn:'rbFig'}
+};
+let seccionAbierta = null;
+
+function posicionarToggle(){
+  const p = document.getElementById('leftPanel');
+  const f = document.getElementById('panelFlyout');
+  const b = document.getElementById('panelToggle');
+  if(!p || !b) return;
+  const rail = !p.classList.contains('plegado');
+  const fly  = f && !f.classList.contains('plegado');
+  b.classList.toggle('corrido', rail);
+  b.classList.toggle('expandido', rail && fly);
+}
+function togglePanel(){
+  const p = document.getElementById('leftPanel');
+  if(!p) return;
+  const seCierra = !p.classList.contains('plegado');
+  p.classList.toggle('plegado');
+  if(seCierra) cerrarSeccion();
+  posicionarToggle();
+  setTimeout(()=>{ try{ resizeCanvas(); }catch(e){} }, 240);
+}
+function abrirSeccion(id){
+  const f = document.getElementById('panelFlyout');
+  if(!f || !SECCIONES[id]) return;
+  if(seccionAbierta === id && !f.classList.contains('plegado')){ cerrarSeccion(); return; }
+  seccionAbierta = id;
+  Object.keys(SECCIONES).forEach(k=>{
+    const c = document.getElementById('sec_' + k);
+    if(c) c.style.display = (k===id) ? '' : 'none';
+    const b = document.getElementById(SECCIONES[k].btn);
+    if(b) b.classList.toggle('active', k===id);
+  });
+  document.getElementById('flyoutTitulo').textContent = SECCIONES[id].titulo;
+  f.classList.remove('plegado');
+  posicionarToggle();
+  setTimeout(()=>{ try{ resizeCanvas(); }catch(e){} }, 240);
+}
+function cerrarSeccion(){
+  const f = document.getElementById('panelFlyout');
+  if(f) f.classList.add('plegado');
+  seccionAbierta = null;
+  Object.keys(SECCIONES).forEach(k=>{
+    const b = document.getElementById(SECCIONES[k].btn);
+    if(b) b.classList.remove('active');
+  });
+  posicionarToggle();
+  setTimeout(()=>{ try{ resizeCanvas(); }catch(e){} }, 240);
+}
+
+
+// El lienzo del Cap. 10 ya se desplaza arrastrando; el botón solo lo recuerda.
+// ── Guardar el ejercicio con nombre (máx. 10) ──
+const MAX_PROYECTOS = 10;
+function abrirGuardar(){
+  if(!results){ alert('Primero calcula la sección para poder guardarla.'); return; }
+  const m = document.getElementById('guardarModal'); if(!m) return;
+  document.getElementById('nombreProyecto').value = '';
+  const el = document.getElementById('listaProyectos');
+  const n = histItems.length;
+  el.innerHTML = n
+    ? '<b>Guardados: ' + n + ' de ' + MAX_PROYECTOS + '</b>'
+      + (n >= MAX_PROYECTOS ? '<br><b style="color:#c0392b">Has llegado al máximo. Borra uno desde el historial.</b>' : '')
+    : 'Todavía no has guardado ningún ejercicio. Espacio disponible: ' + MAX_PROYECTOS + '.';
+  m.classList.add('show');
+}
+function cerrarGuardar(){ document.getElementById('guardarModal').classList.remove('show'); }
+function guardarProyecto(){
+  const inp = document.getElementById('nombreProyecto');
+  const nombre = (inp.value||'').trim();
+  if(!nombre){ alert('Ponle un nombre al ejercicio antes de guardarlo.'); inp.focus(); return; }
+  if(histItems.length >= MAX_PROYECTOS){
+    alert('Ya tienes ' + MAX_PROYECTOS + ' ejercicios guardados en este capítulo.'); return; }
+  const snap = histSnapshot();
+  if(!snap){ alert('No hay una sección calculada para guardar.'); return; }
+  snap.titulo = nombre;                 // el nombre lo pone el alumno
+  histPost({bsa:'hist:save', item:snap});
+  cerrarGuardar();
+  alert('Ejercicio guardado como "' + nombre + '".');
+}
+
+// Elimina la figura seleccionada en el panel de dibujo.
+function eliminarFiguraSel(){
+  if(selectedFigId === null || selectedFigId === undefined || !figures.some(f=>f.id===selectedFigId)){
+    alert('Primero selecciona una figura, en el panel de dibujo o en la lista de Figuras.');
+    return;
+  }
+  deleteFigure(selectedFigId);
+}
+
+// La paleta vive en la barra de herramientas: inserta figuras nuevas.
+// La sección "Figuras" de la columna solo muestra las ya dibujadas.
+function abrirPaleta(){
+  const m = document.getElementById('menuFiguras');
+  if(m) m.classList.toggle('abierto');
+}
+function cerrarMenuFiguras(){
+  const m = document.getElementById('menuFiguras');
+  if(m) m.classList.remove('abierto');
+}
+// al elegir una figura el menú se cierra solo
+document.addEventListener('click', ev=>{
+  const m = document.getElementById('menuFiguras');
+  if(!m || !m.classList.contains('abierto')) return;
+  const dentro = m.contains(ev.target);
+  const boton = ev.target.closest && ev.target.closest('[onclick*="abrirPaleta"]');
+  if(!dentro && !boton) cerrarMenuFiguras();
+  else if(dentro && ev.target.closest('.fig-btn')) cerrarMenuFiguras();
+});
+
+function togglePanTool(){
+  const b = document.getElementById('tPan');
+  if(b) b.classList.toggle('active');
+}
+
 function calculate(){
   if(!figures.length){ alert('Agrega al menos una figura.'); return; }
 
@@ -1960,6 +2258,21 @@ function calculate(){
   render();
 }
 
+// Al fijar un exponente grande, la mantisa puede quedar en 0.0000 con los
+// decimales configurados. Se amplían solo lo necesario para no perder cifras
+// significativas, sin pasar de 8 decimales.
+function decMantisa(m){
+  if(!isFinite(m)) return '0';
+  if(m === 0) return (0).toFixed(DEC.iner);
+  // Se conservan tantas cifras SIGNIFICATIVAS como decimales tenga configurado
+  // el usuario. Con solo evitar el cero se perdía precisión: 1.683e-8 salía
+  // como 0.00000002, que al reconstruir daba 20 en vez de 16.83.
+  const exp10 = Math.floor(Math.log10(Math.abs(m)));
+  const extra = Math.max(0, -exp10 - 1);
+  const d = Math.min(12, DEC.iner + extra);
+  return m.toFixed(d);
+}
+
 function fmtVal(v){
   // Format value according to selected notation
   if(notationExp === 0){
@@ -1974,7 +2287,7 @@ function fmtVal(v){
     return decFix(v,'iner').toString();
   }
   const factor = Math.pow(10, notationExp);
-  return (v / factor).toFixed(DEC.iner) + ' ×10<sup>' + notationExp + '</sup>';
+  return decMantisa(v / factor) + ' ×10<sup>' + notationExp + '</sup>';
 }
 // ── LaTeX helpers (KaTeX) ──
 function _kesc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -1999,7 +2312,7 @@ function ftex(v){
     return String(decFix(v,'iner'));
   }
   const factor=Math.pow(10,notationExp);
-  return (v/factor).toFixed(DEC.iner)+'\\times 10^{'+notationExp+'}';
+  return decMantisa(v/factor)+'\\times 10^{'+notationExp+'}';
 }
 const _kgrn='#041d56';
 function kres(s){return '\\textcolor{'+_kgrn+'}{'+s+'}';} // resultado resaltado
@@ -2048,11 +2361,11 @@ function renderResults(res, u4, u2, u1){
     <h2 style="font-size:18px;font-weight:900;color:var(--grn2);margin:0;">📊 Solución completa</h2>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <span style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Notación:</span>
-      <button class="notbtn active" id="not-0" onclick="setNotation(0)">Auto</button>
-      <button class="notbtn" id="not-2" onclick="setNotation(2)">×10²</button>
-      <button class="notbtn" id="not-4" onclick="setNotation(4)">×10⁴</button>
-      <button class="notbtn" id="not-6" onclick="setNotation(6)">×10⁶</button>
-      <button class="notbtn" id="not-9" onclick="setNotation(9)">×10⁹</button>
+      <button class="notbtn${notationExp===0?' active':''}" id="not-0" onclick="setNotation(0)">Auto</button>
+      <button class="notbtn${notationExp===2?' active':''}" id="not-2" onclick="setNotation(2)">×10²</button>
+      <button class="notbtn${notationExp===4?' active':''}" id="not-4" onclick="setNotation(4)">×10⁴</button>
+      <button class="notbtn${notationExp===6?' active':''}" id="not-6" onclick="setNotation(6)">×10⁶</button>
+      <button class="notbtn${notationExp===9?' active':''}" id="not-9" onclick="setNotation(9)">×10⁹</button>
     </div>
   </div>`;
 
@@ -3081,7 +3394,11 @@ function decFix(v, kind){
   if(typeof v!=='number' || !isFinite(v)) return v;
   return parseFloat(v.toFixed(d));
 }
-function decTagText(){ return '0.'+'0'.repeat(DEC.len)+' / 0.'+'0'.repeat(DEC.iner); }
+function decTagText(){
+  const v = [DEC.len, DEC.iner];
+  return (v[0]===v[1]) ? (v[0] + (v[0]===1?' decimal':' decimales'))
+                       : v.join(' / ') + ' decimales';
+}
 function syncDecTag(){ const e=document.getElementById('decTag'); if(e) e.textContent=decTagText(); }
 function fillDecSelect(id, val){
   const s=document.getElementById(id); if(!s) return;
@@ -3341,6 +3658,24 @@ function drawDimLine(ctx,p1,p2,label,offset,color){
 </script>
 
 <!-- ── MODAL DE UNIDADES ── -->
+<!-- MODAL GUARDAR PROYECTO -->
+<div class="modal-ov" id="guardarModal">
+  <div class="modal">
+    <h3>Guardar ejercicio</h3>
+    <p class="sub">Ponle un nombre para reconocerlo después. Puedes guardar hasta 10 ejercicios en este capítulo.</p>
+    <div class="modal-field">
+      <label>Nombre</label>
+      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Armadura Howe 4 paneles"
+        style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px">
+    </div>
+    <div class="modal-preview" id="listaProyectos"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="cerrarGuardar()">Cancelar</button>
+      <button class="mbtn" onclick="guardarProyecto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-ov" id="unitsModal">
   <div class="modal-box">
     <div class="modal-h">Sistema de Unidades</div>
