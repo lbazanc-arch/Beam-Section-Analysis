@@ -5,6 +5,8 @@
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BSA — Análisis de Armaduras · Hibbeler Cap. 6</title>
+<!-- Motor LaTeX (WebAssembly). Ruta relativa: funciona en el sitio y en local. -->
+<script src="latex/PdfTeXEngine.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
@@ -56,9 +58,13 @@ body{
   flex:none; width:40px; border:1px solid var(--border2); border-radius:9px;
   background:#fff; cursor:pointer; display:flex; align-items:center;
   justify-content:center; font-family:inherit; margin-right:2px;
+  /* Fijo al borde izquierdo de la barra (que se desplaza en pantallas
+     angostas) para que esté siempre al alcance, sin importar el desplazamiento. */
+  position:sticky; left:0; z-index:5;
+  box-shadow:6px 0 8px -6px rgba(0,0,0,.18);
 }
 .tb-pan:hover{border-color:var(--acc); background:var(--acc-l);}
-.tb-pan.active{border-color:var(--acc); background:var(--acc-l); box-shadow:0 0 0 1px var(--acc);}
+.tb-pan.active{border-color:var(--acc); background:var(--acc-l); box-shadow:6px 0 8px -6px rgba(0,0,0,.18), 0 0 0 1px var(--acc);}
 .tb-pan svg{width:22px; height:22px;}
 
 .top-row{position:relative; min-height:calc(100vh - 108px);}
@@ -111,7 +117,6 @@ body{
   cursor:pointer; line-height:1; padding:0 2px; font-family:inherit;
 }
 .flyout-body{flex:1; overflow-y:auto; padding:10px 12px 14px;}
-.sec-cont .panel-title{margin-bottom:7px;}
 /* Botón que pliega y despliega el panel */
 .panel-toggle{
   position:absolute; top:10px; left:10px; z-index:35;
@@ -126,27 +131,9 @@ body{
    de hermano fallaba porque el botón va antes del panel en el DOM. */
 .panel-toggle.corrido{left:106px;}
 .panel-toggle.corrido.expandido{left:366px;}
-/* Rótulo de cada zona del panel */
-.zona-tag{
-  font-size:8.5px; font-weight:800; letter-spacing:1.2px; color:#fff;
-  background:var(--acc2); padding:3px 9px; border-radius:0 0 8px 0;
-  display:inline-block; text-transform:uppercase;
-}
-
-
-.left-panel{
-  background:#fff; border-right:1px solid var(--border);
-  display:flex; flex-direction:column; overflow-y:auto;
-  height:calc(100vh - 108px);
-}
 /* La lista NO se estira: si lo hace, con pocos elementos queda un recuadro
    vacío delimitado por bordes que parece un corte en la interfaz. El bloque de
    botones queda pegado al contenido y se ancla abajo solo cuando hay scroll. */
-.panel-grow{flex:0 1 auto; min-height:0;}
-.panel-grow:last-of-type{border-bottom:none;}
-.panel-foot{position:sticky; bottom:0; background:#fff;
-  border-top:1px solid var(--border); padding:10px 12px 12px; margin-top:4px;}
-.canvas-area{position:relative; background:#fff; overflow:hidden;}
 #mainCanvas{display:block; width:100%; height:100%; cursor:crosshair;}
 .canvas-hint{
   position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
@@ -162,11 +149,6 @@ body{
 .zoom-btn:hover{background:var(--acc-l); border-color:var(--acc);}
 
 /* ── PANEL ── */
-.panel-section{padding:9px 12px 6px; border-bottom:1px solid var(--border);}
-.panel-title{
-  font-size:9px; font-weight:800; letter-spacing:1px; color:var(--acc);
-  text-transform:uppercase; margin-bottom:7px;
-}
 .cfg-row{display:flex; gap:7px;}
 .cfg-chip{
   flex:1; border:1px solid var(--border2); border-radius:8px; padding:6px 9px;
@@ -174,6 +156,38 @@ body{
 }
 .cfg-chip:hover{border-color:var(--acc); background:var(--acc-l);}
 .cfg-lbl{font-size:8.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px;}
+.carga-card{border:1px solid var(--border2); border-radius:11px; padding:11px 12px 9px; margin-bottom:10px; background:#fbfbfc;}
+.carga-card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:9px;}
+.carga-card-title{font-size:11.5px; font-weight:800; color:var(--acc2); letter-spacing:.2px;}
+.carga-eje-row{display:flex; gap:10px;}
+.carga-campo{flex:1; min-width:0;}
+.carga-campo-lbl{display:block; font-size:10.5px; font-weight:800; color:var(--acc2); margin-bottom:4px;}
+.carga-input-wrap{display:flex; align-items:stretch; border:1px solid var(--border2); border-radius:7px;
+  background:#fff; overflow:hidden;}
+.carga-input-wrap:focus-within{border-color:var(--acc);}
+.carga-input-wrap input{border:none; flex:1; min-width:0; padding:7px 8px; font-family:inherit;
+  font-size:12.5px; color:var(--text); background:transparent;}
+.carga-input-wrap input:focus{outline:none;}
+.carga-input-wrap .carga-campo-unit{font-size:10px; color:var(--muted); font-weight:700; padding:0 8px;
+  border-left:1px solid var(--border2); flex:none; background:#f7f7f8; display:flex; align-items:center;}
+.carga-del{
+  border:none; background:var(--acc-l); color:var(--acc2); cursor:pointer; flex:none;
+  width:22px; height:22px; border-radius:50%; font-size:13px; line-height:1; font-family:inherit;
+  display:flex; align-items:center; justify-content:center; transition:background .15s, color .15s;
+}
+.carga-del:hover{background:var(--com); color:#fff;}
+.carga-mini{display:flex; align-items:center; gap:9px; padding:9px 11px; margin-bottom:8px;
+  border:1px solid var(--border2); border-radius:10px; background:#fff; cursor:pointer;}
+.carga-mini:hover{border-color:var(--acc); background:var(--acc-l);}
+.carga-mini .carga-mini-nom{font-size:11.5px; font-weight:800; color:var(--acc2); flex:none;}
+.carga-mini .carga-mini-val{font-size:11px; color:var(--muted); font-weight:600; flex:1; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.vis-row{display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:7px;}
+.vis-item{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text);
+  border:1px solid var(--border2); border-radius:7px; padding:6px 8px; cursor:pointer;
+  background:#fff; user-select:none;}
+.vis-item:hover{border-color:var(--acc); background:var(--acc-l);}
+.vis-item input{accent-color:var(--acc); cursor:pointer; margin:0;}
 .cfg-val{font-size:13px; font-weight:700; color:var(--acc); margin-top:1px;}
 
 .mode-row{display:flex; gap:6px; margin-bottom:6px;}
@@ -245,13 +259,6 @@ body{
 }
 .item-row .x:hover{color:var(--com);}
 
-.btn-main{
-  width:100%; padding:11px; border-radius:9px; border:none; background:var(--acc);
-  color:#fff; font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit;
-  display:flex; align-items:center; justify-content:center; gap:7px;
-}
-.btn-main:hover{background:var(--acc2);}
-.btn-row{display:flex; gap:5px; margin-top:6px; flex-wrap:wrap;}
 .btn-sm{
   flex:1; min-width:62px; padding:6px 4px; border-radius:7px; border:1px solid var(--border2);
   background:#fff; font-size:10.5px; font-weight:700; color:var(--text); cursor:pointer;
@@ -428,7 +435,7 @@ body{
     </button>
     <div class="tb-sep"></div>
     <div class="tb-zona" id="tbZona1">
-    <button class="tool-btn active" id="tNodo" onclick="setTool('nodo')">
+    <button class="tool-btn" id="tNodo" onclick="setTool('nodo')">
       <svg viewBox="0 0 40 34"><circle cx="20" cy="17" r="6" fill="#b45309"/></svg>
       <span>Nudo</span>
     </button>
@@ -451,23 +458,24 @@ body{
     </div>
     <div class="tb-sep"></div>
     <div class="tb-zona" id="tbZona2">
-    <button class="tool-btn" id="tMover" onclick="setTool('mover')">
-      <svg viewBox="0 0 40 34"><path d="M20 4 L20 30 M7 17 L33 17" stroke="#b45309" stroke-width="2.5"/><path d="M20 3 L16 8 L24 8 Z M20 31 L16 26 L24 26 Z M6 17 L11 13 L11 21 Z M34 17 L29 13 L29 21 Z" fill="#b45309"/></svg>
-      <span>Mover</span>
+    <button class="tool-btn" id="tSel" onclick="setTool('sel')" title="Seleccionar · mantener presionado para mover · doble clic para editar">
+      <svg viewBox="0 0 40 34"><path d="M14 5 L14 25 L19 20 L23 28 L27 26 L23 18 L30 18 Z" fill="#b45309"/><path d="M20 3 L20 9 M20 3 L17.5 5.5 M20 3 L22.5 5.5" stroke="#b45309" stroke-width="1.6" fill="none" opacity=".7"/></svg>
+      <span>Mover / editar</span>
     </button>
-    <button class="tool-btn" id="tSel" onclick="setTool('sel')">
-      <svg viewBox="0 0 40 34"><path d="M14 5 L14 25 L19 20 L23 28 L27 26 L23 18 L30 18 Z" fill="#b45309"/></svg>
-      <span>Ver / editar</span>
-    </button>
-    <button class="tool-btn danger" id="btnDel" onclick="eliminarSeleccion()">
+    <button class="tool-btn danger" id="btnDel" onclick="activarEliminar()" title="Toca un elemento para borrarlo · arrastra un recuadro para borrar todo lo que abarque">
       <svg viewBox="0 0 40 34"><path d="M13 11 L27 11 L25 29 L15 29 Z" fill="none" stroke="#c0392b" stroke-width="2.4"/><line x1="10" y1="11" x2="30" y2="11" stroke="#c0392b" stroke-width="2.4"/><line x1="17" y1="7" x2="23" y2="7" stroke="#c0392b" stroke-width="2.4"/></svg>
       <span>Eliminar</span>
+    </button>
+    <button class="tool-btn" id="btnTrans" onclick="abrirTransformar()" title="Mover o girar la selección respecto a un nudo de referencia">
+      <svg viewBox="0 0 40 34"><circle cx="13" cy="24" r="3" fill="#b45309"/><path d="M13 24 L27 24" stroke="#b45309" stroke-width="2" stroke-dasharray="3,2"/><path d="M13 24 A 14 14 0 0 1 24 12" fill="none" stroke="#b45309" stroke-width="2.2"/><path d="M24 12 L21 13 M24 12 L24.5 15.2" stroke="#b45309" stroke-width="2.2" fill="none"/></svg>
+      <span>Transformar</span>
     </button>
     <button class="tool-btn" id="btnRep" onclick="abrirReplicar()">
       <svg viewBox="0 0 40 34"><rect x="7" y="12" width="12" height="12" rx="2" fill="none" stroke="#b45309" stroke-width="2.2"/><rect x="21" y="12" width="12" height="12" rx="2" fill="none" stroke="#b45309" stroke-width="2.2" stroke-dasharray="3,2"/><path d="M15 8 L15 5 M15 5 L26 5 L26 9" stroke="#b45309" stroke-width="1.8" fill="none"/></svg>
       <span>Replicar</span>
     </button>
     </div>
+
     <div class="tb-sep"></div>
     <div class="tb-zona" id="tbZona3">
       <button class="tool-btn" onclick="abrirHistorial()" title="Ver ejercicios guardados">
@@ -495,7 +503,7 @@ body{
     <!-- ZONA 1 · botones de propiedades -->
     <div class="rail-group">
       <button class="rail-btn active" id="rbConf" onclick="abrirSeccion('conf')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span>Configuración</span>
       </button>
       <button class="rail-btn" id="rbTpl" onclick="abrirSeccion('tpl')">
@@ -530,6 +538,10 @@ body{
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/></svg>
         <span>PDF</span>
       </button>
+      <button class="rail-btn accion" id="btnLatex" onclick="generarPDFLatex()" title="Genera un PDF profesional compilado con LaTeX">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/><path d="M9 15l1.5 3L12 15l1.5 3L15 15"/></svg>
+        <span>LaTeX</span>
+      </button>
     </div>
   </div>
 
@@ -546,12 +558,18 @@ body{
         <button class="cfg-chip" onclick="openDecModal()">
           <div class="cfg-lbl">Decimales</div><div class="cfg-val" id="chipDec">0.00</div>
         </button>
-      </div></div>
-      <div class="sec-cont" id="secTpl" style="display:none"><div class="mode-row">
-        <button class="mode-btn active" id="mLibre" onclick="setModo('libre')">Dibujo libre</button>
-        <button class="mode-btn" id="mTpl" onclick="setModo('plantilla')">Plantilla</button>
       </div>
-      <div id="tplBox" style="display:none">
+      <div class="cfg-lbl" style="margin:12px 0 6px">Visualización</div>
+      <div class="vis-row">
+        <label class="vis-item"><input type="checkbox" id="visGrilla" checked onchange="setVis('grilla',this.checked)"><span>Grilla</span></label>
+        <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas</span></label>
+        <label class="vis-item"><input type="checkbox" id="visCargas" checked onchange="setVis('cargas',this.checked)"><span>Cargas</span></label>
+        <label class="vis-item"><input type="checkbox" id="visApoyos" checked onchange="setVis('apoyos',this.checked)"><span>Apoyos</span></label>
+      </div>
+      <div class="hint-sm">Oculta lo que no necesites ver en el panel de dibujo. No afecta al cálculo.</div>
+      </div>
+      <div class="sec-cont" id="secTpl" style="display:none">
+      <div id="tplBox">
         <div class="tpl-row">
           <button class="tpl-btn active" onclick="setTipo('howe',this)">Howe</button>
           <button class="tpl-btn" onclick="setTipo('pratt',this)">Pratt</button>
@@ -562,10 +580,7 @@ body{
         <div class="num-row"><label>Altura</label><input type="number" id="tplH" value="3" step="any" oninput="dibujarRefPlantilla()"></div>
         <div class="num-row"><label>Paneles</label><input type="number" id="tplN" value="4" min="2" max="10" step="1" oninput="dibujarRefPlantilla()"></div>
         <button class="btn-sm" style="width:100%;margin-top:8px" onclick="generarPlantilla()">Generar armadura</button>
-        <div class="hint-sm">Se genera con apoyos en los extremos. Después puedes mover, añadir o borrar lo que quieras.</div>
-      </div>
-      <div id="libreBox">
-        <div class="hint-sm">Elige una herramienta arriba y haz clic en el panel. Para una barra, haz clic en dos nudos.</div>
+        <div class="hint-sm">Se genera con apoyos en los extremos. Después puedes mover, añadir o borrar lo que quieras con las herramientas de la barra.</div>
       </div></div>
       <div class="sec-cont" id="secMet" style="display:none"><div class="mode-row">
         <button class="mode-btn active" id="metNudos" onclick="setMetodo('nudos')">Nudos</button>
@@ -582,10 +597,12 @@ body{
       <div class="sec-cont" id="secEle" style="display:none"><div class="sub-tabs">
         <button class="sub-tab active" id="stNodos" onclick="setSubTab('nodos')">Nudos <span id="cntNodos">0</span></button>
         <button class="sub-tab" id="stBarras" onclick="setSubTab('barras')">Barras <span id="cntBarras">0</span></button>
+        <button class="sub-tab" id="stCargas" onclick="setSubTab('cargas')">Cargas <span id="cntCargas">0</span></button>
       </div>
       <div class="hint-sm" style="margin:6px 0">Toca ✎ para editar coordenadas. Con la herramienta <b>Seleccionar</b> puedes marcar varios y usar Eliminar o Replicar.</div>
       <div id="listaNodos"><div class="list-empty">Sin nudos todavía.</div></div>
-      <div id="listaBarras" style="display:none"><div class="list-empty">Sin barras todavía.</div></div></div>
+      <div id="listaBarras" style="display:none"><div class="list-empty">Sin barras todavía.</div></div>
+      <div id="listaCargas" style="display:none"><div class="list-empty">Sin cargas todavía.</div></div></div>
     </div>
   </div>
 
@@ -594,6 +611,8 @@ body{
       <button class="zoom-btn" onclick="zoomIn()">+</button>
       <button class="zoom-btn" onclick="zoomOut()">−</button>
       <button class="zoom-btn" onclick="centrar()">⊙</button>
+      <button class="zoom-btn" id="btnUndo" onclick="deshacer()" title="Deshacer">↶</button>
+      <button class="zoom-btn" id="btnRedo" onclick="rehacer()" title="Rehacer">↷</button>
     </div>
     <canvas id="mainCanvas"></canvas>
     <div class="canvas-hint" id="canvasHint">Elige una herramienta y haz clic para empezar</div>
@@ -697,17 +716,11 @@ body{
 <!-- MODAL CARGA -->
 <div class="modal-ov" id="cargaModal">
   <div class="modal">
-    <h3>Carga en el nudo</h3>
-    <p class="sub">Componentes de la fuerza aplicada. Positivo: X hacia la derecha, Y hacia arriba.</p>
-    <div class="modal-field">
-      <label>F<sub>x</sub></label>
-      <input type="number" id="cargaFx" value="0" step="any">
-    </div>
-    <div class="modal-field">
-      <label>F<sub>y</sub></label>
-      <input type="number" id="cargaFy" value="-10" step="any">
-    </div>
-    <div class="modal-preview">Una carga hacia abajo se escribe con F<sub>y</sub> negativa.</div>
+    <h3>Cargas en el nudo <span id="cargaNodoNom"></span></h3>
+    <p class="sub">Puedes asignar más de una fuerza en el mismo nudo; se combinan por suma vectorial. Positivo: X hacia la derecha, Y hacia arriba.</p>
+    <div id="cargaLista"></div>
+    <button class="btn-sm" style="width:100%;margin:2px 0 10px" onclick="agregarFilaCarga()">+ Añadir otra fuerza</button>
+    <div class="modal-preview" id="cargaResultante"></div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="closeCargaModal()">Cancelar</button>
       <button class="mbtn" onclick="applyCarga()">Aplicar</button>
@@ -722,8 +735,11 @@ body{
     <p class="sub">Cambia la posición exacta del nudo y la carga aplicada en él.</p>
     <div class="modal-field"><label>x</label><input type="number" id="edNx" step="any"></div>
     <div class="modal-field"><label>y</label><input type="number" id="edNy" step="any"></div>
-    <div class="modal-field"><label>F<sub>x</sub></label><input type="number" id="edNfx" step="any"></div>
-    <div class="modal-field"><label>F<sub>y</sub></label><input type="number" id="edNfy" step="any"></div>
+    <div class="modal-field" style="align-items:center">
+      <label>Cargas</label>
+      <button class="btn-sm" onclick="const _id=edNodoId; closeEdNodo(); abrirCarga(_id);">Editar cargas…</button>
+    </div>
+    <div class="hint-sm" id="edNCargasResumen"></div>
     <div class="modal-preview">Coordenadas en <b id="edNuL">m</b> · fuerzas en <b id="edNuF">kN</b></div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="closeEdNodo()">Cancelar</button>
@@ -765,11 +781,39 @@ body{
   </div>
 </div>
 
+<!-- MODAL TRANSFORMAR (mover/girar respecto a un nudo) -->
+<div class="modal-ov" id="transModal">
+  <div class="modal">
+    <h3>Transformar selección</h3>
+    <p class="sub" id="transSub">Mueve o gira los elementos seleccionados tomando un nudo como referencia.</p>
+    <div class="modal-field">
+      <label>Nudo de referencia</label>
+      <select id="transRef"></select>
+    </div>
+    <div style="display:flex;gap:8px;margin:10px 0 12px">
+      <button class="tpl-btn" id="transTabMover" style="flex:1;padding:9px 8px" onclick="setTransModo('mover')">Mover</button>
+      <button class="tpl-btn" id="transTabGirar" style="flex:1;padding:9px 8px" onclick="setTransModo('girar')">Girar</button>
+    </div>
+    <div id="transCampoMover">
+      <div class="modal-field"><label>Desplazamiento en x</label><input type="number" id="transDx" value="0" step="any"></div>
+      <div class="modal-field"><label>Desplazamiento en y</label><input type="number" id="transDy" value="0" step="any"></div>
+    </div>
+    <div id="transCampoGirar" style="display:none">
+      <div class="modal-field"><label>Ángulo (grados, antihorario)</label><input type="number" id="transAng" value="90" step="any"></div>
+    </div>
+    <div class="modal-preview" id="transPrev"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeTransformar()">Cancelar</button>
+      <button class="mbtn" onclick="applyTransformar()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL APOYO -->
 <div class="modal-ov" id="apoyoModal">
   <div class="modal">
     <h3>Apoyo en el nudo <span id="apNom"></span></h3>
-    <p class="sub">Elige el tipo de apoyo. El fijo aporta dos reacciones (horizontal y vertical); el móvil solo una vertical.</p>
+    <p class="sub">Elige el tipo de apoyo. El fijo aporta dos reacciones (horizontal y vertical); el móvil aporta una sola, en la dirección que elijas.</p>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <button class="tpl-btn" style="flex:1;padding:12px 8px" onclick="setApoyo('fijo')">
         <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="10" r="4" fill="#7c3a06"/><path d="M20 12 L11 26 L29 26 Z" fill="none" stroke="#b45309" stroke-width="2.5"/><line x1="8" y1="26" x2="32" y2="26" stroke="#7c3a06" stroke-width="2.5"/></svg>
@@ -783,6 +827,14 @@ body{
         <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="17" r="5" fill="#c0392b"/><line x1="10" y1="27" x2="30" y2="7" stroke="#c0392b" stroke-width="2.5"/></svg>
         Quitar
       </button>
+    </div>
+    <div id="apDirBox" style="display:none;margin-bottom:12px">
+      <div class="cfg-lbl" style="margin-bottom:6px">Dirección de la reacción</div>
+      <div style="display:flex;gap:8px">
+        <button class="tpl-btn" id="apDirV" style="flex:1;padding:9px 8px" onclick="setApAng(90)">Vertical (restringe Y)</button>
+        <button class="tpl-btn" id="apDirH" style="flex:1;padding:9px 8px" onclick="setApAng(0)">Horizontal (restringe X)</button>
+      </div>
+      <div class="hint-sm" style="margin-top:6px">Vertical: el rodillo se apoya sobre una superficie horizontal (el caso más común). Horizontal: se apoya contra una superficie vertical, como un muro.</div>
     </div>
     <div class="modal-preview" id="apPrev"></div>
     <div class="modal-btns">
@@ -812,8 +864,8 @@ function renderKatex(root){
 let nodos = [];      // {id, x, y, apoyo:null|'fijo'|'movil', fx, fy}
 let barras = [];     // {id, a, b}
 let nodoSeq = 0, barraSeq = 0;
-let tool = 'nodo';
-let modo = 'libre';
+let tool = 'pan';
+// (la variable 'modo' se retiró con el conmutador Dibujo libre/Plantilla)
 let tipoTpl = 'howe';
 let selNodo = null;      // primer nudo al trazar una barra
 let dragNodo = null;
@@ -823,6 +875,14 @@ let selBarra = null;     // barra con el recuadro de valor visible
 let selNodoInfo = null;  // nudo con el recuadro de datos visible
 let selNodos = [];       // ids de nudos seleccionados (herramienta Seleccionar)
 let selBarras = [];      // ids de barras seleccionadas
+// ── Motor unificado de selección/transformación (botón "Mover / editar") ──
+let gesto = null;        // {tipo:'tap'|'mover'|'rubber', ...} en curso durante el mousedown actual
+// Al arrastrar sobre una zona vacía con "Mover/editar" o "Eliminar": si el
+// arrastre empieza ANTES de este tiempo sosteniendo el dedo/clic, se
+// interpreta como desplazamiento del panel (igual que la herramienta Pan).
+// Solo si se mantiene presionado más que esto, un arrastre posterior traza
+// el recuadro de selección/borrado masivo.
+const UMBRAL_MANTENER_MS = 450;
 let subTab = 'nodos';
 let edNodoId = null, edBarraId = null;
 
@@ -844,7 +904,23 @@ function dec(v, tipo){
   const r = Math.abs(n) < 5e-11 ? 0 : n;   // evita "-0.00"
   return r.toFixed(d);
 }
-function esCero(v){ return Math.abs(v) < 1e-9; }
+// ── Truncamiento adaptativo a cero ──
+// Un umbral absoluto fijo falla en los dos extremos: con cargas de miles de
+// kN deja pasar residuos numéricos visibles, y con cargas muy pequeñas
+// borra fuerzas legítimas. Se usa ε = 1e-6 relativo a la magnitud del
+// problema (la mayor carga aplicada), con un piso absoluto de seguridad.
+function escalaDelProblema(){
+  let m = 0;
+  nodos.forEach(n=>{
+    m = Math.max(m, Math.abs(n.fx||0), Math.abs(n.fy||0));
+  });
+  return m;
+}
+function esCero(v){
+  if(!isFinite(v)) return false;
+  const umbral = Math.max(1e-9, 1e-6 * escalaDelProblema());
+  return Math.abs(v) < umbral;
+}
 
 // ── Conversión de coordenadas ──
 function aPantalla(x, y){ return [W/2 + (x - vx)*escala, H/2 - (y - vy)*escala]; }
@@ -925,33 +1001,47 @@ function dibujarApoyo(n){
       ctx.beginPath(); ctx.moveTo(px+i*5.5, py+21); ctx.lineTo(px+i*5.5-4, py+27); ctx.stroke();
     }
   } else if(n.apoyo === 'movil'){
+    const horizontal = n.apAng === 0;
+    ctx.save();
+    ctx.translate(px, py);
+    if(horizontal) ctx.rotate(-Math.PI/2);   // de costado, contra una superficie vertical
     ctx.beginPath();
-    ctx.moveTo(px, py+2); ctx.lineTo(px-13, py+18); ctx.lineTo(px+13, py+18); ctx.closePath();
+    ctx.moveTo(0, 2); ctx.lineTo(-13, 18); ctx.lineTo(13, 18); ctx.closePath();
     ctx.stroke();
-    ctx.beginPath(); ctx.arc(px-7, py+22.5, 4, 0, Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(px+7, py+22.5, 4, 0, Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px-19, py+27.5); ctx.lineTo(px+19, py+27.5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-7, 22.5, 4, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(7, 22.5, 4, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-19, 27.5); ctx.lineTo(19, 27.5); ctx.stroke();
+    ctx.restore();
   }
 }
 
 function dibujarCarga(n){
-  if(esCero(n.fx) && esCero(n.fy)) return;
+  // Fuente de verdad: n.cargas (una o varias fuerzas). Si el nudo viene de un
+  // formato antiguo sin ese arreglo, se usa la resultante fx/fy como una
+  // única carga implícita, para no perder dibujos guardados previamente.
+  const lista = (n.cargas && n.cargas.length) ? n.cargas
+              : ((!esCero(n.fx||0) || !esCero(n.fy||0)) ? [{fx:n.fx||0, fy:n.fy||0}] : []);
+  if(!lista.length) return;
   const [px,py] = aPantalla(n.x, n.y);
-  const mag = Math.hypot(n.fx, n.fy);
   const L = 46;
-  const ux = n.fx/mag, uy = n.fy/mag;
-  // la flecha apunta hacia el nudo, terminando en él
-  const sx = px - ux*L, sy = py + uy*L;
-  ctx.strokeStyle = '#c0392b'; ctx.fillStyle = '#c0392b'; ctx.lineWidth = 2.4;
-  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(px - ux*11, py + uy*11); ctx.stroke();
-  const ang = Math.atan2(-uy, ux);
-  ctx.save(); ctx.translate(px - ux*10, py + uy*10); ctx.rotate(ang);
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-11,-5); ctx.lineTo(-11,5); ctx.closePath(); ctx.fill();
-  ctx.restore();
-  ctx.font = '600 11px Inter, sans-serif'; ctx.fillStyle = '#c0392b';
-  ctx.textAlign = 'center';
-  ctx.fillText(dec(mag,'f')+' '+unitFor, sx, sy - 5);
-  ctx.textAlign = 'start';
+  lista.forEach(c=>{
+    if(esCero(c.fx||0) && esCero(c.fy||0)) return;
+    const mag = Math.hypot(c.fx||0, c.fy||0);
+    const ux = c.fx/mag, uy = c.fy/mag;
+    // la flecha apunta hacia el nudo, terminando en él; con varias cargas
+    // todas parten del mismo punto y se distinguen por su propia dirección
+    const sx = px - ux*L, sy = py + uy*L;
+    ctx.strokeStyle = '#c0392b'; ctx.fillStyle = '#c0392b'; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(px - ux*11, py + uy*11); ctx.stroke();
+    const ang = Math.atan2(-uy, ux);
+    ctx.save(); ctx.translate(px - ux*10, py + uy*10); ctx.rotate(ang);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-11,-5); ctx.lineTo(-11,5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.font = '600 11px Inter, sans-serif'; ctx.fillStyle = '#c0392b';
+    ctx.textAlign = 'center';
+    ctx.fillText(dec(mag,'f')+' '+unitFor, sx, sy - 5);
+    ctx.textAlign = 'start';
+  });
 }
 
 function dibujarCorte(){
@@ -989,8 +1079,7 @@ function dibujarCuadroNodo(){
   const l3 = tieneCarga
     ? 'Fx = ' + dec(n.fx,'f') + '   Fy = ' + dec(n.fy,'f') + ' ' + unitFor
     : 'Sin carga aplicada';
-  const l4 = n.apoyo ? (n.apoyo==='fijo' ? 'Apoyo fijo (2 reacciones)' : 'Apoyo móvil (1 reacción)')
-                     : 'Sin apoyo';
+  const l4 = n.apoyo ? (descApoyoLargo(n)[0].toUpperCase() + descApoyoLargo(n).slice(1)) : 'Sin apoyo';
   const l5 = 'Doble clic para editar';
   const col = '#7c3a06';
   ctx.font = '800 12px Inter, sans-serif';
@@ -1062,11 +1151,116 @@ function dibujarCuadroBarra(){
   ctx.textAlign = 'start';
 }
 
+// ── Visibilidad de capas del dibujo ──
+// Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
+const VIS = {grilla:true, cotas:true, cargas:true, apoyos:true};
+function setVis(cual, valor){
+  VIS[cual] = !!valor;
+  dibujar();
+}
+
+// ── Cotas encadenadas de la armadura ──
+// Mismo criterio que el Cap. 9 y el Cap. 7: cadenas fuera del dibujo
+// (horizontales abajo, verticales a la derecha) tomadas de las coordenadas
+// distintas de los nudos, con reparto en niveles para que las etiquetas no
+// se solapen cuando dos nudos quedan muy juntos.
+function dibujarCotasArmadura(){
+  if(nodos.length < 2) return;
+  const unicos = (vals)=>{
+    const out = [];
+    vals.slice().sort((a,b)=>a-b).forEach(v=>{
+      if(!out.length || Math.abs(v-out[out.length-1]) > 1e-9) out.push(v);
+    });
+    return out;
+  };
+  const xs = unicos(nodos.map(n=>n.x));
+  const ys = unicos(nodos.map(n=>n.y));
+  if(xs.length < 2 && ys.length < 2) return;
+
+  const NIVEL = 15, HOLGURA = 4;
+  ctx.save();
+  ctx.strokeStyle = '#1b1f24'; ctx.fillStyle = '#1b1f24'; ctx.lineWidth = 1;
+  ctx.font = '600 9px Inter, sans-serif';
+  const marca = (x,y)=>{ ctx.beginPath(); ctx.moveTo(x-4,y+4); ctx.lineTo(x+4,y-4); ctx.stroke(); };
+
+  function repartirNiveles(tramos){
+    const ocupado = [];
+    return tramos.map(t=>{
+      const semi = Math.max(t.ancho, 14)/2 + HOLGURA;
+      const a = t.centro - semi, b = t.centro + semi;
+      let n = 0;
+      while(true){
+        const lista = ocupado[n] || (ocupado[n] = []);
+        if(!lista.some(iv => a < iv[1] && b > iv[0])){ lista.push([a,b]); break; }
+        n++; if(n > 6) break;
+      }
+      return Object.assign({}, t, {nivel:n});
+    });
+  }
+
+  // cadena horizontal, debajo del punto más bajo
+  if(xs.length > 1){
+    const yMin = Math.min(...nodos.map(n=>n.y));
+    const yb = aPantalla(0, yMin)[1];
+    const tramos = [];
+    for(let i=0;i<xs.length-1;i++){
+      const x1 = aPantalla(xs[i],0)[0], x2 = aPantalla(xs[i+1],0)[0];
+      if(Math.abs(x2-x1) < 3) continue;
+      const txt = dec(xs[i+1]-xs[i],'len')+' '+unitLen;
+      tramos.push({x1,x2,txt,centro:(x1+x2)/2,ancho:ctx.measureText(txt).width});
+    }
+    const conNivel = repartirNiveles(tramos);
+    const nMax = conNivel.reduce((m,t)=>Math.max(m,t.nivel),0);
+    const base = Math.min(yb + 34, H - 12 - nMax*NIVEL);
+    conNivel.forEach(t=>{
+      const y = base + t.nivel*NIVEL;
+      ctx.beginPath(); ctx.moveTo(t.x1,y); ctx.lineTo(t.x2,y); ctx.stroke();
+      marca(t.x1,y); marca(t.x2,y);
+      ctx.textAlign='center'; ctx.fillText(t.txt, t.centro, y-4);
+    });
+    ctx.save(); ctx.setLineDash([3,3]); ctx.strokeStyle='rgba(27,31,36,.30)';
+    const hasta = base + nMax*NIVEL + 4;
+    xs.forEach(x=>{ const px = aPantalla(x,0)[0];
+      ctx.beginPath(); ctx.moveTo(px, yb+6); ctx.lineTo(px, hasta); ctx.stroke(); });
+    ctx.restore();
+  }
+
+  // cadena vertical, a la derecha del punto más a la derecha
+  if(ys.length > 1){
+    const xMax = Math.max(...nodos.map(n=>n.x));
+    const xr = aPantalla(xMax,0)[0];
+    const tramos = [];
+    for(let i=0;i<ys.length-1;i++){
+      const y1 = aPantalla(0,ys[i])[1], y2 = aPantalla(0,ys[i+1])[1];
+      if(Math.abs(y2-y1) < 3) continue;
+      const txt = dec(ys[i+1]-ys[i],'len')+' '+unitLen;
+      tramos.push({x1:y1,x2:y2,txt,centro:(y1+y2)/2,ancho:ctx.measureText(txt).width});
+    }
+    const conNivel = repartirNiveles(tramos);
+    const nMax = conNivel.reduce((m,t)=>Math.max(m,t.nivel),0);
+    const base = Math.min(xr + 38, W - 14 - nMax*NIVEL);
+    conNivel.forEach(t=>{
+      const x = base + t.nivel*NIVEL;
+      ctx.beginPath(); ctx.moveTo(x,t.x1); ctx.lineTo(x,t.x2); ctx.stroke();
+      marca(x,t.x1); marca(x,t.x2);
+      ctx.save(); ctx.translate(x+10, t.centro); ctx.rotate(-Math.PI/2);
+      ctx.textAlign='center'; ctx.fillText(t.txt, 0, 0); ctx.restore();
+    });
+    ctx.save(); ctx.setLineDash([3,3]); ctx.strokeStyle='rgba(27,31,36,.30)';
+    const hasta = base + nMax*NIVEL + 4;
+    ys.forEach(y=>{ const py = aPantalla(0,y)[1];
+      ctx.beginPath(); ctx.moveTo(xr+6, py); ctx.lineTo(hasta, py); ctx.stroke(); });
+    ctx.restore();
+  }
+  ctx.textAlign='start';
+  ctx.restore();
+}
+
 function dibujar(){
   if(!ctx) return;
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
-  dibujarRejilla();
+  if(VIS.grilla) dibujarRejilla();
 
   // barras
   barras.forEach(b=>{
@@ -1087,8 +1281,6 @@ function dibujar(){
     }
   });
   dibujarCorte();
-  dibujarCuadroBarra();
-  dibujarCuadroNodo();
 
   // barra en curso
   if(tool==='barra' && selNodo!==null){
@@ -1100,8 +1292,9 @@ function dibujar(){
     }
   }
 
-  nodos.forEach(n=>{ if(n.apoyo) dibujarApoyo(n); });
-  nodos.forEach(n=>dibujarCarga(n));
+  if(VIS.apoyos) nodos.forEach(n=>{ if(n.apoyo) dibujarApoyo(n); });
+  if(VIS.cargas) nodos.forEach(n=>dibujarCarga(n));
+  if(VIS.cotas) dibujarCotasArmadura();
 
   // nudos
   nodos.forEach(n=>{
@@ -1135,6 +1328,26 @@ function dibujar(){
       ctx.textAlign = 'start';
     });
   }
+
+  // Recuadro de selección múltiple o de borrado en curso (según herramienta)
+  if(gesto && (gesto.tipo === 'rubber' || gesto.tipo === 'rubber-borrar')){
+    const x1 = Math.min(gesto.x0, gesto.x1), x2 = Math.max(gesto.x0, gesto.x1);
+    const y1 = Math.min(gesto.y0, gesto.y1), y2 = Math.max(gesto.y0, gesto.y1);
+    const esBorrado = gesto.tipo === 'rubber-borrar';
+    ctx.save();
+    ctx.fillStyle = esBorrado ? 'rgba(220,50,50,.10)' : 'rgba(37,99,255,.10)';
+    ctx.strokeStyle = esBorrado ? 'rgba(220,50,50,.70)' : 'rgba(37,99,255,.65)';
+    ctx.lineWidth = 1; ctx.setLineDash([5,3]);
+    ctx.fillRect(x1,y1,x2-x1,y2-y1);
+    ctx.strokeRect(x1,y1,x2-x1,y2-y1);
+    ctx.restore();
+  }
+
+  // El recuadro de información se dibuja al final, por encima de cargas,
+  // barras, nudos y cotas, para que se pueda leer con detalle sin que nada
+  // se lo tape.
+  dibujarCuadroBarra();
+  dibujarCuadroNodo();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1176,23 +1389,37 @@ function nombreNodo(i){
 function reNombrar(){ nodos.forEach((n,i)=>n.nombre = nombreNodo(i)); }
 
 function addNodo(x, y){
-  const n = {id:++nodoSeq, x:snap(x), y:snap(y), apoyo:null, fx:0, fy:0, nombre:''};
+  registrarCambio();
+  const n = {id:++nodoSeq, x:snap(x), y:snap(y), apoyo:null, fx:0, fy:0, cargas:[], nombre:''};
   nodos.push(n); reNombrar(); return n;
 }
 
 function addBarra(a, b){
   if(a===b) return null;
   if(barras.some(m=>(m.a===a&&m.b===b)||(m.a===b&&m.b===a))) return null;
+  registrarCambio();
   const m = {id:++barraSeq, a, b};
   barras.push(m); return m;
 }
 
 function borrarNodo(id){
+  registrarCambio();
   nodos = nodos.filter(n=>n.id!==id);
   barras = barras.filter(b=>b.a!==id && b.b!==id);
   reNombrar(); resultado = null; refrescar();
 }
-function borrarBarra(id){ barras = barras.filter(b=>b.id!==id); resultado = null; refrescar(); }
+function borrarBarra(id){ registrarCambio(); barras = barras.filter(b=>b.id!==id); resultado = null; refrescar(); }
+
+// Abre la edición de lo que haya bajo (mx,my), en coordenadas de pantalla.
+// La usan tanto el 'dblclick' de ratón como el doble toque táctil, ya que
+// 'dblclick' no se sintetiza de forma fiable en móvil (y menos aún cuando
+// touchstart llama preventDefault()).
+function intentarAbrirEdicion(mx, my){
+  const n = nodoEn(mx, my);
+  if(n){ abrirEdNodo(n.id); return; }
+  const b = barraEn(mx, my);
+  if(b) abrirEdBarra(b.id);
+}
 
 function onCanvasDown(e){
   const r = cv.getBoundingClientRect();
@@ -1212,39 +1439,39 @@ function onCanvasDown(e){
   } else if(tool === 'apoyo'){
     if(n) abrirApoyoModal(n.id);
   } else if(tool === 'carga'){
-    if(n){ nodoCarga = n.id;
-      document.getElementById('cargaFx').value = n.fx || 0;
-      document.getElementById('cargaFy').value = n.fy || -10;
-      document.getElementById('cargaModal').classList.add('show');
-    }
+    if(n) abrirCarga(n.id);
   } else if(tool === 'pan'){
     iniciarPan(mx, my);
   } else if(tool === 'corte'){
     corteDrag = {x1:wx, y1:wy};
     corte = {x1:wx, y1:wy, x2:wx, y2:wy};
     dibujar();
-  } else if(tool === 'mover'){
-    if(n) dragNodo = n.id;
-    else { const b = barraEn(mx,my); selBarra = b ? b.id : null; dibujar(); }
   } else if(tool === 'sel'){
-    if(n){
-      const i = selNodos.indexOf(n.id);
-      if(i >= 0) selNodos.splice(i,1); else selNodos.push(n.id);
-      selBarra = null;
-      selNodoInfo = n.id;      // muestra sus datos: posición, carga y apoyo
-    } else {
-      const b = barraEn(mx, my);
-      if(b){
-        const i = selBarras.indexOf(b.id);
-        if(i >= 0) selBarras.splice(i,1); else selBarras.push(b.id);
-        selBarra = b.id;            // muestra el recuadro de valor de esta barra
-        selNodoInfo = null;
-      } else {
-        selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null;
-      }
-    }
-    refrescar();
+    // No se decide aún si es un toque (alterna selección) o una pulsación
+    // sostenida (mueve la selección) ni si se traza un recuadro: eso se
+    // resuelve en onCanvasMove/onCanvasUp según haya arrastre o no.
+    const b = n ? null : barraEn(mx, my);
+    gesto = { modo:'sel', hitNodo: n ? n.id : null, hitBarra: b ? b.id : null,
+              x0: mx, y0: my, wx0: wx, wy0: wy, moved: false, mantenido: false };
+    if(!n && !b) armarEsperaDeRecuadro(gesto);
+  } else if(tool === 'borrar'){
+    // Igual que 'sel' pero para borrar: un toque sin arrastre elimina el
+    // elemento tocado; un arrastre siempre se resuelve como recuadro de
+    // borrado (aquí no tiene sentido "mover" nada).
+    const b = n ? null : barraEn(mx, my);
+    gesto = { modo:'borrar', hitNodo: n ? n.id : null, hitBarra: b ? b.id : null,
+              x0: mx, y0: my, moved: false, mantenido: false };
+    if(!n && !b) armarEsperaDeRecuadro(gesto);
   }
+}
+// Tras UMBRAL_MANTENER_MS sosteniendo sobre zona vacía sin haberse movido
+// aún, habilita el recuadro de selección/borrado masivo. Si el arrastre ya
+// empezó antes de eso, esta función llega tarde y no hace nada (el gesto ya
+// se resolvió como desplazamiento del panel).
+function armarEsperaDeRecuadro(miGesto){
+  miGesto.tEsperaId = setTimeout(()=>{
+    if(gesto === miGesto && !miGesto.moved) miGesto.mantenido = true;
+  }, UMBRAL_MANTENER_MS);
 }
 
 function onCanvasMove(e){
@@ -1257,6 +1484,56 @@ function onCanvasMove(e){
   }
   if(panDrag){ moverPan(mx, my); return; }
   if(corteDrag){ corte.x2 = mouseW[0]; corte.y2 = mouseW[1]; dibujar(); }
+
+  if(gesto){
+    const dx = mx - gesto.x0, dy = my - gesto.y0;
+    if(!gesto.moved && Math.hypot(dx,dy) > 4){
+      gesto.moved = true;
+      if(gesto.tEsperaId){ clearTimeout(gesto.tEsperaId); }
+      const esVacio = gesto.hitNodo === null && gesto.hitBarra === null;
+      if(esVacio && !gesto.mantenido){
+        // Arrastre rápido sobre zona vacía, sin sostener lo suficiente antes:
+        // se interpreta como desplazamiento del panel, igual que la
+        // herramienta Pan, para no exigir cambiar de herramienta solo para
+        // moverse por el dibujo.
+        gesto.tipo = 'pan-temporal';
+        iniciarPan(gesto.x0, gesto.y0);
+        moverPan(mx, my);   // aplica ya este mismo movimiento, no solo el siguiente
+      } else if(gesto.modo === 'borrar'){
+        // En modo borrar, una vez sostenido lo suficiente, cualquier arrastre
+        // es un recuadro de borrado: no tiene sentido "mover" un elemento
+        // que se está por eliminar.
+        gesto.tipo = 'rubber-borrar';
+      } else if(gesto.hitNodo !== null){
+        // Arrastrar un nudo ya seleccionado mueve TODO el grupo; arrastrar uno
+        // que no estaba seleccionado lo convierte en la única selección.
+        const grupo = selNodos.indexOf(gesto.hitNodo) >= 0 ? selNodos.slice() : [gesto.hitNodo];
+        if(selNodos.indexOf(gesto.hitNodo) < 0){ selNodos = grupo; selBarras = []; selBarra = null; selNodoInfo = null; }
+        gesto.tipo = 'mover';
+        registrarCambio();
+        gesto.origenes = grupo.map(id=>{
+          const nn = nodos.find(z=>z.id===id);
+          return nn ? {id, x:nn.x, y:nn.y} : null;
+        }).filter(Boolean);
+      } else if(esVacio && gesto.mantenido){
+        gesto.tipo = 'rubber';
+      }
+      // tocar/arrastrar una barra no la mueve (sigue a sus nudos); ese caso
+      // se resuelve como toque simple al soltar, más abajo.
+    }
+    if(gesto.tipo === 'mover'){
+      const wdx = mouseW[0] - gesto.wx0, wdy = mouseW[1] - gesto.wy0;
+      gesto.origenes.forEach(o=>{
+        const nn = nodos.find(z=>z.id===o.id);
+        if(nn){ nn.x = snap(o.x + wdx); nn.y = snap(o.y + wdy); }
+      });
+      resultado = null; dibujar();
+    } else if(gesto.tipo === 'rubber' || gesto.tipo === 'rubber-borrar'){
+      gesto.x1 = mx; gesto.y1 = my;
+      dibujar();
+    }
+  }
+
   if(dragNodo !== null || (tool==='barra' && selNodo!==null)) dibujar();
 }
 function onCanvasUp(){
@@ -1273,23 +1550,97 @@ function onCanvasUp(){
              try{ renderKatex(c); }catch(e){} }
     }
   }
+  if(gesto){
+    if(gesto.tEsperaId){ clearTimeout(gesto.tEsperaId); }
+    if(gesto.tipo === 'pan-temporal'){
+      // El arrastre se resolvió como desplazamiento del panel: no se toca
+      // selección ni modelo alguno.
+      gesto = null;
+      return;
+    }
+    if(gesto.modo === 'borrar'){
+      if(gesto.hitNodo!==null || gesto.hitBarra!==null || gesto.tipo==='rubber-borrar') registrarCambio();
+      if(!gesto.moved){
+        // Toque simple: borra el elemento tocado, uno por uno.
+        if(gesto.hitNodo !== null){
+          barras = barras.filter(b => b.a!==gesto.hitNodo && b.b!==gesto.hitNodo);
+          nodos = nodos.filter(nn => nn.id !== gesto.hitNodo);
+          reNombrar();
+        } else if(gesto.hitBarra !== null){
+          barras = barras.filter(b => b.id !== gesto.hitBarra);
+        }
+      } else if(gesto.tipo === 'rubber-borrar'){
+        // Arrastre tipo CAD: borra automáticamente todo lo que el recuadro
+        // capturó, en cuanto se suelta el botón/dedo.
+        const {nodosIds, barrasIds} = elementosEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
+        barras = barras.filter(b => barrasIds.indexOf(b.id) < 0
+                                 && nodosIds.indexOf(b.a) < 0 && nodosIds.indexOf(b.b) < 0);
+        nodos = nodos.filter(nn => nodosIds.indexOf(nn.id) < 0);
+        reNombrar();
+      }
+      resultado = null; refrescar();
+      gesto = null;
+      return;
+    }
+    if(!gesto.moved){
+      // Toque simple, sin arrastre: alterna la selección tocada (o la limpia
+      // si se tocó una zona vacía del lienzo).
+      if(gesto.hitNodo !== null){
+        const i = selNodos.indexOf(gesto.hitNodo);
+        if(i >= 0) selNodos.splice(i,1); else selNodos.push(gesto.hitNodo);
+        selBarra = null;
+        selNodoInfo = gesto.hitNodo;
+      } else if(gesto.hitBarra !== null){
+        const i = selBarras.indexOf(gesto.hitBarra);
+        if(i >= 0) selBarras.splice(i,1); else selBarras.push(gesto.hitBarra);
+        selBarra = gesto.hitBarra;
+        selNodoInfo = null;
+      } else {
+        selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null;
+      }
+      refrescar();
+    } else if(gesto.tipo === 'mover'){
+      refrescar();
+    } else if(gesto.tipo === 'rubber'){
+      const {nodosIds, barrasIds} = elementosEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
+      selNodos = nodosIds; selBarras = barrasIds;
+      // La selección múltiple con recuadro nunca muestra la caja de
+      // información de un elemento individual (ni nudo ni barra), aunque
+      // haya capturado uno solo: esa caja es exclusiva del toque simple.
+      selBarra = null;
+      selNodoInfo = null;
+      refrescar();
+    }
+    gesto = null;
+  }
+}
+// Intersección de dos segmentos (para saber si una barra "toca" el recuadro
+// de selección múltiple, no solo si queda contenida en él).
+function segmentosCruzan(ax,ay,bx,by, cx,cy,dx,dy){
+  const d1 = (dx-cx)*(ay-cy) - (dy-cy)*(ax-cx);
+  const d2 = (dx-cx)*(by-cy) - (dy-cy)*(bx-cx);
+  const d3 = (bx-ax)*(cy-ay) - (by-ay)*(cx-ax);
+  const d4 = (bx-ax)*(dy-ay) - (by-ay)*(dx-ax);
+  return ((d1>0&&d2<0)||(d1<0&&d2>0)) && ((d3>0&&d4<0)||(d3<0&&d4>0));
 }
 
 function setTool(t){
   tool = t; selNodo = null;
-  ['nodo','barra','apoyo','carga','corte','mover','sel','pan'].forEach(k=>{
+  ['nodo','barra','apoyo','carga','corte','sel','pan'].forEach(k=>{
     const el = document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
+  const bd = document.getElementById('btnDel');
+  if(bd) bd.classList.toggle('active', t==='borrar');
   const hints = {
     nodo:'Haz clic en el lienzo para colocar un nudo.',
     barra:'Haz clic en un nudo y luego en otro para unirlos.',
     apoyo:'Haz clic sobre un nudo y elige el tipo de apoyo, o quítalo.',
     corte:'Arrastra una línea que atraviese la armadura de lado a lado.',
     carga:'Haz clic sobre un nudo para aplicarle una carga.',
-    mover:'Arrastra un nudo para reubicarlo.',
     pan:'Arrastra el lienzo para desplazar la vista.',
-    sel:'Toca un elemento para ver sus datos · doble clic para editarlo · marca varios para Eliminar o Replicar.'
+    sel:'Toca para seleccionar · arrastra un objeto para moverlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar varios (un arrastre rápido solo desplaza el panel) · doble clic para editar.',
+    borrar:'Toca un elemento para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'
   };
   const th = document.getElementById('toolHint');
   if(th) th.textContent = hints[t] || '';
@@ -1298,13 +1649,9 @@ function setTool(t){
   dibujar();
 }
 
-function setModo(m){
-  modo = m;
-  document.getElementById('mLibre').classList.toggle('active', m==='libre');
-  document.getElementById('mTpl').classList.toggle('active', m==='plantilla');
-  document.getElementById('tplBox').style.display = (m==='plantilla') ? '' : 'none';
-  document.getElementById('libreBox').style.display = (m==='libre') ? '' : 'none';
-}
+// setModo() se eliminó junto con el conmutador "Dibujo libre"/"Plantilla":
+// apuntaba a #mLibre y #libreBox, que ya no existen. El dibujo libre sigue
+// disponible a través de las herramientas de la barra superior.
 function setTipo(t, btn){
   tipoTpl = t;
   document.querySelectorAll('.tpl-btn').forEach(b=>b.classList.remove('active'));
@@ -1420,6 +1767,7 @@ function centrar(){
 }
 
 function limpiarTodo(){
+  registrarCambio();
   nodos = []; barras = []; nodoSeq = 0; barraSeq = 0;
   selNodo = null; resultado = null; selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null;
   document.getElementById('resultsArea').style.display = 'none';
@@ -1439,21 +1787,24 @@ function abrirEdNodo(id){
   document.getElementById('edNodoNom').textContent = n.nombre;
   document.getElementById('edNx').value = n.x;
   document.getElementById('edNy').value = n.y;
-  document.getElementById('edNfx').value = n.fx || 0;
-  document.getElementById('edNfy').value = n.fy || 0;
   document.getElementById('edNuL').textContent = unitLen;
   document.getElementById('edNuF').textContent = unitFor;
+  const nCargas = (n.cargas && n.cargas.length) ? n.cargas.length : ((!esCero(n.fx||0)||!esCero(n.fy||0)) ? 1 : 0);
+  const rc = document.getElementById('edNCargasResumen');
+  if(rc) rc.textContent = nCargas
+    ? nCargas + (nCargas===1 ? ' fuerza asignada' : ' fuerzas asignadas')
+      + ' \u00b7 resultante Fx=' + dec(n.fx||0,'f') + ', Fy=' + dec(n.fy||0,'f') + ' ' + unitFor
+    : 'Sin cargas asignadas.';
   document.getElementById('edNodoModal').classList.add('show');
 }
 function closeEdNodo(){ document.getElementById('edNodoModal').classList.remove('show'); edNodoId = null; }
 function applyEdNodo(){
   const n = nodos.find(z=>z.id===edNodoId);
   if(n){
+    registrarCambio();
     const g = id => parseFloat(document.getElementById(id).value);
     if(isFinite(g('edNx'))) n.x = g('edNx');
     if(isFinite(g('edNy'))) n.y = g('edNy');
-    n.fx = isFinite(g('edNfx')) ? g('edNfx') : 0;
-    n.fy = isFinite(g('edNfy')) ? g('edNfy') : 0;
     resultado = null;
   }
   closeEdNodo(); refrescar();
@@ -1513,29 +1864,119 @@ function closeApoyoModal(){ document.getElementById('apoyoModal').classList.remo
 function actualizarPrevApoyo(){
   const n = nodos.find(z=>z.id===apoyoNodoId);
   const el = document.getElementById('apPrev');
+  const dirBox = document.getElementById('apDirBox');
   if(!el || !n) return;
+  const esMovil = n.apoyo === 'movil';
+  if(dirBox) dirBox.style.display = esMovil ? '' : 'none';
+  if(esMovil){
+    const horiz = n.apAng === 0;
+    const bV = document.getElementById('apDirV'), bH = document.getElementById('apDirH');
+    if(bV) bV.classList.toggle('active', !horiz);
+    if(bH) bH.classList.toggle('active', horiz);
+  }
   const r = nodos.reduce((s2,z)=>s2+gradosApoyo(z), 0);
-  el.innerHTML = 'Ahora: <b>' + (n.apoyo ? (n.apoyo==='fijo'?'apoyo fijo':'apoyo móvil') : 'sin apoyo')
+  el.innerHTML = 'Ahora: <b>' + descApoyoLargo(n)
     + '</b> · Reacciones totales en la armadura: <b>r = ' + r + '</b>';
 }
 function setApoyo(tipo){
+  registrarCambio();
   const n = nodos.find(z=>z.id===apoyoNodoId);
-  if(n){ n.apoyo = tipo; resultado = null; }
+  if(n){
+    n.apoyo = tipo;
+    if(tipo === 'movil' && n.apAng === undefined) n.apAng = 90;  // vertical por defecto
+    resultado = null;
+  }
   actualizarPrevApoyo();
   refrescar();
 }
+// Cambia la dirección de la única reacción de un apoyo móvil: 90 = vertical
+// (restringe Y, el caso habitual de un rodillo sobre el suelo), 0 = horizontal
+// (restringe X, el rodillo apoyado contra una superficie vertical).
+function setApAng(ang){
+  const n = nodos.find(z=>z.id===apoyoNodoId);
+  if(!n || n.apoyo !== 'movil') return;
+  registrarCambio();
+  n.apAng = ang;
+  resultado = null;
+  actualizarPrevApoyo();
+  refrescar();
+}
+// Texto largo (modal, caja de información del nudo).
+function descApoyoLargo(n){
+  if(!n.apoyo) return 'sin apoyo';
+  if(n.apoyo === 'fijo') return 'apoyo fijo (2 reacciones)';
+  return 'apoyo móvil (1 reacción ' + (n.apAng===0 ? 'horizontal' : 'vertical') + ')';
+}
+// Texto corto (lista de nudos).
+function descApoyoCorto(n){
+  if(!n.apoyo) return '';
+  if(n.apoyo === 'fijo') return 'apoyo fijo';
+  return 'apoyo móvil (' + (n.apAng===0 ? 'X' : 'Y') + ')';
+}
 
-function editarSeleccion(){
-  // Prioriza lo último que se tocó; si no, el único elemento marcado.
-  if(selNodoInfo !== null && nodos.some(n=>n.id===selNodoInfo)){ abrirEdNodo(selNodoInfo); return; }
-  if(selBarra !== null && barras.some(b=>b.id===selBarra)){ abrirEdBarra(selBarra); return; }
-  if(selNodos.length === 1){ abrirEdNodo(selNodos[0]); return; }
-  if(selBarras.length === 1){ abrirEdBarra(selBarras[0]); return; }
-  if(selNodos.length > 1 || selBarras.length > 1){
-    alert('Hay varios elementos marcados. Deja solo uno para editar sus coordenadas.');
+// (editarSeleccion() se retiró: quedó sin ninguna llamada tras introducir
+// intentarAbrirEdicion() para el doble clic/doble toque)
+
+// ── Tecla Esc global ──
+// Cierra la ventana emergente activa (si hay alguna) sin tocar el modelo;
+// si no hay ninguna abierta, cancela la selección actual. No sustituye ni
+// elimina el botón "Cancelar" de cada modal: es un atajo adicional.
+function manejarEsc(){
+  const modales = ['edNodoModal','edBarraModal','apoyoModal','repModal','cargaModal',
+                    'transModal','unitsModal','decModal','histModal'];
+  const abierto = modales.find(id=>{
+    const m = document.getElementById(id);
+    return m && m.classList.contains('show');
+  });
+  if(abierto){
+    const m = document.getElementById(abierto);
+    m.classList.remove('show');
+    if(abierto==='edNodoModal') edNodoId = null;
+    else if(abierto==='edBarraModal') edBarraId = null;
+    else if(abierto==='apoyoModal') apoyoNodoId = null;
+    else if(abierto==='cargaModal') nodoCarga = null;
     return;
   }
-  alert('Elige la herramienta Seleccionar y toca un nudo o una barra para editarlo.');
+  if(selNodos.length || selBarras.length || selNodoInfo!==null || selBarra!==null){
+    selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null;
+    gesto = null;
+    refrescar();
+  }
+}
+
+// Nudos y barras que caen dentro de un recuadro de pantalla, o que el
+// recuadro simplemente toca (una barra "toca" si cruza cualquiera de sus
+// cuatro bordes, aunque sus dos nudos queden fuera). La usan tanto la
+// selección múltiple como el borrado tipo CAD.
+function elementosEnRecuadro(sx0, sy0, sx1, sy1){
+  const x1 = Math.min(sx0, sx1), x2 = Math.max(sx0, sx1);
+  const y1 = Math.min(sy0, sy1), y2 = Math.max(sy0, sy1);
+  const nodosIds = [], barrasIds = [];
+  nodos.forEach(nn=>{
+    const [px,py] = aPantalla(nn.x, nn.y);
+    if(px>=x1 && px<=x2 && py>=y1 && py<=y2) nodosIds.push(nn.id);
+  });
+  barras.forEach(bb=>{
+    const na = nodos.find(z=>z.id===bb.a), nb = nodos.find(z=>z.id===bb.b);
+    if(!na || !nb) return;
+    const [ax,ay] = aPantalla(na.x,na.y), [bx,by] = aPantalla(nb.x,nb.y);
+    const dentro = p => p[0]>=x1 && p[0]<=x2 && p[1]>=y1 && p[1]<=y2;
+    const cruza = segmentosCruzan(ax,ay,bx,by, x1,y1,x2,y1) ||
+                  segmentosCruzan(ax,ay,bx,by, x2,y1,x2,y2) ||
+                  segmentosCruzan(ax,ay,bx,by, x2,y2,x1,y2) ||
+                  segmentosCruzan(ax,ay,bx,by, x1,y2,x1,y1);
+    if(dentro([ax,ay]) || dentro([bx,by]) || cruza) barrasIds.push(bb.id);
+  });
+  return {nodosIds, barrasIds};
+}
+
+// Botón "Eliminar": si ya hay una selección armada con Mover/editar, la borra
+// de inmediato (comportamiento previo). Si no, activa la herramienta de
+// borrado interactivo: tocar borra un elemento, arrastrar un recuadro borra
+// todo lo que abarque al soltar, tipo CAD.
+function activarEliminar(){
+  if(selNodos.length || selBarras.length){ eliminarSeleccion(); return; }
+  setTool('borrar');
 }
 
 function eliminarSeleccion(){
@@ -1543,12 +1984,114 @@ function eliminarSeleccion(){
     alert('Primero elige la herramienta Seleccionar y marca los elementos que quieras borrar.');
     return;
   }
+  registrarCambio();
   // al borrar un nudo se van también las barras que llegan a él
   barras = barras.filter(b => selBarras.indexOf(b.id) < 0
                            && selNodos.indexOf(b.a) < 0 && selNodos.indexOf(b.b) < 0);
   nodos = nodos.filter(n => selNodos.indexOf(n.id) < 0);
   selNodos = []; selBarras = []; selBarra = null;
   reNombrar(); resultado = null; refrescar();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TRANSFORMAR RESPECTO A UN NUDO (mover y girar)
+//  El nudo de referencia queda fijo: al mover, es el origen del
+//  desplazamiento; al girar, es el centro de rotación.
+// ═══════════════════════════════════════════════════════════
+let transModo = 'mover';
+
+function abrirTransformar(){
+  if(!selNodos.length){
+    alert('Marca al menos un nudo con la herramienta "Mover / editar" para transformarlo.');
+    return;
+  }
+  // El nudo de referencia se elige entre los seleccionados; si no hubiera
+  // ninguno válido se ofrecen todos, para poder girar respecto a un punto
+  // que no forma parte de la selección.
+  const sel = document.getElementById('transRef');
+  const candidatos = nodos.filter(n=>selNodos.indexOf(n.id)>=0);
+  const lista = candidatos.length ? candidatos : nodos;
+  sel.innerHTML = lista.map(n=>'<option value="'+n.id+'">'+n.nombre+
+      '  (x='+dec(n.x,'len')+', y='+dec(n.y,'len')+')</option>').join('');
+  document.getElementById('transSub').textContent =
+    'Se transformarán ' + selNodos.length + ' nudo(s). Al girar, el nudo de referencia '
+    + 'permanece fijo y es el centro de rotación; al mover, toda la selección se desplaza por igual.';
+  setTransModo('mover');
+  document.getElementById('transModal').classList.add('show');
+}
+function closeTransformar(){ document.getElementById('transModal').classList.remove('show'); }
+
+function setTransModo(m){
+  transModo = m;
+  document.getElementById('transCampoMover').style.display = (m==='mover') ? 'block' : 'none';
+  document.getElementById('transCampoGirar').style.display = (m==='girar') ? 'block' : 'none';
+  const a = document.getElementById('transTabMover'), b = document.getElementById('transTabGirar');
+  if(a) a.classList.toggle('active', m==='mover');
+  if(b) b.classList.toggle('active', m==='girar');
+  actualizarPrevTrans();
+}
+
+// Calcula las posiciones resultantes sin aplicarlas todavía.
+function calcularTransformacion(){
+  const refId = parseInt(document.getElementById('transRef').value);
+  const ref = nodos.find(n=>n.id===refId);
+  if(!ref) return null;
+  const num = id => parseFloat(document.getElementById(id).value) || 0;
+  const destinos = [];
+  if(transModo === 'mover'){
+    const dx = num('transDx'), dy = num('transDy');
+    selNodos.forEach(id=>{
+      const n = nodos.find(z=>z.id===id); if(!n) return;
+      // En un desplazamiento se mueve TODA la selección por igual, incluido el
+      // nudo de referencia: éste solo permanece fijo cuando se gira.
+      destinos.push({id, x:n.x+dx, y:n.y+dy});
+    });
+    return {ref, destinos, dx, dy};
+  }
+  const ang = num('transAng') * Math.PI/180;
+  const cs = Math.cos(ang), sn = Math.sin(ang);
+  selNodos.forEach(id=>{
+    const n = nodos.find(z=>z.id===id); if(!n) return;
+    // rotación 2D estándar alrededor del nudo de referencia
+    const ux = n.x - ref.x, uy = n.y - ref.y;
+    destinos.push({id, x: ref.x + ux*cs - uy*sn, y: ref.y + ux*sn + uy*cs});
+  });
+  return {ref, destinos, ang: num('transAng')};
+}
+
+function actualizarPrevTrans(){
+  const p = document.getElementById('transPrev');
+  if(!p) return;
+  const t = calcularTransformacion();
+  if(!t){ p.textContent = 'Elige un nudo de referencia.'; return; }
+  if(transModo === 'mover'){
+    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) seleccionados se desplazan ('
+      + dec(t.dx,'len') + ', ' + dec(t.dy,'len') + '), tomando ' + t.ref.nombre
+      + ' como referencia de medida.';
+  } else {
+    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) giran '
+      + t.ang + '° alrededor de ' + t.ref.nombre + '.';
+  }
+}
+
+function applyTransformar(){
+  const t = calcularTransformacion();
+  if(!t){ alert('Elige un nudo de referencia válido.'); return; }
+  registrarCambio();
+  // El giro es un movimiento rígido: NO se engancha a la rejilla, porque
+  // redondear cada nudo alteraría las longitudes de las barras y deformaría
+  // la armadura (un giro de 37° llegaba a cambiar una barra de 6 a 6.10).
+  // En el desplazamiento sí se engancha, como al arrastrar con el ratón.
+  const rigido = (transModo === 'girar');
+  t.destinos.forEach(d=>{
+    const n = nodos.find(z=>z.id===d.id);
+    if(!n) return;
+    n.x = rigido ? d.x : snap(d.x);
+    n.y = rigido ? d.y : snap(d.y);
+  });
+  resultado = null;
+  closeTransformar();
+  refrescar();
 }
 
 function abrirReplicar(){
@@ -1582,6 +2125,7 @@ function applyReplicar(){
   const dx = g('repDx'), dy = g('repDy');
   const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
   if(dx === 0 && dy === 0){ alert('Indica un desplazamiento en x o en y.'); return; }
+  registrarCambio();
   const orig = selNodos.slice();
   const barrasRep = barras.filter(b => selBarras.indexOf(b.id) >= 0
                     && orig.indexOf(b.a) >= 0 && orig.indexOf(b.b) >= 0);
@@ -1590,7 +2134,7 @@ function applyReplicar(){
     orig.forEach(id=>{
       const o = nodos.find(z=>z.id===id);
       if(!o) return;
-      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, fx:o.fx, fy:o.fy, nombre:''};
+      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), nombre:''};
       nodos.push(nn); mapa[id] = nn.id;
     });
     barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]) addBarra(mapa[b.a], mapa[b.b]); });
@@ -1600,13 +2144,15 @@ function applyReplicar(){
   closeReplicar(); centrar(); refrescar();
 }
 
-// ── Pestañas Nudos / Barras ──
+// ── Pestañas Nudos / Barras / Cargas ──
 function setSubTab(t){
   subTab = t;
-  document.getElementById('stNodos').classList.toggle('active', t==='nodos');
-  document.getElementById('stBarras').classList.toggle('active', t==='barras');
-  document.getElementById('listaNodos').style.display = (t==='nodos') ? '' : 'none';
-  document.getElementById('listaBarras').style.display = (t==='barras') ? '' : 'none';
+  ['nodos','barras','cargas'].forEach(k=>{
+    const tab = document.getElementById('st'+k.charAt(0).toUpperCase()+k.slice(1));
+    if(tab) tab.classList.toggle('active', t===k);
+    const lista = document.getElementById('lista'+k.charAt(0).toUpperCase()+k.slice(1));
+    if(lista) lista.style.display = (t===k) ? '' : 'none';
+  });
 }
 
 // ── Croquis de referencia de la plantilla ──
@@ -1665,16 +2211,41 @@ function dibujarRefPlantilla(){
 function pintarLista(){
   const bn = document.getElementById('listaNodos');
   const bb = document.getElementById('listaBarras');
+  const bc = document.getElementById('listaCargas');
   const cn = document.getElementById('cntNodos'), cb = document.getElementById('cntBarras');
+  const cc = document.getElementById('cntCargas');
   if(cn) cn.textContent = nodos.length;
   if(cb) cb.textContent = barras.length;
+  const cargados = nodos.filter(n=>!esCero(n.fx||0) || !esCero(n.fy||0));
+  if(cc) cc.textContent = cargados.length;
+  if(bc){
+    if(!cargados.length){ bc.innerHTML = '<div class="list-empty">Sin cargas todav\u00eda.</div>'; }
+    else {
+      let h = '';
+      cargados.forEach(n=>{
+        // Con varias fuerzas se lista cada una por separado (F1, F2...) y al
+        // final la resultante del nudo; con una sola, solo sus componentes.
+        const lista = (n.cargas && n.cargas.length) ? n.cargas : [{fx:n.fx||0, fy:n.fy||0}];
+        const detalle = lista.length > 1
+          ? lista.map((c,i)=>'F'+(i+1)+'=('+dec(c.fx,'f')+', '+dec(c.fy,'f')+')').join(' , ')
+            + ' \u00b7 resultante Fx=' + dec(n.fx,'f') + ', Fy=' + dec(n.fy,'f') + ' ' + unitFor
+          : 'Fx = ' + dec(n.fx,'f') + '   Fy = ' + dec(n.fy,'f') + ' ' + unitFor;
+        const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
+        h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
+           + '<div class="nm">Nudo ' + n.nombre + ' \u00b7 ' + detalle + '</div>'
+           + '<button class="x" title="Editar carga" onclick="abrirCarga('+n.id+')">\u270e</button>'
+           + '<button class="x" title="Quitar carga" onclick="quitarCarga('+n.id+')">\u00d7</button></div>';
+      });
+      bc.innerHTML = h;
+    }
+  }
   if(bn){
     if(!nodos.length){ bn.innerHTML = '<div class="list-empty">Sin nudos todav\u00eda.</div>'; }
     else {
       let h = '';
       nodos.forEach(n=>{
         const extra = [];
-        if(n.apoyo) extra.push(n.apoyo === 'fijo' ? 'apoyo fijo' : 'apoyo m\u00f3vil');
+        if(n.apoyo) extra.push(descApoyoCorto(n));
         if(!esCero(n.fx) || !esCero(n.fy)) extra.push('carga');
         const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
         h += '<div class="item-row'+marc+'"><div class="dot" style="background:#7c3a06"></div>'
@@ -1741,7 +2312,7 @@ function generarPlantilla(){
     // diagonales: Howe hacia el centro, Pratt hacia los extremos
     const medio = n/2;
     for(let i=0;i<sup.length-1;i++){
-      const izq = (i+1) <= medio;
+      const izq = (i+1) < medio;
       if(tipoTpl === 'howe'){
         if(izq) addBarra(inf[i+1].id, sup[i+1].id ? sup[i+1].id : sup[i].id);
         else    addBarra(sup[i].id, inf[i+2].id);
@@ -1794,6 +2365,115 @@ function resolverSistema(A, b){
 
 function gradosApoyo(n){ return n.apoyo === 'fijo' ? 2 : (n.apoyo === 'movil' ? 1 : 0); }
 
+// ═══════════════════════════════════════════════════════════
+//  SIMETRÍA DE LA ESTRUCTURA
+//  Comprueba, respecto a un eje vertical, que coincidan la geometría, las
+//  cargas y (si ya se resolvió) las reacciones. Es un criterio pedagógico:
+//  no cambia el cálculo, pero permite anticipar sin resolver todo el sistema
+//  que las barras que se reflejan entre sí soportan la misma fuerza.
+function analizarSimetria(res){
+  if(nodos.length < 2) return {simetrica:false, motivo:'Se necesitan al menos dos nudos para evaluar la simetría.'};
+  const xs = nodos.map(n=>n.x);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const envergadura = xMax - xMin;
+  if(envergadura < 1e-9) return {simetrica:false, motivo:'Todos los nudos comparten la misma coordenada x.'};
+  const eje = (xMin + xMax) / 2;
+  const epsPos = Math.max(1e-6, envergadura * 1e-6);
+  const epsF = Math.max(1e-9, 1e-6 * escalaDelProblema());
+
+  // 1) Correspondencia geométrica: cada nudo con su reflejo especular
+  const espejo = {};
+  for(const n of nodos){
+    const xm = 2*eje - n.x;
+    const cand = nodos.filter(m=> Math.abs(m.x-xm)<=epsPos && Math.abs(m.y-n.y)<=epsPos);
+    if(!cand.length){
+      return {simetrica:false, fase:'geometría',
+        motivo:'El nudo ' + n.nombre + ' no tiene un nudo espejo a la misma altura en el lado opuesto.'};
+    }
+    espejo[n.id] = cand[0].id;
+  }
+  for(const n of nodos){
+    if(espejo[espejo[n.id]] !== n.id){
+      return {simetrica:false, fase:'geometría',
+        motivo:'La correspondencia especular del nudo ' + n.nombre + ' no es consistente.'};
+    }
+  }
+
+  // 2) Barras: cada barra debe tener su barra reflejada
+  const existeBarra = (a,b) => barras.some(x=>(x.a===a&&x.b===b)||(x.a===b&&x.b===a));
+  for(const b of barras){
+    const ea = espejo[b.a], eb = espejo[b.b];
+    if(!existeBarra(ea, eb)){
+      return {simetrica:false, fase:'geometría',
+        motivo:'La barra ' + nombreBarra(b) + ' no tiene una barra reflejada en el lado opuesto.'};
+    }
+  }
+
+  // 3) Cargas: en una pareja espejo, Fy debe coincidir y Fx debe ser opuesta
+  //    (una carga espejada invierte su componente horizontal). Sobre el
+  //    propio eje, Fx=−Fx solo se cumple si Fx=0.
+  for(const n of nodos){
+    const idm = espejo[n.id];
+    if(idm === n.id){
+      if(!esCero(n.fx||0)){
+        return {simetrica:false, fase:'cargas',
+          motivo:'El nudo ' + n.nombre + ' está sobre el eje de simetría pero tiene una carga horizontal.'};
+      }
+    } else if(idm > n.id){
+      const m = nodos.find(z=>z.id===idm);
+      if(Math.abs((n.fy||0)-(m.fy||0)) > epsF){
+        return {simetrica:false, fase:'cargas',
+          motivo:'Las cargas verticales de ' + n.nombre + ' y ' + m.nombre + ' no coinciden.'};
+      }
+      if(Math.abs((n.fx||0)+(m.fx||0)) > epsF){
+        return {simetrica:false, fase:'cargas',
+          motivo:'Las cargas horizontales de ' + n.nombre + ' y ' + m.nombre + ' no son opuestas.'};
+      }
+    }
+  }
+
+  // 4) Apoyos: cada nudo con apoyo necesita su espejo también apoyado, y si
+  //    ambos son móviles, con la misma dirección de reacción (una dirección
+  //    vertical sigue siendo vertical al reflejarse; horizontal, horizontal).
+  for(const n of nodos){
+    const idm = espejo[n.id];
+    const m = nodos.find(z=>z.id===idm);
+    if((!!n.apoyo) !== (!!m.apoyo)){
+      return {simetrica:false, fase:'apoyos',
+        motivo:'El nudo ' + n.nombre + (n.apoyo?' tiene apoyo':' no tiene apoyo') + ' pero su espejo '
+             + m.nombre + (m.apoyo?' sí lo tiene':' no lo tiene') + '.'};
+    }
+    if(n.apoyo === 'movil' && m.apoyo === 'movil' && n.id !== m.id){
+      const hn = n.apAng === 0, hm = m.apAng === 0;
+      if(hn !== hm){
+        return {simetrica:false, fase:'apoyos',
+          motivo:'Los apoyos móviles de ' + n.nombre + ' y ' + m.nombre + ' no tienen la misma dirección de reacción.'};
+      }
+    }
+  }
+
+  // 5) Reacciones, si ya se resolvió: la componente vertical debe coincidir
+  //    en cada pareja de apoyos espejo.
+  if(res && res.reacciones){
+    for(const n of nodos){
+      if(!n.apoyo) continue;
+      const idm = espejo[n.id];
+      if(idm <= n.id) continue;   // cada pareja se evalúa una sola vez
+      const m = nodos.find(z=>z.id===idm);
+      const Rn = res.reacciones[n.id], Rm = res.reacciones[m.id];
+      if(Rn && Rm && Rn.ry !== undefined && Rm.ry !== undefined){
+        if(Math.abs(Rn.ry - Rm.ry) > epsF){
+          return {simetrica:false, fase:'reacciones',
+            motivo:'Las reacciones verticales en ' + n.nombre + ' y ' + m.nombre + ' no resultaron iguales ('
+                 + dec(Rn.ry,'f') + ' vs ' + dec(Rm.ry,'f') + ' ' + unitFor + ').'};
+        }
+      }
+    }
+  }
+
+  return {simetrica:true, eje};
+}
+
 function analizar(){
   const j = nodos.length, m = barras.length;
   const r = nodos.reduce((s,n)=>s+gradosApoyo(n), 0);
@@ -1807,7 +2487,7 @@ function analizar(){
   const idxReac = [];   // {nodo, comp:'x'|'y'}
   nodos.forEach(n=>{
     if(n.apoyo === 'fijo'){ idxReac.push({nodo:n.id, comp:'x'}); idxReac.push({nodo:n.id, comp:'y'}); }
-    else if(n.apoyo === 'movil'){ idxReac.push({nodo:n.id, comp:'y'}); }
+    else if(n.apoyo === 'movil'){ idxReac.push({nodo:n.id, comp: (n.apAng===0 ? 'x' : 'y')}); }
   });
   const N = m + idxReac.length;
   const A = Array.from({length:2*j}, ()=>new Array(N).fill(0));
@@ -1990,6 +2670,21 @@ function renderResultados(res){
   const uL = unitLen, uF = unitFor;
   let h = '';
 
+  // ── ¿Es una estructura simétrica? ──
+  // Informativo: no altera el cálculo, solo lo explica. Se coloca antes de
+  // los pasos numerados para no perturbar su numeración.
+  const sim = analizarSimetria(res);
+  h += '<div class="res-section">'
+    + '<div class="res-title"><div class="num">\u21c4</div>\u00bfEs una estructura sim\u00e9trica?</div>'
+    + (sim.simetrica
+        ? '<div class="verdict ok"><div class="verdict-t">S\u00ed, es sim\u00e9trica</div>'
+          + 'La geometr\u00eda, las cargas y las reacciones son sim\u00e9tricas respecto a un eje vertical en x = '
+          + dec(sim.eje,'len') + ' ' + unitLen + '. Esto permite anticipar, sin resolver todo el sistema, que '
+          + 'las barras que se reflejan entre s\u00ed soportan la misma fuerza.</div>'
+        : '<div class="verdict bad"><div class="verdict-t">No es sim\u00e9trica</div>'
+          + sim.motivo + (sim.fase ? ' <span style="color:var(--muted)">(en: '+sim.fase+')</span>' : '') + '</div>')
+    + '</div>';
+
   // ── 1. Determinación ──
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">1</div>Estabilidad y determinación estática</div>'
@@ -2029,7 +2724,7 @@ function renderResultados(res){
   nodos.forEach(n=>{
     const R = res.reacciones[n.id];
     if(!R) return;
-    h += '<tr><td><b>'+n.nombre+'</b></td><td>'+(n.apoyo==='fijo'?'Fijo (pasador)':'Móvil (rodillo)')+'</td>'
+    h += '<tr><td><b>'+n.nombre+'</b></td><td>'+(n.apoyo==='fijo'?'Fijo (pasador)':('M\u00f3vil (rodillo, '+(n.apAng===0?'horizontal':'vertical')+')'))+'</td>'
       + '<td class="r">'+(R.rx!==undefined ? f(R.rx) : '—')+'</td>'
       + '<td class="r">'+(R.ry!==undefined ? f(R.ry) : '—')+'</td></tr>';
   });
@@ -2141,7 +2836,6 @@ function renderResultados(res){
 
 function renderTablaFinal(res){
   const uL = unitLen, uF = unitFor;
-  const cargas = nodos.filter(n=>!esCero(n.fx)||!esCero(n.fy));
   let h = '';
   // ── 5. Tabla resumen ──
   h += '<div class="res-section">'
@@ -2188,29 +2882,8 @@ function renderTablaFinal(res){
     + '(quedaría fuera de equilibrio), pero sí cambiar las cargas y ver exactamente cómo responde cada barra. '
     + 'Modifica los valores y compara con el caso original.</div>'
     + '<div class="proc-block"><div class="proc-sub">Cargas aplicadas</div>'
-    + '<div id="cargasEdit">';
-  if(cargas.length){
-    cargas.forEach(n=>{
-      h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
-        + '<span style="font-weight:700;min-width:60px">Nudo '+n.nombre+'</span>'
-        + '<label style="font-size:11px;color:var(--muted)">Fx</label>'
-        + '<input type="number" step="any" id="vc-fx-'+n.id+'" value="'+n.fx+'" '
-        + 'style="width:88px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
-        + '<label style="font-size:11px;color:var(--muted)">Fy</label>'
-        + '<input type="number" step="any" id="vc-fy-'+n.id+'" value="'+n.fy+'" '
-        + 'style="width:88px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
-        + '<span style="font-size:11px;color:var(--muted)">'+uF+'</span></div>';
-    });
-    h += '<div style="display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap">'
-      + '<button class="mbtn" style="padding:7px 14px" onclick="aplicarVariacion()">Recalcular</button>'
-      + '<button class="mbtn ghost" style="padding:7px 14px" onclick="escalarCargas(2)">×2</button>'
-      + '<button class="mbtn ghost" style="padding:7px 14px" onclick="escalarCargas(0.5)">÷2</button>'
-      + '<button class="mbtn ghost" style="padding:7px 14px" onclick="restaurarCargas()">Restaurar</button>'
-      + '</div>';
-  } else {
-    h += '<div class="hint-sm">No hay cargas aplicadas. Coloca al menos una para usar esta sección.</div>';
-  }
-  h += '</div></div>'
+    + '<div id="cargasEdit">' + renderCargasEdit() + '</div>'
+    + '</div>'
     + '<div class="dcl-par">'
     + '<div class="proc-block"><div class="proc-sub">Estado inicial</div>'
     + '<div id="dclIni">' + svgArmadura({etiqueta:'valor', color:'natural'}) + '</div></div>'
@@ -2247,7 +2920,7 @@ function renderTablaFinal(res){
     + '<span style="font-size:11px;color:var(--muted);font-weight:700">Carga en el nudo</span>'
     + '<select id="simNodo" onchange="prepararSim()" style="padding:6px 9px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px"></select>'
     + '<span style="font-size:11px;color:var(--muted);font-weight:700">Módulo</span>'
-    + '<input type="range" id="simRange" min="0" max="300" value="100" step="1" '
+    + '<input type="range" id="simRange" min="0" max="1" value="0" step="0.01" '
     + 'style="flex:1;min-width:160px;accent-color:#b45309" oninput="simular()">'
     + '<span id="simVal" style="font-family:var(--mf);font-weight:700;color:var(--acc);min-width:86px"></span>'
     + '</div>'
@@ -2271,12 +2944,93 @@ function renderTablaFinal(res){
 // ── Sección 6: los cambios de carga NO alteran el estado del ejercicio ──
 // Se calculan sobre una copia temporal, de modo que el panel de dibujo, las
 // reacciones y todo el desarrollo por nudos siguen mostrando el caso original.
+// ── Sección 6: los cambios de carga NO alteran el estado del ejercicio ──
+// Se calculan sobre una copia temporal, de modo que el panel de dibujo, las
+// reacciones y todo el desarrollo por nudos siguen mostrando el caso original.
+//
+// Cuando un nudo tiene más de una fuerza aplicada, por defecto se sigue
+// mostrando (y editando) solo la resultante, como antes. Un botón por nudo
+// permite pasar a "por separado": ahí aparece un par Fx/Fy por cada fuerza
+// individual, y el usuario puede cambiar una sola sin tocar las demás.
+let variacionModo = {};   // nodeId -> 'separado' | 'conjunto' (por defecto 'conjunto')
+
+function renderCargasEdit(){
+  const conCarga = nodos.filter(n=>!esCero(n.fx||0) || !esCero(n.fy||0) || (n.cargas && n.cargas.length));
+  if(!conCarga.length){
+    return '<div class="hint-sm">No hay cargas aplicadas. Coloca al menos una para usar esta sección.</div>';
+  }
+  let h = '';
+  conCarga.forEach(n=>{
+    const lista = (n.cargas && n.cargas.length) ? n.cargas : [{fx:n.fx||0, fy:n.fy||0}];
+    const modo = variacionModo[n.id] || 'conjunto';
+    h += '<div style="margin-bottom:9px">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">'
+      + '<span style="font-weight:700;min-width:60px">Nudo ' + n.nombre + '</span>';
+    if(lista.length > 1){
+      h += '<button class="btn-sm" style="flex:none;padding:4px 9px" onclick="toggleModoVariacion(' + n.id + ')">'
+        + (modo === 'separado' ? 'Ver en conjunto' : 'Ver por separado (' + lista.length + ' fuerzas)') + '</button>';
+    }
+    h += '</div>';
+    if(modo === 'separado' && lista.length > 1){
+      lista.forEach((c, i)=>{
+        h += '<div style="display:flex;gap:8px;align-items:center;margin:4px 0 4px 14px;flex-wrap:wrap">'
+          + '<span style="font-size:11px;color:var(--acc2);font-weight:800;min-width:58px">Fuerza ' + (i+1) + '</span>'
+          + '<label style="font-size:11px;color:var(--muted)">Fx</label>'
+          + '<input type="number" step="any" id="vc-fx-' + n.id + '-' + i + '" value="' + c.fx + '" '
+          + 'style="width:82px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
+          + '<label style="font-size:11px;color:var(--muted)">Fy</label>'
+          + '<input type="number" step="any" id="vc-fy-' + n.id + '-' + i + '" value="' + c.fy + '" '
+          + 'style="width:82px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
+          + '<span style="font-size:11px;color:var(--muted)">' + unitFor + '</span></div>';
+      });
+    } else {
+      h += '<div style="display:flex;gap:8px;align-items:center;margin-left:14px;flex-wrap:wrap">'
+        + '<label style="font-size:11px;color:var(--muted)">Fx</label>'
+        + '<input type="number" step="any" id="vc-fx-' + n.id + '" value="' + n.fx + '" '
+        + 'style="width:88px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
+        + '<label style="font-size:11px;color:var(--muted)">Fy</label>'
+        + '<input type="number" step="any" id="vc-fy-' + n.id + '" value="' + n.fy + '" '
+        + 'style="width:88px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
+        + '<span style="font-size:11px;color:var(--muted)">' + unitFor + '</span>'
+        + (lista.length > 1 ? '<span style="font-size:10.5px;color:var(--muted)">(resultante de ' + lista.length + ' fuerzas)</span>' : '')
+        + '</div>';
+    }
+    h += '</div>';
+  });
+  h += '<div style="display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap">'
+    + '<button class="mbtn" style="padding:7px 14px" onclick="aplicarVariacion()">Recalcular</button>'
+    + '<button class="mbtn ghost" style="padding:7px 14px" onclick="escalarCargas(2)">×2</button>'
+    + '<button class="mbtn ghost" style="padding:7px 14px" onclick="escalarCargas(0.5)">÷2</button>'
+    + '<button class="mbtn ghost" style="padding:7px 14px" onclick="restaurarCargas()">Restaurar</button>'
+    + '</div>';
+  return h;
+}
+
+function toggleModoVariacion(nodeId){
+  variacionModo[nodeId] = (variacionModo[nodeId] === 'separado') ? 'conjunto' : 'separado';
+  const box = document.getElementById('cargasEdit');
+  if(box) box.innerHTML = renderCargasEdit();
+}
+
 function cargasDeLosCampos(){
   const m = {};
   nodos.forEach(n=>{
-    const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
-    if(ex || ey) m[n.id] = {fx: ex ? (parseFloat(ex.value)||0) : n.fx,
-                            fy: ey ? (parseFloat(ey.value)||0) : n.fy};
+    const modo = variacionModo[n.id] || 'conjunto';
+    const lista = (n.cargas && n.cargas.length) ? n.cargas : null;
+    if(modo === 'separado' && lista && lista.length > 1){
+      let sfx = 0, sfy = 0, tocado = false;
+      lista.forEach((c, i)=>{
+        const ex = document.getElementById('vc-fx-'+n.id+'-'+i), ey = document.getElementById('vc-fy-'+n.id+'-'+i);
+        if(ex || ey) tocado = true;
+        sfx += ex ? (parseFloat(ex.value)||0) : c.fx;
+        sfy += ey ? (parseFloat(ey.value)||0) : c.fy;
+      });
+      if(tocado) m[n.id] = {fx:sfx, fy:sfy};
+    } else {
+      const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
+      if(ex || ey) m[n.id] = {fx: ex ? (parseFloat(ex.value)||0) : n.fx,
+                              fy: ey ? (parseFloat(ey.value)||0) : n.fy};
+    }
   });
   return m;
 }
@@ -2289,18 +3043,38 @@ function analizarConCargas(mapa){
 }
 function escalarCargas(k){
   nodos.forEach(n=>{
-    const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
-    if(ex) ex.value = (parseFloat(ex.value)||0)*k;
-    if(ey) ey.value = (parseFloat(ey.value)||0)*k;
+    const modo = variacionModo[n.id] || 'conjunto';
+    const lista = (n.cargas && n.cargas.length) ? n.cargas : null;
+    if(modo === 'separado' && lista && lista.length > 1){
+      lista.forEach((c, i)=>{
+        const ex = document.getElementById('vc-fx-'+n.id+'-'+i), ey = document.getElementById('vc-fy-'+n.id+'-'+i);
+        if(ex) ex.value = (parseFloat(ex.value)||0)*k;
+        if(ey) ey.value = (parseFloat(ey.value)||0)*k;
+      });
+    } else {
+      const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
+      if(ex) ex.value = (parseFloat(ex.value)||0)*k;
+      if(ey) ey.value = (parseFloat(ey.value)||0)*k;
+    }
   });
   aplicarVariacion();
 }
 function restaurarCargas(){
   // solo repone los campos y limpia la comparación: nada más se ha tocado
   nodos.forEach(n=>{
-    const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
-    if(ex) ex.value = n.fx;
-    if(ey) ey.value = n.fy;
+    const modo = variacionModo[n.id] || 'conjunto';
+    const lista = (n.cargas && n.cargas.length) ? n.cargas : null;
+    if(modo === 'separado' && lista && lista.length > 1){
+      lista.forEach((c, i)=>{
+        const ex = document.getElementById('vc-fx-'+n.id+'-'+i), ey = document.getElementById('vc-fy-'+n.id+'-'+i);
+        if(ex) ex.value = c.fx;
+        if(ey) ey.value = c.fy;
+      });
+    } else {
+      const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
+      if(ex) ex.value = n.fx;
+      if(ey) ey.value = n.fy;
+    }
   });
   const dm = document.getElementById('dclMod');
   if(dm) dm.innerHTML = '<div class="hint-sm">Cambia una carga y pulsa Recalcular para comparar aquí.</div>';
@@ -2464,8 +3238,47 @@ function prepararSim(){
     simB[b.id] = (f1[b.id] - f0[b.id]) / simP0;
   });
   const r = document.getElementById('simRange');
-  if(r) r.value = 100;
+  // ── Recorrido dinámico del deslizador ──
+  // Con el modelo afín F(P) = a + b·P se despeja, barra por barra, el valor de
+  // P que alcanza su capacidad; el menor de todos es P_falla.
+  //  · Mínimo 0: se puede reducir la carga hasta anularla para ver cómo
+  //    reacciona la estructura sin ella.
+  //  · El mango arranca en la carga real que tiene ahora ese nudo.
+  //  · Máximo = P_falla + 20, para que la rotura quede dentro del recorrido y
+  //    aún queden 20 unidades de margen para seguir subiendo y ver qué otra
+  //    barra falla después. Si la carga actual ya superó su límite, el margen
+  //    se mide desde ella, no desde P_falla.
+  const Pf = cargaDeFalla();
+  if(r){
+    const MARGEN = 20;                      // en la unidad de fuerza en uso
+    const refe = (Pf !== null && isFinite(Pf) && Pf > 0)
+               ? Math.max(Pf, simP0)        // si la carga ya pasó la falla, manda ella
+               : Math.max(simP0, 1);
+    r.min = 0;
+    r.max = refe + MARGEN;
+    r.step = Math.max(r.max / 500, 1e-6);
+    r.value = Math.min(simP0, r.max);       // el mango empieza en la carga actual
+  }
   simular();
+}
+
+// Menor P que lleva alguna barra a su capacidad, según F(P) = a + b·P.
+// La capacidad depende del signo: tracción usa simCap.T y compresión simCap.C.
+// Devuelve null si ninguna barra llega a fallar.
+function cargaDeFalla(){
+  if(!simCap) return null;
+  let mejor = null;
+  barras.forEach(b=>{
+    const a = simA[b.id], m = simB[b.id];
+    if(a === undefined || m === undefined || Math.abs(m) < 1e-12) return;
+    // límite superior = capacidad a tracción; inferior = capacidad a compresión
+    [simCap.T, -simCap.C].forEach(lim=>{
+      if(!(Math.abs(lim) > 0)) return;
+      const P = (lim - a) / m;
+      if(P > 1e-9 && (mejor === null || P < mejor)) mejor = P;
+    });
+  });
+  return mejor;
 }
 
 function simular(){
@@ -2473,8 +3286,9 @@ function simular(){
   const n = nodos.find(z=>z.id===simNodoId);
   if(!n) return;
   const r = document.getElementById('simRange');
-  const k = (parseInt(r.value,10) || 0)/100;
-  const P = simP0 * k;
+  // El deslizador ya está en unidades absolutas de fuerza (no en 0-100%),
+  // así que su valor ES directamente la carga P.
+  const P = parseFloat(r.value) || 0;
 
   const fz = {}; let uMax = 0, gobierna = null; const rotas = [];
   barras.forEach(b=>{
@@ -2622,10 +3436,15 @@ function svgArmadura(opts){
       s += '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+18)+' L'+(px+11)+' '+(py+18)+' Z" fill="none" stroke="#7c3a06" stroke-width="1.8"/>'
          + '<line x1="'+(px-16)+'" y1="'+(py+18)+'" x2="'+(px+16)+'" y2="'+(py+18)+'" stroke="#7c3a06" stroke-width="1.8"/>';
     } else if(n.apoyo === 'movil'){
-      s += '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+15)+' L'+(px+11)+' '+(py+15)+' Z" fill="none" stroke="#7c3a06" stroke-width="1.8"/>'
+      const horizontal = n.apAng === 0;
+      const abre = horizontal ? '<g transform="rotate(-90 '+px+' '+py+')">' : '';
+      const cierra = horizontal ? '</g>' : '';
+      s += abre
+         + '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+15)+' L'+(px+11)+' '+(py+15)+' Z" fill="none" stroke="#7c3a06" stroke-width="1.8"/>'
          + '<circle cx="'+(px-6)+'" cy="'+(py+19)+'" r="3.4" fill="none" stroke="#7c3a06" stroke-width="1.6"/>'
          + '<circle cx="'+(px+6)+'" cy="'+(py+19)+'" r="3.4" fill="none" stroke="#7c3a06" stroke-width="1.6"/>'
-         + '<line x1="'+(px-16)+'" y1="'+(py+23)+'" x2="'+(px+16)+'" y2="'+(py+23)+'" stroke="#7c3a06" stroke-width="1.8"/>';
+         + '<line x1="'+(px-16)+'" y1="'+(py+23)+'" x2="'+(px+16)+'" y2="'+(py+23)+'" stroke="#7c3a06" stroke-width="1.8"/>'
+         + cierra;
     }
     // Las cargas se pueden sustituir para el dibujo (módulo dinámico), así la
     // flecha y su rótulo acompañan al deslizador en vez de quedarse fijos.
@@ -2815,12 +3634,129 @@ function applyDecModal(){
   if(resultado) resolver(); else refrescar();
 }
 
+// Abre el editor de carga de un nudo. Lo usan tanto la herramienta "Carga"
+// del lienzo como el botón ✎ de la lista de cargas.
+// ═══════════════════════════════════════════════════════════
+//  MODAL DE CARGAS — acordeón
+//  Con muchas fuerzas, mostrar todas expandidas hacía crecer el modal sin
+//  límite y tapaba los botones Aplicar/Cancelar. Ahora solo la fuerza que
+//  se está editando aparece con sus campos; las demás se colapsan a una
+//  línea con su resumen, y basta con tocarlas para volver a abrirlas.
+let cargaFilasData = [];   // [{fx,fy}, ...] — fuente de verdad mientras el modal está abierto
+let cargaExpandidoIdx = 0; // índice de la única fila expandida
+
+function abrirCarga(id){
+  const n = nodos.find(z=>z.id===id); if(!n) return;
+  nodoCarga = n.id;
+  document.getElementById('cargaNodoNom').textContent = n.nombre;
+  // Semilla de filas: las cargas ya guardadas, o si el nudo viene de un
+  // formato antiguo sin ese arreglo, una sola fila con su resultante actual.
+  const base = (n.cargas && n.cargas.length) ? n.cargas
+             : ((!esCero(n.fx||0) || !esCero(n.fy||0)) ? [{fx:n.fx||0, fy:n.fy||0}] : [{fx:0, fy:-10}]);
+  cargaFilasData = base.map(c=>({fx:c.fx||0, fy:c.fy||0}));
+  cargaExpandidoIdx = 0;
+  renderCargaLista();
+  document.getElementById('cargaModal').classList.add('show');
+}
+
+function renderCargaLista(){
+  const lista = document.getElementById('cargaLista');
+  lista.innerHTML = cargaFilasData.map((c, idx)=>
+    idx === cargaExpandidoIdx ? htmlFilaExpandida(c, idx) : htmlFilaColapsada(c, idx)
+  ).join('');
+  actualizarPreviewCarga();
+}
+
+function htmlFilaExpandida(c, idx){
+  return '<div class="carga-card">'
+    + '<div class="carga-card-head">'
+    +   '<span class="carga-card-title">Fuerza ' + (idx+1) + '</span>'
+    +   '<button class="carga-del" title="Quitar esta fuerza" onclick="quitarFilaCarga(' + idx + ')">\u00d7</button>'
+    + '</div>'
+    + '<div class="carga-eje-row">'
+    +   '<div class="carga-campo">'
+    +     '<label class="carga-campo-lbl">F<sub>x</sub></label>'
+    +     '<div class="carga-input-wrap">'
+    +       '<input type="number" step="any" class="cf-fx" value="'+c.fx+'" '
+    +         'oninput="actualizarCampoCarga(' + idx + ',\'fx\',this.value)">'
+    +       '<span class="carga-campo-unit">' + unitFor + '</span>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="carga-campo">'
+    +     '<label class="carga-campo-lbl">F<sub>y</sub></label>'
+    +     '<div class="carga-input-wrap">'
+    +       '<input type="number" step="any" class="cf-fy" value="'+c.fy+'" '
+    +         'oninput="actualizarCampoCarga(' + idx + ',\'fy\',this.value)">'
+    +       '<span class="carga-campo-unit">' + unitFor + '</span>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function htmlFilaColapsada(c, idx){
+  return '<div class="carga-mini" onclick="expandirFilaCarga(' + idx + ')">'
+    +   '<span class="carga-mini-nom">Fuerza ' + (idx+1) + '</span>'
+    +   '<span class="carga-mini-val">F<sub>x</sub> = ' + dec(c.fx,'f') + '   F<sub>y</sub> = ' + dec(c.fy,'f') + ' ' + unitFor + '</span>'
+    +   '<button class="carga-del" title="Quitar esta fuerza" '
+    +     'onclick="event.stopPropagation(); quitarFilaCarga(' + idx + ')">\u00d7</button>'
+    + '</div>';
+}
+
+// Actualiza el dato en vivo mientras se escribe, sin esperar a colapsar la fila.
+function actualizarCampoCarga(idx, eje, valor){
+  if(!cargaFilasData[idx]) return;
+  cargaFilasData[idx][eje] = parseFloat(valor) || 0;
+  actualizarPreviewCarga();
+}
+
+function expandirFilaCarga(idx){
+  cargaExpandidoIdx = idx;
+  renderCargaLista();
+}
+
+function agregarFilaCarga(){
+  cargaFilasData.push({fx:0, fy:0});
+  cargaExpandidoIdx = cargaFilasData.length - 1;   // la nueva fuerza se abre expandida
+  renderCargaLista();
+}
+
+function quitarFilaCarga(idx){
+  cargaFilasData.splice(idx, 1);
+  if(!cargaFilasData.length){ cargaFilasData.push({fx:0, fy:0}); }
+  cargaExpandidoIdx = Math.min(cargaExpandidoIdx, cargaFilasData.length - 1);
+  renderCargaLista();
+}
+
+function leerFilasCarga(){
+  return cargaFilasData.map(c=>({fx:c.fx||0, fy:c.fy||0}));
+}
+function actualizarPreviewCarga(){
+  const filas = leerFilasCarga();
+  const sFx = filas.reduce((s,c)=>s+c.fx, 0), sFy = filas.reduce((s,c)=>s+c.fy, 0);
+  const el = document.getElementById('cargaResultante');
+  if(!el) return;
+  el.innerHTML = filas.length > 1
+    ? 'Resultante de las ' + filas.length + ' fuerzas: F<sub>x</sub> = ' + dec(sFx,'f')
+      + ', F<sub>y</sub> = ' + dec(sFy,'f') + ' ' + unitFor + ' (|R| = ' + dec(Math.hypot(sFx,sFy),'f') + ' ' + unitFor + ')'
+    : 'Una carga hacia abajo se escribe con F<sub>y</sub> negativa.';
+}
+function quitarCarga(id){
+  const n = nodos.find(z=>z.id===id); if(!n) return;
+  registrarCambio();
+  n.cargas = []; n.fx = 0; n.fy = 0;
+  resultado = null;
+  refrescar();
+}
 function closeCargaModal(){ document.getElementById('cargaModal').classList.remove('show'); nodoCarga = null; }
 function applyCarga(){
   const n = nodos.find(z=>z.id===nodoCarga);
   if(n){
-    n.fx = parseFloat(document.getElementById('cargaFx').value) || 0;
-    n.fy = parseFloat(document.getElementById('cargaFy').value) || 0;
+    registrarCambio();
+    const filas = leerFilasCarga();
+    n.cargas = filas;
+    n.fx = filas.reduce((s,c)=>s+c.fx, 0);
+    n.fy = filas.reduce((s,c)=>s+c.fy, 0);
     resultado = null;
   }
   closeCargaModal(); refrescar();
@@ -2855,6 +3791,240 @@ function recortarLienzo(c){
     tc.drawImage(c, x0,y0,cw,ch, 0,0,cw,ch);
     return t.toDataURL('image/png');
   }catch(e){ return c.toDataURL('image/png'); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LATEX
+// ═══════════════════════════════════════════════════════════
+// Traductor independiente del HTML: parte de los mismos datos que ya
+// alimentan resultsPanel (nodos, barras, resultado), no del HTML ya armado.
+// Genera un .tex compatible con pdflatex "de fabrica" (sin fontspec ni
+// fuentes externas) para que compile igual en cualquier servicio de
+// compilacion, sin depender de que motor tenga instalado.
+function escLatex(s){
+  return String(s).replace(/([%&_#{}$])/g, '\\$1');
+}
+function tikzColorFuerza(v){
+  return esCero(v) ? 'black!45' : (v >= 0 ? 'bsaAcc2' : 'bsaRoj');
+}
+// Arma el texto .tex y lo DEVUELVE (no descarga nada).
+// Lo usan tanto descargarTex() como generarPDFLatex().
+function construirLatex(){
+  if(!resultado || resultado.error){ alert('Primero resuelve la armadura sin errores.'); return null; }
+  const uL = unitLen, uF = unitFor;
+  const capT = parseFloat(document.getElementById('capT') ? document.getElementById('capT').value : NaN);
+  const capC = parseFloat(document.getElementById('capC') ? document.getElementById('capC').value : NaN);
+  const hayCap = isFinite(capT) && isFinite(capC) && capT > 0 && capC > 0;
+
+  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const anchoReal = Math.max(maxX - minX, 1e-6);
+  const anchoObjetivoCm = 13;
+  const esc = anchoObjetivoCm / anchoReal;
+  const tx = (x)=> ((x - minX) * esc).toFixed(3);
+  const ty = (y)=> ((y - Math.min(...ys)) * esc).toFixed(3);
+
+  const maxF = Math.max(1e-9, ...barras.map(b=>Math.abs(resultado.fuerzas[b.id]||0)));
+  let tikzBarras = '';
+  barras.forEach(b=>{
+    const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
+    if(!na || !nb) return;
+    const f = resultado.fuerzas[b.id] || 0;
+    const grosor = (0.9 + 1.6 * Math.abs(f)/maxF).toFixed(2);
+    tikzBarras += '  \\draw[' + tikzColorFuerza(f) + ', line width=' + grosor + 'pt] '
+      + '(' + tx(na.x) + ',' + ty(na.y) + ') -- (' + tx(nb.x) + ',' + ty(nb.y) + ');\n';
+  });
+
+  let tikzNudos = '';
+  nodos.forEach(n=>{
+    tikzNudos += '  \\fill (' + tx(n.x) + ',' + ty(n.y) + ') circle (1.6pt);\n';
+    tikzNudos += '  \\node[font=\\tiny, above right, xshift=1pt] at (' + tx(n.x) + ',' + ty(n.y) + ') {' + escLatex(n.nombre) + '};\n';
+    if(n.apoyo === 'fijo'){
+      tikzNudos += '  \\draw[bsaAcc, fill=bsaAcc!12] (' + tx(n.x) + ',' + ty(n.y) + ') ++(-0.22,-0.38) -- ++(0.44,0) -- (' + tx(n.x) + ',' + ty(n.y) + ') -- cycle;\n';
+    } else if(n.apoyo === 'movil'){
+      tikzNudos += '  \\draw[bsaAcc, fill=bsaAcc!12] (' + tx(n.x) + ',' + ty(n.y) + ') ++(-0.22,-0.38) -- ++(0.44,0) -- (' + tx(n.x) + ',' + ty(n.y) + ') -- cycle;\n';
+      tikzNudos += '  \\draw[bsaAcc] (' + tx(n.x) + ',' + ty(n.y) + ') ++(-0.22,-0.40) circle (0.055);\n';
+      tikzNudos += '  \\draw[bsaAcc] (' + tx(n.x) + ',' + ty(n.y) + ') ++(0.22,-0.40) circle (0.055);\n';
+    }
+    if(!esCero(n.fx) || !esCero(n.fy)){
+      const mag = Math.hypot(n.fx, n.fy);
+      const ux = n.fx/mag, uy = n.fy/mag;
+      const x0 = (parseFloat(tx(n.x)) - 0.9*ux).toFixed(3), y0 = (parseFloat(ty(n.y)) - 0.9*uy).toFixed(3);
+      tikzNudos += '  \\draw[-{Latex[length=2.2mm]}, bsaAcc, line width=1.1pt] (' + x0 + ',' + y0 + ') -- (' + tx(n.x) + ',' + ty(n.y) + ');\n';
+    }
+  });
+
+  let filasReac = '';
+  Object.keys(resultado.reacciones).forEach(id=>{
+    const n = nodos.find(z=>z.id===parseInt(id,10));
+    const rc = resultado.reacciones[id];
+    filasReac += escLatex(n.nombre) + ' & ' + (rc.rx !== undefined ? dec(rc.rx,'f') : '---') + ' & '
+      + (rc.ry !== undefined ? dec(rc.ry,'f') : '---') + ' & ' + (n.apoyo === 'fijo' ? 'Fijo (pasador)' : 'M\\\'ovil (rodillo)') + ' \\\\\n';
+  });
+
+  let filasBarras = '';
+  barras.forEach((b, i)=>{
+    const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
+    const f = resultado.fuerzas[b.id] || 0;
+    const L = Math.hypot(nb.x-na.x, nb.y-na.y);
+    const nat = esCero(f) ? '---' : (f >= 0 ? 'T' : 'C');
+    let util = '';
+    if(hayCap && !esCero(f)){
+      const pct = f >= 0 ? (f/capT*100) : (Math.abs(f)/capC*100);
+      util = dec(pct,'f') + '\\%';
+    }
+    filasBarras += (i+1) + ' & ' + escLatex(nombreBarra(b)) + ' & ' + dec(L,'len') + ' & '
+      + dec(Math.abs(f),'f') + ' & ' + nat + (hayCap ? ' & ' + (util || '---') : '') + ' \\\\\n';
+  });
+
+  const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
+  const j = nodos.length, m = barras.length, r = Object.keys(resultado.reacciones)
+    .reduce((s,id)=> s + (resultado.reacciones[id].rx !== undefined ? 2 : 1), 0);
+  const veredicto = (m + r === 2*j)
+    ? '\\textbf{Armadura isost\\\'atica.} El n\\\'umero de inc\\\'ognitas coincide con el de ecuaciones de equilibrio disponibles.'
+    : ((m + r < 2*j)
+        ? '\\textbf{Armadura inestable.} Faltan restricciones o barras: hay menos inc\\\'ognitas que ecuaciones.'
+        : '\\textbf{Armadura hiperest\\\'atica.} Hay m\\\'as inc\\\'ognitas que ecuaciones; se necesitan m\\\'etodos adicionales.');
+  const check = (m + r === 2*j) ? '\\;\\checkmark' : '';
+
+  const preambulo = '\\documentclass[11pt]{article}\n'
+    + '\\usepackage[utf8]{inputenc}\n'
+    + '\\usepackage[T1]{fontenc}\n'
+    + '\\usepackage[a4paper,margin=2.2cm]{geometry}\n'
+    + '\\usepackage{amsmath,amssymb}\n'
+    + '\\usepackage{tikz}\n'
+    + '\\usetikzlibrary{arrows.meta,calc}\n'
+    + '\\usepackage{booktabs}\n'
+    + '\\usepackage{xcolor}\n'
+    + '\\usepackage{tcolorbox}\n'
+    + '\\usepackage{fancyhdr}\n'
+    + '\\usepackage{siunitx}\n'
+    + '\\tcbuselibrary{skins}\n\n'
+    + '\\definecolor{bsaAcc}{HTML}{B45309}\n'
+    + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
+    + '\\definecolor{bsaRoj}{HTML}{B3261E}\n'
+    + '\\definecolor{bsaMuted}{HTML}{6B7280}\n\n'
+    + '\\pagestyle{fancy}\n'
+    + '\\fancyhf{}\n'
+    + '\\renewcommand{\\headrulewidth}{0.6pt}\n'
+    + '\\renewcommand{\\footrulewidth}{0.4pt}\n'
+    + '\\fancyhead[L]{\\sffamily\\small\\color{bsaAcc}\\bfseries BSA --- An\\\'alisis de Armaduras}\n'
+    + '\\fancyhead[R]{\\sffamily\\small\\color{bsaMuted}Hibbeler Est\\\'atica 12\\textsuperscript{a} ed. \\textperiodcentered\\ Cap.\\ 6}\n'
+    + '\\fancyfoot[C]{\\sffamily\\footnotesize\\color{bsaMuted}Beam \\& Section Analysis \\textperiodcentered\\ beamsectionanalysis.com}\n\n'
+    + '\\newtcolorbox{verdictbox}[1][]{\n'
+    + '  colback=bsaAcc!6, colframe=bsaAcc, boxrule=0.4pt, arc=2pt,\n'
+    + '  left=6pt, right=6pt, top=4pt, bottom=4pt, #1\n'
+    + '}\n\n'
+    + '\\begin{document}\n\n';
+
+  let tex = preambulo;
+  tex += '\\begin{center}\n'
+    + '  {\\sffamily\\LARGE\\bfseries\\color{bsaAcc} Reporte de An\\\'alisis de Armadura}\\\\[2pt]\n'
+    + '  {\\sffamily\\small\\color{bsaMuted} Generado: ' + escLatex(dt) + '}\n'
+    + '\\end{center}\n\\vspace{6pt}\n\n';
+  tex += '\\section*{\\sffamily\\color{bsaAcc} 1. Geometr\\\'ia}\n'
+    + '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n' + tikzBarras + tikzNudos + '\\end{tikzpicture}\n\\end{center}\n\n';
+  tex += '\\section*{\\sffamily\\color{bsaAcc} 2. Determinaci\\\'on est\\\'atica}\n'
+    + '\\[\n  m + r = 2j \\qquad\\Longrightarrow\\qquad ' + m + ' + ' + r + ' = 2(' + j + ') '
+    + '\\qquad\\Longrightarrow\\qquad ' + (m+r) + ' = ' + (2*j) + check + '\n\\]\n'
+    + '\\begin{verdictbox}\n' + veredicto + '\n\\end{verdictbox}\n\n';
+  tex += '\\section*{\\sffamily\\color{bsaAcc} 3. Reacciones en los apoyos}\n'
+    + '\\begin{center}\n\\begin{tabular}{@{}lccl@{}}\n\\toprule\n'
+    + '\\textbf{Apoyo} & $R_x$ (' + uF + ') & $R_y$ (' + uF + ') & Tipo\\\\\n\\midrule\n'
+    + filasReac + '\\bottomrule\n\\end{tabular}\n\\end{center}\n\n';
+  tex += '\\section*{\\sffamily\\color{bsaAcc} 4. Fuerzas en las barras}\n'
+    + '\\begin{center}\n\\begin{tabular}{@{}clcc l' + (hayCap ? 'c' : '') + '@{}}\n\\toprule\n'
+    + '\\textbf{N\\textsuperscript{o}} & \\textbf{Barra} & \\textbf{Long.\\ (' + uL + ')} & \\textbf{Fuerza (' + uF + ')} & \\textbf{Naturaleza}'
+    + (hayCap ? ' & \\textbf{Uso}' : '') + '\\\\\n\\midrule\n'
+    + filasBarras + '\\bottomrule\n\\end{tabular}\n\\end{center}\n'
+    + '\\noindent T = tracci\\\'on, C = compresi\\\'on.\n\n\\end{document}\n';
+
+  return tex;
+}
+
+// ── Motor LaTeX (WebAssembly) ──────────────────────────────────────
+// Se carga UNA sola vez por sesión y se reutiliza: cargarlo es lo más lento
+// de todo el proceso (varios MB de WebAssembly + paquetes desde el espejo).
+let _motorLatex = null;
+
+async function obtenerMotorLatex(){
+  if(_motorLatex) return _motorLatex;
+  if(typeof PdfTeXEngine === 'undefined'){
+    throw new Error('El motor LaTeX no está cargado. Revisa que exista latex/PdfTeXEngine.js');
+  }
+  const eng = new PdfTeXEngine();
+  await eng.loadEngine();
+  _motorLatex = eng;
+  return eng;
+}
+
+function _estadoBotonLatex(txt){
+  const b = document.getElementById('btnLatex');
+  if(b){
+    const s = b.querySelector('span');
+    if(s) s.textContent = txt;
+  }
+}
+
+async function generarPDFLatex(){
+  const btn = document.getElementById('btnLatex');
+  if(btn && btn.dataset.ocupado === '1') return;   // evita doble pulsación
+  const etiquetaOriginal = 'LaTeX';
+
+  try {
+    if(btn) btn.dataset.ocupado = '1';
+
+    // 1. Armar el .tex (esta parte ya estaba probada)
+    const tex = construirLatex();
+    if(!tex) return;
+
+    // 2. Cargar el motor (lento solo la primera vez)
+    _estadoBotonLatex('Cargando…');
+    const eng = await obtenerMotorLatex();
+
+    // 3. Compilar
+    _estadoBotonLatex('Compilando…');
+    eng.writeMemFSFile('main.tex', tex);
+    eng.setEngineMainFile('main.tex');
+    const r = await eng.compileLaTeX();
+
+    // 4. ¿Compiló?
+    if(!r || !r.pdf){
+      console.error('=== LOG DE LATEX ===');
+      console.error(r ? r.log : '(sin respuesta del motor)');
+      alert('No se pudo generar el PDF. Abre la consola del navegador (F12) '
+          + 'para ver el detalle del error de LaTeX.');
+      return;
+    }
+
+    // 5. Descargar el PDF
+    const blob = new Blob([r.pdf], {type:'application/pdf'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'armadura-bsa.pdf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+  } catch(e){
+    console.error('Error al generar el PDF con LaTeX:', e);
+    alert('Ocurrió un error al generar el PDF: ' + e.message);
+  } finally {
+    if(btn) btn.dataset.ocupado = '0';
+    _estadoBotonLatex(etiquetaOriginal);
+  }
+}
+
+// Descarga el .tex crudo. Se conserva para depurar cuando la compilación falle:
+// permite inspeccionar exactamente qué se le está pasando al motor.
+function descargarTex(){
+  const tex = construirLatex();
+  if(!tex) return;
+  const blob = new Blob([tex], {type:'text/x-tex'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'armadura-bsa.tex';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function downloadPDF(){
@@ -3727,9 +4897,70 @@ window.addEventListener('message', ev=>{
 });
 
 // Estado completo del ejercicio, para poder reabrirlo tal cual
+// ═══════════════════════════════════════════════════════════
+//  DESHACER / REHACER
+//  Se guarda una instantánea del modelo ANTES de cada cambio que lo
+//  modifica. La vista (zoom y desplazamiento) no forma parte del
+//  historial: deshacer no debe moverte la cámara.
+// ═══════════════════════════════════════════════════════════
+let pilaDeshacer = [], pilaRehacer = [];
+const MAX_HISTORIAL = 60;
+
+function instantanea(){
+  return JSON.stringify({
+    nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre, apoyo:n.apoyo,
+                          apAng:n.apAng, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), tope:n.tope})),
+    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b})),
+    nodoSeq, barraSeq
+  });
+}
+
+// Llamar ANTES de modificar el modelo.
+function registrarCambio(){
+  pilaDeshacer.push(instantanea());
+  if(pilaDeshacer.length > MAX_HISTORIAL) pilaDeshacer.shift();
+  pilaRehacer = [];              // una acción nueva invalida el camino de rehacer
+  actualizarBotonesHistorial();
+}
+
+function restaurarInstantanea(txt){
+  const e = JSON.parse(txt);
+  nodos = e.nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre||'',
+            apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:90), fx:n.fx||0, fy:n.fy||0,
+            cargas:(n.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), tope:n.tope||null}));
+  barras = e.barras.map(b=>({id:b.id, a:b.a, b:b.b}));
+  nodoSeq = e.nodoSeq; barraSeq = e.barraSeq;
+  // La selección puede apuntar a elementos que ya no existen tras restaurar.
+  selNodos = selNodos.filter(id=>nodos.some(n=>n.id===id));
+  selBarras = selBarras.filter(id=>barras.some(b=>b.id===id));
+  if(selBarra !== null && !barras.some(b=>b.id===selBarra)) selBarra = null;
+  if(selNodoInfo !== null && !nodos.some(n=>n.id===selNodoInfo)) selNodoInfo = null;
+  resultado = null;
+  reNombrar(); refrescar();
+}
+
+function deshacer(){
+  if(!pilaDeshacer.length) return;
+  pilaRehacer.push(instantanea());
+  restaurarInstantanea(pilaDeshacer.pop());
+  actualizarBotonesHistorial();
+}
+function rehacer(){
+  if(!pilaRehacer.length) return;
+  pilaDeshacer.push(instantanea());
+  restaurarInstantanea(pilaRehacer.pop());
+  actualizarBotonesHistorial();
+}
+function actualizarBotonesHistorial(){
+  const u = document.getElementById('btnUndo'), r = document.getElementById('btnRedo');
+  if(u) u.disabled = !pilaDeshacer.length;
+  if(r) r.disabled = !pilaRehacer.length;
+}
+
 function estadoActual(){
   return {
-    nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, apoyo:n.apoyo, fx:n.fx, fy:n.fy})),
+    nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, apoyo:n.apoyo, apAng:n.apAng, fx:n.fx, fy:n.fy,
+                          cargas:(n.cargas||[]).map(c=>({fx:c.fx,fy:c.fy}))})),
     barras: barras.map(b=>({id:b.id, a:b.a, b:b.b})),
     unidades: {len: unitLen, fuerza: unitFor},
     decimales: DEC,
@@ -3792,7 +5023,8 @@ function cargarProyecto(id){
   const e = it.estado;
   try{
     nodos = (e.nodos||[]).map(n=>({id:n.id, x:n.x, y:n.y, nombre:'',
-              apoyo:n.apoyo||null, apAng:90, fx:n.fx||0, fy:n.fy||0, tope:null}));
+              apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:90), fx:n.fx||0, fy:n.fy||0,
+              cargas:(n.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), tope:null}));
     barras = (e.barras||[]).map(b=>({id:b.id, a:b.a, b:b.b}));
     nodoSeq = nodos.reduce((m,n)=>Math.max(m,n.id), 0);
     barraSeq = barras.reduce((m,b)=>Math.max(m,b.id), 0);
@@ -3839,38 +5071,82 @@ window.addEventListener('load', ()=>{
   cv.addEventListener('mousedown', onCanvasDown);
   cv.addEventListener('dblclick', e=>{
     const r = cv.getBoundingClientRect();
-    const mx = e.clientX - r.left, my = e.clientY - r.top;
-    const n = nodoEn(mx, my);
-    if(n){ abrirEdNodo(n.id); return; }
-    const b = barraEn(mx, my);
-    if(b) abrirEdBarra(b.id);
+    intentarAbrirEdicion(e.clientX - r.left, e.clientY - r.top);
   });
   cv.addEventListener('mousemove', onCanvasMove);
   window.addEventListener('mouseup', onCanvasUp);
+  let pinchDist = null, pinchMid = null;
+  let ultimoTapArm = 0, ultimoTapArmPos = null;
   cv.addEventListener('touchstart', e=>{
     if(e.touches.length===1){ const t=e.touches[0];
+      const r = cv.getBoundingClientRect();
+      const mx = t.clientX - r.left, my = t.clientY - r.top;
+      const ahora = Date.now();
+      const cerca = ultimoTapArmPos && Math.hypot(mx-ultimoTapArmPos.x, my-ultimoTapArmPos.y) < 26;
+      if(ahora - ultimoTapArm < 320 && cerca){
+        ultimoTapArm = 0; ultimoTapArmPos = null;
+        intentarAbrirEdicion(mx, my);
+        e.preventDefault();
+        return;
+      }
+      ultimoTapArm = ahora; ultimoTapArmPos = {x:mx, y:my};
       onCanvasDown({clientX:t.clientX, clientY:t.clientY}); e.preventDefault(); }
+    else if(e.touches.length===2){
+      // dos dedos: inicia el pellizco de zoom y suspende cualquier gesto de un dedo
+      gesto = null; if(dragNodo!==null){ dragNodo=null; }
+      const [a,b] = e.touches;
+      pinchDist = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+      const r = cv.getBoundingClientRect();
+      pinchMid = {x:(a.clientX+b.clientX)/2-r.left, y:(a.clientY+b.clientY)/2-r.top};
+      e.preventDefault();
+    }
   }, {passive:false});
   cv.addEventListener('touchmove', e=>{
     if(e.touches.length===1){ const t=e.touches[0];
       onCanvasMove({clientX:t.clientX, clientY:t.clientY}); e.preventDefault(); }
+    else if(e.touches.length===2 && pinchDist!==null){
+      const [a,b] = e.touches;
+      const d = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+      const factor = d / pinchDist;
+      if(isFinite(factor) && factor>0){
+        const antes = aMundo(pinchMid.x, pinchMid.y);
+        escala = Math.max(0.02, Math.min(escala*factor, 4000));
+        const despues = aMundo(pinchMid.x, pinchMid.y);
+        vx += antes[0]-despues[0]; vy += antes[1]-despues[1];
+        dibujar();
+      }
+      pinchDist = d;
+      e.preventDefault();
+    }
   }, {passive:false});
-  cv.addEventListener('touchend', ()=>onCanvasUp());
+  cv.addEventListener('touchend', e=>{
+    if(e.touches.length < 2) pinchDist = null;
+    if(e.touches.length === 0) onCanvasUp();
+  });
   cv.addEventListener('wheel', e=>{
     e.preventDefault();
     if(e.deltaY < 0) zoomIn(); else zoomOut();
   }, {passive:false});
   window.addEventListener('resize', ajustarCanvas);
-  document.getElementById('chipDec').textContent = textoDecimales();
+  document.addEventListener('keydown', e=>{
+    if(e.key === 'Escape') manejarEsc();
+  });  document.getElementById('chipDec').textContent = textoDecimales();
   posicionarToggle();
   ajustarCanvas();
-  setTool('nodo');
+  setTool('pan');
   setSubTab('nodos');
+  actualizarBotonesHistorial();
   dibujarRefPlantilla();
   ['repDx','repDy','repN'].forEach(id=>{
     const e = document.getElementById(id);
     if(e) e.addEventListener('input', actualizarPrevRep);
   });
+  ['transDx','transDy','transAng'].forEach(id=>{
+    const e = document.getElementById(id);
+    if(e) e.addEventListener('input', actualizarPrevTrans);
+  });
+  const tref = document.getElementById('transRef');
+  if(tref) tref.addEventListener('change', actualizarPrevTrans);
   histRequest();
 });
 
