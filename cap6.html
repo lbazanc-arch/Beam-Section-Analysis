@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BSA — Análisis de Armaduras · Hibbeler Cap. 6</title>
+<title>BSA — Análisis de Armaduras · Cap. 6</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
@@ -415,7 +415,7 @@ body{
 <div class="topbar">
   <div>
     <div class="tb-title">Análisis de Armaduras</div>
-    <div class="tb-sub">Hibbeler — Estática 12ª ed. · Cap. 6.1 a 6.4</div>
+    <div class="tb-sub">Estática · Cap. 6.1 a 6.4</div>
   </div>
   <div class="tb-v">V1.0</div>
 </div>
@@ -2525,7 +2525,7 @@ function analizar(){
   return {fuerzas, reacciones, diag, idxReac};
 }
 
-// ── Miembros de fuerza cero (reglas de Hibbeler 6.4) ──
+// ── Miembros de fuerza cero (regla 6.4) ──
 function miembrosCero(){
   const out = [];
   nodos.forEach(n=>{
@@ -3805,6 +3805,180 @@ function escLatex(s){
 function tikzColorFuerza(v){
   return esCero(v) ? 'black!45' : (v >= 0 ? 'bsaAcc2' : 'bsaRoj');
 }
+
+// ── Apoyo formal (pasador / rodillo), estilo libro de texto ──
+// Triángulo con base y sombreado rayado bajo tierra; el rodillo añade dos
+// círculos entre el triángulo y la tierra para indicar que puede rodar.
+function tikzApoyo(tipo, px, py){
+  const w = 0.34, h = 0.52;
+  let s = '';
+  s += '\\draw[bsaAcc, line width=0.9pt, fill=white] (' + px + ',' + py + ') -- '
+     + '++(-' + w + ',-' + h + ') -- ++(' + (2*w) + ',0) -- cycle;\n';
+  let baseY = (parseFloat(py) - h).toFixed(3);
+  if(tipo === 'movil'){
+    const cy2 = (parseFloat(baseY) - 0.10).toFixed(3);
+    s += '\\draw[bsaAcc, line width=0.7pt, fill=white] (' + (parseFloat(px)-w*0.55).toFixed(3) + ',' + cy2 + ') circle (0.10);\n';
+    s += '\\draw[bsaAcc, line width=0.7pt, fill=white] (' + (parseFloat(px)+w*0.55).toFixed(3) + ',' + cy2 + ') circle (0.10);\n';
+    baseY = (parseFloat(cy2) - 0.10).toFixed(3);
+  }
+  s += '\\draw[bsaAcc, line width=0.8pt] (' + (parseFloat(px)-w-0.06).toFixed(3) + ',' + baseY + ') -- '
+     + '(' + (parseFloat(px)+w+0.06).toFixed(3) + ',' + baseY + ');\n';
+  // rayado de tierra (hatching)
+  const n = 5;
+  for(let i=0;i<=n;i++){
+    const hx = (parseFloat(px) - w - 0.06 + i*(2*w+0.12)/n).toFixed(3);
+    s += '\\draw[bsaAcc, line width=0.5pt] (' + hx + ',' + baseY + ') -- ++(-0.10,-0.11);\n';
+  }
+  return s;
+}
+
+// ── Cotas (cadena de dimensiones) bajo la armadura ──
+// Acota cada tramo horizontal entre coordenadas x consecutivas y, si la
+// armadura tiene altura, una cota vertical total a la izquierda.
+function tikzCotas(tx, ty, minX, maxX, minY, maxY, esc){
+  let s = '';
+  const xsReales = [...new Set(nodos.map(n=>Math.round(n.x*1000)/1000))].sort((a,b)=>a-b);
+  const yDim = -0.85;
+  const yTop = parseFloat(ty(minY));
+  xsReales.forEach(x=>{
+    s += '\\draw[black!55, line width=0.35pt] (' + tx(x) + ',' + yTop.toFixed(3) + ') -- (' + tx(x) + ',' + (yDim-0.12).toFixed(3) + ');\n';
+  });
+  for(let i=0;i<xsReales.length-1;i++){
+    const x1 = tx(xsReales[i]), x2 = tx(xsReales[i+1]);
+    const dist = xsReales[i+1]-xsReales[i];
+    if(dist < 1e-6) continue;
+    s += '\\draw[black!55, line width=0.4pt, <->, >=stealth] (' + x1 + ',' + yDim + ') -- (' + x2 + ',' + yDim + ');\n';
+    const xm = ((parseFloat(x1)+parseFloat(x2))/2).toFixed(3);
+    s += '\\node[font=\\tiny, fill=white, inner sep=1pt] at (' + xm + ',' + yDim + ') {' + dec(dist,'len') + '\\,' + unitLen + '};\n';
+  }
+  if(maxY - minY > 1e-6){
+    const xDimV = -0.85;
+    const y1 = ty(minY), y2 = ty(maxY);
+    s += '\\draw[black!55, line width=0.35pt] (' + tx(minX) + ',' + y1 + ') -- (' + (xDimV-0.12).toFixed(3) + ',' + y1 + ');\n';
+    s += '\\draw[black!55, line width=0.35pt] (' + tx(minX) + ',' + y2 + ') -- (' + (xDimV-0.12).toFixed(3) + ',' + y2 + ');\n';
+    s += '\\draw[black!55, line width=0.4pt, <->, >=stealth] (' + xDimV + ',' + y1 + ') -- (' + xDimV + ',' + y2 + ');\n';
+    const ym = ((parseFloat(y1)+parseFloat(y2))/2).toFixed(3);
+    s += '\\node[font=\\tiny, fill=white, inner sep=1pt, rotate=90] at (' + xDimV + ',' + ym + ') {' + dec(maxY-minY,'len') + '\\,' + unitLen + '};\n';
+  }
+  return s;
+}
+
+// ── Flecha de carga refinada (estilo libro, no exagerada) ──
+function tikzFlechaCarga(n, tx, ty, factor, longBase){
+  factor = factor || 1;
+  const fx = n.fx*factor, fy = n.fy*factor;
+  if(esCero(fx) && esCero(fy)) return '';
+  const mag = Math.hypot(fx, fy);
+  const ux = fx/mag, uy = fy/mag;
+  const px = parseFloat(tx(n.x)), py = parseFloat(ty(n.y));
+  const L = longBase || 1.05;
+  const x0 = (px - L*ux).toFixed(3), y0 = (py - L*uy).toFixed(3);
+  let s = '\\draw[->, >=stealth, line width=0.85pt, bsaAcc] (' + x0 + ',' + y0 + ') -- (' + tx(n.x) + ',' + ty(n.y) + ');\n';
+  const perpX = -uy, perpY = ux;
+  const side = (Math.abs(perpY) > 0.3) ? (perpY>=0?1:-1) : (perpX>=0?1:-1);
+  const lx = (px - L*0.62*ux + side*0.30*perpX).toFixed(3);
+  const ly = (py - L*0.62*uy + side*0.30*perpY).toFixed(3);
+  s += '\\node[font=\\scriptsize, color=bsaAcc] at (' + lx + ',' + ly + ') {' + dec(mag,'f') + '\\,' + unitFor + '};\n';
+  return s;
+}
+
+// ── DCL individual de un nudo (esquemático, sin escala geométrica) ──
+function tikzDCLNudo(n, res){
+  const R = 1.35;
+  let s = '';
+  const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
+  conec.forEach(b=>{
+    const o = nodos.find(z=>z.id === (b.a===n.id?b.b:b.a));
+    const dx=o.x-n.x, dy=o.y-n.y, L=Math.hypot(dx,dy);
+    const ux=dx/L, uy=dy/L;
+    const val = res.fuerzas[b.id] || 0;
+    const cero = esCero(val);
+    const col = cero ? 'black!40' : (val>0 ? 'bsaAcc2' : 'bsaRoj');
+    const x2=(ux*R).toFixed(3), y2=(uy*R).toFixed(3);
+    s += '\\draw[' + col + (cero?', dashed':'') + ', line width=1pt] (0,0) -- (' + x2 + ',' + y2 + ');\n';
+    if(!cero){
+      if(val>0){
+        s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + (ux*(R-0.32)).toFixed(3) + ',' + (uy*(R-0.32)).toFixed(3) + ') -- (' + x2 + ',' + y2 + ');\n';
+      } else {
+        s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + (ux*0.32).toFixed(3) + ',' + (uy*0.32).toFixed(3) + ') -- (0,0);\n';
+      }
+    }
+    const lx=(ux*(R+0.32)).toFixed(3), ly=(uy*(R+0.32)).toFixed(3);
+    s += '\\node[font=\\tiny, color=' + col + '] at (' + lx + ',' + ly + ') {$F_{' + nombreBarra(b) + '}$};\n';
+  });
+  if(!esCero(n.fx) || !esCero(n.fy)){
+    const mag=Math.hypot(n.fx,n.fy), ux=n.fx/mag, uy=n.fy/mag;
+    const sx=(-ux*1.7).toFixed(3), sy=(-uy*1.7).toFixed(3);
+    const ex=(-ux*0.32).toFixed(3), ey=(-uy*0.32).toFixed(3);
+    s += '\\draw[->, >=stealth, bsaAcc, line width=1.2pt] (' + sx + ',' + sy + ') -- (' + ex + ',' + ey + ');\n';
+    s += '\\node[font=\\tiny, color=bsaAcc] at (' + sx + ',' + (parseFloat(sy)+0.28*(uy<=0?1:-1)).toFixed(3) + ') {' + dec(mag,'f') + '\\,' + unitFor + '};\n';
+  }
+  const rr = res.reacciones[n.id];
+  if(rr){
+    if(rr.ry !== undefined && !esCero(rr.ry)){
+      const dir = rr.ry>0?1:-1;
+      s += '\\draw[->, >=stealth, bsaVerde, line width=1.2pt] (0,' + (dir*1.7).toFixed(3) + ') -- (0,' + (dir*0.32).toFixed(3) + ');\n';
+      s += '\\node[font=\\tiny, color=bsaVerde] at (0.42,' + (dir*1.35).toFixed(3) + ') {$R_{y' + escLatex(n.nombre) + '}$};\n';
+    }
+    if(rr.rx !== undefined && !esCero(rr.rx)){
+      const dir = rr.rx>0?1:-1;
+      s += '\\draw[->, >=stealth, bsaVerde, line width=1.2pt] (' + (dir*1.7).toFixed(3) + ',0) -- (' + (dir*0.32).toFixed(3) + ',0);\n';
+      s += '\\node[font=\\tiny, color=bsaVerde] at (' + (dir*1.35).toFixed(3) + ',0.30) {$R_{x' + escLatex(n.nombre) + '}$};\n';
+    }
+  }
+  s += '\\fill[bsaAcc] (0,0) circle (2pt);\n';
+  s += '\\node[font=\\small\\bfseries, above right, xshift=1pt, yshift=1pt] at (0,0) {' + escLatex(n.nombre) + '};\n';
+  s += '\\path (-1.95,-1.95) rectangle (1.95,1.95);\n';   // marco invisible: mismo tamaño en todos los DCL
+  return s;
+}
+
+// ── Armadura completa reutilizable: geometría base + variantes ──
+// opts: {fuerzas, reacciones, cotas, valores, factorCargas, resaltar}
+function tikzArmaduraCompleta(opts){
+  opts = opts || {};
+  const fuerzas = opts.fuerzas || resultado.fuerzas;
+  const reacciones = opts.reacciones || resultado.reacciones;
+  const factorCargas = opts.factorCargas || 1;
+  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const anchoReal = Math.max(maxX-minX, 1e-6), altoReal = Math.max(maxY-minY, 1e-6);
+  const anchoObjetivoCm = 12.5;
+  const esc = anchoObjetivoCm/anchoReal;
+  const tx = (x)=> ((x-minX)*esc).toFixed(3);
+  const ty = (y)=> ((y-minY)*esc).toFixed(3);
+  const maxF = Math.max(1e-9, ...barras.map(b=>Math.abs(fuerzas[b.id]||0)));
+
+  let s = '';
+  barras.forEach(b=>{
+    const na = nodos.find(x=>x.id===b.a), nb = nodos.find(x=>x.id===b.b);
+    if(!na||!nb) return;
+    const f = fuerzas[b.id]||0;
+    const resaltada = opts.resaltar && opts.resaltar===b.id;
+    const grosor = resaltada ? 3.2 : (0.8 + 1.4*Math.abs(f)/maxF);
+    const col = resaltada ? 'bsaAlerta' : tikzColorFuerza(f);
+    s += '\\draw[' + col + ', line width=' + grosor.toFixed(2) + 'pt] (' + tx(na.x) + ',' + ty(na.y) + ') -- (' + tx(nb.x) + ',' + ty(nb.y) + ');\n';
+    if(opts.valores){
+      const mx = ((parseFloat(tx(na.x))+parseFloat(tx(nb.x)))/2).toFixed(3);
+      const my = ((parseFloat(ty(na.y))+parseFloat(ty(nb.y)))/2).toFixed(3);
+      s += '\\node[font=' + (resaltada?'\\tiny\\bfseries':'\\tiny') + ', fill=white, inner sep=1pt, text=' + col + '] at (' + mx + ',' + my + ') {' + dec(Math.abs(f),'f') + '};\n';
+    }
+  });
+  nodos.forEach(n=>{
+    s += '\\fill (' + tx(n.x) + ',' + ty(n.y) + ') circle (1.5pt);\n';
+    s += '\\node[font=\\tiny, above right, xshift=1pt] at (' + tx(n.x) + ',' + ty(n.y) + ') {' + escLatex(n.nombre) + '};\n';
+    if(n.apoyo === 'fijo' || n.apoyo === 'movil'){
+      s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y));
+    }
+    if(opts.cargas !== false){
+      s += tikzFlechaCarga(n, tx, ty, factorCargas);
+    }
+  });
+  if(opts.cotas){
+    s += tikzCotas(tx, ty, minX, maxX, minY, maxY, esc);
+  }
+  return s;
+}
 // Arma el texto .tex y lo DEVUELVE (no descarga nada).
 // Lo usan tanto descargarTex() como generarPDFLatex().
 function construirLatex(){
@@ -3814,66 +3988,21 @@ function construirLatex(){
   const capC = parseFloat(document.getElementById('capC') ? document.getElementById('capC').value : NaN);
   const hayCap = isFinite(capT) && isFinite(capC) && capT > 0 && capC > 0;
 
-  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const anchoReal = Math.max(maxX - minX, 1e-6);
-  const anchoObjetivoCm = 13;
-  const esc = anchoObjetivoCm / anchoReal;
-  const tx = (x)=> ((x - minX) * esc).toFixed(3);
-  const ty = (y)=> ((y - Math.min(...ys)) * esc).toFixed(3);
-
-  const maxF = Math.max(1e-9, ...barras.map(b=>Math.abs(resultado.fuerzas[b.id]||0)));
-  let tikzBarras = '';
-  barras.forEach(b=>{
-    const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
-    if(!na || !nb) return;
-    const f = resultado.fuerzas[b.id] || 0;
-    const grosor = (0.9 + 1.6 * Math.abs(f)/maxF).toFixed(2);
-    tikzBarras += '  \\draw[' + tikzColorFuerza(f) + ', line width=' + grosor + 'pt] '
-      + '(' + tx(na.x) + ',' + ty(na.y) + ') -- (' + tx(nb.x) + ',' + ty(nb.y) + ');\n';
-  });
-
-  let tikzNudos = '';
-  nodos.forEach(n=>{
-    tikzNudos += '  \\fill (' + tx(n.x) + ',' + ty(n.y) + ') circle (1.6pt);\n';
-    tikzNudos += '  \\node[font=\\tiny, above right, xshift=1pt] at (' + tx(n.x) + ',' + ty(n.y) + ') {' + escLatex(n.nombre) + '};\n';
-    if(n.apoyo === 'fijo'){
-      tikzNudos += '  \\draw[bsaAcc, fill=bsaAcc!12] (' + tx(n.x) + ',' + ty(n.y) + ') ++(-0.22,-0.38) -- ++(0.44,0) -- (' + tx(n.x) + ',' + ty(n.y) + ') -- cycle;\n';
-    } else if(n.apoyo === 'movil'){
-      tikzNudos += '  \\draw[bsaAcc, fill=bsaAcc!12] (' + tx(n.x) + ',' + ty(n.y) + ') ++(-0.22,-0.38) -- ++(0.44,0) -- (' + tx(n.x) + ',' + ty(n.y) + ') -- cycle;\n';
-      tikzNudos += '  \\draw[bsaAcc] (' + tx(n.x) + ',' + ty(n.y) + ') ++(-0.22,-0.40) circle (0.055);\n';
-      tikzNudos += '  \\draw[bsaAcc] (' + tx(n.x) + ',' + ty(n.y) + ') ++(0.22,-0.40) circle (0.055);\n';
-    }
-    if(!esCero(n.fx) || !esCero(n.fy)){
-      const mag = Math.hypot(n.fx, n.fy);
-      const ux = n.fx/mag, uy = n.fy/mag;
-      const x0 = (parseFloat(tx(n.x)) - 0.9*ux).toFixed(3), y0 = (parseFloat(ty(n.y)) - 0.9*uy).toFixed(3);
-      tikzNudos += '  \\draw[->, >=stealth, bsaAcc, line width=1.1pt] (' + x0 + ',' + y0 + ') -- (' + tx(n.x) + ',' + ty(n.y) + ');\n';
-    }
-  });
-
-  let filasReac = '';
-  Object.keys(resultado.reacciones).forEach(id=>{
-    const n = nodos.find(z=>z.id===parseInt(id,10));
-    const rc = resultado.reacciones[id];
-    filasReac += escLatex(n.nombre) + ' & ' + (rc.rx !== undefined ? dec(rc.rx,'f') : '---') + ' & '
-      + (rc.ry !== undefined ? dec(rc.ry,'f') : '---') + ' & ' + (n.apoyo === 'fijo' ? 'Fijo (pasador)' : 'M\\\'ovil (rodillo)') + ' \\\\\n';
-  });
-
-  let filasBarras = '';
-  barras.forEach((b, i)=>{
-    const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
-    const f = resultado.fuerzas[b.id] || 0;
-    const L = Math.hypot(nb.x-na.x, nb.y-na.y);
-    const nat = esCero(f) ? '---' : (f >= 0 ? 'T' : 'C');
-    let util = '';
-    if(hayCap && !esCero(f)){
-      const pct = f >= 0 ? (f/capT*100) : (Math.abs(f)/capC*100);
-      util = dec(pct,'f') + '\\%';
-    }
-    filasBarras += (i+1) + ' & ' + escLatex(nombreBarra(b)) + ' & ' + dec(L,'len') + ' & '
-      + dec(Math.abs(f),'f') + ' & ' + nat + (hayCap ? ' & ' + (util || '---') : '') + ' \\\\\n';
-  });
+  // ── Numeración correlativa de figuras y tablas, estilo libro ──
+  // IMPORTANTE: figCaption()/tablaCaption() y los contadores manuales de
+  // figN deben invocarse en el MISMO ORDEN en que el texto final aparece en
+  // el documento (no en el orden en que JS calcula cada bloque). Por eso
+  // esta función arma "tex" de forma incremental, sección por sección, en
+  // vez de precalcular todo y unirlo al final.
+  let figN = 0, tablaN = 0;
+  function figCaption(txt){
+    figN++;
+    return '\n\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n';
+  }
+  function tablaCaption(txt){
+    tablaN++;
+    return '\n\\begin{center}{\\small\\color{bsaMuted}\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n';
+  }
 
   const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
   const j = nodos.length, m = barras.length, r = Object.keys(resultado.reacciones)
@@ -3891,27 +4020,27 @@ function construirLatex(){
     + '\\usepackage[a4paper,margin=2.2cm]{geometry}\n'
     + '\\usepackage{amsmath,amssymb}\n'
     + '\\usepackage{tikz}\n'
+    + '\\usetikzlibrary{arrows.meta,calc}\n'
     + '\\usepackage{xcolor}\n\n'
     + '\\definecolor{bsaAcc}{HTML}{B45309}\n'
     + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
     + '\\definecolor{bsaRoj}{HTML}{B3261E}\n'
+    + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
+    + '\\definecolor{bsaAlerta}{HTML}{DB2777}\n'
     + '\\definecolor{bsaMuted}{HTML}{6B7280}\n\n'
-    // Encabezado/pie sin fancyhdr, con los comandos base de LaTeX.
     + '\\makeatletter\n'
     + '\\def\\ps@bsa{%\n'
     + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- An\\\'alisis de Armaduras}\\hfill'
-    +      '\\color{bsaMuted}Hibbeler Est\\\'atica 12\\textsuperscript{a} ed.}%\n'
+    +      '\\color{bsaMuted}Cap.\\ 6 \\textperiodcentered\\ M\\\'etodo de nudos}%\n'
     + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\hfill}%\n'
     + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n'
     + '\\makeatother\n'
     + '\\pagestyle{bsa}\n\n'
-    // Caja de veredicto sin tcolorbox, con \\fcolorbox nativo.
     + '\\newcommand{\\veredicto}[1]{%\n'
     + '  \\begin{center}\n'
     + '  \\fcolorbox{bsaAcc}{bsaAcc!7}{%\n'
     + '    \\parbox{0.93\\textwidth}{\\vspace{3pt}#1\\vspace{3pt}}}\n'
     + '  \\end{center}}\n\n'
-    // Título de sección con color, sin paquetes extra.
     + '\\newcommand{\\seccion}[1]{%\n'
     + '  \\vspace{10pt}{\\large\\bfseries\\color{bsaAcc}#1}\\par\\vspace{3pt}\\hrule\\vspace{7pt}}\n\n'
     + '\\begin{document}\n\n';
@@ -3921,22 +4050,290 @@ function construirLatex(){
     + '  {\\LARGE\\bfseries\\color{bsaAcc} Reporte de An\\\'alisis de Armadura}\\\\[3pt]\n'
     + '  {\\small\\color{bsaMuted} Generado: ' + escLatex(dt) + '}\n'
     + '\\end{center}\n\\vspace{8pt}\n\n';
+
+  // ── 1. Geometría ──
   tex += '\\seccion{1. Geometr\\\'ia}\n'
-    + '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n' + tikzBarras + tikzNudos + '\\end{tikzpicture}\n\\end{center}\n\n';
+    + '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
+    + tikzArmaduraCompleta({cotas:true, valores:false}) + '\\end{tikzpicture}\n\\end{center}\n';
+  tex += figCaption('Diagrama de cuerpo libre (DCL) general de la armadura, con apoyos, cargas aplicadas y cotas.');
+  tex += '\\begin{center}\n'
+    + '\\begin{tabular}{@{}ll@{\\hspace{18pt}}ll@{}}\n'
+    + '\\textcolor{bsaAcc2}{\\rule[0.06cm]{0.45cm}{1.6pt}} & {\\footnotesize Tracci\\\'on} & '
+    + '\\textcolor{bsaRoj}{\\rule[0.06cm]{0.45cm}{1.6pt}} & {\\footnotesize Compresi\\\'on} \\\\[3pt]\n'
+    + '\\textcolor{bsaAcc}{\\rule[0.06cm]{0.45cm}{1.6pt}} & {\\footnotesize Apoyos y cargas aplicadas} & '
+    + '\\textcolor{bsaVerde}{\\rule[0.06cm]{0.45cm}{1.6pt}} & {\\footnotesize Reacciones (DCL de nudo, Secc.\\ 4)} \\\\[3pt]\n'
+    + '\\textcolor{bsaAlerta}{\\rule[0.06cm]{0.45cm}{2.4pt}} & {\\footnotesize Barra sobreesforzada (Secc.\\ 7)} & & \\\\\n'
+    + '\\end{tabular}\n'
+    + '\\end{center}\n\\vspace{6pt}\n';
+
+  // ── 2. Determinación estática ──
   tex += '\\seccion{2. Determinaci\\\'on est\\\'atica}\n'
     + '\\[\n  m + r = 2j \\qquad\\Longrightarrow\\qquad ' + m + ' + ' + r + ' = 2(' + j + ') '
     + '\\qquad\\Longrightarrow\\qquad ' + (m+r) + ' = ' + (2*j) + check + '\n\\]\n'
     + '\\veredicto{' + veredicto + '}\n\n';
-  tex += '\\seccion{3. Reacciones en los apoyos}\n'
+
+  // ── 3. Reacciones: derivación + tabla ──
+  const pines = nodos.filter(n=>n.apoyo==='fijo');
+  const rodillos = nodos.filter(n=>n.apoyo==='movil');
+  let derivacionReacciones = '';
+  if(pines.length===1 && rodillos.length===1){
+    const P = pines[0], Rn = rodillos[0];
+    const dir = (Rn.apAng===0) ? {x:1,y:0} : {x:0,y:1};
+    const nombreReac = (Rn.apAng===0) ? ('R_{x' + escLatex(Rn.nombre) + '}') : ('R_{y' + escLatex(Rn.nombre) + '}');
+    let terminos = [], sumaC = 0;
+    nodos.forEach(n=>{
+      if(!esCero(n.fy)){
+        const brazo = n.x - P.x;
+        sumaC += n.fy*brazo;
+        if(Math.abs(brazo) > 1e-9) terminos.push(fmtNum(n.fy) + '(' + dec(brazo,'f') + ')');
+      }
+      if(!esCero(n.fx)){
+        const brazo = -(n.y - P.y);
+        sumaC += n.fx*brazo;
+        if(Math.abs(brazo) > 1e-9) terminos.push(fmtNum(n.fx) + '(' + dec(brazo,'f') + ')');
+      }
+    });
+    const coefR = (Rn.x-P.x)*dir.y - (Rn.y-P.y)*dir.x;
+    const X = Math.abs(coefR) > 1e-9 ? -sumaC/coefR : 0;
+    const ladoIzq = (terminos.join(' + ').replace(/\+ -/g,'- ') || '0') + ' + ' + fmtCoef(coefR) + nombreReac;
+    derivacionReacciones += '\\textbf{Momento respecto de ' + escLatex(P.nombre) + '} (giro antihorario positivo):\\\\[2pt]\n'
+      + '\\[ \\sum M_{' + escLatex(P.nombre) + '} = 0:\\quad ' + ladoIzq + ' = 0 \\]\n'
+      + '\\[ \\Rightarrow\\quad ' + nombreReac + ' = ' + dec(X,'f') + '\\;' + uF + ' \\]\n';
+
+    const sumFx = nodos.reduce((s,n)=>s+(n.fx||0),0), sumFy = nodos.reduce((s,n)=>s+(n.fy||0),0);
+    const Ay = dir.y!==0 ? -(sumFy + X*dir.y) : -sumFy;
+    const Ax = dir.x!==0 ? -(sumFx + X*dir.x) : -sumFx;
+    derivacionReacciones += '\\textbf{Equilibrio vertical}:\\\\[2pt]\n'
+      + '\\[ \\sum F_y = 0:\\quad A_y + ' + fmtNum(dir.y!==0?X*dir.y:0) + ' + ' + fmtNum(sumFy) + ' = 0'
+      + ' \\;\\Rightarrow\\; A_y = ' + dec(Ay,'f') + '\\;' + uF + ' \\]\n'
+      + '\\textbf{Equilibrio horizontal}:\\\\[2pt]\n'
+      + '\\[ \\sum F_x = 0:\\quad A_x + ' + fmtNum(dir.x!==0?X*dir.x:0) + ' + ' + fmtNum(sumFx) + ' = 0'
+      + ' \\;\\Rightarrow\\; A_x = ' + dec(Ax,'f') + '\\;' + uF + ' \\]\n';
+  } else {
+    derivacionReacciones = '{\\small\\color{bsaMuted}Esta configuraci\\\'on de apoyos tiene m\\\'as de un pasador o '
+      + 'rodillo; las reacciones se obtuvieron resolviendo el sistema de equilibrio global completo en vez '
+      + 'de una derivaci\\\'on en un solo paso.}\\\\[6pt]\n';
+  }
+  let filasReac = '';
+  Object.keys(resultado.reacciones).forEach(id=>{
+    const n = nodos.find(z=>z.id===parseInt(id,10));
+    const rc = resultado.reacciones[id];
+    filasReac += escLatex(n.nombre) + ' & ' + (rc.rx !== undefined ? dec(rc.rx,'f') : '---') + ' & '
+      + (rc.ry !== undefined ? dec(rc.ry,'f') : '---') + ' & ' + (n.apoyo === 'fijo' ? 'Fijo (pasador)' : 'M\\\'ovil (rodillo)') + ' \\\\\n';
+  });
+  tex += '\\seccion{3. Reacciones en los apoyos}\n' + derivacionReacciones + '\n'
     + '\\begin{center}\n\\begin{tabular}{lccl}\n\\hline\n'
     + '\\textbf{Apoyo} & $R_x$ (' + uF + ') & $R_y$ (' + uF + ') & Tipo\\\\\n\\hline\n'
-    + filasReac + '\\hline\n\\end{tabular}\n\\end{center}\n\n';
-  tex += '\\seccion{4. Fuerzas en las barras}\n'
+    + filasReac + '\\hline\n\\end{tabular}\n\\end{center}\n'
+    + tablaCaption('Reacciones resueltas en cada apoyo.');
+
+  // ── 4. Método de nudos, paso a paso, con DCL individual por nudo ──
+  tex += '\\seccion{4. M\\\'etodo de nudos, paso a paso}\n'
+    + '\\noindent Los nudos se recorren de modo que en cada uno queden como m\\\'aximo dos '
+    + 'inc\\\'ognitas, porque en cada nudo solo hay dos ecuaciones: $\\sum F_x = 0$ y $\\sum F_y = 0$.\\\\[8pt]\n\n';
+  const orden = ordenNudos();
+  orden.forEach((paso, i)=>{
+    const n = paso.nodo;
+    const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
+    let textoIzq = '\\textbf{Nudo ' + (i+1) + ': ' + escLatex(n.nombre) + '} \\hfill '
+      + '{\\small\\color{bsaMuted}' + conec.length + ' barra(s)'
+      + (paso.nuevas.length ? ', ' + paso.nuevas.length + ' inc\\\'ognita(s) en este paso' : ' \\textperiodcentered\\ comprobaci\\\'on')
+      + '}\\\\[3pt]\n';
+
+    let exFx = [], exFy = [];
+    conec.forEach(b=>{
+      const o = nodos.find(z=>z.id === (b.a===n.id ? b.b : b.a));
+      const dx = o.x-n.x, dy = o.y-n.y, L = Math.hypot(dx,dy);
+      const cx = dx/L, cy = dy/L;
+      const nb = nombreBarra(b);
+      if(Math.abs(cx) > 1e-9) exFx.push(fmtCoef(cx) + 'F_{'+nb+'}');
+      if(Math.abs(cy) > 1e-9) exFy.push(fmtCoef(cy) + 'F_{'+nb+'}');
+    });
+    const R = resultado.reacciones[n.id];
+    if(R && R.rx !== undefined) exFx.push('R_{x' + escLatex(n.nombre) + '}');
+    if(R && R.ry !== undefined) exFy.push('R_{y' + escLatex(n.nombre) + '}');
+    if(!esCero(n.fx)) exFx.push(fmtNum(n.fx));
+    if(!esCero(n.fy)) exFy.push(fmtNum(n.fy));
+
+    textoIzq += '\\begin{footnotesize}\n'
+      + '\\[ \\textstyle\\sum F_x = 0:\\quad ' + (exFx.join(' + ').replace(/\+ -/g,'- ') || '0') + ' = 0 \\]\n'
+      + '\\[ \\textstyle\\sum F_y = 0:\\quad ' + (exFy.join(' + ').replace(/\+ -/g,'- ') || '0') + ' = 0 \\]\n'
+      + '\\end{footnotesize}\n';
+
+    if(paso.nuevas.length){
+      paso.nuevas.forEach(bid=>{
+        const b = barras.find(x=>x.id===bid);
+        const val = resultado.fuerzas[bid];
+        const tipo = esCero(val) ? '\\text{(fuerza cero)}'
+                   : (val > 0 ? '\\text{(tracci\\\'on)}' : '\\text{(compresi\\\'on)}');
+        textoIzq += '\\[ F_{' + nombreBarra(b) + '} = ' + dec(Math.abs(val),'f') + '\\;\\text{' + uF + '}\\;' + tipo + ' \\]\n';
+      });
+    } else {
+      textoIzq += '{\\small\\color{bsaMuted}Todas las barras de este nudo ya se conocen: sirve como '
+        + 'comprobaci\\\'on del equilibrio.}\\\\[2pt]\n';
+    }
+
+    figN++;
+    tex += '\\noindent\\begin{minipage}[t]{0.60\\textwidth}\n' + textoIzq + '\\end{minipage}\\hfill\n'
+      + '\\begin{minipage}[t]{0.36\\textwidth}\\centering\n'
+      + '\\begin{tikzpicture}[scale=0.85]\n' + tikzDCLNudo(n, resultado) + '\\end{tikzpicture}\\\\[1pt]\n'
+      + '{\\tiny\\color{bsaMuted}Figura ' + figN + '. DCL del nudo ' + escLatex(n.nombre) + '.}\n'
+      + '\\end{minipage}\n'
+      + '\\vspace{6pt}\\hrule\\vspace{9pt}\n';
+  });
+
+  // ── 5. Resumen de fuerzas en las barras ──
+  let filasBarras = '';
+  barras.forEach((b, i)=>{
+    const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
+    const f = resultado.fuerzas[b.id] || 0;
+    const L = Math.hypot(nb.x-na.x, nb.y-na.y);
+    const nat = esCero(f) ? '---' : (f >= 0 ? 'T' : 'C');
+    let util = '';
+    if(hayCap && !esCero(f)){
+      const pct = f >= 0 ? (f/capT*100) : (Math.abs(f)/capC*100);
+      util = dec(pct,'f') + '\\%';
+    }
+    filasBarras += (i+1) + ' & ' + escLatex(nombreBarra(b)) + ' & ' + dec(L,'len') + ' & '
+      + dec(Math.abs(f),'f') + ' & ' + nat + (hayCap ? ' & ' + (util || '---') : '') + ' \\\\\n';
+  });
+  tex += '\\seccion{5. Resumen de fuerzas en las barras}\n'
     + '\\begin{center}\n\\begin{tabular}{clcc l' + (hayCap ? 'c' : '') + '}\n\\hline\n'
     + '\\textbf{N\\textsuperscript{o}} & \\textbf{Barra} & \\textbf{Long.\\ (' + uL + ')} & \\textbf{Fuerza (' + uF + ')} & \\textbf{Naturaleza}'
     + (hayCap ? ' & \\textbf{Uso}' : '') + '\\\\\n\\hline\n'
     + filasBarras + '\\hline\n\\end{tabular}\n\\end{center}\n'
-    + '\\noindent T = tracci\\\'on, C = compresi\\\'on.\n\n\\end{document}\n';
+    + tablaCaption('Fuerza axial, naturaleza y aprovechamiento de cada barra.')
+    + '\\noindent T = tracci\\\'on, C = compresi\\\'on.\n\n';
+
+  // ── 6. Sensibilidad ante cambios de carga (DCL comparativos + tabla) ──
+  function analizarConEscalaTemporal(k){
+    const orig = nodos.map(n=>({n, fx:n.fx, fy:n.fy}));
+    nodos.forEach(n=>{ n.fx *= k; n.fy *= k; });
+    const res = analizar();
+    orig.forEach(o=>{ o.n.fx = o.fx; o.n.fy = o.fy; });
+    return res;
+  }
+  const hayCarga = nodos.some(n=>!esCero(n.fx)||!esCero(n.fy));
+  if(hayCarga){
+    const resX2 = analizarConEscalaTemporal(2);
+    const resD2 = analizarConEscalaTemporal(0.5);
+    let filasSens = '';
+    barras.forEach((b,i)=>{
+      const base = resultado.fuerzas[b.id]||0;
+      const x2 = resX2.error ? null : (resX2.fuerzas[b.id]||0);
+      const d2 = resD2.error ? null : (resD2.fuerzas[b.id]||0);
+      filasSens += (i+1) + ' & ' + escLatex(nombreBarra(b)) + ' & ' + dec(base,'f') + ' & '
+        + (x2===null?'---':dec(x2,'f')) + ' & ' + (d2===null?'---':dec(d2,'f')) + ' \\\\\n';
+    });
+
+    tex += '\\seccion{6. \\textquestiondown Qu\\\'e pasa si cambio las cargas?}\n'
+      + '\\noindent Esta secci\\\'on del programa permite variar cualquier carga y recalcular al '
+      + 'instante; como referencia impresa, se comparan las fuerzas resultantes si \\textbf{todas} '
+      + 'las cargas se duplican, manteniendo su direcci\\\'on.\\\\[8pt]\n';
+
+    if(!resX2.error){
+      const tikzA = tikzArmaduraCompleta({fuerzas:resultado.fuerzas, reacciones:resultado.reacciones, cotas:false, valores:true, factorCargas:1});
+      const tikzB = tikzArmaduraCompleta({fuerzas:resX2.fuerzas, reacciones:resX2.reacciones, cotas:false, valores:true, factorCargas:2});
+      tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n' + tikzA + '\\end{tikzpicture}\n\\end{center}\n'
+        + figCaption('Caso actual: fuerza en cada barra con las cargas tal como est\\\'an definidas.');
+      tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n' + tikzB + '\\end{tikzpicture}\n\\end{center}\n'
+        + figCaption('Con el doble de carga: mismas barras, fuerzas recalculadas al duplicar todas las cargas.');
+    }
+
+    tex += '\\begin{center}\\begin{tabular}{clccc}\\hline\n'
+      + '\\textbf{N\\textsuperscript{o}} & \\textbf{Barra} & \\textbf{Actual (' + uF + ')} & '
+      + '\\textbf{Doble de carga} & \\textbf{Mitad de carga}\\\\\\hline\n'
+      + filasSens + '\\hline\\end{tabular}\\end{center}\n'
+      + tablaCaption('Fuerza en cada barra bajo la carga actual y bajo variaciones de ella.');
+  }
+
+  // ── 7. ¿Qué barra falla primero? (tabla + DCL en la carga de falla) ──
+  if(hayCap){
+    let nodosParaFalla = nodos.filter(n=>!esCero(n.fx)||!esCero(n.fy));
+    if(typeof simNodoId === 'number' && simNodoId !== null){
+      const elegido = nodos.find(z=>z.id===simNodoId);
+      if(elegido && (!esCero(elegido.fx)||!esCero(elegido.fy))) nodosParaFalla = [elegido];
+    }
+    let filasFalla = '', tikzFalla = '', veredictosFalla = [];
+    nodosParaFalla.forEach(n=>{
+      const mag0 = Math.hypot(n.fx, n.fy);
+      if(mag0 < 1e-9) return;
+      const ux = n.fx/mag0, uy = n.fy/mag0;
+      const fx0 = n.fx, fy0 = n.fy;
+      n.fx = 0; n.fy = 0;
+      const r0 = analizar();
+      n.fx = fx0; n.fy = fy0;
+      const r1 = analizar();
+      if(r0.error || r1.error) return;
+      let mejorP = null, mejorBarra = null;
+      barras.forEach(b=>{
+        const a = r0.fuerzas[b.id] || 0;
+        const bcoef = ((r1.fuerzas[b.id]||0) - a) / mag0;
+        if(Math.abs(bcoef) < 1e-12) return;
+        [capT, -capC].forEach(lim=>{
+          if(!(Math.abs(lim) > 0)) return;
+          const P = (lim - a) / bcoef;
+          if(P > 1e-9 && (mejorP === null || P < mejorP)){ mejorP = P; mejorBarra = b; }
+        });
+      });
+      if(mejorP !== null){
+        filasFalla += escLatex(n.nombre) + ' & ' + dec(mag0,'f') + ' & '
+          + escLatex(nombreBarra(mejorBarra)) + ' & ' + dec(mejorP,'f') + ' \\\\\n';
+        veredictosFalla.push('Con la carga en el nudo \\textbf{' + escLatex(n.nombre) + '}, la primera barra en fallar es '
+          + '\\textbf{' + escLatex(nombreBarra(mejorBarra)) + '}, al alcanzar esa carga '
+          + '\\textbf{' + dec(mejorP,'f') + '\\,' + uF + '} (actualmente vale ' + dec(mag0,'f') + '\\,' + uF + ').');
+
+        const fuerzasFalla = {};
+        barras.forEach(b=>{
+          const a = r0.fuerzas[b.id] || 0;
+          const bcoef = ((r1.fuerzas[b.id]||0) - a) / mag0;
+          fuerzasFalla[b.id] = a + bcoef*mejorP;
+        });
+        const fx0f = n.fx, fy0f = n.fy;
+        n.fx = ux*mejorP; n.fy = uy*mejorP;
+        const resFalla = analizar();
+        n.fx = fx0f; n.fy = fy0f;
+        const reaccionesFalla = resFalla.error ? resultado.reacciones : resFalla.reacciones;
+
+        const tikzF = tikzArmaduraCompleta({fuerzas:fuerzasFalla, reacciones:reaccionesFalla, cotas:false,
+          valores:true, factorCargas:(mejorP/mag0), resaltar:mejorBarra.id});
+        tikzFalla += '\\begin{center}\n\\begin{tikzpicture}[scale=0.95]\n' + tikzF + '\\end{tikzpicture}\n\\end{center}\n'
+          + figCaption('Diagrama de cuerpo libre en la carga de falla del nudo ' + escLatex(n.nombre)
+            + '; la barra ' + escLatex(nombreBarra(mejorBarra)) + ' (resaltada en magenta) es la que alcanza su capacidad admisible primero.');
+      }
+    });
+
+    if(filasFalla){
+      tex += '\\seccion{7. \\textquestiondown Qu\\\'e barra falla primero?}\n'
+        + '\\noindent Con las capacidades admisibles ingresadas ($F_{\\text{adm,T}}=' + dec(capT,'f') + '\\,' + uF
+        + '$, $F_{\\text{adm,C}}=' + dec(capC,'f') + '\\,' + uF + '$), se indica, para la carga aplicada, '
+        + 'cu\\\'al barra alcanza primero su l\\\'imite si esa carga aumenta y a qu\\\'e valor.\\\\[8pt]\n'
+        + '\\veredicto{' + veredictosFalla.join('\\\\[4pt] ') + '}\n'
+        + '\\begin{center}\\begin{tabular}{lccc}\\hline\n'
+        + '\\textbf{Nudo cargado} & \\textbf{Carga actual (' + uF + ')} & \\textbf{Barra cr\\\'itica} & '
+        + '\\textbf{Falla en (' + uF + ')}\\\\\\hline\n'
+        + filasFalla + '\\hline\\end{tabular}\\end{center}\n'
+        + tablaCaption('Carga de falla y barra cr\\\'itica para el nudo analizado.')
+        + tikzFalla;
+    }
+  }
+
+  tex += '\\vspace{18pt}\\hrule\\vspace{16pt}\n'
+    + '\\begin{center}\n'
+    + '{\\small\\color{bsaMuted}\\textbf{BEAM \\& SECTION ANALYSIS (BSA)}}\\\\[2pt]\n'
+    + '{\\footnotesize\\color{bsaMuted}Plataforma educativa de an\\\'alisis estructural}\\\\[10pt]\n'
+    + '\\begin{tikzpicture}\n'
+    + '  \\draw[bsaAcc, line width=1pt] (0,0) circle (1.55);\n'
+    + '  \\draw[bsaAcc, line width=0.4pt] (0,0) circle (1.30);\n'
+    + '  \\node[font=\\Large\\bfseries, color=bsaAcc] at (0,0.16) {BSA};\n'
+    + '  \\draw[bsaAcc, line width=0.4pt] (-0.62,-0.24) -- (0.62,-0.24);\n'
+    + '  \\node[font=\\scriptsize, color=bsaAcc] at (0,-0.47) {EST\\\'ATICA};\n'
+    + '\\end{tikzpicture}\\\\[8pt]\n'
+    + '{\\footnotesize\\color{bsaMuted}Creado por \\textbf{Luis Alejandro Baz\\\'an Campos}}\\\\[2pt]\n'
+    + '{\\scriptsize\\color{bsaMuted}beamsectionanalysis.com}\n'
+    + '\\end{center}\n\n';
+
+  tex += '\\end{document}\n';
 
   return tex;
 }
@@ -4174,7 +4571,7 @@ function downloadPDF(){
   html += '<style>'+katexCss+'</style><style>'+printCss+'</style></head><body>';
   html += wmSeal;
   html += '<div class="pdf-header"><div><div class="pdf-title">BSA \u2014 An\u00e1lisis de Armaduras</div>'
-        + '<div class="pdf-sub">Hibbeler Est\u00e1tica 12\u00aa ed. \u00b7 Cap. 6 \u00b7 by Luis Alejandro Baz\u00e1n Campos</div></div>'
+        + '<div class="pdf-sub">Cap. 6 \u00b7 by Luis Alejandro Baz\u00e1n Campos</div></div>'
         + '<div class="pdf-date">Generado: '+dt+'</div></div>';
   if(img){
     html += '<div style="margin-bottom:12px;page-break-inside:avoid;">'
