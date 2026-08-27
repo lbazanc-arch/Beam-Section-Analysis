@@ -5,8 +5,6 @@
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BSA — Análisis de Armaduras · Hibbeler Cap. 6</title>
-<!-- Motor LaTeX (WebAssembly). Ruta relativa: funciona en el sitio y en local. -->
-<script src="latex/PdfTeXEngine.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
@@ -3943,65 +3941,116 @@ function construirLatex(){
   return tex;
 }
 
-// ── Motor LaTeX (WebAssembly) ──────────────────────────────────────
-// Se carga UNA sola vez por sesión y se reutiliza: cargarlo es lo más lento
-// de todo el proceso (varios MB de WebAssembly + paquetes desde el espejo).
-let _motorLatex = null;
+// ── Compilación con texlive.net ────────────────────────────────────
+// Servidor real (no WASM) mantenido por DANTE e.V. (grupo alemán de usuarios
+// de TeX), pensado justo para botones de "compilar" embebidos en sitios
+// externos: lo usan learnlatex.org y los foros latex.org / texwelt.de.
+//
+// OJO con la técnica: NO se usa fetch()/XMLHttpRequest para leer el PDF de
+// vuelta, porque el servidor no envía cabeceras CORS y eso lo bloquearía
+// igual que pasó con SwiftLaTeX. En vez de eso, replicamos exactamente lo
+// que hace su propio script de referencia (runlatex.js, usado en producción
+// por learnlatex.org): un <form> normal apuntando a un <iframe> oculto por
+// "target". Un envío de formulario entre dominios NO está sujeto a CORS
+// (esa restricción solo aplica cuando JS intenta LEER la respuesta con
+// fetch/XHR); el PDF resultante simplemente se muestra dentro del iframe.
+const TEXLIVE_NET_URL = 'https://texlive.net/cgi-bin/latexcgi';
 
-// Carpeta donde viven PdfTeXEngine.js, swiftlatexpdftex.js y el .wasm
-const LATEX_DIR = 'latex/';
+function _panelLatexPDF(){
+  let panel = document.getElementById('panelLatexPDF');
+  if(panel) return panel;
 
-// El motor hace internamente:  new Worker('swiftlatexpdftex.js')
-// con la ruta escrita a mano y SIN carpeta. Como new Worker() resuelve
-// relativo a la PÁGINA (no al .js que lo llama), busca el archivo en la raíz
-// del sitio y no lo encuentra. Peor aún: si el worker no arranca, el motor
-// nunca recibe mensaje, así que su promesa no se resuelve NI se rechaza y la
-// espera queda colgada para siempre. Redirigimos esa ruta concreta.
-function _conWorkerRedirigido(fn){
-  const WorkerOriginal = window.Worker;
-  window.Worker = function(url, opts){
-    const u = String(url);
-    if(u === 'swiftlatexpdftex.js' || u.endsWith('/swiftlatexpdftex.js')){
-      return new WorkerOriginal(LATEX_DIR + 'swiftlatexpdftex.js', opts);
-    }
-    return new WorkerOriginal(url, opts);
-  };
-  window.Worker.prototype = WorkerOriginal.prototype;
-  try { return fn(); }
-  finally { window.Worker = WorkerOriginal; }
+  panel = document.createElement('div');
+  panel.id = 'panelLatexPDF';
+  panel.style.cssText = 'display:none; position:fixed; inset:0; z-index:9000; '
+    + 'background:rgba(15,20,28,.72); align-items:center; justify-content:center; padding:16px;';
+  panel.innerHTML =
+      '<div style="background:#fff; border-radius:10px; width:100%; max-width:900px; '
+    +   'height:92vh; display:flex; flex-direction:column; overflow:hidden;">'
+    +   '<div style="display:flex; align-items:center; justify-content:space-between; '
+    +     'padding:10px 14px; border-bottom:1px solid #e5d9c8;">'
+    +     '<strong style="color:#B45309">Reporte PDF (LaTeX)</strong>'
+    +     '<button onclick="document.getElementById(\'panelLatexPDF\').style.display=\'none\'" '
+    +       'style="border:none;background:none;font-size:20px;cursor:pointer;line-height:1;">×</button>'
+    +   '</div>'
+    +   '<div id="latexEstado" style="padding:8px 14px; font-size:12.5px; color:#6B7280;">'
+    +     'Enviando a texlive.net…</div>'
+    +   '<iframe id="latexFrame" name="latexFrame" style="flex:1; border:none;"></iframe>'
+    + '</div>';
+  document.body.appendChild(panel);
+  return panel;
 }
 
-async function obtenerMotorLatex(){
-  if(_motorLatex) return _motorLatex;
-  if(typeof PdfTeXEngine === 'undefined'){
-    throw new Error('El motor LaTeX no se cargó. Verifica que exista '
-                  + LATEX_DIR + 'PdfTeXEngine.js');
-  }
+function generarPDFLatex(){
+  const btn = document.getElementById('btnLatex');
+  if(btn && btn.dataset.ocupado === '1') return;   // evita doble pulsación
 
-  // Comprobación previa: si el worker no está donde debe, avisamos con un
-  // mensaje claro en vez de esperar indefinidamente.
+  // 1. Armar el .tex (esta parte ya estaba probada, sin cambios)
+  const tex = construirLatex();
+  if(!tex) return;
+
   try {
-    const r = await fetch(LATEX_DIR + 'swiftlatexpdftex.js', {method:'HEAD'});
-    if(!r.ok) throw new Error('HTTP ' + r.status);
+    if(btn) btn.dataset.ocupado = '1';
+    _estadoBotonLatex('Enviando…');
+
+    const panel = _panelLatexPDF();
+    const estado = document.getElementById('latexEstado');
+    const frame = document.getElementById('latexFrame');
+    estado.textContent = 'Enviando a texlive.net…';
+    panel.style.display = 'flex';
+
+    // 2. Formulario oculto, exactamente con los campos que documenta
+    //    texlive.net (filename[]/filecontents[] como pareja, engine, return).
+    const viejo = document.getElementById('formLatexNet');
+    if(viejo) viejo.remove();
+    const form = document.createElement('form');
+    form.id = 'formLatexNet';
+    form.action = TEXLIVE_NET_URL;
+    form.method = 'post';
+    form.enctype = 'multipart/form-data';
+    form.target = 'latexFrame';
+    form.style.display = 'none';
+
+    const campo = (nombre, valor)=>{
+      const inp = document.createElement('textarea');
+      inp.name = nombre;
+      inp.value = valor;
+      form.appendChild(inp);
+    };
+    campo('filename[]', 'document.tex');
+    campo('filecontents[]', tex);
+    campo('engine', 'pdflatex');
+    campo('return', 'pdf');   // PDF directo: el navegador lo renderiza nativo en el iframe
+
+    document.body.appendChild(form);
+    form.submit();
+
+    // 3. Cuando el iframe termina de navegar (haya PDF o log de error), ya
+    //    no hay nada más que esperar. Por CORS no podemos leer el contenido
+    //    para saber cuál de los dos es, pero el alumno lo ve directamente.
+    //    El evento se adjunta DESPUÉS de submit(): la navegación real tarda
+    //    al menos una vuelta de red, así que no hay riesgo de perdérnoslo.
+    frame.addEventListener('load', function(){
+      estado.textContent = 'Listo. Si ves texto en vez del PDF, es el registro '
+        + 'de errores de LaTeX — cópialo para revisarlo.';
+    }, {once:true});
+
+    // Límite de cortesía: si en 45 s no hubo respuesta visible, avisamos
+    // (no podemos detectarlo con certeza por CORS, así que es orientativo).
+    setTimeout(()=>{
+      if(estado.textContent.indexOf('Enviando') === 0){
+        estado.textContent = 'Sigue esperando respuesta de texlive.net. '
+          + 'Si tarda demasiado, cierra este panel y vuelve a intentar.';
+      }
+    }, 45000);
+
   } catch(e){
-    throw new Error('No se encuentra ' + LATEX_DIR + 'swiftlatexpdftex.js ('
-                  + e.message + '). Revisa que los tres archivos del motor '
-                  + 'estén subidos en la carpeta "' + LATEX_DIR + '".');
+    console.error('Error al enviar a texlive.net:', e);
+    alert('Ocurrió un error al preparar el envío: ' + e.message);
+  } finally {
+    if(btn) btn.dataset.ocupado = '0';
+    _estadoBotonLatex('LaTeX');
   }
-
-  const eng = new PdfTeXEngine();
-
-  // Tiempo límite: sin esto, cualquier fallo del worker cuelga la espera
-  // para siempre y el usuario no ve ni PDF ni error (era el síntoma).
-  const carga = _conWorkerRedirigido(()=> eng.loadEngine());
-  const limite = new Promise((_, rej)=> setTimeout(
-    ()=> rej(new Error('El motor tardó más de 90 s en iniciar. '
-                     + 'Puede que el servidor de paquetes de LaTeX no responda.')),
-    90000));
-  await Promise.race([carga, limite]);
-
-  _motorLatex = eng;
-  return eng;
 }
 
 function _estadoBotonLatex(txt){
@@ -4012,61 +4061,6 @@ function _estadoBotonLatex(txt){
   }
 }
 
-async function generarPDFLatex(){
-  const btn = document.getElementById('btnLatex');
-  if(btn && btn.dataset.ocupado === '1') return;   // evita doble pulsación
-  const etiquetaOriginal = 'LaTeX';
-
-  try {
-    if(btn) btn.dataset.ocupado = '1';
-
-    // 1. Armar el .tex (esta parte ya estaba probada)
-    const tex = construirLatex();
-    if(!tex) return;
-
-    // 2. Cargar el motor (lento solo la primera vez)
-    _estadoBotonLatex('Cargando…');
-    const eng = await obtenerMotorLatex();
-
-    // 3. Compilar
-    _estadoBotonLatex('Compilando…');
-    eng.writeMemFSFile('main.tex', tex);
-    eng.setEngineMainFile('main.tex');
-    const compilacion = eng.compileLaTeX();
-    const limiteComp = new Promise((_, rej)=> setTimeout(
-      ()=> rej(new Error('La compilación superó los 120 s. Es probable que '
-                       + 'algún paquete de LaTeX no se haya podido descargar.')),
-      120000));
-    const r = await Promise.race([compilacion, limiteComp]);
-
-    // 4. ¿Compiló?
-    if(!r || !r.pdf){
-      console.error('=== LOG DE LATEX ===');
-      console.error(r ? r.log : '(sin respuesta del motor)');
-      alert('No se pudo generar el PDF. Abre la consola del navegador (F12) '
-          + 'para ver el detalle del error de LaTeX.');
-      return;
-    }
-
-    // 5. Descargar el PDF
-    const blob = new Blob([r.pdf], {type:'application/pdf'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'armadura-bsa.pdf';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-  } catch(e){
-    console.error('Error al generar el PDF con LaTeX:', e);
-    alert('Ocurrió un error al generar el PDF: ' + e.message);
-  } finally {
-    if(btn) btn.dataset.ocupado = '0';
-    _estadoBotonLatex(etiquetaOriginal);
-  }
-}
-
-// Descarga el .tex crudo. Se conserva para depurar cuando la compilación falle:
-// permite inspeccionar exactamente qué se le está pasando al motor.
 function descargarTex(){
   const tex = construirLatex();
   if(!tex) return;
