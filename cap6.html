@@ -3947,13 +3947,58 @@ function construirLatex(){
 // de todo el proceso (varios MB de WebAssembly + paquetes desde el espejo).
 let _motorLatex = null;
 
+// Carpeta donde viven PdfTeXEngine.js, swiftlatexpdftex.js y el .wasm
+const LATEX_DIR = 'latex/';
+
+// El motor hace internamente:  new Worker('swiftlatexpdftex.js')
+// con la ruta escrita a mano y SIN carpeta. Como new Worker() resuelve
+// relativo a la PÁGINA (no al .js que lo llama), busca el archivo en la raíz
+// del sitio y no lo encuentra. Peor aún: si el worker no arranca, el motor
+// nunca recibe mensaje, así que su promesa no se resuelve NI se rechaza y la
+// espera queda colgada para siempre. Redirigimos esa ruta concreta.
+function _conWorkerRedirigido(fn){
+  const WorkerOriginal = window.Worker;
+  window.Worker = function(url, opts){
+    const u = String(url);
+    if(u === 'swiftlatexpdftex.js' || u.endsWith('/swiftlatexpdftex.js')){
+      return new WorkerOriginal(LATEX_DIR + 'swiftlatexpdftex.js', opts);
+    }
+    return new WorkerOriginal(url, opts);
+  };
+  window.Worker.prototype = WorkerOriginal.prototype;
+  try { return fn(); }
+  finally { window.Worker = WorkerOriginal; }
+}
+
 async function obtenerMotorLatex(){
   if(_motorLatex) return _motorLatex;
   if(typeof PdfTeXEngine === 'undefined'){
-    throw new Error('El motor LaTeX no está cargado. Revisa que exista latex/PdfTeXEngine.js');
+    throw new Error('El motor LaTeX no se cargó. Verifica que exista '
+                  + LATEX_DIR + 'PdfTeXEngine.js');
   }
+
+  // Comprobación previa: si el worker no está donde debe, avisamos con un
+  // mensaje claro en vez de esperar indefinidamente.
+  try {
+    const r = await fetch(LATEX_DIR + 'swiftlatexpdftex.js', {method:'HEAD'});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+  } catch(e){
+    throw new Error('No se encuentra ' + LATEX_DIR + 'swiftlatexpdftex.js ('
+                  + e.message + '). Revisa que los tres archivos del motor '
+                  + 'estén subidos en la carpeta "' + LATEX_DIR + '".');
+  }
+
   const eng = new PdfTeXEngine();
-  await eng.loadEngine();
+
+  // Tiempo límite: sin esto, cualquier fallo del worker cuelga la espera
+  // para siempre y el usuario no ve ni PDF ni error (era el síntoma).
+  const carga = _conWorkerRedirigido(()=> eng.loadEngine());
+  const limite = new Promise((_, rej)=> setTimeout(
+    ()=> rej(new Error('El motor tardó más de 90 s en iniciar. '
+                     + 'Puede que el servidor de paquetes de LaTeX no responda.')),
+    90000));
+  await Promise.race([carga, limite]);
+
   _motorLatex = eng;
   return eng;
 }
@@ -3986,7 +4031,12 @@ async function generarPDFLatex(){
     _estadoBotonLatex('Compilando…');
     eng.writeMemFSFile('main.tex', tex);
     eng.setEngineMainFile('main.tex');
-    const r = await eng.compileLaTeX();
+    const compilacion = eng.compileLaTeX();
+    const limiteComp = new Promise((_, rej)=> setTimeout(
+      ()=> rej(new Error('La compilación superó los 120 s. Es probable que '
+                       + 'algún paquete de LaTeX no se haya podido descargar.')),
+      120000));
+    const r = await Promise.race([compilacion, limiteComp]);
 
     // 4. ¿Compiló?
     if(!r || !r.pdf){
