@@ -3850,7 +3850,7 @@ function construirLatex(){
       const mag = Math.hypot(n.fx, n.fy);
       const ux = n.fx/mag, uy = n.fy/mag;
       const x0 = (parseFloat(tx(n.x)) - 0.9*ux).toFixed(3), y0 = (parseFloat(ty(n.y)) - 0.9*uy).toFixed(3);
-      tikzNudos += '  \\draw[-{Latex[length=2.2mm]}, bsaAcc, line width=1.1pt] (' + x0 + ',' + y0 + ') -- (' + tx(n.x) + ',' + ty(n.y) + ');\n';
+      tikzNudos += '  \\draw[->, >=stealth, bsaAcc, line width=1.1pt] (' + x0 + ',' + y0 + ') -- (' + tx(n.x) + ',' + ty(n.y) + ');\n';
     }
   });
 
@@ -3893,50 +3893,51 @@ function construirLatex(){
     + '\\usepackage[a4paper,margin=2.2cm]{geometry}\n'
     + '\\usepackage{amsmath,amssymb}\n'
     + '\\usepackage{tikz}\n'
-    + '\\usetikzlibrary{arrows.meta,calc}\n'
-    + '\\usepackage{booktabs}\n'
-    + '\\usepackage{xcolor}\n'
-    + '\\usepackage{tcolorbox}\n'
-    + '\\usepackage{fancyhdr}\n'
-    + '\\usepackage{siunitx}\n'
-    + '\\tcbuselibrary{skins}\n\n'
+    + '\\usepackage{xcolor}\n\n'
     + '\\definecolor{bsaAcc}{HTML}{B45309}\n'
     + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
     + '\\definecolor{bsaRoj}{HTML}{B3261E}\n'
     + '\\definecolor{bsaMuted}{HTML}{6B7280}\n\n'
-    + '\\pagestyle{fancy}\n'
-    + '\\fancyhf{}\n'
-    + '\\renewcommand{\\headrulewidth}{0.6pt}\n'
-    + '\\renewcommand{\\footrulewidth}{0.4pt}\n'
-    + '\\fancyhead[L]{\\sffamily\\small\\color{bsaAcc}\\bfseries BSA --- An\\\'alisis de Armaduras}\n'
-    + '\\fancyhead[R]{\\sffamily\\small\\color{bsaMuted}Hibbeler Est\\\'atica 12\\textsuperscript{a} ed. \\textperiodcentered\\ Cap.\\ 6}\n'
-    + '\\fancyfoot[C]{\\sffamily\\footnotesize\\color{bsaMuted}Beam \\& Section Analysis \\textperiodcentered\\ beamsectionanalysis.com}\n\n'
-    + '\\newtcolorbox{verdictbox}[1][]{\n'
-    + '  colback=bsaAcc!6, colframe=bsaAcc, boxrule=0.4pt, arc=2pt,\n'
-    + '  left=6pt, right=6pt, top=4pt, bottom=4pt, #1\n'
-    + '}\n\n'
+    // Encabezado/pie sin fancyhdr, con los comandos base de LaTeX.
+    + '\\makeatletter\n'
+    + '\\def\\ps@bsa{%\n'
+    + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- An\\\'alisis de Armaduras}\\hfill'
+    +      '\\color{bsaMuted}Hibbeler Est\\\'atica 12\\textsuperscript{a} ed.}%\n'
+    + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\hfill}%\n'
+    + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n'
+    + '\\makeatother\n'
+    + '\\pagestyle{bsa}\n\n'
+    // Caja de veredicto sin tcolorbox, con \\fcolorbox nativo.
+    + '\\newcommand{\\veredicto}[1]{%\n'
+    + '  \\begin{center}\n'
+    + '  \\fcolorbox{bsaAcc}{bsaAcc!7}{%\n'
+    + '    \\parbox{0.93\\textwidth}{\\vspace{3pt}#1\\vspace{3pt}}}\n'
+    + '  \\end{center}}\n\n'
+    // Título de sección con color, sin paquetes extra.
+    + '\\newcommand{\\seccion}[1]{%\n'
+    + '  \\vspace{10pt}{\\large\\bfseries\\color{bsaAcc}#1}\\par\\vspace{3pt}\\hrule\\vspace{7pt}}\n\n'
     + '\\begin{document}\n\n';
 
   let tex = preambulo;
   tex += '\\begin{center}\n'
-    + '  {\\sffamily\\LARGE\\bfseries\\color{bsaAcc} Reporte de An\\\'alisis de Armadura}\\\\[2pt]\n'
-    + '  {\\sffamily\\small\\color{bsaMuted} Generado: ' + escLatex(dt) + '}\n'
-    + '\\end{center}\n\\vspace{6pt}\n\n';
-  tex += '\\section*{\\sffamily\\color{bsaAcc} 1. Geometr\\\'ia}\n'
+    + '  {\\LARGE\\bfseries\\color{bsaAcc} Reporte de An\\\'alisis de Armadura}\\\\[3pt]\n'
+    + '  {\\small\\color{bsaMuted} Generado: ' + escLatex(dt) + '}\n'
+    + '\\end{center}\n\\vspace{8pt}\n\n';
+  tex += '\\seccion{1. Geometr\\\'ia}\n'
     + '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n' + tikzBarras + tikzNudos + '\\end{tikzpicture}\n\\end{center}\n\n';
-  tex += '\\section*{\\sffamily\\color{bsaAcc} 2. Determinaci\\\'on est\\\'atica}\n'
+  tex += '\\seccion{2. Determinaci\\\'on est\\\'atica}\n'
     + '\\[\n  m + r = 2j \\qquad\\Longrightarrow\\qquad ' + m + ' + ' + r + ' = 2(' + j + ') '
     + '\\qquad\\Longrightarrow\\qquad ' + (m+r) + ' = ' + (2*j) + check + '\n\\]\n'
-    + '\\begin{verdictbox}\n' + veredicto + '\n\\end{verdictbox}\n\n';
-  tex += '\\section*{\\sffamily\\color{bsaAcc} 3. Reacciones en los apoyos}\n'
-    + '\\begin{center}\n\\begin{tabular}{@{}lccl@{}}\n\\toprule\n'
-    + '\\textbf{Apoyo} & $R_x$ (' + uF + ') & $R_y$ (' + uF + ') & Tipo\\\\\n\\midrule\n'
-    + filasReac + '\\bottomrule\n\\end{tabular}\n\\end{center}\n\n';
-  tex += '\\section*{\\sffamily\\color{bsaAcc} 4. Fuerzas en las barras}\n'
-    + '\\begin{center}\n\\begin{tabular}{@{}clcc l' + (hayCap ? 'c' : '') + '@{}}\n\\toprule\n'
+    + '\\veredicto{' + veredicto + '}\n\n';
+  tex += '\\seccion{3. Reacciones en los apoyos}\n'
+    + '\\begin{center}\n\\begin{tabular}{lccl}\n\\hline\n'
+    + '\\textbf{Apoyo} & $R_x$ (' + uF + ') & $R_y$ (' + uF + ') & Tipo\\\\\n\\hline\n'
+    + filasReac + '\\hline\n\\end{tabular}\n\\end{center}\n\n';
+  tex += '\\seccion{4. Fuerzas en las barras}\n'
+    + '\\begin{center}\n\\begin{tabular}{clcc l' + (hayCap ? 'c' : '') + '}\n\\hline\n'
     + '\\textbf{N\\textsuperscript{o}} & \\textbf{Barra} & \\textbf{Long.\\ (' + uL + ')} & \\textbf{Fuerza (' + uF + ')} & \\textbf{Naturaleza}'
-    + (hayCap ? ' & \\textbf{Uso}' : '') + '\\\\\n\\midrule\n'
-    + filasBarras + '\\bottomrule\n\\end{tabular}\n\\end{center}\n'
+    + (hayCap ? ' & \\textbf{Uso}' : '') + '\\\\\n\\hline\n'
+    + filasBarras + '\\hline\n\\end{tabular}\n\\end{center}\n'
     + '\\noindent T = tracci\\\'on, C = compresi\\\'on.\n\n\\end{document}\n';
 
   return tex;
