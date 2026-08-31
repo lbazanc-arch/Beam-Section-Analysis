@@ -1606,17 +1606,24 @@ async function api(action, body={}, timeoutMs=12000){
         // Una fila por sesión de tema. Se acumula en el servidor, así el
         // alumno ve su tiempo sumado entre el PC y el móvil.
         if(!user) return {ok:false};
-        const { error } = await SB.from('uso_temas').insert({
-          alumno: user.id, tema: String(body.tema||''),
-          segundos: Number(body.seg)||0, inicio: new Date(body.ini||Date.now()).toISOString()
+        const tema = String(body.tema||'').trim();
+        if(!tema) return {ok:false};
+        const { error } = await SB.from('sesiones').insert({
+          alumno: user.id, tema: tema,
+          segundos: Number(body.seg)||0,
+          inicio: new Date(body.ini||Date.now()).toISOString()
         });
+        // Antes este fallo era invisible: se ignoraba el error y el tiempo
+        // por tema no llegaba nunca a la base sin que nadie se enterara.
+        if(error) console.warn('No se registró el uso del tema', tema, error.message);
         return {ok: !error};
       }
 
       case 'misUsos': {
         if(!user) return {usos:null};
-        const { data, error } = await SB.from('uso_temas')
+        const { data, error } = await SB.from('sesiones')
           .select('tema, segundos, inicio').eq('alumno', user.id)
+          .not('tema','is',null)
           .order('inicio',{ascending:false}).limit(1000);
         // Si la tabla aún no existe, se devuelve null y la vista se queda
         // con los datos locales en vez de mostrarse vacía.
@@ -1628,11 +1635,12 @@ async function api(action, body={}, timeoutMs=12000){
         // Cada alumno solo ve lo suyo: el filtro va por el id del token, no
         // por nada que mande el navegador.
         if(!user) return {logs:[]};
-        const { data, error } = await SB.from('ingresos')
-          .select('entrada, segundos').eq('alumno', user.id)
-          .order('entrada',{ascending:false}).limit(300);
+        const { data, error } = await SB.from('sesiones')
+          .select('inicio, segundos').eq('alumno', user.id)
+          .is('tema', null)
+          .order('inicio',{ascending:false}).limit(300);
         if(error) return {logs:[]};
-        return {logs:(data||[]).map(r=>({ini:r.entrada, seg:Number(r.segundos)||0}))};
+        return {logs:(data||[]).map(r=>({ini:r.inicio, seg:Number(r.segundos)||0}))};
       }
 
       case 'updateEmail': {
@@ -1649,7 +1657,9 @@ async function api(action, body={}, timeoutMs=12000){
         if(!user) return {ok:false};
         // Se borran primero los ingresos: si quedaran huérfanos apuntando a
         // un alumno inexistente, las estadísticas del profesor saldrían mal.
-        await SB.from('ingresos').delete().eq('alumno', user.id);
+        // `sesiones` cae sola por ON DELETE CASCADE, pero se borra antes
+        // de forma explícita para no depender de ello si algún día cambia.
+        await SB.from('sesiones').delete().eq('alumno', user.id);
         const { error } = await SB.from('alumnos').delete().eq('id', user.id);
         return {ok: !error};
       }
@@ -1676,14 +1686,18 @@ async function api(action, body={}, timeoutMs=12000){
       }
 
       case 'getLogs': {
-        const { data, error } = await SB.from('ingresos')
-          .select('entrada, segundos, alumnos(codigo,nombre,apellidos,correo,horario)')
-          .order('entrada',{ascending:false}).limit(1000);
+        // Solo las sesiones de portal: las de tema se consultan aparte,
+        // con 'usoPorTema'. Mezclarlas duplicaría el conteo de ingresos,
+        // porque el tiempo de un capítulo va DENTRO de la sesión.
+        const { data, error } = await SB.from('sesiones')
+          .select('inicio, segundos, tema, alumnos(codigo,nombre,apellidos,correo,horario)')
+          .is('tema', null)
+          .order('inicio',{ascending:false}).limit(1000);
         if(error) return {logs:[]};
         return {logs:(data||[]).filter(r=>r.alumnos).map(r=>({
           email:r.alumnos.correo||'—', codigo:r.alumnos.codigo||'—',
           nombre:[r.alumnos.nombre,r.alumnos.apellidos].filter(Boolean).join(' ')||'—',
-          time:r.entrada, tiempo:r.segundos||0}))};
+          time:r.inicio, tiempo:r.segundos||0}))};
       }
 
       case 'getConfig': {
@@ -1714,22 +1728,31 @@ async function api(action, body={}, timeoutMs=12000){
       }
 
       case 'addLog': {
+        // Sesión del PORTAL: una fila de `sesiones` con tema NULL. El
+        // tiempo se completa después con 'addTime'.
         const { data:{user} } = await SB.auth.getUser();
         if(!user) return {ok:false};
-        const { data } = await SB.from('ingresos').insert({alumno:user.id}).select('id').maybeSingle();
+        const { data } = await SB.from('sesiones')
+          .insert({alumno:user.id, tema:null}).select('id').maybeSingle();
         if(data) _ingresoId=data.id;
         return {ok:true};
       }
 
       case 'addTime': {
         if(!_ingresoId) return {ok:false};
-        await SB.from('ingresos').update({segundos:Number(body.seconds)||0}).eq('id',_ingresoId);
+        await SB.from('sesiones').update({segundos:Number(body.seconds)||0}).eq('id',_ingresoId);
         return {ok:true};
       }
 
       case 'clearLogs': {
-        await SB.from('ingresos').delete().neq('id',0);
-        return {ok:true};
+        // Antes borraba TODOS los registros del curso de un clic. Ahora
+        // solo retira los anteriores a la fecha que se indique; sin fecha,
+        // los de más de un año. El histórico del ciclo en curso se queda.
+        const corte = body.antesDe
+          ? new Date(body.antesDe).toISOString()
+          : new Date(Date.now() - 365*24*3600*1000).toISOString();
+        const { error } = await SB.from('sesiones').delete().lt('inicio', corte);
+        return {ok: !error, corte};
       }
 
       // ── Ya no aplican: Supabase gestiona las contraseñas ──
@@ -1992,7 +2015,7 @@ async function refreshPanel(){
 }
 
 // ═══ Catálogo de capítulos y bloqueo por capítulo (solo estudiantes) ═══
-const CAPS = [
+let CAPS = [
   {key:'arma',   cap:'6',  cls:'amber', nom:'Análisis de Armaduras',
    desc:'Método de nudos y de secciones · fuerza cero · resistencia · Cap. 6'},
   {key:'diag',   cap:'7',  cls:'blue',  nom:'Diagramas de Fuerzas Internas',
@@ -2389,9 +2412,6 @@ function openApp(appKey){
     alert('Tu profesor ha deshabilitado el acceso a este capítulo.');
     return;
   }
-  const isDiag = appKey==='diag';
-  const isCentro = appKey==='centro';
-  const isPresion = appKey==='presion';
   // La ruta del capítulo sale del catálogo único (TEMAS_CAT).
   const ruta = archivoCap(appKey);
   if(!ruta){ console.warn('Tema desconocido:', appKey); return; }
@@ -2401,12 +2421,15 @@ function openApp(appKey){
   const topbar=document.getElementById('app-topbar');
   const closeBtn=document.getElementById('app-close-btn');
   const titleEl=document.getElementById('app-title');
-  const isArma = appKey==='arma';
-  if(isArma){topbar.className='atbar amber-bar';closeBtn.className='bclose green-close';titleEl.textContent='BSA — Análisis de Armaduras · Cap. 6';}
-  else if(isDiag){topbar.className='atbar blue-bar';closeBtn.className='bclose blue-close';titleEl.textContent='BSA — Diagramas de Fuerzas Internas · Cap. 7';}
-  else if(isCentro){topbar.className='atbar green-bar';closeBtn.className='bclose green-close';titleEl.textContent='BSA — Centro de Gravedad y Centroide · Cap. 9';}
-  else if(isPresion){topbar.className='atbar green-bar';closeBtn.className='bclose green-close';titleEl.textContent='BSA — Presión de un Fluido · Cap. 9.5';}
-  else{topbar.className='atbar green-bar';closeBtn.className='bclose green-close';titleEl.textContent='BSA — Momento de Inercia · Cap. 10';}
+  // Barra y título salen del catálogo: un tema nuevo no obliga a añadir
+  // otra rama aquí. Si no trae color, se usa el verde de la casa.
+  const t = TEMAS_CAT[appKey] || {};
+  const barra = {amber:'amber-bar', blue:'blue-bar', teal:'green-bar', green:'green-bar'}[t.clase] || 'green-bar';
+  const cierre = (t.clase === 'blue') ? 'blue-close' : 'green-close';
+  topbar.className = 'atbar ' + barra;
+  closeBtn.className = 'bclose ' + cierre;
+  titleEl.textContent = t.titulo
+    || ('BSA — ' + (t.nombre || appKey) + (t.capitulo ? ' · Cap. ' + t.capitulo : ''));
   if(user&&role==='est'){const s=ls.get('students')||[];const me=s.find(x=>x.email===user);const nm=me&&me.nombre?me.nombre:(me&&me.codigo?me.codigo:user);titleEl.textContent+=' · Bienvenido, '+nm;}
   startSession();
   _capPendiente = appKey;
@@ -2837,16 +2860,45 @@ function sesionesGet(){ const v = ls.get(sesionesKey()); return Array.isArray(v)
 //  La tabla `uso_temas` de Supabase no hay que tocarla: la columna `tema`
 //  es texto libre y admite cualquier clave nueva.
 // ═══════════════════════════════════════════════════════════
-const TEMAS_CAT = {
+// Valor de respaldo: es lo que se usa si la tabla `temas` no responde,
+// para que el portal siga abriendo capítulos sin conexión a la base.
+let TEMAS_CAT = {
   arma:    {archivo:'cap6.html',         nombre:'Armaduras'},
   diag:    {archivo:'cap7.html',         nombre:'Fuerzas internas'},
   centro:  {archivo:'cap9.html',         nombre:'Centroides'},
   presion: {archivo:'cap9-presion.html', nombre:'Presión de fluidos'},
   iner:    {archivo:'cap10.html',        nombre:'Momento de inercia'}
 };
-const TEMAS_KEYS = Object.keys(TEMAS_CAT);
+let TEMAS_KEYS = Object.keys(TEMAS_CAT);
 function nombreCap(k){ return (TEMAS_CAT[k] && TEMAS_CAT[k].nombre) || k; }
 function archivoCap(k){ return TEMAS_CAT[k] && TEMAS_CAT[k].archivo; }
+
+// Rellena TEMAS_CAT y CAPS desde la tabla `temas`. Con esto, dar de alta
+// un capítulo es insertar una fila: el seguimiento de uso, los nombres de
+// las tablas, la tarjeta del profesor y el título de la barra salen solos.
+// Lo único que sigue siendo manual es la tarjeta de la portada del alumno,
+// que vive en el HTML.
+async function cargarTemas(){
+  if(!SB) return false;
+  try{
+    const { data, error } = await SB.from('temas')
+      .select('*').eq('activo', true).order('orden');
+    if(error || !data || !data.length) return false;
+    const cat = {}, caps = [];
+    data.forEach(t=>{
+      if(!t.codigo || !t.archivo) return;
+      cat[t.codigo] = {archivo:t.archivo, nombre:t.nombre || t.codigo,
+                       capitulo:t.capitulo || '', clase:t.clase || 'green',
+                       titulo:t.titulo || '', desc:t.descripcion || ''};
+      caps.push({key:t.codigo, cap:t.capitulo || '', cls:t.clase || 'green',
+                 nom:t.nombre || t.codigo, desc:t.descripcion || ''});
+    });
+    if(!Object.keys(cat).length) return false;
+    TEMAS_CAT = cat; TEMAS_KEYS = Object.keys(cat); CAPS = caps;
+    try{ renderAppCards(); }catch(e){}
+    return true;
+  }catch(e){ console.warn('No se pudo leer el catálogo de temas:', e); return false; }
+}
 
 function usoIniciar(cap){
   usoCerrar();                 // por si se salta de un capítulo a otro
@@ -2983,7 +3035,10 @@ window.addEventListener('message',ev=>{
   if(!d || typeof d!=='object' || !d.bsa) return;
   // Cada aplicativo tiene su propio cajón de historial. Sin la rama 'centro'
   // los ejercicios de centroides caerían en el de diagramas.
-  const app = (d.app==='iner' || d.app==='centro' || d.app==='diag' || d.app==='arma') ? d.app : 'diag';
+  // Antes había una lista fija de cuatro claves y todo lo demás caía en
+  // 'diag': los ejercicios de presión de fluidos acababan archivados con
+  // los de fuerzas internas. Ahora se acepta cualquier tema del catálogo.
+  const app = (d.app && TEMAS_CAT[d.app]) ? d.app : 'diag';
   if(d.bsa==='hist:list'){
     histReply({bsa:'hist:data', app, items:histGet(app), user:user||null});
   } else if(d.bsa==='hist:save'){
@@ -3052,7 +3107,10 @@ async function restaurarSesion(){
 function iniciarTrasIntro(){
   const sp=document.getElementById('intro-splash');
   if(sp && !sp.classList.contains('hide')){ setTimeout(iniciarTrasIntro, 250); return; }
-  restaurarSesion();
+  // El catálogo se lee antes de restaurar la sesión: así el panel del
+  // profesor y los títulos ya conocen los temas dados de alta en la base.
+  // Si la consulta falla se sigue adelante con el catálogo de respaldo.
+  cargarTemas().finally(restaurarSesion);
 }
 setTimeout(iniciarTrasIntro, 600);
 
