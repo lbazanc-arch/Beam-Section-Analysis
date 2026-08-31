@@ -6,6 +6,11 @@
 <meta name="supported-color-schemes" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BSA — Momento de Inercia</title>
+<!-- Icono de pestaña. Incrustado en base64 para que funcione también si
+     el archivo se abre suelto desde el disco, sin servidor detrás. -->
+<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAABmJLR0QA/wD/AP+gvaeTAAAE80lEQVRIie1WXWxTZRh+vu+c9qw/a8c2Vsa2joVB2JyDsQ3EjbmBCEIiEIOJCSIIRsEYjYmaoImaGAM3JHqriXGJtwpuapDIymg3xspoYVugbGx23U/bdf3Z2p7+nHO8OLPUthBvuDG8ORfne9/vfZ7ve8/7PjlEkiQ8TqOPFf0JwX8xFkBwxsqHXOleRqlRqIp0hqcJVaScroWl2cCSKEnxpJhqjdqyomg0dMnaf6h9V75ak4MgwQfGLWeRq5dYTl+x+fiKimdD0XjXzfEZ/1LGBkpIXXnxe9+ctY87pjxznx19OxuESmJSRleoCjmNQX5YLh9AMhb0Oy1OX/CHqyMyuoKheQpWp1IWqDmDXrOpsmTWO20fdwC4YDbFE4ncJZLN2PiWtqQWogiAsnmhuSGXrdNQf+z7a/f5RJISsrnK0LTGIELiWAYAIYRjmS87v5XTg+Elk836QvO2hxKIySjDqlJL/epmfWnTLdd8NJ4E0FRlaNtQQci/kgVB6O7vTS1/vno5m+CRXUTIYjQOgFMw9caVGegALMM2b8APwGgoBWCyWQNLiw8lEIUcFaSEAFAwVKVks6PnzT0AdGrNF8dOAognEr8PmB9BEMuGUCQ8ACKxpD+cGY3w/KXBawAOtu1srW8oLSoGcMFseiiBkIhkxALTA8zUT5QQUZIuDU/Gk2J61GSzRmI8gFd37qGE7G/tAGC9Ozo978kgWJ6AyMJ4YPr6ovtWyG33T/VPDX030XdOCo7WFIsA3MFIp3l4aNLtWljkE0kAMlDtmrXryo0ADrZ2AJAk6RfLlXSCB5UNTA8EpgcyLqHUlLTXVC2KC05fyB+O/TniBEAIKov1B557kVMoKV3+9NXlxrqq6uGJsfPmnpP7D+UoUU4TEmEq8i83r2tZX6bhlmVDkjDpDf5oGW1vaju8a19q88HtOwCMuZwjE+MpJ4mFPcPdJwFUbftAXbhWEhKEMolowDd52TdhAiROu6pm9znKKAEEI7FFPj7hDVrvu5OiyFJ6tK1uhYaTsXyhwLZTrwuCcHzfgdOHT2TegFGoOY0hT1fOaUu1K2sqm99Z2/oRQGJLc37ncvPp1Vx5Yf7GihXbq4sAJEXxxsRcCqFIV9Dy1EYAXZZeQRSzS5Spd/rVzfrSBgDBmRvp/u6+3jfPfFyoIgA8ociUx33kq0/3n35/z4enbGN3AXgCC33D9kwCIR7O/gYqfSWAeMSbLrddfVdCkfC9ydsAEoIY5qOW27bhibF7LmcosgxywdIjv7CpzJyDFucXALCcDv8Ixaxv3npnBIBapQPAUFKo072x94A8E+Fo1D7ucLpn/xjs54/H85RpAiAk+Uz0sCfgGgCgLd6QfnxRktasKlPpygHoVFxJQeEnr51Ibfjtmvndr8+Eo1GTbXDPlhaaBud9cAlJCs5YHabPxSRPWa64endq28Xrfc/Ubd6784hc3k2VKzOO9Xzj1gJtPoBf+68ifdA8jm6PozurSKSi4cT1vxYtjjvyeuuWVwilcos0VhmMRbqMBKVC8VJLe+fFrp6bg5EYTwmjJCT3uDFKTeWWUx6u3uKYfkBIKQCWoS3ry3bUGnMmyuoUjcXmfPNEkqQl72hozgaAUJYySiERoQpVnnaVrrSRMkq70xuMxGT9UbAMQ4hOpVxfWqjOJeAp67UPCaLQ0dBMnvw6/v8J/gbSRi4xOMVDKgAAAABJRU5ErkJggg==">
+<link rel="icon" type="image/png" sizes="48x48" href="data:image/png;base64,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">
+
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
 html{color-scheme:light only;}
@@ -27,14 +32,14 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
   display:flex;flex-direction:column;}
 
 /* ── HEADER ── */
-header{
+.topbar{
   flex-shrink:0;height:48px;display:flex;align-items:center;gap:12px;padding:0 16px;
   background:rgba(255,255,255,.85);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);z-index:60;position:sticky;top:0;
 }
-header h1{font-size:14px;font-weight:700;color:var(--grn2);}
-header .sub{color:var(--muted);font-size:10px;}
-.hbadge{background:var(--grn);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:auto;}
+.topbar .tb-title{font-size:14px;font-weight:700;color:var(--grn2);}
+.topbar .tb-sub{color:var(--muted);font-size:10px;}
+.tb-v{background:var(--grn);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:auto;}
 
 /* ── MAIN AREA (fills remaining height) ── */
 .main-wrap{
@@ -660,11 +665,13 @@ header .sub{color:var(--muted);font-size:10px;}
 </head>
 <body>
 
-<header>
-  <h1>Momento de Inercia</h1>
-  <span class="sub">Hibbeler — Estática 12ª ed. · Cap. 10</span>
-  <span class="hbadge">V2.0</span>
-</header>
+<div class="topbar">
+  <div>
+    <div class="tb-title">Momento de Inercia</div>
+    <div class="tb-sub">Estática · Cap. 10</div>
+  </div>
+  <div class="tb-v">V2.0</div>
+</div>
 
 <div class="main-wrap">
   <!-- TOP ROW: left panel | canvas -->
@@ -1229,7 +1236,7 @@ const FIG_DEFS = {
     Iy_c: d => Math.PI*Math.pow(d.r,4)/8,
     Ixy_c: d => 0,
     bounds: d => { const yc=4*d.r/(3*Math.PI); return {left:-d.r,right:d.r,bottom:-yc,top:d.r-yc}; },
-    // BM = midpoint of flat base = most natural reference in Hibbeler problems
+    // BM = midpoint of flat base = most natural reference in los enunciados de inercia
     // Default anchor is BM: user inputs WHERE the flat base center is
     // centroid G is automatically computed as BM + (0, yc) when rotation=0
     anchors: ['BM','C','BL','BR'],
@@ -2679,32 +2686,9 @@ function cerrarSeccion(){
 // El lienzo del Cap. 10 ya se desplaza arrastrando; el botón solo lo recuerda.
 // ── Guardar el ejercicio con nombre (máx. 10) ──
 const MAX_PROYECTOS = 10;
-function abrirGuardar(){
-  if(!results){ aviso('Primero calcula la sección para poder guardarla.'); return; }
-  const m = document.getElementById('guardarModal'); if(!m) return;
-  document.getElementById('nombreProyecto').value = '';
-  const el = document.getElementById('listaProyectos');
-  const n = histItems.length;
-  el.innerHTML = n
-    ? '<b>Guardados: ' + n + ' de ' + MAX_PROYECTOS + '</b>'
-      + (n >= MAX_PROYECTOS ? '<br><b style="color:#c0392b">Has llegado al máximo. Borra uno desde el historial.</b>' : '')
-    : 'Todavía no has guardado ningún ejercicio. Espacio disponible: ' + MAX_PROYECTOS + '.';
-  m.classList.add('show');
-}
-function cerrarGuardar(){ document.getElementById('guardarModal').classList.remove('show'); }
-function guardarProyecto(){
-  const inp = document.getElementById('nombreProyecto');
-  const nombre = (inp.value||'').trim();
-  if(!nombre){ aviso('Ponle un nombre al ejercicio antes de guardarlo.'); inp.focus(); return; }
-  if(histItems.length >= MAX_PROYECTOS){
-    aviso('Ya tienes ' + MAX_PROYECTOS + ' ejercicios guardados en este capítulo.'); return; }
-  const snap = histSnapshot();
-  if(!snap){ aviso('No hay una sección calculada para guardar.'); return; }
-  snap.titulo = nombre;                 // el nombre lo pone el alumno
-  histPost({bsa:'hist:save', item:snap});
-  cerrarGuardar();
-  aviso('Ejercicio guardado como "' + nombre + '".');
-}
+
+
+
 
 // Elimina la figura seleccionada en el panel de dibujo.
 function eliminarFiguraSel(){
@@ -6750,7 +6734,7 @@ function downloadPDF(){
   const css='*{box-sizing:border-box;margin:0;padding:0;}:root{--math:\'STIX Two Text\',\'Times New Roman\',Georgia,serif;--sans:Inter,\'Helvetica Neue\',Arial,sans-serif;--grn:#c9930f;--grn2:#041d56;--card:#f4f9f7;--border:#c8e0d8;--text:#1a1a1a;--muted:#5a7570;}body{font-family:var(--sans);font-size:10.5px;background:#fff;color:var(--text);padding:12mm 9mm 14mm;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.pdf-header{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--grn2);padding-bottom:7px;margin-bottom:10px;}.pdf-title{font-size:17px;font-weight:800;color:var(--grn);}.pdf-sub{font-size:10px;color:var(--muted);}.pdf-date{margin-left:auto;font-size:9px;color:var(--muted);}.res-section-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;color:var(--grn);border-bottom:1.5px solid var(--grn2);padding-bottom:4px;margin:9px 0 6px;}.res-section-title .num{width:18px;height:18px;border-radius:50%;background:var(--grn2);display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;flex:none;}.proc-block{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:6px;page-break-inside:avoid;}.proc-subtitle{font-size:9px;font-weight:700;color:var(--grn);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}.eq-body{font-family:var(--math);font-size:11px;color:var(--text);line-height:1.5;margin:1px 0;}.eq-body .katex{font-size:1.05em;color:var(--text);}.eq-body .v{color:var(--grn);font-weight:700;}.fig-table,.steiner-table{width:100%;border-collapse:collapse;font-family:var(--math);font-size:11px;page-break-inside:avoid;}.fig-table th,.steiner-table th{padding:3px 6px;text-align:left;font-size:9px;font-weight:700;color:var(--grn);text-transform:uppercase;letter-spacing:.4px;border-bottom:1.5px solid var(--border);background:var(--card);font-family:var(--sans);}.fig-table td,.steiner-table td{padding:2px 6px;border-bottom:1px solid var(--border);font-family:var(--math);vertical-align:middle;}.fig-table tfoot td,.steiner-table tfoot td{font-weight:700;border-top:2px solid var(--border);background:var(--card);color:var(--grn);}.steiner-table{width:100%;font-size:8.5px;}.steiner-table th{white-space:normal;line-height:1.15;vertical-align:bottom;text-align:center;padding:3px 4px;}.steiner-table td{white-space:nowrap;text-align:center;padding:3px 4px;}.steiner-table td:first-child{text-align:left;}.steiner-table .num{background:none;color:var(--grn);font-style:italic;}.num-cell,.num{color:var(--grn);font-style:italic;font-family:var(--math);}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:7px;page-break-inside:avoid;}.summary-box{border:1px solid var(--border);border-radius:5px;padding:5px 8px;}.summary-box.highlight{background:var(--card);border-color:var(--grn2);}.s-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;font-family:var(--sans);}.s-val{font-size:13px;font-weight:700;color:var(--grn);font-style:italic;font-family:var(--math);}.s-unit{font-size:8px;color:var(--muted);}.principal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:7px;page-break-inside:avoid;}.principal-box{border:1px solid var(--border);border-radius:5px;padding:6px;text-align:center;}.principal-box.main{background:var(--card);border-color:var(--grn2);}.p-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;font-family:var(--sans);}.p-val{font-size:15px;font-weight:700;color:var(--grn);font-style:italic;font-family:var(--math);}.fig-color-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle;}.name-cell{font-weight:600;font-family:var(--sans);}.sign-pos{color:#1a8a72;font-weight:700;}.sign-neg{color:#c0392b;font-weight:700;}.notbtn,.notation-bar{display:none!important;}.point-input{display:none!important;}.point-tool:not(.has-point){display:none!important;}.res-section{margin-bottom:8px;}img{max-width:100%;}.fig-color-dot{display:inline-block!important;width:8px!important;height:8px!important;min-width:8px!important;border-radius:50%!important;margin-right:5px!important;vertical-align:middle!important;flex-shrink:0!important;flex-grow:0!important;}.mth-sqrt{display:inline-flex;align-items:flex-start;}.mth-rad{font-size:1.2em;line-height:0.9;padding-right:1px;}.mth-cnt{border-top:1.5px solid currentColor;padding:1px 3px 0 1px;margin-top:3px;}.mth-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 2px;}.mth-num{border-bottom:1.5px solid currentColor;padding:0 4px;text-align:center;}.mth-den{padding:1px 4px;text-align:center;}.wm-seal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:340px;height:340px;opacity:.07;z-index:9999;pointer-events:none;}.wm-seal svg{width:100%;height:100%;}.pdf-foot{margin-top:10px;text-align:center;font-size:8.5px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px;letter-spacing:.3px;}@page{size:A4 portrait;margin:0;}@media print{body{padding:12mm 9mm 14mm;}}';
   const wmSeal='<div class="wm-seal"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><defs><path id="stp" d="M 26,100 A 74,74 0 0 1 174,100"/><path id="sbt" d="M 26,100 A 74,74 0 0 0 174,100"/></defs><circle cx="100" cy="100" r="94" fill="none" stroke="#041d56" stroke-width="2.5"/><circle cx="100" cy="100" r="80" fill="none" stroke="#041d56" stroke-width="1"/><text font-family="Inter,sans-serif" font-size="9" font-weight="800" fill="#041d56" letter-spacing="1"><textPath href="#stp" startOffset="50%" text-anchor="middle">BEAM &amp; SECTION ANALYSIS</textPath></text><text font-family="Inter,sans-serif" font-size="10.5" font-weight="600" fill="#041d56" letter-spacing="1"><textPath href="#sbt" startOffset="50%" text-anchor="middle">by Luis Alejandro Bazán Campos</textPath></text><text x="100" y="106" font-family="Inter,sans-serif" font-size="16" font-weight="800" fill="#041d56" text-anchor="middle">BSA</text><line x1="62" y1="118" x2="138" y2="118" stroke="#041d56" stroke-width="1"/><text x="100" y="133" font-family="Inter,sans-serif" font-size="9" fill="#041d56" text-anchor="middle" letter-spacing="1">ESTÁTICA</text></svg></div>';
   const pdfFoot='<div class="pdf-foot">BSA · by Luis Alejandro Bazán Campos</div>';
-  pdfWin.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>BSA \u2014 Momento de Inercia</title><link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"><style>'+katexCss+'</style><style>'+css+'</style></head><body>'+wmSeal+'<div class="pdf-header"><span style="font-size:18px">\ud83d\udccf</span><div><div class="pdf-title">BSA \u2014 Momentos de Inercia</div><div class="pdf-sub">Hibbeler Est\u00e1tica 12\u00aa ed. \u00b7 Cap. 10 \u00b7 by Luis Alejandro Bazán Campos</div></div><div class="pdf-date">Generado: '+dt+'</div></div>'+mainSnap+body+pdfFoot+'</body></html>');
+  pdfWin.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>BSA \u2014 Momento de Inercia</title><link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"><style>'+katexCss+'</style><style>'+css+'</style></head><body>'+wmSeal+'<div class="pdf-header"><span style="font-size:18px">\ud83d\udccf</span><div><div class="pdf-title">BSA \u2014 Momentos de Inercia</div><div class="pdf-sub">Est\u00e1tica \u00b7 Cap. 10 \u00b7 by Luis Alejandro Bazán Campos</div></div><div class="pdf-date">Generado: '+dt+'</div></div>'+mainSnap+body+pdfFoot+'</body></html>');
   pdfWin.document.close();
   pdfWin.focus();
   setTimeout(function(){pdfWin.print();},1400);
@@ -6904,6 +6888,113 @@ function drawCompositeFigure(canvasId) {
   c.textAlign='left';c.fillStyle='rgba(30,33,38,.35)';c.font='8px Inter';
   c.fillText('G = centroide global de la secci\u00f3n', 12, H-8);
 }
+
+// ═══════════════════════════════════════════════════════════
+//  GUARDAR / ABRIR — archivo local del usuario
+//  El ejercicio ya no vive en el navegador ni en el portal: se descarga un
+//  .json que el alumno guarda donde quiera y vuelve a abrir cuando quiera.
+//  En escritorio se ofrece el diálogo "Guardar como" del sistema; donde esa
+//  API no existe (Firefox, Safari, móvil) se recurre a la descarga normal.
+// ═══════════════════════════════════════════════════════════
+const BSA_FORMATO = 'bsa10';
+const BSA_VERSION = 1;
+const BSA_EXT     = '.bsa10.json';
+
+function nombreArchivoSeguro(nombre){
+  // Sin caracteres que rompan el nombre de archivo en Windows/macOS/Android.
+  const limpio = (nombre||'ejercicio').trim().replace(/[\\/:*?"<>|]+/g,'-').slice(0,60);
+  return limpio || 'ejercicio';
+}
+
+function abrirGuardar(){
+  const m = document.getElementById('guardarModal'); if(!m) return;
+  const inp = document.getElementById('nombreProyecto');
+  if(inp) inp.value = '';
+  m.classList.add('show');
+}
+function cerrarGuardar(){
+  const m = document.getElementById('guardarModal'); if(m) m.classList.remove('show');
+}
+
+async function guardarProyecto(){
+  const inp = document.getElementById('nombreProyecto');
+  const nombre = (inp && inp.value || '').trim();
+  if(!nombre){ aviso('Ponle un nombre al ejercicio antes de guardarlo.', 'error');
+               if(inp) inp.focus(); return; }
+
+  const estado = histSnapshot();
+  if(!estado){ aviso('No hay nada calculado que guardar.', 'error'); return; }
+
+  const paquete = { bsaApp: BSA_FORMATO, version: BSA_VERSION,
+                    titulo: nombre, fecha: new Date().toISOString(), estado: estado };
+  const texto   = JSON.stringify(paquete, null, 2);
+  const archivo = nombreArchivoSeguro(nombre) + BSA_EXT;
+
+  // Camino preferido: el diálogo del sistema, que deja elegir carpeta.
+  if(window.showSaveFilePicker){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: archivo,
+        types: [{ description:'Ejercicio BSA — Momento de inercia',
+                  accept: {'application/json': ['.json']} }]
+      });
+      const w = await handle.createWritable();
+      await w.write(texto); await w.close();
+      cerrarGuardar();
+      aviso('Guardado como "' + handle.name + '".');
+      return;
+    }catch(err){
+      // Cancelar no es un error: se sale en silencio.
+      if(err && err.name === 'AbortError') return;
+    }
+  }
+  descargarComoArchivo(texto, archivo);
+  cerrarGuardar();
+  aviso('Descargando "' + archivo + '". Búscalo en tu carpeta de descargas.');
+}
+
+function descargarComoArchivo(texto, nombreArchivo){
+  const blob = new Blob([texto], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombreArchivo;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  // Se revoca con retraso: algunos navegadores necesitan la URL viva
+  // mientras arranca la descarga.
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+function abrirHistorial(){
+  const el = document.getElementById('histLista'); if(el) el.innerHTML = '';
+  const m = document.getElementById('histModal'); if(m) m.classList.add('show');
+}
+function cerrarHistorial(){
+  const m = document.getElementById('histModal'); if(m) m.classList.remove('show');
+}
+
+function onArchivoElegido(ev){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';                    // permite reelegir el mismo archivo
+  if(!file) return;
+  const lector = new FileReader();
+  lector.onerror = () => aviso('No se pudo leer el archivo.', 'error');
+  lector.onload = () => {
+    let datos;
+    try{ datos = JSON.parse(lector.result); }
+    catch(e){ aviso('El archivo no es un ejercicio válido (JSON dañado).', 'error'); return; }
+    if(datos.bsaApp && datos.bsaApp !== BSA_FORMATO)
+      aviso('Este archivo parece de otro capítulo (' + datos.bsaApp
+          + '). Se intentará abrir de todos modos.', 'error');
+    const st = (datos.estado && datos.estado.state) || datos.estado
+               || datos.state || datos;
+    try{ histRestore(st);
+         aviso('Ejercicio abierto desde "' + file.name + '".');
+         cerrarHistorial(); }
+    catch(e){ aviso('No se pudo abrir: el archivo tiene un formato inesperado.', 'error'); }
+  };
+  lector.readAsText(file);
+}
+
 </script>
 
 <!-- ── MODAL DE UNIDADES ── -->
@@ -6927,13 +7018,11 @@ function drawCompositeFigure(canvasId) {
 <div class="modal-ov" id="guardarModal">
   <div class="modal">
     <h3>Guardar ejercicio</h3>
-    <p class="sub">Ponle un nombre para reconocerlo después. Puedes guardar hasta 10 ejercicios en este capítulo.</p>
-    <div class="modal-field">
-      <label>Nombre</label>
-      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Armadura Howe 4 paneles"
-        style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px">
-    </div>
-    <div class="modal-preview" id="listaProyectos"></div>
+    <p class="sub">Se guarda un archivo <code>.bsa10.json</code>. En el ordenador
+      podrás <b>elegir la carpeta</b>; en el móvil irá a tus descargas. Para
+      retomarlo, usa <b>Historial → Abrir archivo</b>.</p>
+    <div class="modal-field"><label>Nombre</label>
+      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Ejercicio 1"></div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="cerrarGuardar()">Cancelar</button>
       <button class="mbtn" onclick="guardarProyecto()">Guardar</button>
@@ -6996,12 +7085,18 @@ function drawCompositeFigure(canvasId) {
 
 <!-- ── MODAL DE HISTORIAL ── -->
 <div class="modal-ov" id="histModal">
-  <div class="modal-box" style="max-width:460px;">
-    <div class="modal-h">Mis ejercicios recientes</div>
-    <p class="modal-note">Se guardan tus últimos 10 ejercicios. Al superar ese número se elimina el más
-      antiguo. El historial es personal y se borra al cerrar sesión.</p>
-    <div class="hist-list" id="histList"></div>
-    <div class="modal-actions"><button class="mbtn ghost" onclick="closeHist()">Cerrar</button></div>
+  <div class="modal">
+    <h3>Abrir ejercicio</h3>
+    <p class="sub">Elige un archivo <code>.bsa10.json</code> que hayas guardado
+      antes. No se guarda nada en este navegador ni en el portal: el archivo
+      es tuyo y se abre desde donde lo tengas.</p>
+    <div id="histLista"></div>
+    <input type="file" id="archivoAbrir" accept=".json,application/json"
+           style="display:none" onchange="onArchivoElegido(event)">
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="cerrarHistorial()">Cancelar</button>
+      <button class="mbtn" onclick="document.getElementById('archivoAbrir').click()">Elegir archivo…</button>
+    </div>
   </div>
 </div>
 

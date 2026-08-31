@@ -5,6 +5,11 @@
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BSA — Presión de Fluidos · Cap. 9.5</title>
+<!-- Icono de pestaña. Incrustado en base64 para que funcione también si
+     el archivo se abre suelto desde el disco, sin servidor detrás. -->
+<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAABmJLR0QA/wD/AP+gvaeTAAAE80lEQVRIie1WXWxTZRh+vu+c9qw/a8c2Vsa2joVB2JyDsQ3EjbmBCEIiEIOJCSIIRsEYjYmaoImaGAM3JHqriXGJtwpuapDIymg3xspoYVugbGx23U/bdf3Z2p7+nHO8OLPUthBvuDG8ORfne9/vfZ7ve8/7PjlEkiQ8TqOPFf0JwX8xFkBwxsqHXOleRqlRqIp0hqcJVaScroWl2cCSKEnxpJhqjdqyomg0dMnaf6h9V75ak4MgwQfGLWeRq5dYTl+x+fiKimdD0XjXzfEZ/1LGBkpIXXnxe9+ctY87pjxznx19OxuESmJSRleoCjmNQX5YLh9AMhb0Oy1OX/CHqyMyuoKheQpWp1IWqDmDXrOpsmTWO20fdwC4YDbFE4ncJZLN2PiWtqQWogiAsnmhuSGXrdNQf+z7a/f5RJISsrnK0LTGIELiWAYAIYRjmS87v5XTg+Elk836QvO2hxKIySjDqlJL/epmfWnTLdd8NJ4E0FRlaNtQQci/kgVB6O7vTS1/vno5m+CRXUTIYjQOgFMw9caVGegALMM2b8APwGgoBWCyWQNLiw8lEIUcFaSEAFAwVKVks6PnzT0AdGrNF8dOAognEr8PmB9BEMuGUCQ8ACKxpD+cGY3w/KXBawAOtu1srW8oLSoGcMFseiiBkIhkxALTA8zUT5QQUZIuDU/Gk2J61GSzRmI8gFd37qGE7G/tAGC9Ozo978kgWJ6AyMJ4YPr6ovtWyG33T/VPDX030XdOCo7WFIsA3MFIp3l4aNLtWljkE0kAMlDtmrXryo0ADrZ2AJAk6RfLlXSCB5UNTA8EpgcyLqHUlLTXVC2KC05fyB+O/TniBEAIKov1B557kVMoKV3+9NXlxrqq6uGJsfPmnpP7D+UoUU4TEmEq8i83r2tZX6bhlmVDkjDpDf5oGW1vaju8a19q88HtOwCMuZwjE+MpJ4mFPcPdJwFUbftAXbhWEhKEMolowDd52TdhAiROu6pm9znKKAEEI7FFPj7hDVrvu5OiyFJ6tK1uhYaTsXyhwLZTrwuCcHzfgdOHT2TegFGoOY0hT1fOaUu1K2sqm99Z2/oRQGJLc37ncvPp1Vx5Yf7GihXbq4sAJEXxxsRcCqFIV9Dy1EYAXZZeQRSzS5Spd/rVzfrSBgDBmRvp/u6+3jfPfFyoIgA8ociUx33kq0/3n35/z4enbGN3AXgCC33D9kwCIR7O/gYqfSWAeMSbLrddfVdCkfC9ydsAEoIY5qOW27bhibF7LmcosgxywdIjv7CpzJyDFucXALCcDv8Ixaxv3npnBIBapQPAUFKo072x94A8E+Fo1D7ucLpn/xjs54/H85RpAiAk+Uz0sCfgGgCgLd6QfnxRktasKlPpygHoVFxJQeEnr51Ibfjtmvndr8+Eo1GTbXDPlhaaBud9cAlJCs5YHabPxSRPWa64endq28Xrfc/Ubd6784hc3k2VKzOO9Xzj1gJtPoBf+68ifdA8jm6PozurSKSi4cT1vxYtjjvyeuuWVwilcos0VhmMRbqMBKVC8VJLe+fFrp6bg5EYTwmjJCT3uDFKTeWWUx6u3uKYfkBIKQCWoS3ry3bUGnMmyuoUjcXmfPNEkqQl72hozgaAUJYySiERoQpVnnaVrrSRMkq70xuMxGT9UbAMQ4hOpVxfWqjOJeAp67UPCaLQ0dBMnvw6/v8J/gbSRi4xOMVDKgAAAABJRU5ErkJggg==">
+<link rel="icon" type="image/png" sizes="48x48" href="data:image/png;base64,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">
+
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
@@ -461,11 +466,16 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 <!-- MODAL HISTORIAL DE EJERCICIOS GUARDADOS -->
 <div class="modal-ov" id="histModal">
   <div class="modal">
-    <h3>Ejercicios guardados</h3>
-    <p class="sub">Abre uno para seguir trabajando en él, o bórralo para dejar espacio.</p>
-    <div id="histLista" style="max-height:280px;overflow-y:auto"></div>
+    <h3>Abrir ejercicio</h3>
+    <p class="sub">Elige un archivo <code>.bsa9p.json</code> que hayas guardado
+      antes. No se guarda nada en este navegador ni en el portal: el archivo
+      es tuyo y se abre desde donde lo tengas.</p>
+    <div id="histLista"></div>
+    <input type="file" id="archivoAbrir" accept=".json,application/json"
+           style="display:none" onchange="onArchivoElegido(event)">
     <div class="modal-btns">
-      <button class="mbtn ghost" onclick="cerrarHistorial()">Cerrar</button>
+      <button class="mbtn ghost" onclick="cerrarHistorial()">Cancelar</button>
+      <button class="mbtn" onclick="document.getElementById('archivoAbrir').click()">Elegir archivo…</button>
     </div>
   </div>
 </div>
@@ -522,13 +532,11 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 <div class="modal-ov" id="guardarModal">
   <div class="modal">
     <h3>Guardar ejercicio</h3>
-    <p class="sub">Ponle un nombre para reconocerlo después. Puedes guardar hasta 10 ejercicios en este capítulo.</p>
-    <div class="modal-field">
-      <label>Nombre</label>
-      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Armadura Howe 4 paneles"
-        style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px">
-    </div>
-    <div class="modal-preview" id="listaProyectos"></div>
+    <p class="sub">Se guarda un archivo <code>.bsa9p.json</code>. En el ordenador
+      podrás <b>elegir la carpeta</b>; en el móvil irá a tus descargas. Para
+      retomarlo, usa <b>Historial → Abrir archivo</b>.</p>
+    <div class="modal-field"><label>Nombre</label>
+      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Ejercicio 1"></div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="cerrarGuardar()">Cancelar</button>
       <button class="mbtn" onclick="guardarProyecto()">Guardar</button>
@@ -2622,12 +2630,8 @@ function estadoActual(){
     decimales: DEC
   };
 }
-function abrirGuardar(){
-  const m=document.getElementById('guardarModal'); if(!m) return;
-  document.getElementById('nombreProyecto').value='';
-  actualizarListaProyectos(); m.classList.add('show');
-}
-function cerrarGuardar(){ const m=document.getElementById('guardarModal'); if(m) m.classList.remove('show'); }
+
+
 function actualizarListaProyectos(){
   const el=document.getElementById('listaProyectos'); if(!el) return;
   const n=histItems.length;
@@ -2637,20 +2641,9 @@ function actualizarListaProyectos(){
   if(n>=MAX_PROYECTOS) t+='<br><b style="color:#c0392b">Has llegado al máximo. Borra uno para guardar otro.</b>';
   el.innerHTML=t;
 }
-function guardarProyecto(){
-  const inp=document.getElementById('nombreProyecto');
-  const nombre=(inp.value||'').trim();
-  if(!nombre){ aviso('Ponle un nombre al ejercicio antes de guardarlo.', 'error'); inp.focus(); return; }
-  if(histItems.length>=MAX_PROYECTOS){
-    aviso('Ya tienes '+MAX_PROYECTOS+' ejercicios guardados en este capítulo.', 'error'); return; }
-  histPost({bsa:'hist:save', item:{id:'p'+Date.now(), titulo:nombre,
-    fecha:new Date().toISOString(), estado:estadoActual()}});
-  cerrarGuardar();
-  aviso('Ejercicio guardado como "'+nombre+'".');
-}
-function abrirHistorial(){ histRequest(); pintarHistorial();
-  document.getElementById('histModal').classList.add('show'); }
-function cerrarHistorial(){ document.getElementById('histModal').classList.remove('show'); }
+
+
+
 function pintarHistorial(){
   const el=document.getElementById('histLista'); if(!el) return;
   if(!histItems.length){
@@ -2794,6 +2787,112 @@ window.addEventListener('load', ()=>{
   posicionarToggle();
   ajustarCanvas(); setTool('pan'); centrar(); refrescar(); histRequest();
 });
+
+
+// ═══════════════════════════════════════════════════════════
+//  GUARDAR / ABRIR — archivo local del usuario
+//  El ejercicio ya no vive en el navegador ni en el portal: se descarga un
+//  .json que el alumno guarda donde quiera y vuelve a abrir cuando quiera.
+//  En escritorio se ofrece el diálogo "Guardar como" del sistema; donde esa
+//  API no existe (Firefox, Safari, móvil) se recurre a la descarga normal.
+// ═══════════════════════════════════════════════════════════
+const BSA_FORMATO = 'bsa9p';
+const BSA_VERSION = 1;
+const BSA_EXT     = '.bsa9p.json';
+
+function nombreArchivoSeguro(nombre){
+  // Sin caracteres que rompan el nombre de archivo en Windows/macOS/Android.
+  const limpio = (nombre||'ejercicio').trim().replace(/[\\/:*?"<>|]+/g,'-').slice(0,60);
+  return limpio || 'ejercicio';
+}
+
+function abrirGuardar(){
+  const m = document.getElementById('guardarModal'); if(!m) return;
+  const inp = document.getElementById('nombreProyecto');
+  if(inp) inp.value = '';
+  m.classList.add('show');
+}
+function cerrarGuardar(){
+  const m = document.getElementById('guardarModal'); if(m) m.classList.remove('show');
+}
+
+async function guardarProyecto(){
+  const inp = document.getElementById('nombreProyecto');
+  const nombre = (inp && inp.value || '').trim();
+  if(!nombre){ aviso('Ponle un nombre al ejercicio antes de guardarlo.', 'error');
+               if(inp) inp.focus(); return; }
+
+  const estado = estadoActual();
+  if(!estado){ aviso('No hay nada calculado que guardar.', 'error'); return; }
+
+  const paquete = { bsaApp: BSA_FORMATO, version: BSA_VERSION,
+                    titulo: nombre, fecha: new Date().toISOString(), estado: estado };
+  const texto   = JSON.stringify(paquete, null, 2);
+  const archivo = nombreArchivoSeguro(nombre) + BSA_EXT;
+
+  // Camino preferido: el diálogo del sistema, que deja elegir carpeta.
+  if(window.showSaveFilePicker){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: archivo,
+        types: [{ description:'Ejercicio BSA — Presión de fluidos',
+                  accept: {'application/json': ['.json']} }]
+      });
+      const w = await handle.createWritable();
+      await w.write(texto); await w.close();
+      cerrarGuardar();
+      aviso('Guardado como "' + handle.name + '".');
+      return;
+    }catch(err){
+      // Cancelar no es un error: se sale en silencio.
+      if(err && err.name === 'AbortError') return;
+    }
+  }
+  descargarComoArchivo(texto, archivo);
+  cerrarGuardar();
+  aviso('Descargando "' + archivo + '". Búscalo en tu carpeta de descargas.');
+}
+
+function descargarComoArchivo(texto, nombreArchivo){
+  const blob = new Blob([texto], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombreArchivo;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  // Se revoca con retraso: algunos navegadores necesitan la URL viva
+  // mientras arranca la descarga.
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+function abrirHistorial(){
+  const el = document.getElementById('histLista'); if(el) el.innerHTML = '';
+  const m = document.getElementById('histModal'); if(m) m.classList.add('show');
+}
+function cerrarHistorial(){
+  const m = document.getElementById('histModal'); if(m) m.classList.remove('show');
+}
+
+function onArchivoElegido(ev){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';                    // permite reelegir el mismo archivo
+  if(!file) return;
+  const lector = new FileReader();
+  lector.onerror = () => aviso('No se pudo leer el archivo.', 'error');
+  lector.onload = () => {
+    let datos;
+    try{ datos = JSON.parse(lector.result); }
+    catch(e){ aviso('El archivo no es un ejercicio válido (JSON dañado).', 'error'); return; }
+    if(datos.bsaApp && datos.bsaApp !== BSA_FORMATO)
+      aviso('Este archivo parece de otro capítulo (' + datos.bsaApp
+          + '). Se intentará abrir de todos modos.', 'error');
+    const it = {id:'archivo', titulo: datos.titulo || file.name,
+                estado: datos.estado || datos};
+    histItems = [it];
+    cargarProyecto('archivo');
+    aviso('Ejercicio abierto desde "' + file.name + '".');
+  };
+  lector.readAsText(file);
+}
 
 </script>
 </body>
