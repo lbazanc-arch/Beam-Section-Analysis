@@ -686,9 +686,11 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
       </button>
       <div class="umenu" id="umenu">
         <div class="umenu-cab"><b id="umenu-nom">—</b><span id="umenu-mail">—</span></div>
-        <button onclick="menuIr('perfil')">Mi perfil</button>
-        <button onclick="menuIr('actividad')">Mi actividad</button>
-        <button onclick="menuIr('cuenta')">Mi cuenta</button>
+        <button data-solo-est onclick="menuIr('perfil')">Mi perfil</button>
+        <button data-solo-est onclick="menuIr('actividad')">Mi actividad</button>
+        <button data-solo-est onclick="menuIr('cuenta')">Mi cuenta</button>
+        <button id="umenu-panel" style="display:none"
+                onclick="cerrarMenuUsuario();showScreen('s-panel')">Panel del curso</button>
         <div class="umenu-sep"></div>
         <button class="umenu-salir" onclick="signOut()">Cerrar sesión</button>
       </div>
@@ -963,22 +965,31 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
     <div class="stu-hero">
       <div class="stu-eyebrow">Mi actividad</div>
       <h1 class="stu-hello">Tu uso de la plataforma</h1>
-      <div class="stu-meta">Solo tú ves esto. Se registra en este dispositivo.</div>
+      <div class="stu-meta">Solo tú ves esto. Tus <b>ingresos</b> vienen del servidor; el <b>desglose por tema</b> se registra en el navegador que uses.</div>
     </div>
     <div class="cta-card">
       <div class="cta-tit">Tiempo por tema</div>
+      <p class="cta-sub" id="act-origen"></p>
       <div id="act-barras" class="act-barras"></div>
       <div id="act-vacio" class="cta-sub" style="display:none">
-        Todavía no has abierto ningún tema. En cuanto lo hagas, aquí verás
-        cuánto tiempo dedicas a cada uno.</div>
+        Aún no hay desglose por tema en este dispositivo. El detalle por tema
+        empieza a registrarse desde que abres un tema en este navegador; tus
+        ingresos anteriores sí aparecen más abajo.</div>
     </div>
-    <div class="cta-card">
+    <div class="cta-card" id="act-caja-detalle">
       <div class="cta-tit">Detalle</div>
       <table class="act-tabla" id="act-tabla"></table>
     </div>
-    <div class="cta-card">
-      <div class="cta-tit">Últimas sesiones</div>
+    <div class="cta-card" id="act-caja-sesiones">
+      <div class="cta-tit">Últimas sesiones por tema</div>
+      
       <table class="act-tabla" id="act-ses"></table>
+    </div>
+    <div class="cta-card" id="act-ingresos" style="display:none">
+      <div class="cta-tit">Tus ingresos a la plataforma</div>
+      <p class="cta-sub">Vienen del servidor, así que aparecen entres desde
+        donde entres. Son los mismos que ve tu profesor.</p>
+      <table class="act-tabla" id="act-ingresos-tabla"></table>
     </div>
   </div>
 </div>
@@ -1589,6 +1600,39 @@ async function api(action, body={}, timeoutMs=12000){
         const { error } = await SB.auth.resetPasswordForEmail(
           String(body.email||'').trim().toLowerCase(), {redirectTo:location.href});
         return error ? {ok:false,error:error.message} : {ok:true};
+      }
+
+      case 'addUso': {
+        // Una fila por sesión de tema. Se acumula en el servidor, así el
+        // alumno ve su tiempo sumado entre el PC y el móvil.
+        if(!user) return {ok:false};
+        const { error } = await SB.from('uso_temas').insert({
+          alumno: user.id, tema: String(body.tema||''),
+          segundos: Number(body.seg)||0, inicio: new Date(body.ini||Date.now()).toISOString()
+        });
+        return {ok: !error};
+      }
+
+      case 'misUsos': {
+        if(!user) return {usos:null};
+        const { data, error } = await SB.from('uso_temas')
+          .select('tema, segundos, inicio').eq('alumno', user.id)
+          .order('inicio',{ascending:false}).limit(1000);
+        // Si la tabla aún no existe, se devuelve null y la vista se queda
+        // con los datos locales en vez de mostrarse vacía.
+        if(error) return {usos:null};
+        return {usos:(data||[]).map(r=>({cap:r.tema, seg:Number(r.segundos)||0, ini:r.inicio}))};
+      }
+
+      case 'misIngresos': {
+        // Cada alumno solo ve lo suyo: el filtro va por el id del token, no
+        // por nada que mande el navegador.
+        if(!user) return {logs:[]};
+        const { data, error } = await SB.from('ingresos')
+          .select('entrada, segundos').eq('alumno', user.id)
+          .order('entrada',{ascending:false}).limit(300);
+        if(error) return {logs:[]};
+        return {logs:(data||[]).map(r=>({ini:r.entrada, seg:Number(r.segundos)||0}))};
       }
 
       case 'updateEmail': {
@@ -2348,10 +2392,10 @@ function openApp(appKey){
   const isDiag = appKey==='diag';
   const isCentro = appKey==='centro';
   const isPresion = appKey==='presion';
-  // Cada capítulo es un archivo suelto en la misma carpeta que index.html.
-  // Para añadir uno nuevo basta con agregar su entrada a este mapa.
-  const APPS = { arma:'cap6.html', diag:'cap7.html', centro:'cap9.html', presion:'cap9-presion.html', iner:'cap10.html' };
-  document.getElementById('appf').src = APPS[appKey] || APPS.iner;
+  // La ruta del capítulo sale del catálogo único (TEMAS_CAT).
+  const ruta = archivoCap(appKey);
+  if(!ruta){ console.warn('Tema desconocido:', appKey); return; }
+  document.getElementById('appf').src = ruta;
   document.getElementById('app-ov').classList.add('on');
   document.body.style.overflow='hidden';
   const topbar=document.getElementById('app-topbar');
@@ -2376,6 +2420,12 @@ function toggleMenuUsuario(ev){
   const abrir = !m.classList.contains('show');
   m.classList.toggle('show', abrir);
   if(abrir){
+    // Las secciones del alumno se ocultan al profesor: no son suyas.
+    const esEst = (role === 'est');
+    m.querySelectorAll('[data-solo-est]').forEach(b =>
+      { b.style.display = esEst ? '' : 'none'; });
+    const pp = document.getElementById('umenu-panel');
+    if(pp) pp.style.display = (role === 'prof') ? '' : 'none';
     const f = (typeof miFicha === 'function' ? miFicha() : null) || {};
     const n = document.getElementById('umenu-nom');
     const c = document.getElementById('umenu-mail');
@@ -2405,6 +2455,12 @@ const SECCIONES = {
 function irSeccion(sec){
   const pant = SECCIONES[sec];
   if(!pant) return;
+  // El profesor tiene su propio panel: llevarlo al área del alumno lo deja
+  // en una pantalla sin navegación para su rol.
+  if(role !== 'est'){
+    if(role === 'prof') showScreen('s-panel');
+    return;
+  }
   if(sec === 'capitulos') pintarCabecera();
   if(sec === 'perfil')    pintarPerfil();
   if(sec === 'actividad') pintarActividad();   // vuelve a dibujar y a animar
@@ -2450,19 +2506,91 @@ function pintarPerfil(){
   set('pf-mail', user || '—');
 }
 
+// Los ingresos del servidor son los que ve el profesor: existen desde
+// siempre y no dependen del dispositivo. El desglose por tema, en cambio,
+// se registra en este navegador y solo desde que se añadió la función. Si
+// se muestra solo lo segundo, un alumno con historial cree que se perdió.
+async function cargarIngresosServidor(){
+  if(!USE_SHEETS || !user) return null;
+  try{
+    const r = await api('misIngresos', {}, 9000);
+    return (r && Array.isArray(r.logs)) ? r.logs : null;
+  }catch(e){ return null; }
+}
+
+function pintarIngresos(logs){
+  const caja = document.getElementById('act-ingresos');
+  const tab  = document.getElementById('act-ingresos-tabla');
+  if(!caja || !tab) return;
+  if(!logs || !logs.length){ caja.style.display = 'none'; return; }
+  caja.style.display = '';
+  const total = logs.reduce((a,x)=>a+(x.seg||0), 0);
+  tab.innerHTML =
+    '<tr><th>Fecha de ingreso</th><th>Duración</th></tr>'
+    + logs.slice(0,15).map(x =>
+        '<tr><td>' + new Date(x.ini).toLocaleString('es-PE',{dateStyle:'short',timeStyle:'short'})
+        + '</td><td class="num">' + fmtDuracion(x.seg||0) + '</td></tr>').join('')
+    + '<tr><td><b>' + logs.length + ' ingresos en total</b></td>'
+    + '<td class="num"><b>' + fmtDuracion(total) + '</b></td></tr>';
+}
+
+// Convierte las filas del servidor al mismo formato que usoResumen(), para
+// que el resto de la vista no tenga que saber de dónde vienen los datos.
+function resumenDesdeServidor(usos){
+  const acc = {};
+  usos.forEach(u=>{
+    const e = acc[u.cap] || (acc[u.cap] = {seg:0, veces:0, ultima:0});
+    e.seg += u.seg; e.veces += 1;
+    const t = new Date(u.ini).getTime();
+    if(t > e.ultima) e.ultima = t;
+  });
+  const filas = Object.keys(acc).map(k => ({
+    cap:k, nombre:nombreCap(k), seg:acc[k].seg, veces:acc[k].veces, ultima:acc[k].ultima
+  })).sort((a,b)=>b.seg-a.seg);
+  return {filas,
+          total: filas.reduce((a,f)=>a+f.seg,0),
+          visitas: filas.reduce((a,f)=>a+f.veces,0),
+          top: filas[0] || null};
+}
+
 function pintarActividad(){
-  const r = usoResumen();
+  // Se pide al servidor en paralelo: la parte local se pinta ya, sin esperar.
+  cargarIngresosServidor().then(pintarIngresos);
+  // El desglose por tema del SERVIDOR incluye todos los dispositivos; el
+  // local solo este navegador. Se pinta el local de inmediato y se sustituye
+  // por el del servidor en cuanto llega.
+  if(USE_SHEETS && user){
+    api('misUsos', {}, 9000).then(r=>{
+      if(r && Array.isArray(r.usos)) dibujarUso(resumenDesdeServidor(r.usos), true);
+    }).catch(()=>{});
+  }
+  dibujarUso(usoResumen(), false);
+}
+
+function dibujarUso(r, delServidor){
+  const nota = document.getElementById('act-origen');
+  if(nota) nota.textContent = delServidor
+    ? 'Suma de todos tus dispositivos.'
+    : 'Registrado en este navegador.';
   const cont = document.getElementById('act-barras');
   const vacio = document.getElementById('act-vacio');
   const tabla = document.getElementById('act-tabla');
   const tses  = document.getElementById('act-ses');
 
+  // Sin desglose no tiene sentido enseñar tarjetas vacías: se esconden y se
+  // deja solo el aviso que explica por qué no hay nada.
+  const cajaDet = document.getElementById('act-caja-detalle');
+  const cajaSes = document.getElementById('act-caja-sesiones');
   if(!r.filas.length){
     cont.innerHTML = ''; vacio.style.display = '';
     tabla.innerHTML = ''; tses.innerHTML = '';
+    if(cajaDet) cajaDet.style.display = 'none';
+    if(cajaSes) cajaSes.style.display = 'none';
     return;
   }
   vacio.style.display = 'none';
+  if(cajaDet) cajaDet.style.display = '';
+  if(cajaSes) cajaSes.style.display = '';
 
   // Columnas verticales, escaladas al tema más usado y no al total: lo que
   // interesa es compararlos entre sí. Cada columna nace con altura cero y
@@ -2593,7 +2721,7 @@ function migrarClavesUsuario(viejo, nuevo){
     const v = ls.get(kv);
     if(v !== null && v !== undefined){ ls.set(kn, v); ls.del(kv); }
   };
-  ['diag','iner','centro','arma','presion'].forEach(a =>
+  TEMAS_KEYS.forEach(a =>
     mover('bsa_hist::'+viejo+'::'+a, 'bsa_hist::'+nuevo+'::'+a));
   mover('bsa_uso::'+viejo,      'bsa_uso::'+nuevo);
   mover('bsa_sesiones::'+viejo, 'bsa_sesiones::'+nuevo);
@@ -2668,7 +2796,7 @@ async function ejecutarBaja(){
   // Borrado local: ficha, historial, uso y sesiones de ESTE alumno.
   const lista = (ls.get('students') || []).filter(x => x.email !== correo);
   ls.set('students', lista);
-  ['diag','iner','centro','arma','presion'].forEach(a => ls.del('bsa_hist::'+correo+'::'+a));
+  TEMAS_KEYS.forEach(a => ls.del('bsa_hist::'+correo+'::'+a));
   ls.del('bsa_uso::'+correo);
   ls.del('bsa_sesiones::'+correo);
   const acc = ls.get('time_acc') || {};
@@ -2699,10 +2827,26 @@ function usoGet(){    const v = ls.get(usoKey());      return (v && typeof v ===
 function sesionesGet(){ const v = ls.get(sesionesKey()); return Array.isArray(v) ? v : []; }
 
 // Nombre legible del capítulo, para las tablas del alumno.
-const CAP_NOMBRE = { arma:'Armaduras', diag:'Fuerzas internas',
-                     centro:'Centroides', presion:'Presión de fluidos',
-                     iner:'Momento de inercia' };
-function nombreCap(k){ return CAP_NOMBRE[k] || k; }
+// ═══════════════════════════════════════════════════════════
+//  CATÁLOGO DE TEMAS — fuente única
+//  Para añadir un tema nuevo basta con:
+//    1. una entrada aquí,
+//    2. su tarjeta en la rejilla de "Mis temas" (con su miniatura),
+//    3. subir el archivo del capítulo.
+//  Nada más: las listas de borrado, de poda y de nombres salen de aquí.
+//  La tabla `uso_temas` de Supabase no hay que tocarla: la columna `tema`
+//  es texto libre y admite cualquier clave nueva.
+// ═══════════════════════════════════════════════════════════
+const TEMAS_CAT = {
+  arma:    {archivo:'cap6.html',         nombre:'Armaduras'},
+  diag:    {archivo:'cap7.html',         nombre:'Fuerzas internas'},
+  centro:  {archivo:'cap9.html',         nombre:'Centroides'},
+  presion: {archivo:'cap9-presion.html', nombre:'Presión de fluidos'},
+  iner:    {archivo:'cap10.html',        nombre:'Momento de inercia'}
+};
+const TEMAS_KEYS = Object.keys(TEMAS_CAT);
+function nombreCap(k){ return (TEMAS_CAT[k] && TEMAS_CAT[k].nombre) || k; }
+function archivoCap(k){ return TEMAS_CAT[k] && TEMAS_CAT[k].archivo; }
 
 function usoIniciar(cap){
   usoCerrar();                 // por si se salta de un capítulo a otro
@@ -2725,9 +2869,16 @@ function usoCerrar(){
   ls.set(usoKey(), uso);
 
   let ses = sesionesGet();
-  ses.unshift({cap: cap, ini: Date.now() - seg*1000, seg: seg});
+  const ini = Date.now() - seg*1000;
+  ses.unshift({cap: cap, ini: ini, seg: seg});
   if(ses.length > USO_MAX_SESIONES) ses = ses.slice(0, USO_MAX_SESIONES);
   ls.set(sesionesKey(), ses);
+
+  // Y al servidor, para que el tiempo se sume entre dispositivos. Se envía
+  // sin esperar respuesta: si falla, el registro local ya quedó guardado.
+  if(USE_SHEETS && user){
+    try{ api('addUso', {tema: cap, seg: seg, ini: ini}); }catch(e){}
+  }
 }
 
 // Si el alumno cierra la pestaña sin salir del capítulo, el tiempo se
@@ -2778,7 +2929,13 @@ function endSession(useBeacon){
 }
 window.addEventListener('beforeunload',()=>endSession(true));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)endSession(true);else startSession();});
-function closeApp(){usoCerrar();_capPendiente=null;endSession(false);const f=document.getElementById('appf');if(f.src&&f.src.startsWith('blob:'))URL.revokeObjectURL(f.src);f.src='';document.getElementById('app-ov').classList.remove('on');document.body.style.overflow='';}
+function closeApp(){
+  usoCerrar(); _capPendiente=null; endSession(false);
+  // Se devuelve a cada rol a su pantalla: el profesor abre capítulos desde
+  // su panel y debe volver allí, no a la vista del alumno.
+  const actual = document.querySelector('.scr.on');
+  if(role === 'prof' && (!actual || actual.id !== 's-panel')) showScreen('s-panel');
+const f=document.getElementById('appf');if(f.src&&f.src.startsWith('blob:'))URL.revokeObjectURL(f.src);f.src='';document.getElementById('app-ov').classList.remove('on');document.body.style.overflow='';}
 // ═══════════════════════════════════════════════════════════
 //  HISTORIAL DE EJERCICIOS  (máx. 10 por aplicativo, POR USUARIO)
 //  · Cada usuario tiene su propia clave: nadie ve los ejercicios de otro.
@@ -2814,7 +2971,7 @@ function histDelete(app,id){
 // ejercicios deben sobrevivir a la salida—, sino solo si algún día se ofrece
 // un "borrar mis datos" explícito.
 function histClearUser(){
-  ['diag','iner','centro','arma','presion'].forEach(a=>ls.del(histKey(a)));
+  TEMAS_KEYS.forEach(a=>ls.del(histKey(a)));
 }
 // Puente con los aplicativos embebidos (iframe)
 function histReply(msg){

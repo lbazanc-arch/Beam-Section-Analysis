@@ -1308,7 +1308,17 @@ const FIG_DEFS = {
       return Iy_O-A*xbar*xbar;
     },
     Ixy_c: d => 0,
-    bounds: d => ({left:-d.r,right:d.r,bottom:0,top:d.r}),
+    bounds: d => {
+      const t = d.alpha*Math.PI/180, R = d.r;
+      const yc = 2*R*Math.sin(t)/(3*t);          // vértice en (0, −yc)
+      // Ancho: los extremos del arco, salvo que el sector pase de 90° por lado,
+      // en cuyo caso el punto más ancho es el propio radio.
+      const semiAncho = (t >= Math.PI/2) ? R : R*Math.sin(t);
+      // Alto: arriba siempre el punto medio del arco (R − yc); abajo, el
+      // vértice o el extremo del arco si el sector es obtuso.
+      const abajo = Math.min(-yc, R*Math.cos(t) - yc);
+      return {left:-semiAncho, right:semiAncho, bottom:abajo, top:R - yc};
+    },
     anchors: ['C','O','E1','E2'],
     anchorOffset: (d,ak) => {
       const t=d.alpha*Math.PI/180,R=d.r,yc=2*R*Math.sin(t)/(3*t);
