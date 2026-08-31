@@ -81,6 +81,8 @@ header .sub{color:var(--muted);font-size:10px;}
   font-family:inherit;
   display:flex;align-items:center;justify-content:center;transition:all .15s;}
 .cc-btn:hover{background:#e8f4f1;border-color:#0f5c56;color:var(--text);}
+.cc-btn:disabled{opacity:.35;cursor:default;}
+.cc-btn:disabled:hover{background:#fff;border-color:var(--border2);}
 .canvas-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
   background:rgba(15,36,32,.85);border:1px solid var(--border);border-radius:6px;
   padding:4px 12px;font-size:10px;color:var(--muted);pointer-events:none;white-space:nowrap;z-index:5;}
@@ -108,17 +110,60 @@ header .sub{color:var(--muted);font-size:10px;}
 .modal-ov{position:fixed;inset:0;background:rgba(15,20,35,.45);backdrop-filter:blur(3px);z-index:400;
   display:none;align-items:center;justify-content:center;padding:20px;}
 .modal-ov.show{display:flex;}
+/* ── Avisos no bloqueantes ──
+   Reemplazan al diálogo nativo del navegador, que en móvil queda
+   silenciado, con lo que la acción parecía no tener ningún efecto. El
+   z-index queda por encima de los modales (400) para que también se vean
+   los avisos disparados desde dentro de una ventana. */
+.aviso-caja{position:fixed;left:50%;bottom:22px;z-index:500;
+  transform:translateX(-50%) translateY(14px);
+  max-width:min(92vw,460px);display:flex;align-items:flex-start;gap:10px;
+  padding:11px 14px;border-radius:11px;background:#12332f;color:#fff;
+  font-size:12px;line-height:1.5;box-shadow:0 8px 26px rgba(0,0,0,.28);
+  opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease;}
+.aviso-caja.visible{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+.aviso-caja.error{background:#7a1f16;}
+.aviso-caja .aviso-x{margin-left:auto;background:none;border:none;color:#fff;
+  font-size:16px;line-height:1;cursor:pointer;font-family:inherit;padding:0 2px;opacity:.75;}
+.aviso-caja .aviso-x:hover{opacity:1;}
+/* ── Animación de espera del informe ──
+   Las tres letras del logo suben en cadena: cuando una baja arranca la
+   siguiente, y el ciclo se repite mientras texlive.net compila. */
+.bsa-let{font-size:46px;font-weight:900;line-height:1;display:inline-block;
+  font-family:inherit;animation:bsaSalto 1.05s cubic-bezier(.3,.7,.4,1) infinite;}
+@keyframes bsaSalto{
+  0%, 60%, 100%{transform:translateY(0)   scale(1);}
+  25%          {transform:translateY(-22px) scale(1.06);}
+  45%          {transform:translateY(0)   scale(.97);}
+}
+@media (prefers-reduced-motion:reduce){
+  .bsa-let{animation:bsaLatido 1.2s ease-in-out infinite;}
+  @keyframes bsaLatido{0%,100%{opacity:.45;}50%{opacity:1;}}
+}
 .modal-box{background:var(--card);border:1px solid var(--border2);border-radius:16px;max-width:380px;width:100%;
   padding:20px 22px;box-shadow:0 20px 50px rgba(15,25,55,.3);}
+/* Variante para el modal de edición de figura: aloja el panel de propiedades
+   completo, que es alto, así que se le da más ancho y scroll propio. */
+.modal-box.ancho{max-width:440px;display:flex;flex-direction:column;max-height:86vh;padding:18px 20px;}
+.modal-box.ancho .modal-cuerpo{flex:1;overflow-y:auto;margin:0 -6px;padding:0 6px;}
+.modal-box.ancho .modal-actions{margin-top:14px;padding-top:13px;border-top:1px solid var(--border);}
+/* Dentro del modal el panel de propiedades no necesita su marco de columna. */
+.modal-cuerpo #propPanel{display:block;}
+.modal-cuerpo #propPanel .prop-section{border:none;padding:0;margin:0;}
 .modal-h{font-size:15px;font-weight:900;color:var(--grn2);margin-bottom:6px;}
 .modal-note{font-size:10.5px;color:var(--muted);line-height:1.5;margin-bottom:14px;}
 .modal-field{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
 .modal-field label{font-size:12px;font-weight:700;min-width:96px;color:var(--text);}
-.modal-field select{flex:1;background:var(--bg);border:1px solid var(--border2);color:var(--text);
-  padding:6px 8px;border-radius:7px;font-size:12px;font-family:inherit;outline:none;}
-.modal-field select:focus{border-color:var(--grn);}
-.modal-preview{font-size:10.5px;color:var(--muted);background:var(--bg);border:1px solid var(--border);
-  border-radius:8px;padding:8px 10px;margin:6px 0 16px;line-height:1.6;}
+.modal-field select,
+.modal-field input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--border2);color:var(--text);
+  padding:7px 9px;border-radius:7px;font-size:12px;font-family:inherit;outline:none;
+  transition:border-color .15s, box-shadow .15s;}
+.modal-field select:focus,
+.modal-field input:focus{border-color:var(--grn);box-shadow:0 0 0 3px var(--grnglow);}
+.modal-field input::placeholder{color:var(--muted);}
+.modal-preview{font-size:11.5px;color:var(--muted);background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:9px 11px;margin:6px 0 16px;line-height:1.6;
+  font-family:var(--mf);word-break:break-word;}
 .modal-preview b{color:var(--grn2);}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;}
 .hist-list{max-height:340px;overflow-y:auto;margin-bottom:14px;}
@@ -160,18 +205,32 @@ header .sub{color:var(--muted);font-size:10px;}
 .cfg-btn{width:100%;margin-top:6px;width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border2);color:var(--text);
   font-size:11px;font-weight:700;padding:6px 8px;border-radius:7px;cursor:pointer;font-family:inherit;}
 .cfg-btn:hover{border-color:var(--grn);color:var(--grn2);}
+/* Interruptores de visibilidad de capas del dibujo (patrón de cap6). */
+.vis-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:0 8px;}
+.vis-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);
+  background:var(--card2);border:1px solid var(--border2);border-radius:7px;
+  padding:6px 8px;cursor:pointer;font-weight:600;transition:all .15s;}
+.vis-item:hover{border-color:var(--grn);}
+.vis-item input{accent-color:var(--grn);cursor:pointer;margin:0;}
+.cfg-sub{font-size:8.5px;font-weight:800;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.6px;padding:0 8px;margin:13px 0 6px;}
+.cfg-hint{font-size:9.5px;color:var(--muted);line-height:1.45;padding:0 8px;margin-top:7px;}
 .fig-category{font-size:9px;font-weight:700;color:var(--grn2);text-transform:uppercase;letter-spacing:1px;margin:6px 10px 4px;}
 .fig-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:0 8px;}
 .pal{background:var(--card);border-bottom:1px solid var(--border);padding:8px 10px 9px;position:sticky;top:0;z-index:20;}
-.pal-tabs{display:flex;gap:5px;margin-bottom:7px;}
-.pal-tab{flex:1;padding:6px 4px;border-radius:7px;font-size:10.5px;font-weight:700;cursor:pointer;
-  font-family:inherit;background:var(--bg);border:1px solid var(--border2);color:var(--muted);transition:all .15s;}
-.pal-tab.active{background:var(--grn);border-color:var(--grn);color:#fff;}
-.pal-scroll{display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;padding-bottom:4px;
-  scrollbar-width:thin;scroll-behavior:smooth;}
-.pal-scroll::-webkit-scrollbar{height:6px;}
-.pal-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
-.pal-scroll .fig-btn{flex:0 0 auto;width:74px;}
+/* Cuadrícula 3×3: se ven 6 figuras (dos filas) y "Ver más" despliega el
+   resto. Sustituye al carrusel horizontal, en el que las figuras de la
+   derecha quedaban ocultas sin ninguna señal de que existieran. */
+.pal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.pal-grid .fig-btn{width:auto;}
+.pal-grid .fig-btn.oculta{display:none;}
+.pal-mas{width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--border2);
+  color:var(--grn2);font-size:10.5px;font-weight:700;padding:7px 8px;border-radius:7px;
+  cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:all .15s;}
+.pal-mas:hover{border-color:var(--grn);background:var(--card);}
+.pal-mas svg{width:13px;height:13px;transition:transform .2s ease;}
+.pal-mas.abierto svg{transform:rotate(180deg);}
 .fig-btn{
   aspect-ratio:1;border:1px solid var(--border2);border-radius:8px;background:var(--card2);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
@@ -363,6 +422,11 @@ header .sub{color:var(--muted);font-size:10px;}
 .tool-btn span{font-size:9px;font-weight:700;text-align:center;line-height:1.15;}
 .tool-btn.danger:hover{border-color:#c0392b;background:#fef2f2;}
 .tool-btn.danger span{color:#c0392b;}
+/* Herramienta activa. Faltaba por completo en cap9: setHerramienta ya ponía
+   la clase .active sobre tSel, pero ninguna regla la dibujaba, así que
+   "Mover / editar" nunca se veía marcado. */
+.tool-btn.active{border-color:#0f5c56;background:#e8f4f1;box-shadow:0 0 0 1px #0f5c56;}
+.tool-btn.danger.active{border-color:#c0392b;background:#fef2f2;box-shadow:0 0 0 1px #c0392b;}
 .tb-menu{position:fixed;top:0;left:0;z-index:70;width:300px;max-width:calc(100vw - 24px);
   background:#fff;border:1px solid var(--border2);border-radius:12px;
   box-shadow:0 10px 30px rgba(0,0,0,.18);display:none;overflow:hidden;}
@@ -375,9 +439,13 @@ header .sub{color:var(--muted);font-size:10px;}
 .tb-zona{display:flex; align-items:stretch; gap:6px; flex:none;}
 .tb-pan{flex:none; width:40px; border:1px solid var(--border2); border-radius:9px;
   background:#fff; cursor:pointer; display:flex; align-items:center;
-  justify-content:center; font-family:inherit; margin-right:2px;}
+  justify-content:center; font-family:inherit; margin-right:2px;
+  /* Fijo al borde izquierdo de la barra (que se desplaza en pantallas
+     angostas) para que esté siempre al alcance, sin importar el desplazamiento. */
+  position:sticky; left:0; z-index:5;
+  box-shadow:6px 0 8px -6px rgba(0,0,0,.18);}
 .tb-pan:hover{border-color:#0f5c56; background:#e8f4f1;}
-.tb-pan.active{border-color:#0f5c56; background:#e8f4f1; box-shadow:0 0 0 1px #0f5c56;}
+.tb-pan.active{border-color:#0f5c56; background:#e8f4f1; box-shadow:6px 0 8px -6px rgba(0,0,0,.18), 0 0 0 1px #0f5c56;}
 .tb-pan svg{width:22px; height:22px;}
 .panel-toggle{position:absolute; top:10px; left:10px; z-index:35;
   width:38px; height:38px; border-radius:10px; border:1px solid var(--border2);
@@ -535,7 +603,6 @@ header .sub{color:var(--muted);font-size:10px;}
 }
 @media(max-width:480px){
   .summary-grid{grid-template-columns:1fr;}
-  .pal-scroll .fig-btn{width:74px;}
 }
 
 @media(max-width:900px){
@@ -647,14 +714,14 @@ header .sub{color:var(--muted);font-size:10px;}
 
 <header>
   <h1>Centro de Gravedad y Centroide</h1>
-  <span class="sub">Hibbeler — Estática 12ª ed. · Cap. 9.1 y 9.2</span>
+  <span class="sub">Estática · Cap. 9.1 y 9.2</span>
   <span class="hbadge">V2.0</span>
 </header>
 
 <div class="main-wrap">
   <!-- TOP ROW: left panel | canvas -->
   <div class="toolbar" id="toolbar">
-  <button class="tb-pan" id="tPan" onclick="togglePanTool()" title="Desplazarse por el panel">
+  <button class="tb-pan active" id="tPan" onclick="togglePanTool()" title="Desplazarse por el panel">
     <svg viewBox="0 0 24 24" fill="none" stroke="#0f5c56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 3 L12 21 M3 12 L21 12"/>
       <path d="M12 3 L9.5 5.5 M12 3 L14.5 5.5 M12 21 L9.5 18.5 M12 21 L14.5 18.5"/>
@@ -674,17 +741,21 @@ header .sub{color:var(--muted);font-size:10px;}
   </div>
   <div class="tb-sep"></div>
   <div class="tb-zona" id="tbZona2">
-    <button class="tool-btn" id="tMover" onclick="setHerramienta('mover')" title="Mover figuras arrastrando">
-      <svg viewBox="0 0 40 34"><path d="M20 4 L20 30 M7 17 L33 17" stroke="#0f5c56" stroke-width="2.5"/><path d="M20 3 L16 8 L24 8 Z M20 31 L16 26 L24 26 Z M6 17 L11 13 L11 21 Z M34 17 L29 13 L29 21 Z" fill="#0f5c56"/></svg>
-      <span>Mover</span>
+    <button class="tool-btn" id="tSel" onclick="setHerramienta('sel')" title="Toca para seleccionar (varias) · mantén presionado y arrastra para mover · doble clic para editar">
+      <svg viewBox="0 0 40 34"><path d="M14 5 L14 25 L19 20 L23 28 L27 26 L23 18 L30 18 Z" fill="#0f5c56"/><path d="M20 3 L20 9 M20 3 L17.5 5.5 M20 3 L22.5 5.5" stroke="#0f5c56" stroke-width="1.6" fill="none" opacity=".7"/></svg>
+      <span>Mover / editar</span>
     </button>
-    <button class="tool-btn active" id="tSel" onclick="setHerramienta('sel')" title="Seleccionar · doble clic para editar">
-      <svg viewBox="0 0 40 34"><path d="M12 24 L14 18 L26 6 L31 11 L19 23 Z" fill="none" stroke="#0f5c56" stroke-width="2.2"/></svg>
-      <span>Ver / editar</span>
-    </button>
-    <button class="tool-btn danger" onclick="eliminarFiguraSel()" title="Eliminar la figura seleccionada">
+    <button class="tool-btn danger" id="btnDel" onclick="activarEliminar()" title="Toca una figura para borrarla · mantén presionado y arrastra un recuadro para borrar todo lo que abarque">
       <svg viewBox="0 0 40 34"><path d="M13 11 L27 11 L25 29 L15 29 Z" fill="none" stroke="#c0392b" stroke-width="2.2"/><line x1="10" y1="11" x2="30" y2="11" stroke="#c0392b" stroke-width="2.2"/><line x1="17" y1="7" x2="23" y2="7" stroke="#c0392b" stroke-width="2.2"/></svg>
       <span>Eliminar</span>
+    </button>
+    <button class="tool-btn" id="btnTrans" onclick="abrirTransformar()" title="Mover o girar la selección respecto a una coordenada de referencia">
+      <svg viewBox="0 0 40 34"><circle cx="13" cy="24" r="3" fill="#0f5c56"/><path d="M13 24 L27 24" stroke="#0f5c56" stroke-width="2" stroke-dasharray="3,2"/><path d="M13 24 A 14 14 0 0 1 24 12" fill="none" stroke="#0f5c56" stroke-width="2.2"/><path d="M24 12 L21 13 M24 12 L24.5 15.2" stroke="#0f5c56" stroke-width="2.2" fill="none"/></svg>
+      <span>Transformar</span>
+    </button>
+    <button class="tool-btn" id="btnRep" onclick="abrirReplicar()" title="Replicar la selección desplazándola">
+      <svg viewBox="0 0 40 34"><rect x="7" y="12" width="12" height="12" rx="2" fill="none" stroke="#0f5c56" stroke-width="2.2"/><rect x="21" y="12" width="12" height="12" rx="2" fill="none" stroke="#0f5c56" stroke-width="2.2" stroke-dasharray="3,2"/><path d="M15 8 L15 5 M15 5 L26 5 L26 9" stroke="#0f5c56" stroke-width="1.8" fill="none"/></svg>
+      <span>Replicar</span>
     </button>
   </div>
   <div class="tb-sep"></div>
@@ -731,43 +802,43 @@ header .sub{color:var(--muted);font-size:10px;}
           </div></div></div>
 
 <div class="tb-menu" id="menuFiguras"><div class="tb-menu-head">Insertar figura</div><div class="tb-menu-body"><div class="pal">
-          <div class="pal-tabs">
-            <button class="pal-tab active" id="pal-poli" onclick="setPaleta('poligonos')">Polígonos</button>
-            <button class="pal-tab" id="pal-circ" onclick="setPaleta('circulos')">Círculos</button>
-          </div>
-          <div class="pal-scroll" id="pal-poligonos">
+          <div class="pal-grid" id="palGrid">
             <button class="fig-btn" onclick="selectFigType('rect')" id="figbtn-rect">
-              <svg viewBox="0 0 44 44" fill="none"><rect x="4" y="10" width="36" height="24" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="4" y1="22" x2="40" y2="22" stroke="currentColor" stroke-width="0.8" stroke-dasharray="3,2" opacity=".5"/><line x1="22" y1="10" x2="22" y2="34" stroke="currentColor" stroke-width="0.8" stroke-dasharray="3,2" opacity=".5"/><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
-              <span>Rectángulo</span>
+            <svg viewBox="0 0 44 44" fill="none"><rect x="4" y="10" width="36" height="24" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="4" y1="22" x2="40" y2="22" stroke="currentColor" stroke-width="0.8" stroke-dasharray="3,2" opacity=".5"/><line x1="22" y1="10" x2="22" y2="34" stroke="currentColor" stroke-width="0.8" stroke-dasharray="3,2" opacity=".5"/><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
+            <span>Rectángulo</span>
             </button>
             <button class="fig-btn" onclick="selectFigType('rtriangle')" id="figbtn-rtriangle">
-              <svg viewBox="0 0 44 44" fill="none"><polygon points="6,38 38,38 6,6" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="6,30 14,30 14,38" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="17" cy="28" r="2.5" fill="#f0c040"/></svg>
-              <span>Trián. Rect.</span>
+            <svg viewBox="0 0 44 44" fill="none"><polygon points="6,38 38,38 6,6" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="6,30 14,30 14,38" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="17" cy="28" r="2.5" fill="#f0c040"/></svg>
+            <span>Trián. Rect.</span>
             </button>
             <button class="fig-btn" onclick="selectFigType('rtriangle2')" id="figbtn-rtriangle2">
-              <svg viewBox="0 0 44 44" fill="none"><polygon points="6,38 38,38 38,6" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="30,38 30,30 38,30" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="27" cy="28" r="2.5" fill="#f0c040"/></svg>
-              <span>Trián. Rect. ②</span>
+            <svg viewBox="0 0 44 44" fill="none"><polygon points="6,38 38,38 38,6" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="30,38 30,30 38,30" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="27" cy="28" r="2.5" fill="#f0c040"/></svg>
+            <span>Trián. Rect. ②</span>
             </button>
-          </div>
-          <div class="pal-scroll" id="pal-circulos" style="display:none">
             <button class="fig-btn" onclick="selectFigType('circle')" id="figbtn-circle">
-              <svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="17" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="22" y1="22" x2="37" y2="22" stroke="currentColor" stroke-width="1.5"/><text x="30" y="19" font-size="8" fill="currentColor" font-style="italic">R</text><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
-              <span>Círculo</span>
+            <svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="17" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="22" y1="22" x2="37" y2="22" stroke="currentColor" stroke-width="1.5"/><text x="30" y="19" font-size="8" fill="currentColor" font-style="italic">R</text><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
+            <span>Círculo</span>
             </button>
             <button class="fig-btn" onclick="selectFigType('quarter')" id="figbtn-quarter">
-              <svg viewBox="0 0 44 44" fill="none"><path d="M8,38 L8,8 A30,30 0 0,1 38,38 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="8,30 16,30 16,38" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="21" cy="25" r="2.5" fill="#f0c040"/></svg>
-              <span>¼ Círculo</span>
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8,38 L8,8 A30,30 0 0,1 38,38 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="8,30 16,30 16,38" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="21" cy="25" r="2.5" fill="#f0c040"/></svg>
+            <span>¼ Círculo</span>
             </button>
             <button class="fig-btn" onclick="selectFigType('sector')" id="figbtn-sector">
-              <svg viewBox="0 0 44 44" fill="none"><path d="M22,40 L8,12 A18,18 0 0,1 36,12 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M22,40 A8,8 0 0,0 17,33" stroke="currentColor" stroke-width="1" fill="none"/><path d="M22,40 A8,8 0 0,1 27,33" stroke="currentColor" stroke-width="1" fill="none"/><text x="12" y="33" font-size="7" fill="currentColor">θ</text><text x="27" y="33" font-size="7" fill="currentColor">θ</text><circle cx="22" cy="26" r="2.5" fill="#f0c040"/></svg>
-              <span>Sector Circ.</span>
+            <svg viewBox="0 0 44 44" fill="none"><path d="M22,40 L8,12 A18,18 0 0,1 36,12 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M22,40 A8,8 0 0,0 17,33" stroke="currentColor" stroke-width="1" fill="none"/><path d="M22,40 A8,8 0 0,1 27,33" stroke="currentColor" stroke-width="1" fill="none"/><text x="12" y="33" font-size="7" fill="currentColor">θ</text><text x="27" y="33" font-size="7" fill="currentColor">θ</text><circle cx="22" cy="26" r="2.5" fill="#f0c040"/></svg>
+            <span>Sector Circ.</span>
             </button>
-            <button class="fig-btn" onclick="selectFigType('semicircle')" id="figbtn-semicircle">
-          <svg viewBox="0 0 44 44" fill="none"><path d="M4,32 A18,18 0 0,1 40,32" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="4" y1="32" x2="40" y2="32" stroke="currentColor" stroke-width="2"/><line x1="22" y1="32" x2="22" y2="14" stroke="currentColor" stroke-width="0.8" stroke-dasharray="2,2" opacity=".5"/><line x1="22" y1="32" x2="36" y2="18" stroke="currentColor" stroke-width="1.5"/><text x="36" y="16" font-size="8" fill="currentColor" font-style="italic">R</text><circle cx="22" cy="24" r="2.5" fill="#f0c040"/><text x="26" y="23" font-size="6" fill="#f0c040">G</text></svg>
-          <span>Semicírculo</span>
-        </button>
+            <button class="fig-btn oculta" onclick="selectFigType('semicircle')" id="figbtn-semicircle">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M4,32 A18,18 0 0,1 40,32" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="4" y1="32" x2="40" y2="32" stroke="currentColor" stroke-width="2"/><line x1="22" y1="32" x2="22" y2="14" stroke="currentColor" stroke-width="0.8" stroke-dasharray="2,2" opacity=".5"/><line x1="22" y1="32" x2="36" y2="18" stroke="currentColor" stroke-width="1.5"/><text x="36" y="16" font-size="8" fill="currentColor" font-style="italic">R</text><circle cx="22" cy="24" r="2.5" fill="#f0c040"/><text x="26" y="23" font-size="6" fill="#f0c040">G</text></svg>
+            <span>Semicírculo</span>
+            </button>
           </div>
-        </div></div></div>
+          <button class="pal-mas" id="palMas" onclick="alternarVerMas()">
+            <span id="palMasTxt">Ver más</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div><!-- end .pal -->
+      </div><!-- end .tb-menu-body -->
+</div><!-- end #menuFiguras -->
 
 <div class="top-row">
   <button class="panel-toggle" id="panelToggle" onclick="togglePanel()" title="Plegar o desplegar el panel">
@@ -780,7 +851,7 @@ header .sub{color:var(--muted);font-size:10px;}
     <div class="left-panel plegado" id="leftPanel">
     <div class="rail-group">
       <button class="rail-btn active" id="rbConf" onclick="abrirSeccion('conf')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span>Configuración</span>
       </button>
       
@@ -806,6 +877,10 @@ header .sub{color:var(--muted);font-size:10px;}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/></svg>
         <span>PDF</span>
       </button>
+      <button class="rail-btn accion" id="btnLatex" onclick="generarPDFLatex()" title="Genera un PDF profesional compilado con LaTeX">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/><path d="M9 15l1.5 3L12 15l1.5 3L15 15"/></svg>
+        <span>LaTeX</span>
+      </button>
     </div>
   </div>
 
@@ -822,7 +897,15 @@ header .sub{color:var(--muted);font-size:10px;}
               <span class="cfg-k">Decimales</span><span class="cfg-v" id="decTag">0.00</span>
             </button>
           </div>
-          <button class="cfg-btn" id="histBtn" style="display:none" onclick="openHist()">Mis ejercicios recientes</button></div>
+          <div class="cfg-sub">Visualización</div>
+          <div class="vis-row">
+            <label class="vis-item"><input type="checkbox" id="visGrilla" checked onchange="setVis('grilla',this.checked)"><span>Grilla</span></label>
+            <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas</span></label>
+            <label class="vis-item"><input type="checkbox" id="visEjes" checked onchange="setVis('ejes',this.checked)"><span>Ejes</span></label>
+            <label class="vis-item"><input type="checkbox" id="visCentroide" checked onchange="setVis('centroide',this.checked)"><span>Centroide</span></label>
+          </div>
+          <div class="cfg-hint">Oculta lo que no necesites ver en el panel de dibujo. No afecta al cálculo.</div>
+          </div>
       
       <div class="sec-cont" id="sec_fig" style="display:none"><div class="hint-sm" style="font-size:10px;color:var(--muted);margin-bottom:8px">Propiedades de las figuras ya dibujadas. Para insertar una nueva usa <b>Figuras</b> en la barra de herramientas.</div><div class="divider"></div>
 
@@ -881,6 +964,8 @@ header .sub{color:var(--muted);font-size:10px;}
         <button class="cc-btn" onclick="zoomIn()" title="Zoom +">＋</button>
         <button class="cc-btn" onclick="zoomOut()" title="Zoom −">−</button>
         <button class="cc-btn" onclick="fitView()" title="Ajustar">⊙</button>
+        <button class="cc-btn" id="btnUndo" onclick="deshacer()" title="Deshacer" disabled>↶</button>
+        <button class="cc-btn" id="btnRedo" onclick="rehacer()" title="Rehacer" disabled>↷</button>
       </div>
       <div class="canvas-hint" id="canvasHint">Selecciona una figura del panel y haz clic para colocarla</div>
     </div>
@@ -920,6 +1005,47 @@ let viewTx = 0, viewTy = 0, viewScale = 1;
 let isDragging = false, dragStart = null, dragViewStart = null;
 let isDraggingFig = false, dragFigId = null, dragFigOffset = null;
 let dragAnchorId = null; // which anchor point is being dragged
+// Botón unificado "Mover / editar", mismo sistema de gestos que Cap. 6: no
+// se decide de inmediato si un toque es selección, arrastre de figura, pan
+// temporal o recuadro de selección múltiple — se resuelve en el propio
+// gesto según haya arrastre, sobre qué, y si se sostuvo antes de moverse.
+let gesto = null;
+const UMBRAL_ARRASTRE = 4;        // px en pantalla antes de considerar arrastre
+const UMBRAL_MANTENER_MS = 450;   // ms sosteniendo en vacío antes de armar el recuadro
+
+// ── Avisos no bloqueantes (sustituyen a alert) ──
+// Los diálogos nativos del navegador quedan silenciados en móvil: el usuario
+// tocaba un botón, la función salía por su `return` temprano y no aparecía
+// absolutamente nada en pantalla. Este aviso se dibuja dentro de la página,
+// así que se ve en cualquier dispositivo y no bloquea el hilo.
+let _avisoTimer = null;
+function aviso(msg, tipo){
+  let c = document.getElementById('avisoCaja');
+  if(!c){
+    c = document.createElement('div');
+    c.id = 'avisoCaja';
+    c.className = 'aviso-caja';
+    const t = document.createElement('span');
+    t.id = 'avisoTxt';
+    const x = document.createElement('button');
+    x.className = 'aviso-x'; x.type = 'button';
+    x.setAttribute('aria-label','Cerrar aviso');
+    x.textContent = '\u00d7';
+    x.addEventListener('click', cerrarAviso);
+    c.appendChild(t); c.appendChild(x);
+    document.body.appendChild(c);
+  }
+  document.getElementById('avisoTxt').textContent = msg;
+  c.classList.toggle('error', tipo === 'error');
+  c.classList.add('visible');
+  if(_avisoTimer) clearTimeout(_avisoTimer);
+  _avisoTimer = setTimeout(cerrarAviso, 4500);
+}
+function cerrarAviso(){
+  const c = document.getElementById('avisoCaja');
+  if(c) c.classList.remove('visible');
+  if(_avisoTimer){ clearTimeout(_avisoTimer); _avisoTimer = null; }
+}
 
 const COLORS = ['#e2aa1b','#e8734f','#9c5fd6','#2f9e6f','#e0527a','#2fa8a0','#a67c52','#c94f4f'];
 let colorIdx = 0;
@@ -936,17 +1062,14 @@ let matSeq = 0;
 let matMagnitud = 'peso';   // 'peso' (γ) o 'densidad' (ρ)
 // Unidad de fuerza: define la del peso específico (fuerza/volumen) y la del peso
 let unitForce = 'ton';
-function uFuerza(){ return unitForce; }
+
 // γ se expresa en fuerza/longitud³ ; ρ en masa/longitud³
 function uGamma(){
   return matMagnitud==='densidad' ? ('kg/'+unit+'\u00B3') : (unitForce+'/'+unit+'\u00B3');
 }
 function matSimbolo(){ return matMagnitud==='densidad' ? 'ρ' : 'γ'; }
 function matPorId(id){ return MATS.find(m=>m.id===id) || null; }
-function matEtiqueta(m){
-  if(!m) return '—';
-  return matSimbolo()+String(m.id)+' = '+decFix(m.val,'len')+' '+(m.unidad||'');
-}
+
 
 // ═══════════════════════════════════════════════════════════
 //  FIGURE DEFINITIONS
@@ -1041,7 +1164,7 @@ const FIG_DEFS = {
     Iy_c: d => Math.PI*Math.pow(d.r,4)/8,
     Ixy_c: d => 0,
     bounds: d => { const yc=4*d.r/(3*Math.PI); return {left:-d.r,right:d.r,bottom:-yc,top:d.r-yc}; },
-    // BM = midpoint of flat base = most natural reference in Hibbeler problems
+    // BM = midpoint of flat base = most natural reference for these problems
     // Default anchor is BM: user inputs WHERE the flat base center is
     // centroid G is automatically computed as BM + (0, yc) when rotation=0
     anchors: ['BM','C','BL','BR'],
@@ -1113,7 +1236,17 @@ const FIG_DEFS = {
       return Iy_O-A*xbar*xbar;
     },
     Ixy_c: d => 0,
-    bounds: d => ({left:-d.r,right:d.r,bottom:0,top:d.r}),
+    bounds: d => {
+      const t = d.alpha*Math.PI/180, R = d.r;
+      const yc = 2*R*Math.sin(t)/(3*t);          // vértice en (0, −yc)
+      // Ancho: los extremos del arco, salvo que el sector pase de 90° por lado,
+      // en cuyo caso el punto más ancho es el propio radio.
+      const semiAncho = (t >= Math.PI/2) ? R : R*Math.sin(t);
+      // Alto: arriba siempre el punto medio del arco (R − yc); abajo, el
+      // vértice o el extremo del arco si el sector es obtuso.
+      const abajo = Math.min(-yc, R*Math.cos(t) - yc);
+      return {left:-semiAncho, right:semiAncho, bottom:abajo, top:R - yc};
+    },
     anchors: ['C','O','E1','E2'],
     anchorOffset: (d,ak) => {
       const t=d.alpha*Math.PI/180,R=d.r,yc=2*R*Math.sin(t)/(3*t);
@@ -1165,6 +1298,14 @@ function screenToWorld(sx,sy){ return {x: (sx-viewTx)/viewScale, y: -(sy-viewTy)
 // ═══════════════════════════════════════════════════════════
 //  RENDER
 // ═══════════════════════════════════════════════════════════
+// ── Visibilidad de capas del dibujo ──
+// Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
+const VIS = {grilla:true, cotas:true, ejes:true, centroide:true};
+function setVis(cual, valor){
+  VIS[cual] = !!valor;
+  render();
+}
+
 function render(){
   const W = canvas.clientWidth, H = canvas.clientHeight;
   ctx.clearRect(0,0,W,H);
@@ -1176,14 +1317,14 @@ function render(){
   ctx.restore();
 
   // Grid
-  drawGrid(W,H);
+  if(VIS.grilla) drawGrid(W,H);
 
   // Axes
-  drawAxes(W,H);
+  if(VIS.ejes) drawAxes(W,H);
 
   // Figures
   for(const fig of figures){ drawFigure(fig, fig.id===selectedFigId || figuraMarcada(fig.id)); }
-  try{ dibujarCotasGenerales(ctx, W, H); }catch(e){}
+  if(VIS.cotas){ try{ dibujarCotasGenerales(ctx, W, H); }catch(e){} }
 
   // Ghost (figure being placed)
   if(selectedFigType && ghostPos){
@@ -1191,7 +1332,7 @@ function render(){
   }
 
   // Results overlay (centroid, principal axes)
-  if(results){ drawResultsOverlay(); }
+  if(results && VIS.centroide){ drawResultsOverlay(); }
 }
 
 function drawGrid(W,H){
@@ -1451,76 +1592,94 @@ canvas.addEventListener('dblclick', onDblClick);
 canvas.addEventListener('wheel', onWheel, {passive:false});
 canvas.addEventListener('mouseleave', () => { ghostPos=null; render(); });
 
-// ── TOUCH EVENTS (mobile/tablet drag) ──
-// Detección de doble toque: en táctil no se dispara 'dblclick', así que sin
-// esto la ventana de edición era inalcanzable desde móvil o tableta.
+// ── EVENTOS TÁCTILES ──
+// Puente hacia el MISMO motor de gestos del ratón (patrón tomado de cap6.html):
+// en lugar de duplicar la lógica de arrastre, los eventos de un dedo se
+// reenvían a onMouseDown / onMouseMove / onMouseUp con un objeto sintético
+// {clientX, clientY}. Así el toque simple, el arrastre de figuras, el pan
+// temporal y el recuadro de selección se comportan igual en móvil que en PC.
+// Con dos dedos se hace zoom de pellizco y se cancela el gesto en curso.
 let ultimoTap = 0, ultimoTapPos = null;
+let pinchDist = null, pinchMid = null;
+
+// Anula cualquier gesto pendiente y sus efectos visuales (recuadro, arrastres).
+function cancelarGestoEnCurso(){
+  if(gesto){
+    if(gesto.tEsperaId) clearTimeout(gesto.tEsperaId);
+    ocultarRecuadroSeleccion();
+    gesto = null;
+  }
+  isDragging = false; isDraggingFig = false; dragFigId = null; dragAnchorId = null;
+}
+
 canvas.addEventListener('touchstart', e=>{
-  e.preventDefault();
-  const t=e.touches[0];
-  const rect=canvas.getBoundingClientRect();
-  const sp={x:t.clientX-rect.left, y:t.clientY-rect.top};
-  const wp=screenToWorld(sp.x,sp.y);
+  if(e.touches.length === 1){
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const mx = t.clientX - rect.left, my = t.clientY - rect.top;
 
-  const ahora = Date.now();
-  const cerca = ultimoTapPos && Math.hypot(sp.x-ultimoTapPos.x, sp.y-ultimoTapPos.y) < 26;
-  if(!selectedFigType && ahora-ultimoTap < 320 && cerca){
-    const h = hitTest(sp.x, sp.y);
-    ultimoTap = 0; ultimoTapPos = null;
-    if(h){ abrirEdicionFigura(h.id); return; }
-  }
-  ultimoTap = ahora; ultimoTapPos = sp;
-
-  if(selectedFigType){placeFigure(selectedFigType,wp.x,wp.y);return;}
-  if(selectedFigId){
-    const fig=figures.find(f=>f.id===selectedFigId);
-    if(fig){
-      const def=FIG_DEFS[fig.type];
-      for(const a of def.anchors||['C']){
-        const off=def.anchorOffset(fig.dims,a);
-        const rot=fig.rotation*Math.PI/180;
-        const rdx=off.dx*Math.cos(rot)-off.dy*Math.sin(rot);
-        const rdy=off.dx*Math.sin(rot)+off.dy*Math.cos(rot);
-        const ap=worldToScreen(fig.cx+rdx,fig.cy+rdy);
-        if(Math.hypot(sp.x-ap.x,sp.y-ap.y)<12){
-          isDraggingFig=true;dragFigId=fig.id;dragAnchorId=a;dragFigOffset={x:0,y:0};return;
-        }
-      }
+    // Doble toque: en táctil no se dispara 'dblclick', así que sin esto la
+    // ventana de edición sería inalcanzable desde el celular o la tableta.
+    const ahora = Date.now();
+    const cerca = ultimoTapPos && Math.hypot(mx-ultimoTapPos.x, my-ultimoTapPos.y) < 26;
+    if(!selectedFigType && ahora - ultimoTap < 320 && cerca){
+      ultimoTap = 0; ultimoTapPos = null;
+      cancelarGestoEnCurso();
+      const h = hitTest(mx, my);
+      if(h) abrirEdicionFigura(h.id);
+      e.preventDefault();
+      return;
     }
+    ultimoTap = ahora; ultimoTapPos = {x:mx, y:my};
+
+    onMouseDown({clientX:t.clientX, clientY:t.clientY});
+    e.preventDefault();
+  } else if(e.touches.length === 2){
+    // Dos dedos: se suspende cualquier gesto de un dedo y empieza el pellizco.
+    cancelarGestoEnCurso();
+    const [a,b] = e.touches;
+    pinchDist = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+    const rect = canvas.getBoundingClientRect();
+    pinchMid = {x:(a.clientX+b.clientX)/2-rect.left, y:(a.clientY+b.clientY)/2-rect.top};
+    render();
+    e.preventDefault();
   }
-  const hit=hitTest(sp.x,sp.y);
-  if(hit){selectFigure(hit.id);isDraggingFig=true;dragFigId=hit.id;dragAnchorId='C';dragFigOffset={x:wp.x-hit.cx,y:wp.y-hit.cy};return;}
-  isDragging=true;dragStart=sp;dragViewStart={x:viewTx,y:viewTy};
-},{passive:false});
+}, {passive:false});
 
 canvas.addEventListener('touchmove', e=>{
-  e.preventDefault();
-  const t=e.touches[0];
-  const rect=canvas.getBoundingClientRect();
-  const sp={x:t.clientX-rect.left,y:t.clientY-rect.top};
-  const wp=screenToWorld(sp.x,sp.y);
-  if(isDraggingFig&&dragFigId!==null){
-    const fig=figures.find(f=>f.id===dragFigId);
-    if(fig){
-      if(dragAnchorId&&dragAnchorId!=='C'){
-        const def=FIG_DEFS[fig.type];const off=def.anchorOffset(fig.dims,dragAnchorId);
-        const rot=fig.rotation*Math.PI/180;
-        fig.cx=wp.x-(off.dx*Math.cos(rot)-off.dy*Math.sin(rot));
-        fig.cy=wp.y-(off.dx*Math.sin(rot)+off.dy*Math.cos(rot));
-      }else{fig.cx=wp.x-dragFigOffset.x;fig.cy=wp.y-dragFigOffset.y;}
-      if(Math.abs(fig.cx)<2/viewScale)fig.cx=0;
-      if(Math.abs(fig.cy)<2/viewScale)fig.cy=0;
-      if(figures.length>1)trySnapFigure(fig);
-      updatePropPanel();results=null;render();
-    }return;
+  if(e.touches.length === 1){
+    const t = e.touches[0];
+    onMouseMove({clientX:t.clientX, clientY:t.clientY});
+    e.preventDefault();
+  } else if(e.touches.length === 2 && pinchDist !== null){
+    const [a,b] = e.touches;
+    const d = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+    const factor = d / pinchDist;
+    if(isFinite(factor) && factor > 0){
+      // Misma matemática que onWheel: el punto medio entre los dedos se
+      // mantiene fijo en coordenadas del mundo mientras cambia la escala.
+      const antes = screenToWorld(pinchMid.x, pinchMid.y);
+      viewScale = Math.max(0.1, Math.min(50, viewScale*factor));
+      const despues = screenToWorld(pinchMid.x, pinchMid.y);
+      viewTx += (despues.x-antes.x)*viewScale;
+      viewTy -= (despues.y-antes.y)*viewScale;
+      render();
+    }
+    pinchDist = d;
+    e.preventDefault();
   }
-  if(isDragging){viewTx=dragViewStart.x+(sp.x-dragStart.x);viewTy=dragViewStart.y+(sp.y-dragStart.y);render();}
-},{passive:false});
+}, {passive:false});
 
 canvas.addEventListener('touchend', e=>{
-  e.preventDefault();
-  isDragging=false;isDraggingFig=false;dragFigId=null;dragAnchorId=null;
-},{passive:false});
+  if(e.touches.length < 2) pinchDist = null;
+  if(e.touches.length === 0) onMouseUp();
+}, {passive:false});
+
+canvas.addEventListener('touchcancel', ()=>{
+  pinchDist = null;
+  cancelarGestoEnCurso();
+  render();
+}, {passive:false});
 
 
 function getCanvasPos(e){
@@ -1557,16 +1716,71 @@ function onMouseMove(e){
         fig.cx = wp.x - dragFigOffset.x;
         fig.cy = wp.y - dragFigOffset.y;
       }
-      // Snap to origin if very close
       if(Math.abs(fig.cx) < 2/viewScale) fig.cx = 0;
       if(Math.abs(fig.cy) < 2/viewScale) fig.cy = 0;
-      // Live edge snap during drag
-      if(figures.length > 1) trySnapFigure(fig);
       updatePropPanel();
       results=null; render();
     }
     return;
   }
+
+  // ── Botón unificado "Mover / editar": mismo sistema de gestos que Cap. 6 ──
+  if(gesto){
+    if(!gesto.moved){
+      const dx = sp.x - gesto.x0, dy = sp.y - gesto.y0;
+      if(Math.hypot(dx,dy) > UMBRAL_ARRASTRE){
+        gesto.moved = true;
+        if(gesto.tEsperaId){ clearTimeout(gesto.tEsperaId); gesto.tEsperaId = null; }
+        const esVacio = gesto.hitFig === null;
+        if(esVacio && !gesto.mantenido){
+          // Arrastre rápido en zona vacía sin sostener antes: se interpreta
+          // como desplazamiento del panel, igual que la herramienta Pan.
+          gesto.tipo = 'pan-temporal';
+          isDragging = true; dragStart = {x:gesto.x0, y:gesto.y0}; dragViewStart = {x:viewTx, y:viewTy};
+        } else if(gesto.modo === 'borrar'){
+          // En modo borrar, cualquier arrastre que no sea pan temporal es un
+          // recuadro de borrado: no tiene sentido mover algo que se va a
+          // eliminar. El recuadro se dibuja en rojo para distinguirlo.
+          gesto.tipo = 'rubber-borrar';
+          mostrarRecuadroSeleccion('borrar');
+        } else if(gesto.hitFig !== null){
+          // Arrastrar una figura ya seleccionada mueve TODO el grupo; arrastrar
+          // una que no estaba seleccionada la convierte en la única selección.
+          const grupo = selFiguras.indexOf(gesto.hitFig) >= 0 ? selFiguras.slice() : [gesto.hitFig];
+          if(selFiguras.indexOf(gesto.hitFig) < 0){ selFiguras = grupo; selectFigure(gesto.hitFig); }
+          gesto.tipo = 'mover';
+          registrarCambio();
+          gesto.origenes = grupo.map(id=>{
+            const f = figures.find(z=>z.id===id);
+            return f ? {id, cx:f.cx, cy:f.cy} : null;
+          }).filter(Boolean);
+        } else if(esVacio && gesto.mantenido){
+          gesto.tipo = 'rubber';
+          mostrarRecuadroSeleccion();
+        }
+      }
+    }
+    if(gesto.tipo === 'mover'){
+      const wdx = wp.x - gesto.wx0, wdy = wp.y - gesto.wy0;
+      gesto.origenes.forEach(o=>{
+        const f = figures.find(z=>z.id===o.id);
+        if(f){ f.cx = o.cx + wdx; f.cy = o.cy + wdy; }
+      });
+      if(figures.length > 1){
+        const f0 = figures.find(z=>z.id===gesto.origenes[0].id);
+      }
+      updatePropPanel(); results = null; render();
+    } else if(gesto.tipo === 'pan-temporal'){
+      viewTx = dragViewStart.x + (sp.x - dragStart.x);
+      viewTy = dragViewStart.y + (sp.y - dragStart.y);
+      render();
+    } else if(gesto.tipo === 'rubber' || gesto.tipo === 'rubber-borrar'){
+      gesto.x1 = sp.x; gesto.y1 = sp.y;
+      actualizarRecuadroSeleccion(gesto);
+    }
+    return;
+  }
+
   // Hover cursor
   const hit = hitTest(sp.x,sp.y);
   canvas.style.cursor = hit ? 'move' : (isDragging?'grabbing':'grab');
@@ -1583,24 +1797,14 @@ function onMouseDown(e){
     return;
   }
 
-  // Con la herramienta de selección, tocar una figura la marca o la desmarca.
-  // Si NO se tocó ninguna figura, se limpia la selección pero NO se corta el
-  // flujo: así el clic en vacío sigue pudiendo arrastrar la vista (antes este
-  // return dejaba el desplazamiento muerto).
-  if(herramienta === 'sel' && !selectedFigType){
-    const f = figuraEnPunto(wp.x, wp.y);
-    if(f){ alternarFigura(f.id); return; }
-    if(selFiguras.length){ selFiguras = []; selectFigure(null); actualizarInfoSel(); render(); }
-  }
-
   if(selectedFigType){
-    // Place figure
     placeFigure(selectedFigType, wp.x, wp.y);
     return;
   }
 
-  // Check anchor handle first
-  if(selectedFigId){
+  // Ancla de la figura seleccionada: objetivo pequeño y deliberado, siempre
+  // es un arrastre inmediato (nunca ambiguo con un simple toque).
+  if(herramienta === 'sel' && selectedFigId){
     const fig = figures.find(f=>f.id===selectedFigId);
     if(fig){
       const def = FIG_DEFS[fig.type];
@@ -1612,6 +1816,7 @@ function onMouseDown(e){
         const ap = worldToScreen(fig.cx+rdx, fig.cy+rdy);
         if(Math.hypot(sp.x-ap.x,sp.y-ap.y)<8){
           fig.activeAnchor = a;
+          registrarCambio();
           isDraggingFig=true; dragFigId=fig.id;
           dragAnchorId = a;
           dragFigOffset={x:0,y:0};
@@ -1622,123 +1827,147 @@ function onMouseDown(e){
     }
   }
 
-  // Check figure hit
-  const hit = hitTest(sp.x,sp.y);
-  if(hit){
-    selectFigure(hit.id);
-    isDraggingFig=true; dragFigId=hit.id;
-    dragAnchorId='C';
-    dragFigOffset={x:wp.x-hit.cx, y:wp.y-hit.cy};
+  // Botón unificado "Mover / editar": no se decide aún si es un toque
+  // (alterna selección), un arrastre sobre una figura (la mueve), un
+  // arrastre rápido en vacío (pan temporal) o uno sostenido en vacío
+  // (recuadro de selección múltiple tipo CAD). Eso se resuelve en
+  // onMouseMove/onMouseUp según haya arrastre o no.
+  if(herramienta === 'sel'){
+    const hit = hitTest(sp.x, sp.y);
+    gesto = { modo:'sel', hitFig: hit ? hit.id : null, x0:sp.x, y0:sp.y, wx0:wp.x, wy0:wp.y,
+              moved:false, mantenido:false };
+    if(!hit) armarEsperaDeRecuadro(gesto);
     return;
   }
 
-  // Pan
+  // Herramienta "Eliminar": igual que 'sel' pero para borrar. Un toque sin
+  // arrastre elimina la figura tocada; un arrastre se resuelve siempre como
+  // recuadro de borrado (aquí no tiene sentido "mover" nada).
+  if(herramienta === 'borrar'){
+    const hit = hitTest(sp.x, sp.y);
+    gesto = { modo:'borrar', hitFig: hit ? hit.id : null, x0:sp.x, y0:sp.y, wx0:wp.x, wy0:wp.y,
+              moved:false, mantenido:false };
+    if(!hit) armarEsperaDeRecuadro(gesto);
+    return;
+  }
+
+  // Pan (respaldo)
   isDragging=true; dragStart=sp; dragViewStart={x:viewTx,y:viewTy};
   canvas.style.cursor='grabbing';
   selectFigure(null);
 }
 
-
-// ── EDGE SNAP SYSTEM ──
-const SNAP_THRESHOLD_WORLD = 8; // snap distance in world units (dynamic with zoom)
-
-
-// Snap state tracking
-let snapState = null; // {movId, otherId, snapCx, snapCy}
-
-function getFigMaxDim(fig) {
-  const d = fig.dims || {};
-  const type = fig.type || '';
-  if(type==='circle'||type==='semicircle'||type==='quarter') return (d.r||50)*2;
-  if(type==='sector') return (d.r||50)*2;
-  if(d.b!==undefined && d.h!==undefined) return Math.max(d.b, d.h);
-  if(d.r!==undefined) return d.r*2;
-  return 100;
+// Tras UMBRAL_MANTENER_MS sosteniendo sobre zona vacía sin haberse movido
+// aún, habilita el recuadro de selección múltiple. Si el arrastre ya
+// empezó antes de eso, esta función llega tarde y no hace nada.
+function armarEsperaDeRecuadro(miGesto){
+  miGesto.tEsperaId = setTimeout(()=>{
+    if(gesto === miGesto && !miGesto.moved) miGesto.mantenido = true;
+  }, UMBRAL_MANTENER_MS);
 }
 
-function getSnapThreshold(figA, figB) {
-  // 12% of average largest dimension — comfortable snap zone
-  return 0.12 * (getFigMaxDim(figA) + getFigMaxDim(figB)) / 2;
-}
-function getDetachThreshold(figA, figB) {
-  return 2 * getSnapThreshold(figA, figB);
-}
-function getFigBounds(fig) {
-  if(!fig || !fig.dims) return {xmin:-50,xmax:50,ymin:-50,ymax:50,hw:50,hh:50};
-  const def = FIG_DEFS[fig.type];
-  if(def && def.bounds) {
-    const b = def.bounds(fig.dims);
-    const rot = (fig.rotation||0)*Math.PI/180;
-    const corners = [{x:b.left,y:b.bottom},{x:b.right,y:b.bottom},{x:b.right,y:b.top},{x:b.left,y:b.top}];
-    const rx = corners.map(c=>c.x*Math.cos(rot)-c.y*Math.sin(rot));
-    const ry = corners.map(c=>c.x*Math.sin(rot)+c.y*Math.cos(rot));
-    const xmin=fig.cx+Math.min(...rx), xmax=fig.cx+Math.max(...rx);
-    const ymin=fig.cy+Math.min(...ry), ymax=fig.cy+Math.max(...ry);
-    const hw=(xmax-xmin)/2, hh=(ymax-ymin)/2;
-    return {xmin,xmax,ymin,ymax,hw,hh};
+// ── Recuadro de selección (overlay simple sobre el lienzo) ──
+function mostrarRecuadroSeleccion(modo){
+  const esBorrado = modo === 'borrar';
+  let box = document.getElementById('rubberBandBox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'rubberBandBox';
+    box.style.cssText = 'position:absolute; border:1.5px dashed #0f5c56; '
+      + 'background:rgba(15,92,86,.10); pointer-events:none; z-index:6;';
+    document.getElementById('canvasArea').appendChild(box);
   }
-  const d=fig.dims; let hw=50,hh=50;
-  const type=fig.type||'';
-  if(type==='circle'||type==='semicircle'||type==='quarter'){hw=hh=d.r||50;}
-  else if(type==='sector'){hw=d.r||50;hh=d.r||50;}
-  else if(d.b!==undefined&&d.h!==undefined){hw=d.b/2;hh=d.h/2;}
-  else if(d.r!==undefined){hw=hh=d.r;}
-  return {xmin:fig.cx-hw,xmax:fig.cx+hw,ymin:fig.cy-hh,ymax:fig.cy+hh,hw,hh};
+  // Rojo al borrar, verde al seleccionar: el color anticipa lo que pasará al
+  // soltar, igual que en cap6.
+  box.style.borderColor = esBorrado ? 'rgba(192,57,43,.75)' : '#0f5c56';
+  box.style.background  = esBorrado ? 'rgba(192,57,43,.10)' : 'rgba(15,92,86,.10)';
+  box.style.display = 'block';
+}
+function actualizarRecuadroSeleccion(g){
+  const box = document.getElementById('rubberBandBox');
+  if(!box) return;
+  const x0 = Math.min(g.x0,g.x1), x1 = Math.max(g.x0,g.x1);
+  const y0 = Math.min(g.y0,g.y1), y1 = Math.max(g.y0,g.y1);
+  box.style.left = x0+'px'; box.style.top = y0+'px';
+  box.style.width = (x1-x0)+'px'; box.style.height = (y1-y0)+'px';
+}
+function ocultarRecuadroSeleccion(){
+  const box = document.getElementById('rubberBandBox');
+  if(box) box.style.display = 'none';
 }
 
-function trySnapFigure(movingFig) {
-  const mb = getFigBounds(movingFig);
-  // If currently snapped, check for detach
-  if(snapState && snapState.movId === movingFig.id) {
-    const other = figures.find(f=>f.id===snapState.otherId);
-    if(other) {
-      const detach = getDetachThreshold(movingFig, other);
-      const pullDist = Math.hypot(movingFig.cx - snapState.snapCx, movingFig.cy - snapState.snapCy);
-      if(pullDist > detach) { snapState=null; return false; } // detached
-      movingFig.cx = snapState.snapCx; movingFig.cy = snapState.snapCy;
-      return true;
-    }
-    snapState = null;
-  }
-  // Look for new snap
-  let bestSnap=null, bestDist=Infinity;
-  for(const other of figures) {
-    if(other.id === movingFig.id) continue;
-    const ob = getFigBounds(other);
-    const thr = getSnapThreshold(movingFig, other);
-    // Deep overlap = user wants to stack
-    const olX = Math.min(mb.xmax,ob.xmax)-Math.max(mb.xmin,ob.xmin);
-    const olY = Math.min(mb.ymax,ob.ymax)-Math.max(mb.ymin,ob.ymin);
-    const minW = Math.min(mb.xmax-mb.xmin, ob.xmax-ob.xmin);
-    const minH = Math.min(mb.ymax-mb.ymin, ob.ymax-ob.ymin);
-    if(olX>minW*0.5 && olY>minH*0.5) continue;
-    // 4 edge pairs
-    const pairs = [
-      {d:Math.abs(mb.xmin-ob.xmax), dx:ob.xmax-mb.xmin, dy:0},
-      {d:Math.abs(mb.xmax-ob.xmin), dx:ob.xmin-mb.xmax, dy:0},
-      {d:Math.abs(mb.ymin-ob.ymax), dx:0, dy:ob.ymax-mb.ymin},
-      {d:Math.abs(mb.ymax-ob.ymin), dx:0, dy:ob.ymin-mb.ymax}
-    ];
-    for(const p of pairs) {
-      if(p.d<thr && p.d<bestDist) { bestDist=p.d; bestSnap={dx:p.dx,dy:p.dy,otherId:other.id}; }
-    }
-  }
-  if(bestSnap) {
-    movingFig.cx += bestSnap.dx; movingFig.cy += bestSnap.dy;
-    snapState = {movId:movingFig.id, otherId:bestSnap.otherId, snapCx:movingFig.cx, snapCy:movingFig.cy};
-    return true;
-  }
-  return false;
+// Figuras cuya caja delimitadora (mundo) se cruza con el recuadro de
+// selección trazado en pantalla.
+function figurasEnRecuadro(x0,y0,x1,y1){
+  const a = screenToWorld(Math.min(x0,x1), Math.min(y0,y1));
+  const b = screenToWorld(Math.max(x0,x1), Math.max(y0,y1));
+  const rx0 = Math.min(a.x,b.x), rx1 = Math.max(a.x,b.x);
+  const ry0 = Math.min(a.y,b.y), ry1 = Math.max(a.y,b.y);
+  return figures.filter(f=>{
+    const c = figuraBoundsMundo(f);
+    return c.left <= rx1 && c.right >= rx0 && c.bottom <= ry1 && c.top >= ry0;
+  }).map(f=>f.id);
 }
 
 function onMouseUp(){
-  if(isDraggingFig && dragFigId !== null) {
+  if(isDraggingFig && dragFigId !== null){
     updatePropPanel(); render();
   }
   isDragging=false; isDraggingFig=false; dragFigId=null; dragAnchorId=null;
-  // el cursor vuelve al que corresponde a la herramienta activa
-  canvas.style.cursor = (herramienta==='pan') ? 'grab'
-                      : (herramienta==='mover' ? 'move' : 'default');
+
+  if(gesto){
+    if(gesto.tEsperaId){ clearTimeout(gesto.tEsperaId); }
+    if(gesto.tipo === 'pan-temporal'){
+      // El arrastre se resolvió como desplazamiento del panel: no se toca
+      // la selección.
+      gesto = null;
+      canvas.style.cursor = (herramienta==='pan') ? 'grab' : 'default';
+      return;
+    }
+
+    if(gesto.modo === 'borrar'){
+      // Un toque borra la figura tocada; un arrastre borra todo lo que el
+      // recuadro haya abarcado. Un solo registrarCambio() por operación,
+      // aunque se eliminen varias figuras de una vez.
+      let aBorrar = [];
+      if(!gesto.moved){
+        if(gesto.hitFig !== null) aBorrar = [gesto.hitFig];
+      } else if(gesto.tipo === 'rubber-borrar'){
+        aBorrar = figurasEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
+      }
+      ocultarRecuadroSeleccion();
+      if(aBorrar.length){
+        registrarCambio();
+        figures = figures.filter(f => aBorrar.indexOf(f.id) < 0);
+        if(aBorrar.indexOf(selectedFigId) >= 0) selectFigure(null);
+        selFiguras = selFiguras.filter(id => aBorrar.indexOf(id) < 0);
+        results = null; renderFigList();
+      }
+      actualizarInfoSel(); render();
+      gesto = null;
+      canvas.style.cursor = 'default';
+      return;   // se permanece en modo borrar para seguir eliminando
+    }
+
+    if(!gesto.moved){
+      // Toque simple, sin arrastre: alterna la figura tocada (o limpia la
+      // selección si se tocó una zona vacía del lienzo).
+      if(gesto.hitFig !== null){
+        alternarFigura(gesto.hitFig);
+      } else {
+        selFiguras = []; selectFigure(null); actualizarInfoSel(); render();
+      }
+    } else if(gesto.tipo === 'mover'){
+      renderFigList(); actualizarInfoSel(); render();
+    } else if(gesto.tipo === 'rubber'){
+      selFiguras = figurasEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
+      selectFigure(selFiguras.length ? selFiguras[selFiguras.length-1] : null);
+      ocultarRecuadroSeleccion();
+      renderFigList(); actualizarInfoSel(); render();
+    }
+    gesto = null;
+  }
+  canvas.style.cursor = (herramienta==='pan') ? 'grab' : 'default';
 }
 
 function onDblClick(e){
@@ -1748,27 +1977,69 @@ function onDblClick(e){
 }
 
 // ── Abrir la ventana de edición de una figura ──
-// Igual que en los capítulos anteriores: el doble clic no sólo marca la
-// figura, sino que despliega la columna de propiedades ya posicionada en ella.
+// El doble clic abre una ventana centrada, como el doble clic de cap6 sobre un
+// nudo o una barra. La diferencia con cap6 es que allí la ventana tiene sus
+// propios campos, mientras que aquí el panel de propiedades de la figura ya
+// existe y es rico (dimensiones por tipo, signo, material, espesor, anclas):
+// en vez de duplicarlo, se TRASLADA el nodo #propPanel al cuerpo del modal y
+// al cerrar vuelve a su sitio en la columna. Nunca hay dos copias que puedan
+// desincronizarse, y cualquier campo que se agregue al panel aparece solo.
+let _propPanelPadre = null, _propPanelAncla = null;
+
 function abrirEdicionFigura(id){
   const fig = figures.find(f=>f.id===id); if(!fig) return;
   selFiguras = [id];
-  selectFigure(id);
+  selectFigure(id);                      // llena el panel con esta figura
   try{ cerrarMenusZona1(); }catch(e){}
+
+  const pp = document.getElementById('propPanel');
+  const cuerpo = document.getElementById('edFigBody');
+  if(pp && cuerpo && pp.parentNode !== cuerpo){
+    // Se recuerda de dónde salió para devolverlo exactamente al mismo lugar.
+    _propPanelPadre = pp.parentNode;
+    _propPanelAncla = pp.nextSibling;
+    cuerpo.appendChild(pp);
+  }
+  if(pp) pp.style.display = 'block';
+
+  const nom = document.getElementById('edFigNom');
+  if(nom) nom.textContent = fig.etiqueta ? (fig.name + ' ' + fig.etiqueta) : (fig.name || '');
+  document.getElementById('edFigModal').classList.add('show');
+  actualizarInfoSel();
+  render();
+}
+
+// Devuelve el panel a la columna y cierra la ventana. Los cambios ya se
+// aplicaron en caliente, así que no hay nada que confirmar ni revertir.
+function cerrarEdicionFigura(){
+  const pp = document.getElementById('propPanel');
+  if(pp && _propPanelPadre){
+    _propPanelPadre.insertBefore(pp, _propPanelAncla);
+    _propPanelPadre = null; _propPanelAncla = null;
+  }
+  const m = document.getElementById('edFigModal');
+  if(m) m.classList.remove('show');
+  render();
+}
+
+// Tocar el fondo oscuro cierra la ventana; tocar dentro de la tarjeta, no.
+function cerrarEdicionSiFondo(e){
+  if(e.target === document.getElementById('edFigModal')) cerrarEdicionFigura();
+}
+
+// Para quien prefiera seguir trabajando con la columna abierta al costado.
+function edicionAlPanel(){
+  cerrarEdicionFigura();
   try{ abrirSeccion('fig'); }catch(e){}
   const pp = document.getElementById('propPanel');
   if(pp){
-    pp.style.display='block';
-    const ns=document.getElementById('noSelection'); if(ns) ns.style.display='none';
-    // llevar la vista del panel hasta las propiedades y resaltarlas un instante
+    pp.style.display = 'block';
     setTimeout(()=>{
       try{ pp.scrollIntoView({block:'nearest',behavior:'smooth'}); }catch(e){}
       pp.classList.add('recien-abierto');
       setTimeout(()=>pp.classList.remove('recien-abierto'), 900);
     }, 260);
   }
-  actualizarInfoSel();
-  render();
 }
 
 function onWheel(e){
@@ -1800,7 +2071,8 @@ function hitTest(sx,sy){
     else if(d.a !== undefined && d.b !== undefined){ hw=d.a; hh=d.b; }
     else if(d.B !== undefined && d.H !== undefined){ hw=d.B/2; hh=d.H/2; }
     const dx=(sx-sp.x)/viewScale, dy=(sy-sp.y)/viewScale;
-    if(Math.abs(dx)<=hw+6 && Math.abs(dy)<=hh+6) return fig;
+    const tolPx = 6/viewScale;   // 6px de tolerancia, convertidos a unidades del mundo
+    if(Math.abs(dx)<=hw+tolPx && Math.abs(dy)<=hh+tolPx) return fig;
   }
   return null;
 }
@@ -1927,6 +2199,7 @@ function selectFigType(type){
   document.querySelectorAll('.fig-btn').forEach(b=>b.classList.remove('selected'));
   const btn = document.getElementById('figbtn-'+type);
   if(btn) btn.classList.add('selected');
+  asegurarFiguraVisible(type);   // si estaba tras "Ver más", despliega la paleta
   document.getElementById('canvasHint').textContent = 'Haz clic en el canvas para colocar la figura';
   canvas.style.cursor='crosshair';
   document.getElementById('propPanel').style.display='none';
@@ -1941,6 +2214,7 @@ function getDefaultDims(type){
 }
 
 function placeFigure(type, cx, cy){
+  registrarCambio();
   const def = FIG_DEFS[type];
   const id = ++figIdCounter;
   const dims = getDefaultDims(type);
@@ -1952,6 +2226,7 @@ function placeFigure(type, cx, cy){
                // En cuerpo heterogéneo toda figura nace con el primer material
                // definido, para que nunca quede con peso nulo.
                matId: (modoCuerpo==='heterogeneo' && MATS.length) ? MATS[0].id : null,
+               thickness: 1,   // espesor perpendicular al plano XY (solo aplica en heterogéneo)
                angleMode:'semi'};  // sector only: 'semi' (θ) | 'total' (2θ). Internal alpha is always the half-angle.
   figures.push(fig);
   selectedFigType = null;
@@ -1996,6 +2271,7 @@ function renderFigList(){
 }
 
 function deleteFigure(id){
+  registrarCambio();
   figures = figures.filter(f=>f.id!==id);
   if(selectedFigId===id) selectFigure(null);
   results=null; renderFigList(); render();
@@ -2033,6 +2309,16 @@ function buildPropPanel(fig){
       + (MATS.length ? '' : '<div style="font-size:9.5px;color:#c0392b;margin-top:5px;line-height:1.45;">'
           +'Primero define los valores en el panel de la izquierda.</div>');
     df.appendChild(box);
+
+    // Espesor perpendicular al plano XY: solo afecta el peso (W = γ·A·t),
+    // no la posición del centroide. Por defecto t = 1.
+    const boxT = document.createElement('div');
+    boxT.className = 'field';
+    boxT.innerHTML = '<label>Espesor <span style="color:var(--grn2);font-weight:800">('+unit+')</span> '
+      + '<span style="color:var(--muted);font-weight:400">— perpendicular al plano XY</span></label>'
+      + '<input type="number" id="fig-thickness" value="'+(fig.thickness||1)+'" step="any" min="0.001" '
+      + 'onchange="updateThickness(this.value)">';
+    df.appendChild(boxT);
   }
 
   // Sector only: toggle to enter either the half-angle (θ) or the total angle (2θ).
@@ -2113,6 +2399,7 @@ function buildPropPanel(fig){
 function updateDim(dimId, val){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  registrarCambio();
   fig.dims[dimId] = parseFloat(val)||0;
   results=null; render();
 }
@@ -2121,6 +2408,7 @@ function updateDim(dimId, val){
 function updateSectorAngle(val, isTotal){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  registrarCambio();
   const v = parseFloat(val)||0;
   fig.dims.alpha = isTotal ? v/2 : v;
   buildPropPanel(fig);   // refresh helper line + complementary value
@@ -2136,6 +2424,7 @@ function setSectorAngleMode(mode){
 function updateFigFromProp(){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  registrarCambio();
   const newX = parseFloat(document.getElementById('posX').value)||0;
   const newY = parseFloat(document.getElementById('posY').value)||0;
   const newRot = parseFloat(document.getElementById('rotation').value)||0;
@@ -2170,6 +2459,7 @@ function updatePropPanel(){
 function setSign(s){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  registrarCambio();
   fig.sign=s;
   document.getElementById('signPos').classList.toggle('active',s===1);
   document.getElementById('signNeg').classList.toggle('active',s===-1);
@@ -2290,7 +2580,7 @@ document.addEventListener('click', ev=>{
 // ── Guardar el ejercicio con nombre (máx. 10) ──
 const MAX_PROYECTOS = 10;
 function abrirGuardar(){
-  if(!results){ alert('Primero calcula la sección para poder guardarla.'); return; }
+  if(!results){ aviso('Primero calcula la sección para poder guardarla.'); return; }
   const m=document.getElementById('guardarModal'); if(!m) return;
   document.getElementById('nombreProyecto').value='';
   const el=document.getElementById('listaProyectos');
@@ -2304,50 +2594,39 @@ function cerrarGuardar(){ document.getElementById('guardarModal').classList.remo
 function guardarProyecto(){
   const inp=document.getElementById('nombreProyecto');
   const nombre=(inp.value||'').trim();
-  if(!nombre){ alert('Ponle un nombre al ejercicio antes de guardarlo.'); inp.focus(); return; }
-  if(histItems.length>=MAX_PROYECTOS){ alert('Ya tienes '+MAX_PROYECTOS+' ejercicios guardados.'); return; }
+  if(!nombre){ aviso('Ponle un nombre al ejercicio antes de guardarlo.'); inp.focus(); return; }
+  if(histItems.length>=MAX_PROYECTOS){ aviso('Ya tienes '+MAX_PROYECTOS+' ejercicios guardados.'); return; }
   const snap=histSnapshot();
-  if(!snap){ alert('No hay una sección calculada para guardar.'); return; }
+  if(!snap){ aviso('No hay una sección calculada para guardar.'); return; }
   snap.titulo=nombre;
   histPost({bsa:'hist:save', item:snap});
   cerrarGuardar();
-  alert('Ejercicio guardado como "'+nombre+'".');
+  aviso('Ejercicio guardado como "'+nombre+'".');
 }
 
 // ── Herramienta activa y selección múltiple (Cap. 9) ──
-let herramienta = 'sel';
+let herramienta = 'pan';
 let selFiguras = [];          // ids de figuras marcadas
-function figuraEnPunto(x,y){
-  for(let i=figures.length-1;i>=0;i--){
-    const f = figures[i];
-    try{ if(typeof pointInFigure==='function' && pointInFigure(f,x,y)) return f; }catch(e){}
-  }
-  // si no hay prueba exacta, se usa la distancia al centro
-  let mejor=null, dm=Infinity;
-  figures.forEach(f=>{
-    const d = Math.hypot(f.cx-x, f.cy-y);
-    if(d<dm){ dm=d; mejor=f; }
-  });
-  const esc = (typeof scale!=='undefined' && scale) ? scale : 40;
-  return (dm*esc < 60) ? mejor : null;
-}
 
 function setHerramienta(t){
   herramienta = t;
   // 'pan' se incluye para que el botón de desplazamiento comparta el mismo
   // sistema de herramientas excluyentes que usa el Cap. 7.
-  ['pan','mover','sel'].forEach(k=>{
+  ['pan','sel'].forEach(k=>{
     const b = document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(b) b.classList.toggle('active', k===t);
   });
+  // El botón Eliminar no sigue el patrón de id 't'+Nombre, se marca aparte.
+  const bd = document.getElementById('btnDel');
+  if(bd) bd.classList.toggle('active', t==='borrar');
   if(t!=='sel'){ selFiguras=[]; actualizarInfoSel(); }
   const c = document.getElementById('mainCanvas');
-  if(c) c.style.cursor = (t==='pan') ? 'grab' : (t==='mover' ? 'move' : 'default');
+  if(c) c.style.cursor = (t==='pan') ? 'grab' : 'default';
   const hint = document.getElementById('canvasHint');
   const hints = {
     pan:  'Arrastra el lienzo para desplazar la vista.',
-    mover:'Arrastra una figura para moverla.',
-    sel:  'Toca para seleccionar (varias) · doble clic para editar sus propiedades.'
+    sel:  'Toca para seleccionar (varias) · mantén presionado y arrastra para mover · doble clic para editar.',
+    borrar: 'Toca una figura para borrarla · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varias (un arrastre rápido solo desplaza el panel).'
   };
   if(hint) hint.textContent = hints[t] || '';
   render();
@@ -2367,22 +2646,219 @@ function actualizarInfoSel(){
     : 'Nada seleccionado';
 }
 // Eliminar: ahora borra TODAS las marcadas
+// Botón "Eliminar" (mismo contrato que activarEliminar() de cap6): si ya hay
+// figuras marcadas con Mover / editar, las borra de inmediato. Si no hay nada
+// marcado, activa la herramienta de borrado interactivo.
+function activarEliminar(){
+  if(selFiguras.length){ eliminarFiguraSel(); return; }
+  setHerramienta('borrar');
+}
+
 function eliminarFiguraSel(){
   if(!selFiguras.length){
-    alert('Primero selecciona una o más figuras con la herramienta Ver / editar.');
+    aviso('Primero selecciona una o más figuras con la herramienta Mover / editar.');
     return;
   }
-  selFiguras.slice().forEach(id=>{ try{ deleteFigure(id); }catch(e){} });
+  registrarCambio();
+  figures = figures.filter(f=>selFiguras.indexOf(f.id) < 0);
+  if(selFiguras.indexOf(selectedFigId) >= 0) selectFigure(null);
   selFiguras = [];
-  actualizarInfoSel();
+  results = null; renderFigList(); actualizarInfoSel(); render();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TRANSFORMAR: mover o girar la selección respecto a una coordenada
+// ═══════════════════════════════════════════════════════════
+// Equivale al Transformar de cap6, con dos diferencias propias del Cap. 9:
+//   · allí la referencia es un NUDO del modelo; aquí no hay nudos, así que se
+//     ofrece el origen, el centro de cualquier figura marcada, o una
+//     coordenada (x, y) escrita a mano;
+//   · una figura además tiene ORIENTACIÓN, así que girar el conjunto obliga a
+//     girar cada figura sobre sí misma, no solo a mover su centro. Sin eso, un
+//     grupo girado 45° quedaría con las piezas desalineadas entre sí.
+let transModo = 'mover';
+
+function abrirTransformar(){
+  if(!selFiguras.length){
+    aviso('Marca al menos una figura con la herramienta Mover / editar para transformarla.');
+    return;
+  }
+  const sel = document.getElementById('transRef');
+  const opciones = ['<option value="origen">Origen (0 ; 0)</option>'];
+  selFiguras.forEach(id=>{
+    const f = figures.find(z=>z.id===id);
+    if(f) opciones.push('<option value="fig:'+f.id+'">Centro de '+esc(f.name)
+      + (f.etiqueta ? ' ' + esc(f.etiqueta) : '')
+      + '  ('+decP(f.cx,'len')+' ; '+decP(f.cy,'len')+')</option>');
+  });
+  opciones.push('<option value="libre">Coordenada a elegir…</option>');
+  sel.innerHTML = opciones.join('');
+  document.getElementById('transSub').textContent =
+    'Se transformarán ' + selFiguras.length + ' figura(s). Al girar, la referencia '
+    + 'queda fija y es el centro de rotación; al mover, toda la selección se desplaza por igual.';
+  cambiarRefTrans();
+  setTransModo('mover');
+  document.getElementById('transModal').classList.add('show');
+}
+function closeTransformar(){ document.getElementById('transModal').classList.remove('show'); }
+
+function cambiarRefTrans(){
+  const v = document.getElementById('transRef').value;
+  document.getElementById('transCampoRef').style.display = (v==='libre') ? 'block' : 'none';
+  actualizarPrevTrans();
+}
+
+function setTransModo(m){
+  transModo = m;
+  document.getElementById('transCampoMover').style.display = (m==='mover') ? 'block' : 'none';
+  document.getElementById('transCampoGirar').style.display = (m==='girar') ? 'block' : 'none';
+  const a = document.getElementById('transTabMover'), b = document.getElementById('transTabGirar');
+  if(a) a.classList.toggle('active', m==='mover');
+  if(b) b.classList.toggle('active', m==='girar');
+  actualizarPrevTrans();
+}
+
+// Punto de referencia elegido, en coordenadas del mundo.
+function refTransformar(){
+  const v = document.getElementById('transRef').value;
+  const num = id => { const e=document.getElementById(id); const n=parseFloat(e && e.value); return isFinite(n)?n:0; };
+  if(v === 'origen') return {x:0, y:0, nombre:'el origen'};
+  if(v === 'libre')  return {x:num('transRx'), y:num('transRy'), nombre:'la coordenada indicada'};
+  const id = parseInt(String(v).split(':')[1]);
+  const f = figures.find(z=>z.id===id);
+  if(!f) return null;
+  return {x:f.cx, y:f.cy, nombre:'el centro de ' + f.name};
+}
+
+// Calcula el resultado sin aplicarlo todavía, para la vista previa.
+function calcularTransformacion(){
+  const ref = refTransformar();
+  if(!ref) return null;
+  const num = id => { const e=document.getElementById(id); const n=parseFloat(e && e.value); return isFinite(n)?n:0; };
+  const destinos = [];
+  if(transModo === 'mover'){
+    const dx = num('transDx'), dy = num('transDy');
+    selFiguras.forEach(id=>{
+      const f = figures.find(z=>z.id===id); if(!f) return;
+      // En un desplazamiento se mueve TODA la selección por igual: la
+      // referencia solo queda fija cuando se gira.
+      destinos.push({id, cx:f.cx+dx, cy:f.cy+dy, rotation:f.rotation});
+    });
+    return {ref, destinos, dx, dy};
+  }
+  const grados = num('transAng');
+  const ang = grados*Math.PI/180;
+  const cs = Math.cos(ang), sn = Math.sin(ang);
+  selFiguras.forEach(id=>{
+    const f = figures.find(z=>z.id===id); if(!f) return;
+    // Rotación 2D estándar del centro alrededor de la referencia, más el mismo
+    // giro aplicado a la orientación propia de la figura: el conjunto se mueve
+    // como un sólido rígido.
+    const ux = f.cx - ref.x, uy = f.cy - ref.y;
+    destinos.push({id,
+      cx: ref.x + ux*cs - uy*sn,
+      cy: ref.y + ux*sn + uy*cs,
+      rotation: f.rotation + grados});
+  });
+  return {ref, destinos, ang:grados};
+}
+
+function actualizarPrevTrans(){
+  const p = document.getElementById('transPrev');
+  if(!p) return;
+  const t = calcularTransformacion();
+  if(!t){ p.textContent = 'Elige una referencia válida.'; return; }
+  if(transModo === 'mover'){
+    p.textContent = 'Las ' + t.destinos.length + ' figura(s) se desplazan ('
+      + decP(t.dx,'len') + ' ; ' + decP(t.dy,'len') + ') ' + unit
+      + ', midiendo desde ' + t.ref.nombre + '.';
+  } else {
+    p.textContent = 'Las ' + t.destinos.length + ' figura(s) giran ' + t.ang
+      + '° alrededor de ' + t.ref.nombre + ' (' + decP(t.ref.x,'len') + ' ; '
+      + decP(t.ref.y,'len') + ') ' + unit + ', arrastrando su propia orientación.';
+  }
+}
+
+function applyTransformar(){
+  const t = calcularTransformacion();
+  if(!t){ aviso('Elige una referencia válida.', 'error'); return; }
+  if(transModo === 'mover' && t.dx === 0 && t.dy === 0){
+    aviso('Indica un desplazamiento en x o en y.'); return;
+  }
+  if(transModo === 'girar' && t.ang === 0){
+    aviso('Indica un ángulo de giro distinto de cero.'); return;
+  }
+  registrarCambio();   // un solo paso de deshacer para todo el lote
+  // El giro NUNCA se engancha a la rejilla: redondear cada centro alteraría
+  // las distancias entre figuras y deformaría la sección. En cap6 esto llegó a
+  // cambiar una barra de 6 a 6.10 en un giro de 37°.
+  t.destinos.forEach(d=>{
+    const f = figures.find(z=>z.id===d.id);
+    if(!f) return;
+    f.cx = d.cx; f.cy = d.cy; f.rotation = d.rotation;
+  });
+  results = null;
+  closeTransformar();
+  updatePropPanel(); renderFigList(); actualizarInfoSel(); render();
+}
+
+// ── Replicar selección (copiar figuras desplazadas N veces) ──
+function abrirReplicar(){
+  if(!selFiguras.length){
+    aviso('Elige la herramienta Mover / editar y marca al menos una figura para replicar.');
+    return;
+  }
+  document.getElementById('repSub').textContent =
+    'Se replicarán ' + selFiguras.length + ' figura(s), desplazándolas la distancia indicada tantas veces como pidas.';
+  actualizarPrevRep();
+  document.getElementById('repModal').classList.add('show');
+}
+function closeReplicar(){ document.getElementById('repModal').classList.remove('show'); }
+function actualizarPrevRep(){
+  const g = id => parseFloat(document.getElementById(id).value) || 0;
+  const dx = g('repDx'), dy = g('repDy');
+  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
+  const base = figures.find(f=>f.id===selFiguras[0]);
+  const el = document.getElementById('repPrev');
+  if(!el || !base) return;
+  let t = 'Desde (' + decP(base.cx,'len') + ' ; ' + decP(base.cy,'len') + ') ' + unit + ' → ';
+  const p = [];
+  for(let i=1;i<=Math.min(nrep,3);i++)
+    p.push('(' + decP(base.cx+dx*i,'len') + ' ; ' + decP(base.cy+dy*i,'len') + ')');
+  el.innerHTML = t + p.join(', ') + (nrep>3 ? ' …' : '');
+}
+function applyReplicar(){
+  const g = id => parseFloat(document.getElementById(id).value) || 0;
+  const dx = g('repDx'), dy = g('repDy');
+  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
+  if(dx === 0 && dy === 0){ aviso('Indica un desplazamiento en x o en y.'); return; }
+  registrarCambio();
+  const orig = selFiguras.slice();
+  const nuevas = [];
+  for(let i=1;i<=nrep;i++){
+    orig.forEach(id=>{
+      const o = figures.find(z=>z.id===id);
+      if(!o) return;
+      const nf = Object.assign({}, o, {dims:Object.assign({},o.dims)});
+      nf.id = ++figIdCounter;
+      nf.cx = o.cx + dx*i;
+      nf.cy = o.cy + dy*i;
+      figures.push(nf);
+      nuevas.push(nf.id);
+    });
+  }
+  results = null;
+  selFiguras = nuevas;
+  selectFigure(nuevas.length ? nuevas[nuevas.length-1] : null);
+  closeReplicar(); renderFigList(); actualizarInfoSel(); render();
 }
 
 // El botón de desplazamiento activa el modo 'pan' como una herramienta más
 // (antes solo alternaba una clase CSS y no cambiaba el comportamiento).
-function togglePanTool(){ setHerramienta(herramienta==='pan' ? 'sel' : 'pan'); }
+function togglePanTool(){ setHerramienta('pan'); }
 
 function calculate(){
-  if(!figures.length){ alert('Agrega al menos una figura.'); return; }
+  if(!figures.length){ aviso('Agrega al menos una figura.'); return; }
 
   const u2 = unit+'²';
   const u1 = unit;
@@ -2400,12 +2876,13 @@ function calculate(){
     const mat = hetero ? matPorId(fig.matId) : null;
     const g = mat ? Number(mat.val) : 1;            // peso específico o densidad
     const gLabel = mat ? (matSimbolo()+mat.id) : '—';
-    const w = a*g;
+    const t = hetero ? (fig.thickness || 1) : 1;     // espesor perpendicular al plano XY
+    const w = a*g*t;
     A+=a;  Qx+=a*fig.cy;  Qy+=a*fig.cx;
     W+=w;  Wx+=w*fig.cx;  Wy+=w*fig.cy;
-    steps.push({fig, a, g, gLabel, mat, w, xi:fig.cx, yi:fig.cy, ax:a*fig.cx, ay:a*fig.cy, wx:w*fig.cx, wy:w*fig.cy});
+    steps.push({fig, a, g, gLabel, mat, t, w, xi:fig.cx, yi:fig.cy, ax:a*fig.cx, ay:a*fig.cy, wx:w*fig.cx, wy:w*fig.cy});
   }
-  if(Math.abs(A)<1e-12){ alert('El área total es cero. Revisa las figuras negativas.'); return; }
+  if(Math.abs(A)<1e-12){ aviso('El área total es cero. Revisa las figuras negativas.', 'error'); return; }
 
   const xbar = Qy/A,  ybar = Qx/A;          // centroide geométrico
   const xg   = Math.abs(W)>1e-12 ? Wx/W : xbar;
@@ -2478,13 +2955,7 @@ function renderKatex(root){
   });
 }
 
-function setNotation(exp){
-  notationExp = exp;
-  document.querySelectorAll('.notbtn').forEach(b=>b.classList.remove('active'));
-  const btn = document.getElementById('not-'+exp);
-  if(btn) btn.classList.add('active');
-  if(results) renderResults(results, currentU4, currentU2, currentU1);
-}
+
 let currentU4='', currentU2='', currentU1='';
 
 
@@ -2496,107 +2967,7 @@ function esc(v){
 }
 
 
-// ═══ Gráfica resumen: centroide C, centro de masa/gravedad G ═══
-// Las etiquetas se separan automáticamente para que nunca se superpongan.
-function graficaCentros(res){
-  const W=560, H=330, M=54;
-  // caja envolvente de todas las figuras
-  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
-  figures.forEach(f=>{
-    const def=FIG_DEFS[f.type]; if(!def) return;
-    let b; try{ b=def.bounds(f.dims); }catch(e){ return; }
-    const rot=(f.rotation||0)*Math.PI/180, cr=Math.cos(rot), sr=Math.sin(rot);
-    [[b.left,b.bottom],[b.right,b.bottom],[b.right,b.top],[b.left,b.top]].forEach(([lx,ly])=>{
-      const wx=(f.cx||0)+lx*cr-ly*sr, wy=(f.cy||0)+lx*sr+ly*cr;
-      x0=Math.min(x0,wx); y0=Math.min(y0,wy); x1=Math.max(x1,wx); y1=Math.max(y1,wy);
-    });
-  });
-  [[res.xbar,res.ybar],[res.xg,res.yg]].forEach(([a,b])=>{
-    if(isFinite(a)&&isFinite(b)){ x0=Math.min(x0,a); x1=Math.max(x1,a); y0=Math.min(y0,b); y1=Math.max(y1,b); }
-  });
-  if(!isFinite(x0)) return '';
-  const bw=Math.max(x1-x0,1e-9), bh=Math.max(y1-y0,1e-9);
-  const s=Math.min((W-2*M)/bw,(H-2*M)/bh);
-  const px=x=>M+(x-x0)*s, py=y=>H-M-(y-y0)*s;
 
-  let g='';
-  // contornos de las figuras, en gris para no competir con los puntos
-  figures.forEach(f=>{
-    const def=FIG_DEFS[f.type]; if(!def) return;
-    const cmds=[];
-    const fake={moveTo:(x,y)=>cmds.push(['M',x,y]),lineTo:(x,y)=>cmds.push(['L',x,y]),
-      closePath:()=>cmds.push(['Z']),beginPath:()=>{},ellipse:()=>{},
-      bezierCurveTo:(a,b2,c,d,e,f2)=>cmds.push(['L',e,f2]),
-      quadraticCurveTo:(a,b2,c,d)=>cmds.push(['L',c,d]),
-      arc:(cx,cy,r,a0,a1)=>{const n=26;for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;
-        cmds.push([cmds.length?'L':'M',cx+r*Math.cos(a),cy+r*Math.sin(a)]);}}};
-    try{ def.draw(fake,f.dims); }catch(e){ return; }
-    const rot=(f.rotation||0)*Math.PI/180, cr=Math.cos(rot), sr=Math.sin(rot);
-    let d='';
-    cmds.forEach(c=>{
-      if(c[0]==='Z'){ d+='Z'; return; }
-      const wx=(f.cx||0)+c[1]*cr-c[2]*sr, wy=(f.cy||0)+c[1]*sr+c[2]*cr;
-      d+=c[0]+px(wx).toFixed(1)+','+py(wy).toFixed(1)+' ';
-    });
-    g+=`<path d="${d}" fill="${f.color}" fill-opacity="${f.sign<0?0.07:0.16}"
-          stroke="${f.color}" stroke-width="1.3" stroke-dasharray="${f.sign<0?'4 3':'0'}"/>`;
-  });
-
-  // ejes de referencia
-  g+=`<line x1="${M-14}" y1="${py(y0)}" x2="${W-M+14}" y2="${py(y0)}" stroke="#94a3b8" stroke-width="1"/>`;
-  g+=`<line x1="${px(x0)}" y1="${H-M+14}" x2="${px(x0)}" y2="${M-14}" stroke="#94a3b8" stroke-width="1"/>`;
-  g+=`<text x="${W-M+18}" y="${py(y0)+4}" font-size="10" fill="#64748b">x</text>`;
-  g+=`<text x="${px(x0)-4}" y="${M-18}" font-size="10" fill="#64748b" text-anchor="end">y</text>`;
-
-  // ── puntos a mostrar, con anti-superposición de etiquetas ──
-  const pts=[];
-  pts.push({x:res.xbar,y:res.ybar,col:'#e2aa1b',ring:'#b8860c',lab:'C',
-            desc:'Centroide',v:'('+decFix(res.xbar,'len')+' , '+decFix(res.ybar,'len')+')'});
-  if(res.hetero && res.sep>1e-9){
-    pts.push({x:res.xg,y:res.yg,col:'#c0392b',ring:'#96281b',lab:'G',
-              desc:'Centro de gravedad / masa',v:'('+decFix(res.xg,'len')+' , '+decFix(res.yg,'len')+')'});
-  }
-  // segmento entre ambos
-  if(pts.length===2){
-    g+=`<line x1="${px(pts[0].x)}" y1="${py(pts[0].y)}" x2="${px(pts[1].x)}" y2="${py(pts[1].y)}"
-          stroke="#c0392b" stroke-width="1.5" stroke-dasharray="5 3" opacity=".8"/>`;
-    const mx=(px(pts[0].x)+px(pts[1].x))/2, my=(py(pts[0].y)+py(pts[1].y))/2;
-    g+=`<text x="${mx}" y="${my-7}" font-size="9.5" font-weight="700" fill="#c0392b"
-          text-anchor="middle">d = ${decFix(res.sep,'len')} ${unit}</text>`;
-  }
-
-  // colocación de etiquetas: se prueban cuatro posiciones y se elige la libre
-  const cajas=[];
-  const libre=(a)=>!cajas.some(b=>!(a.x1<b.x0||a.x0>b.x1||a.y1<b.y0||a.y0>b.y1));
-  pts.forEach(p=>{
-    const cx=px(p.x), cy=py(p.y);
-    const w=Math.max(p.desc.length,p.v.length)*5.3+14, hh=27;
-    const cand=[[cx+13,cy-hh-6],[cx+13,cy+8],[cx-w-13,cy-hh-6],[cx-w-13,cy+8],[cx-w/2,cy-hh-16]];
-    let px0=cand[0][0], py0=cand[0][1];
-    for(const [a,b] of cand){
-      const caja={x0:a,x1:a+w,y0:b,y1:b+hh};
-      if(a>2 && a+w<W-2 && b>2 && b+hh<H-2 && libre(caja)){ px0=a; py0=b; break; }
-    }
-    cajas.push({x0:px0,x1:px0+w,y0:py0,y1:py0+hh});
-    g+=`<line x1="${cx}" y1="${cy}" x2="${px0<cx?px0+w:px0}" y2="${py0+hh/2}"
-          stroke="${p.ring}" stroke-width=".9" opacity=".5"/>`;
-    g+=`<rect x="${px0}" y="${py0}" width="${w}" height="${hh}" rx="5"
-          fill="#fff" stroke="${p.ring}" stroke-width="1"/>`;
-    g+=`<text x="${px0+7}" y="${py0+12}" font-size="9.5" font-weight="800" fill="${p.ring}">${p.lab} · ${p.desc}</text>`;
-    g+=`<text x="${px0+7}" y="${py0+23}" font-size="9.5" fill="#475569">${p.v} ${unit}</text>`;
-    g+=`<circle cx="${cx}" cy="${cy}" r="6" fill="${p.col}" stroke="#fff" stroke-width="1.8"/>`;
-    g+=`<circle cx="${cx}" cy="${cy}" r="6" fill="none" stroke="${p.ring}" stroke-width="1"/>`;
-  });
-
-  const nota = res.hetero
-    ? 'El centro de gravedad y el centro de masa coinciden en un campo gravitatorio uniforme, y se separan del centroide porque los materiales tienen distinto peso.'
-    : 'Al ser un cuerpo homogéneo, el centroide, el centro de masa y el centro de gravedad son el mismo punto.';
-
-  return `<div class="graf-box">
-      <svg viewBox="0 0 ${W} ${H}" class="graf-svg">${g}</svg>
-      <div class="graf-nota">${nota}</div>
-    </div>`;
-}
 
 // ═══ Croquis individual acotado de una figura (punto 5) ═══
 // Cada figura se dibuja aislada, con sus medidas y su centroide propio.
@@ -2604,10 +2975,6 @@ function croquisFigura(fig, idx){
   const def=FIG_DEFS[fig.type]; if(!def) return '';
   let b; try{ b=def.bounds(fig.dims); }catch(e){ return ''; }
   const W=190, H=150, M=30;                       // lienzo y margen para cotas
-  const bw=Math.max(b.right-b.left,1e-9), bh=Math.max(b.top-b.bottom,1e-9);
-  const s=Math.min((W-2*M)/bw, (H-2*M)/bh);
-  const px = x => M + (x-b.left)*s;
-  const py = y => H-M - (y-b.bottom)*s;           // Y hacia arriba
 
   // contorno de la figura mediante muestreo del trazado
   let path='';
@@ -2620,6 +2987,24 @@ function croquisFigura(fig, idx){
     quadraticCurveTo:(a,bb,c,d)=>cmds.push(['L',c,d]),
     beginPath:()=>{}, ellipse:()=>{} };
   try{ def.draw(ctxFake, fig.dims); }catch(e){}
+
+  // El encuadre se calcula DESPUÉS de muestrear: se une la caja declarada con
+  // la caja real del trazado, así ninguna figura puede salirse del recuadro
+  // aunque su bounds esté mal. (El sector circular se cortaba por esto.)
+  const puntos = cmds.filter(c=>c[0]!=='Z');
+  if(puntos.length){
+    b = {
+      left:   Math.min(b.left,   ...puntos.map(c=>c[1])),
+      right:  Math.max(b.right,  ...puntos.map(c=>c[1])),
+      bottom: Math.min(b.bottom, ...puntos.map(c=>c[2])),
+      top:    Math.max(b.top,    ...puntos.map(c=>c[2]))
+    };
+  }
+  const bw=Math.max(b.right-b.left,1e-9), bh=Math.max(b.top-b.bottom,1e-9);
+  const s=Math.min((W-2*M)/bw, (H-2*M)/bh);
+  const px = x => M + (x-b.left)*s;
+  const py = y => H-M - (y-b.bottom)*s;           // Y hacia arriba
+
   cmds.forEach(c=>{
     if(c[0]==='Z'){ path+='Z'; return; }
     path += c[0] + px(c[1]).toFixed(1) + ',' + py(c[2]).toFixed(1) + ' ';
@@ -2815,7 +3200,7 @@ function renderResults(res, u4, u2, u1){
   // ══════════════════════════════════════════════════
   html += `<div class="res-section">
     <div class="res-section-title"><div class="num" style="background:var(--grn)">✎</div>Sección compuesta — visualización con cotas</div>
-    <canvas id="compositeCanvas" style="width:100%;height:350px;display:block;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
+    <canvas id="compositeCanvas" style="width:100%;max-width:860px;height:420px;display:block;margin:0 auto;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
     <div style="font-size:10px;color:var(--muted);margin-top:6px;">
       Área que <b style="color:var(--grn2)">suma</b> = sólido &nbsp;|&nbsp;
       Área que <b style="color:#c0392b">resta</b> = trama (//) &nbsp;|&nbsp; G = centroide
@@ -2951,7 +3336,7 @@ function renderResults(res, u4, u2, u1){
   // ══════════════════════════════════════════════════
   html += `<div class="res-section">
     <div class="res-section-title"><div class="num">4</div>Sección resuelta — ubicación de ${het?'C y G':'C'}</div>
-    <canvas id="finalCanvas" style="width:100%;height:340px;display:block;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
+    <canvas id="finalCanvas" style="width:100%;max-width:860px;height:400px;display:block;margin:0 auto;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
     <div style="font-size:10px;color:var(--muted);margin-top:6px;">
       Sección con los huecos ya descontados. <b style="color:#b8860c">C</b> = centro geométrico (centroide)${het?` &nbsp;·&nbsp; <b style="color:#c0392b">G</b> = centro de gravedad y centro de masa`:``}
     </div>
@@ -3030,236 +3415,13 @@ function computeExtraPoint(res){
   }
   return out;
 }
-function analyzeAxisAngle(){
-  if(!results||!extraPoint){ return; }
-  const ai=document.getElementById('epAng');
-  const a=parseFloat(ai&&ai.value);
-  if(!isFinite(a)){ alert('Ingresa el ángulo de rotación de los ejes (en grados, respecto al eje X).'); return; }
-  axisAngle = a;
-  renderResults(results, currentU4, currentU2, currentU1);
-  render();
-}
-function clearAxisAngle(){
-  axisAngle = null;
-  if(results){ renderResults(results, currentU4, currentU2, currentU1); render(); }
-}
-function analyzePoint(){
-  if(!results){ return; }
-  const xi=document.getElementById('epX'), yi=document.getElementById('epY');
-  const x=parseFloat(xi&&xi.value), y=parseFloat(yi&&yi.value);
-  if(!isFinite(x)||!isFinite(y)){ alert('Ingresa las coordenadas X e Y del punto a analizar.'); return; }
-  extraPoint = {x, y};
-  renderResults(results, currentU4, currentU2, currentU1);
-  render();
-}
-function clearExtraPoint(){
-  extraPoint = null; axisAngle = null;
-  if(results){ renderResults(results, currentU4, currentU2, currentU1); render(); }
-}
 
 
-function drawMohr(data, target, override){
-  target = target || 'mohrCanvas';
-  const c = (typeof target==='string') ? document.getElementById(target) : target;
-  if(!c) return;
-  override = override || {};
-  const dpr = override.res || window.devicePixelRatio || 1;
-  const W = override.W || c.clientWidth || 800;
-  const H = override.H || c.clientHeight || 320;
-  c.width=W*dpr; c.height=H*dpr;
-  const cx2=c.getContext('2d'); cx2.setTransform(dpr,0,0,dpr,0,0);
 
-  const PAD=48; // padding for axis labels
-  const cw=W-PAD, ch=H-PAD; // drawable area
-  const ox=PAD, oy=H-PAD; // origin screen position (bottom-left of drawable area)
 
-  const avg=(data.Ix+data.Iy)/2;
-  const R=Math.sqrt(Math.pow((data.Ix-data.Iy)/2,2)+data.Ixy*data.Ixy);
 
-  // World extent: center = avg on X, 0 on Y, radius R
-  // Add 15% margin so circle doesn't touch edges
-  const xRange = R>0 ? R*2.3 : Math.max(Math.abs(res.Ix-avg),Math.abs(res.Iy-avg))*2.3||100;
-  const yRange = R>0 ? R*2.3 : Math.max(Math.abs(res.Ixy),1)*2.3||100;
-  const scaleX = cw/xRange;
-  const scaleY = ch/yRange;
-  const scale = Math.min(scaleX,scaleY);
 
-  // Screen transform: world(I, Ixy) -> screen(sx, sy)
-  const sx = (I) => ox + (I-avg)*scale + cw/2;
-  const sy = (Ixy) => oy - Ixy*scale - ch/2 + ch/2; // flip Y
 
-  // Redefine: center of drawable area
-  const cx_s = ox + cw/2;   // screen x of avg
-  const cy_s = oy - ch/2;   // screen y of 0
-
-  // Helper
-  const toScreen = (I, Ixy) => ({x: cx_s + (I-avg)*scale, y: cy_s - Ixy*scale});
-
-  // Auto format for axis labels
-  const fmtAxis = (v) => {
-    const abs=Math.abs(v); if(abs===0) return '0';
-    if(abs>=1e6) return (v/1e6).toFixed(1)+'M';
-    if(abs>=1e3) return (v/1e3).toFixed(1)+'k';
-    if(abs<0.001) return v.toExponential(1);
-    return parseFloat(v.toPrecision(3)).toString();
-  };
-
-  cx2.clearRect(0,0,W,H);
-  cx2.fillStyle='#ffffff'; cx2.fillRect(0,0,W,H);
-
-  // Grid lines & axis ticks
-  cx2.font='bold 11px Inter'; cx2.fillStyle='rgba(30,33,38,.72)'; cx2.textAlign='center';
-
-  // X axis ticks: Imin, avg, Imax
-  const xTicks = [avg-R, avg, avg+R];
-  const xLabels = ['Iₘᵢₙ', 'avg', 'Iₘₐₓ'];
-  cx2.strokeStyle='rgba(30,33,38,.08)'; cx2.lineWidth=0.5;
-  for(let i=0;i<xTicks.length;i++){
-    const spx = toScreen(xTicks[i],0).x;
-    // vertical grid line
-    cx2.beginPath(); cx2.moveTo(spx, PAD/2); cx2.lineTo(spx, cy_s+ch/2+4); cx2.stroke();
-    // tick label
-    cx2.fillStyle='rgba(30,33,38,.42)';
-    cx2.fillText(fmtAxis(xTicks[i]), spx, cy_s+ch/2+14);
-  }
-  // Y axis ticks: -R, 0, R (Ixy values)
-  const yTicks = R>0 ? [-R,0,R] : [-1,0,1];
-  cx2.textAlign='right';
-  for(const ytick of yTicks){
-    const spy = toScreen(avg, ytick).y;
-    cx2.strokeStyle='rgba(30,33,38,.08)'; cx2.lineWidth=0.5;
-    cx2.beginPath(); cx2.moveTo(ox-4, spy); cx2.lineTo(cx_s+cw/2, spy); cx2.stroke();
-    cx2.fillStyle='rgba(30,33,38,.42)';
-    cx2.fillText(fmtAxis(ytick), ox-6, spy+3);
-  }
-
-  // Axis lines
-  cx2.strokeStyle='rgba(30,33,38,.25)'; cx2.lineWidth=1;
-  // X axis (Ixy=0)
-  cx2.beginPath(); cx2.moveTo(ox-4, cy_s); cx2.lineTo(ox+cw, cy_s); cx2.stroke();
-  // Y axis (I=avg) — center vertical
-  cx2.beginPath(); cx2.moveTo(cx_s, PAD/2); cx2.lineTo(cx_s, oy+4); cx2.stroke();
-
-  // Axis labels
-  cx2.fillStyle='#1e2126'; cx2.font='bold 13px Inter';
-  cx2.textAlign='right';
-  cx2.fillText('I  (Ix , Iy) →', ox+cw-4, cy_s-8);
-  cx2.textAlign='center';
-  cx2.fillText('Ixy', cx_s, PAD/2-2);
-
-  // Circle
-  if(R>0){
-    cx2.strokeStyle='rgba(228,172,23,.9)'; cx2.lineWidth=1.5;
-    cx2.beginPath(); cx2.arc(cx_s, cy_s, R*scale, 0, 2*Math.PI); cx2.stroke();
-  }
-
-  // Data points (Ix, Ixy) and (Iy, -Ixy)
-  const p1 = toScreen(data.Ix, data.Ixy);
-  const p2 = toScreen(data.Iy, -data.Ixy);
-  cx2.fillStyle='#0d3a8f';
-  cx2.beginPath(); cx2.arc(p1.x,p1.y,4,0,Math.PI*2); cx2.fill();
-  cx2.beginPath(); cx2.arc(p2.x,p2.y,4,0,Math.PI*2); cx2.fill();
-
-  // Labels for data points
-  // Etiquetas con contraste real (antes eran rosa claro sobre blanco: ilegibles)
-  const tag=(txt,X,Y,color,align)=>{
-    cx2.font='bold 12px Inter'; cx2.textAlign=align||'left';
-    const w=cx2.measureText(txt).width+8;
-    const bx = align==='right' ? X-w : X;
-    cx2.fillStyle='rgba(255,255,255,.88)';
-    cx2.fillRect(bx-2, Y-12, w, 16);
-    cx2.fillStyle=color; cx2.fillText(txt, X, Y);
-  };
-  // A = eje X  ·  B = eje Y
-  cx2.strokeStyle='#0d3a8f'; cx2.lineWidth=2;
-  tag('A ( Ix , Ixy )  ← eje X', p1.x+8, p1.y-6, '#0d3a8f','left');
-  tag('B ( Iy , −Ixy )  ← eje Y', p2.x+8, p2.y+16, '#0d3a8f','left');
-
-  // Diameter line
-  cx2.strokeStyle='rgba(240,192,64,.35)'; cx2.lineWidth=1; cx2.setLineDash([4,3]);
-  cx2.beginPath(); cx2.moveTo(p1.x,p1.y); cx2.lineTo(p2.x,p2.y); cx2.stroke();
-  cx2.setLineDash([]);
-
-  // Principal points
-  const pmax = toScreen(avg+R, 0);
-  const pmin = toScreen(avg-R, 0);
-  cx2.fillStyle='#f0c040';
-  cx2.beginPath(); cx2.arc(pmax.x,cy_s,5,0,Math.PI*2); cx2.fill();
-  cx2.beginPath(); cx2.arc(pmin.x,cy_s,5,0,Math.PI*2); cx2.fill();
-  cx2.fillStyle='#a9791f'; cx2.font='bold 12px Inter';
-  cx2.textAlign='left';  cx2.fillText('Imax',pmax.x+8,cy_s+18);
-  cx2.textAlign='right'; cx2.fillText('Imin',pmin.x-8,cy_s+18);
-
-  // ── Ángulo de giro de los ejes (2θp en el círculo → θp en la sección) ──
-  if(R>0){
-    const a1=Math.atan2(-(p1.y-cy_s), p1.x-cx_s);   // ángulo del radio C→A (Y hacia arriba)
-    const ar=R*scale;
-    // radio C→A y radio C→Imax
-    cx2.strokeStyle='rgba(13,58,143,.55)'; cx2.lineWidth=1.5; cx2.setLineDash([5,3]);
-    cx2.beginPath(); cx2.moveTo(cx_s,cy_s); cx2.lineTo(p1.x,p1.y); cx2.stroke();
-    cx2.setLineDash([]);
-    cx2.strokeStyle='#c0392b'; cx2.lineWidth=2;
-    cx2.beginPath(); cx2.moveTo(cx_s,cy_s); cx2.lineTo(pmax.x,cy_s); cx2.stroke();
-    // arco de 2θp entre ambos radios
-    const rr=Math.max(22, Math.min(ar*0.45, 52));
-    cx2.strokeStyle='#c0392b'; cx2.lineWidth=2.5;
-    cx2.beginPath(); cx2.arc(cx_s, cy_s, rr, -a1, 0, a1<0); cx2.stroke();
-    // punta de flecha del arco
-    const aMid=-a1/2;
-    const hx=cx_s+rr*Math.cos(aMid), hy=cy_s+rr*Math.sin(aMid);
-    // rótulo 2θp y θp
-    const twoTheta = a1*180/Math.PI;
-    const thetaP   = twoTheta/2;
-    const lx=cx_s+(rr+16)*Math.cos(aMid), ly=cy_s+(rr+16)*Math.sin(aMid);
-    cx2.font='bold 13px Inter'; cx2.textAlign='left';
-    const txt='2θp = '+twoTheta.toFixed(DEC.ang)+'°';
-    const wl=cx2.measureText(txt).width+10;
-    cx2.fillStyle='rgba(255,255,255,.92)'; cx2.fillRect(lx-4, ly-13, wl, 18);
-    cx2.fillStyle='#c0392b'; cx2.fillText(txt, lx, ly);
-    // nota inferior: giro real de los ejes en la sección
-    cx2.font='bold 12px Inter'; cx2.textAlign='left';
-    cx2.fillStyle='#c0392b';
-    cx2.fillText('Giro de los ejes en la sección:  θp = '+thetaP.toFixed(DEC.ang)+'°   (2θp en el círculo)', ox-8, H-8);
-  }
-
-  // ── Rotación de ejes solicitada por el usuario: punto U(Iu,Iuv) y su radio ──
-  if(R>0 && override.rot && isFinite(override.rot.ang)){
-    const rt=override.rot;
-    const pu = toScreen(rt.Iu,  rt.Iuv);
-    const pv = toScreen(rt.Iv, -rt.Iuv);
-    // el giro en el círculo es el DOBLE del giro de los ejes
-    const aA=Math.atan2(-(p1.y-cy_s), p1.x-cx_s);
-    const aU=Math.atan2(-(pu.y-cy_s), pu.x-cx_s);
-    const rr2=Math.max(30, Math.min(R*scale*0.72, 74));
-    cx2.strokeStyle='#c0392b'; cx2.lineWidth=2.5;
-    cx2.beginPath(); cx2.arc(cx_s, cy_s, rr2, -aA, -aU, (aU-aA)>0); cx2.stroke();
-    // diámetro girado U–V
-    cx2.strokeStyle='rgba(192,57,43,.55)'; cx2.lineWidth=2; cx2.setLineDash([6,4]);
-    cx2.beginPath(); cx2.moveTo(pu.x,pu.y); cx2.lineTo(pv.x,pv.y); cx2.stroke();
-    cx2.setLineDash([]);
-    // puntos U y V
-    cx2.fillStyle='#c0392b';
-    cx2.beginPath(); cx2.arc(pu.x,pu.y,5,0,Math.PI*2); cx2.fill();
-    cx2.beginPath(); cx2.arc(pv.x,pv.y,5,0,Math.PI*2); cx2.fill();
-    const box=(txt,X,Y)=>{ cx2.font='bold 12px Inter'; cx2.textAlign='left';
-      const w=cx2.measureText(txt).width+8;
-      cx2.fillStyle='rgba(255,255,255,.9)'; cx2.fillRect(X-2,Y-12,w,16);
-      cx2.fillStyle='#c0392b'; cx2.fillText(txt,X,Y); };
-    box('U ( Iu , Puv )  ← eje u', pu.x+8, pu.y-6);
-    box('V ( Iv , −Puv ) ← eje v', pv.x+8, pv.y+16);
-    // rótulo del arco 2θ
-    const am2=-(aA+aU)/2;
-    const lx2=cx_s+(rr2+14)*Math.cos(am2), ly2=cy_s+(rr2+14)*Math.sin(am2);
-    box('2θ = '+decFix(2*rt.ang,'ang')+'°', lx2, ly2);
-    cx2.font='bold 12px Inter'; cx2.textAlign='right'; cx2.fillStyle='#c0392b';
-    cx2.fillText('Ejes girados θ = '+decFix(rt.ang,'ang')+'°', ox+cw, H-8);
-  }
-
-  // Center dot
-  cx2.fillStyle='rgba(30,33,38,.75)'; cx2.beginPath(); cx2.arc(cx_s,cy_s,4,0,Math.PI*2); cx2.fill();
-  cx2.font='bold 11px Inter'; cx2.fillStyle='rgba(30,33,38,.75)'; cx2.textAlign='center';
-  cx2.fillText('C', cx_s, cy_s-9);
-}
 
 // ═══════════════════════════════════════════════════════════
 //  CONTROLS
@@ -3298,8 +3460,8 @@ window.addEventListener('message', ev=>{
   histItems = Array.isArray(d.items)?d.items:[];
   histUser  = d.user||null;
   histRenderList();
-  const b=document.getElementById('histBtn');
-  if(b) b.style.display = histUser ? '' : 'none';   // sin sesión no tiene sentido
+  // El atajo "Mis ejercicios recientes" del panel de Configuración se retiró:
+  // el historial se abre desde su botón de la barra de herramientas.
 });
 function histFmtDate(ts){
   try{ const d=new Date(ts);
@@ -3329,10 +3491,10 @@ function histDel(id){ histPost({bsa:'hist:del', id:String(id)}); }
 let histSuppress=false;   // evita volver a guardar mientras se restaura
 function histLoad(id){
   const it=histItems.find(x=>String(x.id)===String(id));
-  if(!it||!it.state){ alert('No se encontró ese ejercicio en el historial.'); return; }
+  if(!it||!it.state){ aviso('No se encontró ese ejercicio en el historial.', 'error'); return; }
   histSuppress=true;
   try{ histRestore(it.state); closeHist(); }
-  catch(e){ alert('No se pudo abrir ese ejercicio guardado.'); }
+  catch(e){ aviso('No se pudo abrir ese ejercicio guardado.', 'error'); }
   finally{ setTimeout(()=>{ histSuppress=false; }, 400); }
 }
 
@@ -3387,14 +3549,30 @@ function cerrarPanelSiMovil(){
   if(window.innerWidth<=820) setTimeout(()=>{ try{ cerrarSeccion(); }catch(e){} }, 180);
 }
 
-function setPaleta(cual){
-  const esPoli = (cual==='poligonos');
-  const a=document.getElementById('pal-poligonos'), b=document.getElementById('pal-circulos');
-  if(a) a.style.display = esPoli?'flex':'none';
-  if(b) b.style.display = esPoli?'none':'flex';
-  const ta=document.getElementById('pal-poli'), tb=document.getElementById('pal-circ');
-  if(ta) ta.classList.toggle('active', esPoli);
-  if(tb) tb.classList.toggle('active', !esPoli);
+// La paleta muestra 6 figuras (cuadrícula de 3 columnas, 2 filas) y esconde
+// el resto tras "Ver más". Antes eran dos pestañas con desplazamiento
+// horizontal, donde no había ninguna pista de que hubiera más figuras.
+const PAL_VISIBLES = 6;
+function alternarVerMas(){
+  const grid = document.getElementById('palGrid');
+  const btn  = document.getElementById('palMas');
+  const txt  = document.getElementById('palMasTxt');
+  if(!grid || !btn) return;
+  const abriendo = !btn.classList.contains('abierto');
+  const todos = grid.querySelectorAll('.fig-btn');
+  todos.forEach((b,i)=>{ b.classList.toggle('oculta', !abriendo && i >= PAL_VISIBLES); });
+  btn.classList.toggle('abierto', abriendo);
+  if(txt) txt.textContent = abriendo ? 'Ver menos' : 'Ver más';
+}
+
+// Si la figura elegida estaba entre las escondidas, se despliega la paleta
+// para que el botón marcado quede a la vista.
+function asegurarFiguraVisible(tipo){
+  const b = document.getElementById('figbtn-' + tipo);
+  const btn = document.getElementById('palMas');
+  if(b && b.classList.contains('oculta') && btn && !btn.classList.contains('abierto')){
+    alternarVerMas();
+  }
 }
 
 // ── Materiales que define el estudiante ──
@@ -3449,7 +3627,16 @@ function renderMats(){
 function asignarMaterial(v){
   const fig=figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  registrarCambio();
   fig.matId = v ? Number(v) : null;
+  if(results) calculate();
+  render();
+}
+function updateThickness(v){
+  const fig=figures.find(f=>f.id===selectedFigId);
+  if(!fig) return;
+  registrarCambio();
+  fig.thickness = parseFloat(v)||1;
   if(results) calculate();
   render();
 }
@@ -3663,24 +3850,109 @@ function fitView(){
   render();
 }
 function resetAll(){
+  registrarCambio();
   figures=[]; selectedFigId=null; selectedFigType=null; results=null; colorIdx=0;
   extraPoint=null;
   selectFigure(null); renderFigList();
   document.getElementById('resultsPanel').style.display='none';
   render();
 }
+// Ejemplo de referencia del capítulo: silueta compuesta por 18 figuras, con
+// giros y con dos figuras restadas. Sirve para ver de un vistazo el reparto de
+// cotas, los ángulos y el efecto de las figuras negativas.
+//
+// OJO con el sector circular: fig.dims.alpha guarda SIEMPRE el SEMIÁNGULO θ.
+// La tabla del enunciado da el ángulo TOTAL (2θ), así que se divide entre dos
+// y se deja angleMode:'total' para que el panel lo muestre como se pidió.
 function loadExampleSection(){
   resetAll();
-  // Sección compuesta de ejemplo: Rect + Triáng.Rect.② − Semicírculo
-  const r3 = 1.5, yc3 = 4 - 4*r3/(3*Math.PI);
-  figures = [
-    {id:++figIdCounter,type:'rect',       dims:{b:3,h:4}, cx:1.5,  cy:2.0,  rotation:0,sign:+1,color:COLORS[0],anchor:'C',activeAnchor:'C',name:'Rectángulo'},
-    {id:++figIdCounter,type:'rtriangle2', dims:{b:3,h:4}, cx:4.0,  cy:8/3,  rotation:0,sign:+1,color:COLORS[1],anchor:'C',activeAnchor:'C',name:'Triáng. Rect. ②'},
-    {id:++figIdCounter,type:'semicircle', dims:{r:1.5},   cx:3.0,  cy:yc3,  rotation:0,sign:-1,color:COLORS[2],anchor:'C',activeAnchor:'C',name:'Semicírculo'}
+  const DATOS = [
+    // tipo,          dims,               cx,       cy,      rot,   signo
+    ['rect',        {b:220,   h:352.15},  110,      176.07,     0,  +1],
+    ['rect',        {b:140,   h:160.39},  110,      432.35,     0,  +1],
+    ['rect',        {b:120,   h:75},      290.07,   279.85,   -24,  +1],
+    ['rect',        {b:120,   h:75},      -70.07,   279.85,    24,  +1],
+    ['rect',        {b:75,    h:160},     397.66,   369.49,     0,  +1],
+    ['rect',        {b:75,    h:160},     -106.64,  132.71,    27,  +1],
+    ['rtriangle',   {b:75,    h:33.53},   -10.13,   320.22,   -66,  +1],
+    ['rtriangle2',  {b:75,    h:33.53},   230.13,   320.22,    66,  +1],
+    ['rtriangle',   {b:50.7,  h:25.56},   443.68,   432.59,   -90,  +1],
+    ['rtriangle2',  {b:50.7,  h:25.56},   351.64,   432.17,    90,  +1],
+    ['rtriangle',   {b:50.7,  h:25.56},   -118.54,  55.54,    117,  +1],
+    ['rtriangle2',  {b:50.7,  h:25.56},   -36.65,   97.56,    -63,  +1],
+    ['circle',      {r:25},               110,      446.93,     0,  -1],
+    ['semicircle',  {r:47.61},            110,      390.71,   180,  -1],
+    ['sector',      {r:75, alpha:114/2},  383.12,   254.14,  -147,  +1],
+    ['semicircle',  {r:63.06},            397.66,   476.25,     0,  +1],
+    ['sector',      {r:75, alpha:93/2},   -151.68,  235.94,   70.5,  +1],
+    ['semicircle',  {r:63.06},            -57.61,   37.71,   -153,  +1]
   ];
-  setUnit('cm'); colorIdx=3;
+  figures = DATOS.map(([tipo, dims, cx, cy, rot, signo], i)=>{
+    const def = FIG_DEFS[tipo];
+    const anc = def.defaultAnchor || 'C';
+    return {
+      id: ++figIdCounter, type: tipo, dims: Object.assign({}, dims),
+      cx, cy, rotation: rot, sign: signo,
+      color: COLORS[i % COLORS.length],
+      anchor: anc, activeAnchor: anc, name: def.name,
+      matId: (modoCuerpo==='heterogeneo' && MATS.length) ? MATS[0].id : null,
+      thickness: 1,
+      angleMode: (tipo==='sector') ? 'total' : 'semi'
+    };
+  });
+  setUnit('mm'); colorIdx = figures.length % COLORS.length;
   renderFigList(); fitView(); calculate();
 }
+
+// ═══════════════════════════════════════════════════════════
+//  TECLA ESC  (mismo contrato que manejarEsc() de cap6)
+// ═══════════════════════════════════════════════════════════
+// Orden de prioridad: primero cierra lo más "encima" que haya abierto y se
+// detiene ahí. Así una sola pulsación nunca deshace dos cosas a la vez.
+const MODALES_ESC = ['edFigModal','transModal','repModal','guardarModal',
+                     'unitsModal','decModal','histModal'];
+function manejarEsc(){
+  // 0) La ventana del informe PDF, que se superpone a todo
+  const pl = document.getElementById('panelLatexPDF');
+  if(pl && pl.style.display !== 'none' && pl.style.display !== ''){ cerrarPanelLatex(); return; }
+  // 1) Una ventana abierta
+  const abierto = MODALES_ESC.find(id=>{
+    const m = document.getElementById(id);
+    return m && m.classList.contains('show');
+  });
+  if(abierto){
+    if(abierto === 'edFigModal') cerrarEdicionFigura();   // devuelve el panel a la columna
+    else document.getElementById(abierto).classList.remove('show');
+    return;
+  }
+  // 2) Un menú desplegable de la barra
+  const menu = ['menuFiguras','menuTipoCuerpo'].find(id=>{
+    const m = document.getElementById(id);
+    return m && m.classList.contains('abierto');
+  });
+  if(menu){ cerrarMenusZona1(); return; }
+  // 3) Un aviso en pantalla
+  const av = document.getElementById('avisoCaja');
+  if(av && av.classList.contains('visible')){ cerrarAviso(); return; }
+  // 4) Un gesto de arrastre a medias (recuadro incluido)
+  if(gesto || isDragging || isDraggingFig){ cancelarGestoEnCurso(); render(); return; }
+  // 5) La colocación de una figura pendiente de clic
+  if(selectedFigType){
+    selectedFigType = null; ghostPos = null;
+    document.querySelectorAll('.fig-btn').forEach(b=>b.classList.remove('selected'));
+    canvas.style.cursor = (herramienta==='pan') ? 'grab' : 'default';
+    render(); return;
+  }
+  // 6) La selección actual
+  if(selFiguras.length || selectedFigId !== null){
+    selFiguras = []; selectFigure(null); actualizarInfoSel(); render(); return;
+  }
+  // 7) La herramienta de borrado, para no dejarla armada sin darse cuenta
+  if(herramienta === 'borrar'){ setHerramienta('pan'); }
+}
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape') manejarEsc();
+});
 
 // ═══════════════════════════════════════════════════════════
 //  INIT
@@ -3688,13 +3960,937 @@ function loadExampleSection(){
 window.addEventListener('load', ()=>{ resizeCanvas(); fitView(); });
 window.addEventListener('resize', resizeCanvas);
 
+// ═══════════════════════════════════════════════════════════
+//  GENERADOR DE PDF PROFESIONAL CON LATEX (texlive.net)
+// ═══════════════════════════════════════════════════════════
+// Traductor independiente del HTML: parte de los mismos datos que ya
+// alimentan renderResults (figures, results), no del HTML ya armado.
+function escLatex(s){
+  const circulados = {'①':'(1)','②':'(2)','③':'(3)','④':'(4)','⑤':'(5)'};
+  let out = String(s);
+  Object.keys(circulados).forEach(k=>{ out = out.split(k).join(circulados[k]); });
+  return out.replace(/([%&_#{}$])/g, '\\$1');
+}
+function decP(v, kind){
+  const d = (kind==='len') ? DEC.len : DEC.area;
+  const x = Math.abs(v) < 1e-9 ? 0 : v;
+  return x.toFixed(d);
+}
+function hexRgbSpec(hex){
+  hex = String(hex||'#888888').replace('#','');
+  if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+  const r = parseInt(hex.substr(0,2),16)||136, g = parseInt(hex.substr(2,2),16)||136, b = parseInt(hex.substr(4,2),16)||136;
+  return 'rgb,255:red,'+r+';green,'+g+';blue,'+b;
+}
+
+// ── Path LOCAL (unidades reales, sin escalar) de cada tipo de figura ──
+// Reproduce exactamente la misma geometría que FIG_DEFS[tipo].draw() dibuja
+// en el canvas, pero como comandos de TikZ en vez de llamadas a ctx.
+function figuraPathLocal(tipo, d){
+  if(tipo === 'rect'){
+    return '(' + (-d.b/2) + ',' + (-d.h/2) + ') rectangle (' + (d.b/2) + ',' + (d.h/2) + ')';
+  }
+  if(tipo === 'rtriangle'){
+    return '(' + (-d.b/3) + ',' + (-d.h/3) + ') -- (' + (2*d.b/3) + ',' + (-d.h/3) + ') -- (' + (-d.b/3) + ',' + (2*d.h/3) + ') -- cycle';
+  }
+  if(tipo === 'rtriangle2'){
+    return '(' + (-2*d.b/3) + ',' + (-d.h/3) + ') -- (' + (d.b/3) + ',' + (-d.h/3) + ') -- (' + (d.b/3) + ',' + (2*d.h/3) + ') -- cycle';
+  }
+  if(tipo === 'circle'){
+    return '(0,0) circle (' + d.r + ')';
+  }
+  if(tipo === 'semicircle'){
+    const yc = 4*d.r/(3*Math.PI);
+    return '(' + (-d.r) + ',' + (-yc) + ') arc (180:0:' + d.r + ') -- cycle';
+  }
+  if(tipo === 'quarter'){
+    const dc = 4*d.r/(3*Math.PI);
+    return '(' + (-dc) + ',' + (-dc) + ') -- (' + (d.r-dc) + ',' + (-dc) + ') arc (0:90:' + d.r + ') -- cycle';
+  }
+  if(tipo === 'sector'){
+    const t = d.alpha, tr = t*Math.PI/180, R = d.r, yc = 2*R*Math.sin(tr)/(3*tr);
+    return '(0,' + (-yc) + ') -- (' + (-R*Math.sin(tr)) + ',' + (R*Math.cos(tr)-yc) + ') arc (' + (90+t) + ':' + (90-t) + ':' + R + ') -- cycle';
+  }
+  return '(0,0) circle (1)';
+}
+
+// ── Caja delimitadora de una figura YA rotada, en coordenadas mundo ──
+function figuraBoundsMundo(fig){
+  const def = FIG_DEFS[fig.type];
+  const b = def.bounds(fig.dims);
+  const rot = (fig.rotation||0)*Math.PI/180;
+  const esquinas = [{x:b.left,y:b.bottom},{x:b.right,y:b.bottom},{x:b.right,y:b.top},{x:b.left,y:b.top}];
+  const mundo = esquinas.map(p=>({
+    x: fig.cx + p.x*Math.cos(rot) - p.y*Math.sin(rot),
+    y: fig.cy + p.x*Math.sin(rot) + p.y*Math.cos(rot)
+  }));
+  return {
+    left: Math.min(...mundo.map(p=>p.x)), right: Math.max(...mundo.map(p=>p.x)),
+    bottom: Math.min(...mundo.map(p=>p.y)), top: Math.max(...mundo.map(p=>p.y))
+  };
+}
+
+// ── Dibuja una figura ya colocada (posición + rotación reales) ──
+function tikzFigura(fig, tx, ty, esc){
+  const def = FIG_DEFS[fig.type];
+  const cxS = tx(fig.cx), cyS = ty(fig.cy);
+  const pathLocal = figuraPathLocal(fig.type, fig.dims);
+  const col = hexRgbSpec(fig.color);
+  const esSuma = fig.sign === 1;
+  const relleno = esSuma
+    ? 'fill={' + col + '}, fill opacity=0.30, draw={' + col + '}, line width=0.9pt'
+    : 'pattern=north east lines, pattern color={' + col + '}, draw={' + col + '}, line width=0.8pt, dashed';
+  let s = '\\begin{scope}[shift={(' + cxS + ',' + cyS + ')}, rotate=' + (fig.rotation||0) + ', scale=' + esc + ']\n';
+  s += '\\filldraw[' + relleno + '] ' + pathLocal + ';\n';
+  s += '\\end{scope}\n';
+  // Punto y etiqueta del centroide local de la figura (fig.cx,fig.cy YA es su centroide)
+  s += '\\fill[black!55] (' + cxS + ',' + cyS + ') circle (1.1pt);\n';
+  return s;
+}
+
+// ── Cotas (cadena de dimensiones x + una vertical) sobre la caja total ──
+// ── Cotas de la sección compuesta en el PDF ──
+// Usa el MISMO planificador que la pantalla (planCotas), así el papel muestra
+// exactamente las mismas cotas que el aplicativo. Antes aquí solo se dibujaba
+// el rectángulo envolvente: dos números para toda la sección, sin ninguna
+// información de las figuras individuales.
+//
+// Las magnitudes van en cm de TikZ, no en píxeles, así que los umbrales se
+// pasan explícitamente. El ancho del texto se estima: \tiny ronda los 0,09 cm
+// por carácter.
+const TIKZ_COTA = {fusion:0.16, minSeg:0.62, holgura:0.14, maxNiveles:5};
+const TIKZ_SALTO = 0.34;   // cm entre niveles de etiqueta
+
+function tikzMedirTexto(t){ return String(t).length * 0.09; }
+
+// borde: coordenada (en cm de TikZ) donde arranca la línea de referencia,
+// es decir el canto del dibujo. Sin ella la cota no dice de qué punto sale.
+function tikzCadenaCotas(valores, proy, eje, base, borde){
+  const plan = planCotas(valores, proy, tikzMedirTexto, TIKZ_COTA);
+  if(!plan) return {tex:'', nMax:0, plan:null};
+  const n = v => v.toFixed(3);
+  const q = plan.coords.map(v=>proy(v));
+  const ini = Math.min(...q), fin = Math.max(...q);
+  let s = '';
+
+  // Líneas de referencia: del borde del dibujo hasta pasar la cadena. Antes
+  // medían 0,18 cm (de la cadena a la cadena) y no referenciaban nada.
+  const desde = (borde === undefined) ? base + (eje==='x' ? 0.10 : -0.10) : borde;
+  plan.coords.forEach(v=>{
+    const w = proy(v);
+    if(eje==='x') s += '\\draw[black!30, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(w) + ',' + n(desde) + ') -- (' + n(w) + ',' + n(base-0.10) + ');\n';
+    else          s += '\\draw[black!30, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(desde) + ',' + n(w) + ') -- (' + n(base+0.10) + ',' + n(w) + ');\n';
+  });
+
+  // línea continua de la cadena
+  if(eje==='x') s += '\\draw[black!65, line width=0.35pt] (' + n(ini) + ',' + n(base) + ') -- (' + n(fin) + ',' + n(base) + ');\n';
+  else          s += '\\draw[black!65, line width=0.35pt] (' + n(base) + ',' + n(ini) + ') -- (' + n(base) + ',' + n(fin) + ');\n';
+
+  // marcas oblicuas en cada borde conservado
+  const T = 0.09;
+  plan.coords.forEach(v=>{
+    const w = proy(v);
+    if(eje==='x') s += '\\draw[black!65, line width=0.35pt] (' + n(w-T) + ',' + n(base-T) + ') -- (' + n(w+T) + ',' + n(base+T) + ');\n';
+    else          s += '\\draw[black!65, line width=0.35pt] (' + n(base-T) + ',' + n(w-T) + ') -- (' + n(base+T) + ',' + n(w+T) + ');\n';
+  });
+
+  // etiquetas escalonadas, siempre alejándose del dibujo
+  plan.segs.forEach(sg=>{
+    if(!sg.visible) return;
+    const d = 0.24 + sg.nivel*TIKZ_SALTO;
+    if(eje==='x'){
+      const y = base - d;
+      s += '\\draw[black!40, line width=0.2pt] (' + n(sg.centro) + ',' + n(base-0.04) + ') -- (' + n(sg.centro) + ',' + n(y+0.10) + ');\n';
+      s += '\\node[font=\\tiny, inner sep=0.6pt, fill=white] at (' + n(sg.centro) + ',' + n(y) + ') {' + sg.txt + '};\n';
+    } else {
+      const x = base + d;
+      s += '\\draw[black!40, line width=0.2pt] (' + n(base+0.04) + ',' + n(sg.centro) + ') -- (' + n(x-0.10) + ',' + n(sg.centro) + ');\n';
+      s += '\\node[font=\\tiny, inner sep=0.6pt, fill=white, rotate=90] at (' + n(x) + ',' + n(sg.centro) + ') {' + sg.txt + '};\n';
+    }
+  });
+  return {tex:s, nMax:plan.nMax, plan};
+}
+
+function tikzCotasCompuesta(cajaMundo, tx, ty){
+  const n = v => v.toFixed(3);
+  const px = x => parseFloat(tx(x));
+  const py = y => parseFloat(ty(y));
+  const {xs, ys} = bordesFiguras();
+  let s = '';
+
+  // ── Cadena horizontal, debajo ──
+  const yBorde = py(cajaMundo.bottom);
+  const baseX = yBorde - 0.75;
+  const cadX = tikzCadenaCotas(xs, px, 'x', baseX, yBorde + 0.06);
+  s += cadX.tex;
+
+  // ── Cadena vertical, a la derecha ──
+  const xBorde = px(cajaMundo.right);
+  const baseY = xBorde + 0.75;
+  const cadY = tikzCadenaCotas(ys, py, 'y', baseY, xBorde - 0.06);
+  s += cadY.tex;
+
+  // ── Cotas totales, por fuera de cada cadena ──
+  const yTot = baseX - 0.30 - (cadX.nMax+1)*TIKZ_SALTO;
+  s += '\\draw[black!40, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(px(cajaMundo.left)) + ',' + n(yBorde) + ') -- (' + n(px(cajaMundo.left)) + ',' + n(yTot-0.10) + ');\n';
+  s += '\\draw[black!40, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(px(cajaMundo.right)) + ',' + n(yBorde) + ') -- (' + n(px(cajaMundo.right)) + ',' + n(yTot-0.10) + ');\n';
+  s += '\\draw[bsaVerde, line width=0.45pt, <->, >=stealth] (' + n(px(cajaMundo.left)) + ',' + n(yTot) + ') -- (' + n(px(cajaMundo.right)) + ',' + n(yTot) + ');\n';
+  s += '\\node[font=\\scriptsize\\bfseries, text=bsaVerde, fill=white, inner sep=1pt] at ('
+     + n((px(cajaMundo.left)+px(cajaMundo.right))/2) + ',' + n(yTot) + ') {'
+     + decP(cajaMundo.right-cajaMundo.left,'len') + '\\,' + unit + '};\n';
+
+  const xTot = baseY + 0.30 + (cadY.nMax+1)*TIKZ_SALTO;
+  s += '\\draw[black!40, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(xBorde) + ',' + n(py(cajaMundo.bottom)) + ') -- (' + n(xTot+0.10) + ',' + n(py(cajaMundo.bottom)) + ');\n';
+  s += '\\draw[black!40, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(xBorde) + ',' + n(py(cajaMundo.top)) + ') -- (' + n(xTot+0.10) + ',' + n(py(cajaMundo.top)) + ');\n';
+  s += '\\draw[bsaVerde, line width=0.45pt, <->, >=stealth] (' + n(xTot) + ',' + n(py(cajaMundo.bottom)) + ') -- (' + n(xTot) + ',' + n(py(cajaMundo.top)) + ');\n';
+  s += '\\node[font=\\scriptsize\\bfseries, text=bsaVerde, fill=white, inner sep=1pt, rotate=90] at ('
+     + n(xTot) + ',' + n((py(cajaMundo.bottom)+py(cajaMundo.top))/2) + ') {'
+     + decP(cajaMundo.top-cajaMundo.bottom,'len') + '\\,' + unit + '};\n';
+
+  // ── Radios y ángulos de las figuras curvas ──
+  // La cadena ortogonal no puede expresar un radio ni el ángulo de un sector.
+  // Se rotulan con el MISMO criterio que en pantalla: cada valor en su propio
+  // recuadro, en un hueco libre cerca de su figura y con una guía que apunta a
+  // ella. Se reutiliza planCallouts, así que la colocación es la misma lógica.
+  const ALTO_ROT = 0.28;                       // alto de la caja, en cm
+  const items = [];
+  figures.forEach(f=>{
+    const d = f.dims;
+    if(d.r === undefined) return;
+    const rot = (f.rotation||0)*Math.PI/180;
+    const co = {x:0, y:0};
+    if(f.type==='quarter'){ const dc=4*d.r/(3*Math.PI); co.x=-dc; co.y=-dc; }
+    else if(f.type==='semicircle'){ co.y = -4*d.r/(3*Math.PI); }
+    else if(f.type==='sector'){ const t=d.alpha*Math.PI/180; co.y = -2*d.r*Math.sin(t)/(3*t); }
+    const wx = f.cx + co.x*Math.cos(rot) - co.y*Math.sin(rot);
+    const wy = f.cy + co.x*Math.sin(rot) + co.y*Math.cos(rot);
+    let txt = 'R=' + decP(d.r,'len');
+    if(f.type==='sector') txt += ',\\ 2\\theta=' + decP(d.alpha*2,'len') + '^\\circ';
+    items.push({txt, ancla:{x:px(wx), y:py(wy)},
+                w: tikzMedirTexto(txt) + 0.22, h: ALTO_ROT});
+  });
+
+  if(items.length){
+    // Obstáculos: la caja de cada figura y las bandas de cotas.
+    const obst = figures.map(f=>{
+      const b = figuraBoundsMundo(f);
+      const x0 = px(b.left), x1 = px(b.right), y0 = py(b.bottom), y1 = py(b.top);
+      return {x:x0-0.06, y:y0-0.06, w:(x1-x0)+0.12, h:(y1-y0)+0.12};
+    });
+    obst.push({x:-99, y:-99, w:198, h:99 + baseX + 0.20});          // banda inferior
+    obst.push({x:baseY - 0.20, y:-99, w:99, h:198});                // banda derecha
+    const marco = {x0:px(cajaMundo.left) - 3.2, y0:py(cajaMundo.bottom) - 0.2,
+                   x1:baseY - 0.25,             y1:py(cajaMundo.top) + 1.6};
+    const puestas = planCallouts(items, obst, marco,
+                                 [0.85, 1.25, 1.75, 2.35, 3.00, 3.70]);
+    puestas.forEach(p=>{
+      const salida = bordeCaja(p.caja, p.ancla);
+      s += '\\draw[black!55, line width=0.28pt] (' + n(salida.x) + ',' + n(salida.y)
+         + ') -- (' + n(p.ancla.x) + ',' + n(p.ancla.y) + ');\n';
+      s += '\\fill[black!55] (' + n(p.ancla.x) + ',' + n(p.ancla.y) + ') circle (0.5pt);\n';
+      s += '\\node[font=\\tiny, draw=black!45, fill=white, rounded corners=1pt, '
+         + 'inner sep=1.4pt] at (' + n(p.cx) + ',' + n(p.cy) + ') {$' + p.txt + '$};\n';
+    });
+  }
+
+  return s;
+}
+
+// ── Ejes X, Y y cotas del centroide / centro de gravedad ──
+// Sólo para la lámina de la sección resuelta. Se acota lo justo: la abscisa y
+// la ordenada de C, y las de G si difieren. Nada más: cualquier otra cota aquí
+// distrae de lo que se quiere leer.
+function tikzEjesYCotasC(caja, tx, ty, conCotas){
+  const n = v => (typeof v === 'number' ? v : parseFloat(v)).toFixed(3);
+  const px = x => parseFloat(tx(x));
+  const py = y => parseFloat(ty(y));
+  const x0 = px(Math.min(0, caja.left))  - 0.9;
+  const x1 = px(caja.right)  + 0.7;
+  const y0 = py(Math.min(0, caja.bottom)) - 0.9;
+  const y1 = py(caja.top)    + 0.7;
+  const ox = px(0), oy = py(0);
+  let s = '';
+
+  // Ejes
+  s += '\\draw[black!70, line width=0.5pt, ->, >=stealth] (' + n(x0) + ',' + n(oy) + ') -- (' + n(x1) + ',' + n(oy) + ') node[right, font=\\small] {$X$};\n';
+  s += '\\draw[black!70, line width=0.5pt, ->, >=stealth] (' + n(ox) + ',' + n(y0) + ') -- (' + n(ox) + ',' + n(y1) + ') node[above, font=\\small] {$Y$};\n';
+  s += '\\node[font=\\scriptsize, below left, inner sep=1pt] at (' + n(ox) + ',' + n(oy) + ') {$O$};\n';
+  if(!conCotas || !results) return s;
+
+  // Una cota por punto y eje, apoyada en el propio eje
+  const puntos = [{x:results.xbar, y:results.ybar, et:'C', col:'bsaAlerta'}];
+  if(results.hetero && results.sep > 1e-9)
+    puntos.push({x:results.xg, y:results.yg, et:'G', col:'bsaVerde'});
+
+  puntos.forEach((p,k)=>{
+    const cxp = px(p.x), cyp = py(p.y);
+    const yCota = oy - 0.75 - k*0.62;
+    const xCota = ox - 0.75 - k*0.62;
+    // abscisa
+    s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(cxp) + ',' + n(yCota-0.10) + ');\n';
+    s += '\\draw[' + p.col + ', line width=0.45pt, <->, >=stealth] (' + n(ox) + ',' + n(yCota) + ') -- (' + n(cxp) + ',' + n(yCota) + ');\n';
+    // Encima de su propia línea de cota: sin recuadro y sin pisarla.
+    s += '\\node[font=\\small, above, inner sep=1.6pt] at (' + n((ox+cxp)/2) + ',' + n(yCota) + ') {$\\bar{x}_{' + p.et + '}$};\n';
+    // ordenada
+    s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(xCota-0.10) + ',' + n(cyp) + ');\n';
+    s += '\\draw[' + p.col + ', line width=0.45pt, <->, >=stealth] (' + n(xCota) + ',' + n(oy) + ') -- (' + n(xCota) + ',' + n(cyp) + ');\n';
+    // rotate=90 la deja en vertical y 'above' la aparta al lado izquierdo de
+    // la cota, ya girada: así se lee de abajo arriba y no monta sobre la línea.
+    s += '\\node[font=\\small, rotate=90, above, inner sep=1.6pt] at (' + n(xCota) + ',' + n((oy+cyp)/2) + ') {$\\bar{y}_{' + p.et + '}$};\n';
+  });
+  return s;
+}
+
+// ── Diagrama completo de la sección compuesta ──
+function tikzSeccionCompuesta(opts){
+  opts = opts || {};
+  const cajas = figures.map(figuraBoundsMundo);
+  const minX = Math.min(...cajas.map(c=>c.left)), maxX = Math.max(...cajas.map(c=>c.right));
+  const minY = Math.min(...cajas.map(c=>c.bottom)), maxY = Math.max(...cajas.map(c=>c.top));
+  const anchoReal = Math.max(maxX-minX, 1e-6);
+  const esc = 10.5/anchoReal;
+  const tx = (x)=> ((x-minX)*esc).toFixed(3);
+  const ty = (y)=> ((y-minY)*esc).toFixed(3);
+
+  let s = '';
+  figures.forEach(fig=>{ s += tikzFigura(fig, tx, ty, esc); });
+
+  if(opts.marcarC){
+    const cx = tx(results.xbar), cy = ty(results.ybar);
+    s += '\\fill[bsaAlerta] (' + cx + ',' + cy + ') circle (2pt);\n';
+    s += '\\node[font=\\small\\bfseries, above right, xshift=2pt] at (' + cx + ',' + cy + ') {C};\n';
+    if(results.hetero && results.sep > 1e-9){
+      const gx = tx(results.xg), gy = ty(results.yg);
+      s += '\\fill[bsaVerde] (' + gx + ',' + gy + ') circle (2pt);\n';
+      s += '\\node[font=\\small\\bfseries, below right, xshift=2pt] at (' + gx + ',' + gy + ') {G};\n';
+    }
+  }
+  if(opts.ejes){
+    s += tikzEjesYCotasC({left:minX,right:maxX,bottom:minY,top:maxY}, tx, ty, !!opts.cotasC);
+  }
+  if(opts.cotas !== false){
+    s += tikzCotasCompuesta({left:minX,right:maxX,bottom:minY,top:maxY}, tx, ty);
+  }
+  return s;
+}
+
+// ── Compilación con texlive.net (mismo mecanismo que Cap. 6) ──
+const TEXLIVE_NET_URL = 'https://texlive.net/cgi-bin/latexcgi';
+function _panelLatexPDF(){
+  let panel = document.getElementById('panelLatexPDF');
+  if(panel) return panel;
+  panel = document.createElement('div');
+  panel.id = 'panelLatexPDF';
+  panel.style.cssText = 'display:none; position:fixed; inset:0; z-index:9000; '
+    + 'background:rgba(15,20,28,.72); align-items:center; justify-content:center; padding:16px;';
+  // El botón de cerrar llamaba a una función en línea con las comillas mal
+  // escapadas: el navegador recibía onclick="...(\'panelLatexPDF')..." y al
+  // pulsarlo lanzaba un error de sintaxis, así que la ventana no se cerraba.
+  // Ahora invoca una función con nombre.
+  panel.innerHTML =
+      '<div style="background:#fff; border-radius:10px; width:100%; max-width:900px; '
+    +   'height:92vh; display:flex; flex-direction:column; overflow:hidden; position:relative;">'
+    +   '<div style="display:flex; align-items:center; justify-content:space-between; '
+    +     'padding:10px 14px; border-bottom:1px solid #e5d9c8;">'
+    +     '<strong style="color:#B45309">Reporte PDF (LaTeX)</strong>'
+    +     '<button onclick="cerrarPanelLatex()" title="Cerrar" aria-label="Cerrar" '
+    +       'style="border:none;background:none;font-size:22px;cursor:pointer;line-height:1;'
+    +       'color:#6B7280;padding:0 4px;">&times;</button>'
+    +   '</div>'
+    +   '<div id="latexEstado" style="padding:8px 14px; font-size:12.5px; color:#6B7280;">'
+    +     'Enviando a texlive.net…</div>'
+    +   '<iframe id="latexFrame" name="latexFrame" style="flex:1; border:none;"></iframe>'
+    +   '<div id="latexPie" style="padding:6px 14px; font-size:10.5px; color:#9aa3ad; '
+    +     'border-top:1px solid #f0eee9;">Si en lugar del PDF aparece texto, es el registro '
+    +     'de LaTeX: c\u00f3pialo y av\u00edsanos.</div>'
+    +   '<div id="latexCargando" style="position:absolute; inset:0; background:#fff; '
+    +     'display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;">'
+    +     '<div style="display:flex; gap:10px; align-items:flex-end; height:64px;">'
+    +       '<span class="bsa-let" style="color:#CDA953; animation-delay:0s">B</span>'
+    +       '<span class="bsa-let" style="color:#8AB4CA; animation-delay:.22s">S</span>'
+    +       '<span class="bsa-let" style="color:#22584B; animation-delay:.44s">A</span>'
+    +     '</div>'
+    +     '<div style="font-size:12px;color:#6B7280">Compilando el informe…</div>'
+    +   '</div>'
+    + '</div>';
+  document.body.appendChild(panel);
+  return panel;
+}
+
+// Cierra la ventana del informe y deja el iframe limpio, para que al volver a
+// generar no se vea por un instante el PDF anterior.
+function cerrarPanelLatex(){
+  const panel = document.getElementById('panelLatexPDF');
+  if(!panel) return;
+  panel.style.display = 'none';
+  const frame = document.getElementById('latexFrame');
+  if(frame) frame.setAttribute('src', 'about:blank');
+  const btn = document.getElementById('btnLatex');
+  if(btn) btn.dataset.ocupado = '0';
+}
+function descargarTex(){
+  const tex = construirLatex();
+  if(!tex) return;
+  const blob = new Blob([tex], {type:'text/x-tex'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'centroides-bsa.tex';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+// ═══════════════════════════════════════════════════════════
+//  DESHACER / REHACER
+// ═══════════════════════════════════════════════════════════
+let pilaDeshacer = [], pilaRehacer = [];
+const MAX_HISTORIAL = 60;
+
+function instantanea(){
+  return JSON.stringify({
+    figures: figures.map(f=>({id:f.id, type:f.type, dims:Object.assign({},f.dims),
+      cx:f.cx, cy:f.cy, rotation:f.rotation, sign:f.sign, color:f.color,
+      anchor:f.anchor, activeAnchor:f.activeAnchor, name:f.name, etiqueta:f.etiqueta,
+      matId:f.matId, thickness:f.thickness, angleMode:f.angleMode})),
+    figIdCounter, colorIdx,
+    modoCuerpo, MATS: MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad})), matSeq
+  });
+}
+
+// Llamar ANTES de modificar el modelo.
+function registrarCambio(){
+  pilaDeshacer.push(instantanea());
+  if(pilaDeshacer.length > MAX_HISTORIAL) pilaDeshacer.shift();
+  pilaRehacer = [];              // una acción nueva invalida el camino de rehacer
+  actualizarBotonesHistorial();
+}
+
+function restaurarInstantanea(txt){
+  const e = JSON.parse(txt);
+  figures = e.figures.map(f=>Object.assign({}, f, {dims:Object.assign({},f.dims)}));
+  figIdCounter = e.figIdCounter; colorIdx = e.colorIdx;
+  modoCuerpo = e.modoCuerpo; MATS = e.MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad})); matSeq = e.matSeq;
+  // La selección puede apuntar a figuras que ya no existen tras restaurar.
+  if(!figures.some(f=>f.id===selectedFigId)) selectedFigId = null;
+  selFiguras = selFiguras.filter(id=>figures.some(f=>f.id===id));
+  results = null;
+  try{
+    const h = document.getElementById('modo-homo'), he = document.getElementById('modo-het');
+    if(h) h.classList.toggle('active', modoCuerpo==='homogeneo');
+    if(he) he.classList.toggle('active', modoCuerpo==='heterogeneo');
+  }catch(e){}
+  selectFigure(selectedFigId);
+  renderFigList(); actualizarInfoSel(); render();
+}
+
+function deshacer(){
+  if(!pilaDeshacer.length) return;
+  pilaRehacer.push(instantanea());
+  restaurarInstantanea(pilaDeshacer.pop());
+  actualizarBotonesHistorial();
+}
+function rehacer(){
+  if(!pilaRehacer.length) return;
+  pilaDeshacer.push(instantanea());
+  restaurarInstantanea(pilaRehacer.pop());
+  actualizarBotonesHistorial();
+}
+function actualizarBotonesHistorial(){
+  const u = document.getElementById('btnUndo'), r = document.getElementById('btnRedo');
+  if(u) u.disabled = !pilaDeshacer.length;
+  if(r) r.disabled = !pilaRehacer.length;
+}
+
+function generarPDFLatex(){
+  const btn = document.getElementById('btnLatex');
+  if(btn && btn.dataset.ocupado === '1') return;
+
+  const tex = construirLatex();
+  if(!tex) return;
+
+  try {
+    if(btn) btn.dataset.ocupado = '1';
+    const panel = _panelLatexPDF();
+    const estado = document.getElementById('latexEstado');
+    const frame = document.getElementById('latexFrame');
+    estado.textContent = 'Enviando a texlive.net…';
+    const cargando = document.getElementById('latexCargando');
+    if(cargando) cargando.style.display = 'flex';
+    panel.style.display = 'flex';
+
+    const viejo = document.getElementById('formLatexNet');
+    if(viejo) viejo.remove();
+    const form = document.createElement('form');
+    form.id = 'formLatexNet';
+    form.action = TEXLIVE_NET_URL;
+    form.method = 'post';
+    form.enctype = 'multipart/form-data';
+    form.target = 'latexFrame';
+    form.style.display = 'none';
+    const campo = (nombre, valor)=>{
+      const inp = document.createElement('textarea');
+      inp.name = nombre; inp.value = valor;
+      form.appendChild(inp);
+    };
+    campo('filename[]', 'document.tex');
+    campo('filecontents[]', tex);
+    campo('engine', 'pdflatex');
+    campo('return', 'pdf');
+    document.body.appendChild(form);
+    form.submit();
+
+    // Al llegar la respuesta se retira la animación. El mensaje ya NO habla de
+    // errores: la advertencia sobre el registro de LaTeX vive en el pie, en
+    // pequeño y permanente, para no dar a entender que algo falló cuando el
+    // informe se generó bien.
+    frame.addEventListener('load', function(){
+      const cg = document.getElementById('latexCargando');
+      if(cg) cg.style.display = 'none';
+      estado.textContent = 'Informe generado.';
+      estado.style.color = '#15803D';
+    }, {once:true});
+
+    setTimeout(()=>{
+      if(estado.textContent.indexOf('Enviando') === 0){
+        estado.textContent = 'Sigue esperando respuesta de texlive.net. '
+          + 'Si tarda demasiado, cierra este panel y vuelve a intentar.';
+      }
+    }, 45000);
+    // Salvavidas: si por lo que sea nunca llega el evento 'load', la animación
+    // no puede quedarse girando para siempre encima del informe.
+    setTimeout(()=>{
+      const cg = document.getElementById('latexCargando');
+      if(cg) cg.style.display = 'none';
+    }, 90000);
+  } catch(e){
+    console.error('Error al enviar a texlive.net:', e);
+    aviso('Ocurri\u00f3 un error al preparar el env\u00edo: ' + e.message, 'error');
+  } finally {
+    if(btn) btn.dataset.ocupado = '0';
+  }
+}
+
+// ── Construcción completa del documento LaTeX ──
+// ═══════════════════════════════════════════════════════════
+//  PIEZAS DEL INFORME EN LATEX
+// ═══════════════════════════════════════════════════════════
+
+// ── Notación ×10ⁿ para columnas de números grandes ──
+// Se busca UN factor común por columna y se anuncia en la cabecera. Es lo que
+// se hace en un cuadro de ingeniería: la tabla queda con números de 2 o 3
+// cifras en lugar de con seis, y la magnitud se lee una sola vez.
+function factorColumna(vals){
+  const m = Math.max(...vals.map(v=>Math.abs(v)).filter(v=>isFinite(v) && v>0), 0);
+  if(!m) return {exp:0, div:1, cab:''};
+  let exp = Math.floor(Math.log10(m));
+  exp = Math.floor(exp/3)*3;                 // saltos de mil: 10^3, 10^6, ...
+  if(exp <= 0) return {exp:0, div:1, cab:''};
+  return {exp, div:Math.pow(10,exp), cab:'\\times 10^{'+exp+'}'};
+}
+function celdaCol(v, f, dec){
+  const x = v/f.div;
+  return (Math.abs(x) < 5e-7 ? 0 : x).toFixed(dec);
+}
+
+// ── Fórmula del área de cada tipo de figura ──
+// Devuelve la expresión simbólica y la misma con los números sustituidos, para
+// que el alumno vea de dónde sale cada valor y no solo el resultado.
+function formulaArea(fig){
+  const d = fig.dims, D = v => decP(v,'len');
+  switch(fig.type){
+    case 'rect':
+      return {sim:'A_i = b\\,h', sus:'A_i = ('+D(d.b)+')('+D(d.h)+')'};
+    case 'rtriangle':
+    case 'rtriangle2':
+      return {sim:'A_i = \\dfrac{b\\,h}{2}', sus:'A_i = \\dfrac{('+D(d.b)+')('+D(d.h)+')}{2}'};
+    case 'circle':
+      return {sim:'A_i = \\pi R^{2}', sus:'A_i = \\pi ('+D(d.r)+')^{2}'};
+    case 'semicircle':
+      return {sim:'A_i = \\dfrac{\\pi R^{2}}{2}', sus:'A_i = \\dfrac{\\pi ('+D(d.r)+')^{2}}{2}'};
+    case 'quarter':
+      return {sim:'A_i = \\dfrac{\\pi R^{2}}{4}', sus:'A_i = \\dfrac{\\pi ('+D(d.r)+')^{2}}{4}'};
+    case 'sector':
+      return {sim:'A_i = \\theta R^{2} \\quad (\\theta \\text{ en radianes})',
+              sus:'A_i = \\left('+D(d.alpha)+'^\\circ\\cdot\\dfrac{\\pi}{180}\\right)('+D(d.r)+')^{2}'};
+    default:
+      return {sim:'A_i', sus:'A_i'};
+  }
+}
+
+// ── Posición del centroide propio dentro de la figura ──
+// Solo tiene interés donde NO está en el centro geométrico. Es el dato que el
+// alumno suele buscar en la tabla del Hibbeler.
+function centroideLocalTex(fig){
+  const d = fig.dims, D = v => decP(v,'len');
+  switch(fig.type){
+    case 'rtriangle':
+    case 'rtriangle2':
+      return '\\text{Centroide propio a } \\tfrac{b}{3} \\text{ y } \\tfrac{h}{3}'
+           + ' \\text{ de los catetos: } \\tfrac{'+D(d.b)+'}{3}='+D(d.b/3)
+           + ',\\ \\tfrac{'+D(d.h)+'}{3}='+D(d.h/3);
+    case 'semicircle':
+      return '\\bar{y}_{loc} = \\dfrac{4R}{3\\pi} = \\dfrac{4('+D(d.r)+')}{3\\pi} = '
+           + D(4*d.r/(3*Math.PI));
+    case 'quarter':
+      return '\\bar{x}_{loc} = \\bar{y}_{loc} = \\dfrac{4R}{3\\pi} = '
+           + D(4*d.r/(3*Math.PI));
+    case 'sector': {
+      const t = d.alpha*Math.PI/180;
+      return '\\bar{y}_{loc} = \\dfrac{2R\\sen\\theta}{3\\theta} = '
+           + '\\dfrac{2('+D(d.r)+')\\sen('+D(d.alpha)+'^\\circ)}{3('+D(d.alpha)+'^\\circ)} = '
+           + D(2*d.r*Math.sin(t)/(3*t));
+    }
+    default:
+      return null;   // rectángulo y círculo: el centroide es el centro
+  }
+}
+
+// ── Croquis acotado de UNA figura, en TikZ ──
+// Va al costado de su desarrollo, a la misma altura. Se dibuja en coordenadas
+// locales (centroide en el origen) y con la figura sin girar: el giro se indica
+// aparte con su ángulo, que es más legible que dibujarla inclinada y minúscula.
+function tikzCroquisFigura(fig, anchoCm){
+  const def = FIG_DEFS[fig.type];
+  const b = def.bounds(fig.dims);
+  const bw = Math.max(b.right-b.left, 1e-9), bh = Math.max(b.top-b.bottom, 1e-9);
+  const W = anchoCm || 3.6, H = 3.0;
+  const esc = Math.min((W-1.1)/bw, (H-1.0)/bh);
+  // Centro de la caja envolvente, en coordenadas locales. TODO el croquis se
+  // dibuja respecto a él.
+  const cxm = (b.left+b.right)/2, cym = (b.bottom+b.top)/2;
+  const tx = x => (x-cxm)*esc;
+  const ty = y => (y-cym)*esc;
+  const n = v => v.toFixed(3);
+  const col = hexRgbSpec(fig.color);
+  const neg = fig.sign < 0;
+
+  // El origen local de la figura es su CENTROIDE, que en general no coincide
+  // con el centro de la caja (el triángulo es el caso claro). Antes el trazado
+  // se pintaba en (0,0) mientras las cotas se calculaban respecto al centro de
+  // la caja: por eso figura y cotas salían desfasadas.
+  const ox = tx(0), oy = ty(0);
+
+  let s = '\\begin{tikzpicture}[scale=1]\n';
+  s += '\\begin{scope}[shift={(' + n(ox) + ',' + n(oy) + ')}, scale=' + esc.toFixed(4) + ']\n';
+  s += '\\path[' + (neg
+        ? 'pattern=north east lines, pattern color={'+col+'}, draw={'+col+'}, line width=0.7pt, dashed'
+        : 'fill={'+col+'}, fill opacity=0.28, draw={'+col+'}, line width=0.8pt') + '] ';
+  s += figuraPathLocal(fig.type, fig.dims) + ';\n';
+  s += '\\end{scope}\n';
+
+  // Centroide de la figura, en su sitio real dentro de la caja
+  s += '\\fill[bsaAlerta] (' + n(ox) + ',' + n(oy) + ') circle (1.4pt);\n';
+  s += '\\node[font=\\tiny, above right, inner sep=1pt] at (' + n(ox) + ',' + n(oy) + ') {$C_i$};\n';
+
+  // ── Cotas de ancho y alto ──
+  const x0 = tx(b.left), x1 = tx(b.right);
+  const y0 = ty(b.bottom), y1 = ty(b.top);
+  const yc = y0 - 0.34, xc = x1 + 0.34;
+  const T = v => n(v);
+  s += '\\draw[black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt] ('+T(x0)+','+T(y0)+') -- ('+T(x0)+','+T(yc-0.08)+');\n';
+  s += '\\draw[black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt] ('+T(x1)+','+T(y0)+') -- ('+T(x1)+','+T(yc-0.08)+');\n';
+  s += '\\draw[black!65, line width=0.3pt, <->, >=stealth] ('+T(x0)+','+T(yc)+') -- ('+T(x1)+','+T(yc)+');\n';
+  s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt] at ('+T((x0+x1)/2)+','+T(yc)+') {'+decP(bw,'len')+'};\n';
+  s += '\\draw[black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt] ('+T(x1)+','+T(y0)+') -- ('+T(xc+0.08)+','+T(y0)+');\n';
+  s += '\\draw[black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt] ('+T(x1)+','+T(y1)+') -- ('+T(xc+0.08)+','+T(y1)+');\n';
+  s += '\\draw[black!65, line width=0.3pt, <->, >=stealth] ('+T(xc)+','+T(y0)+') -- ('+T(xc)+','+T(y1)+');\n';
+  s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt, rotate=90] at ('+T(xc)+','+T((y0+y1)/2)+') {'+decP(bh,'len')+'};\n';
+
+  // ── Ángulo de giro ──
+  const g = fig.rotation || 0;
+  if(Math.abs(g) >= 0.5){
+    const R = Math.min(0.55, Math.abs(x1-x0)/2.4);
+    s += '\\draw[black!65, line width=0.3pt, ->, >=stealth] ('+n(ox)+','+n(oy)+') -- ('+n(ox+R+0.30)+','+n(oy)+');\n';
+    s += '\\draw[black!65, line width=0.3pt] ('+n(ox)+','+n(oy)+') -- ('
+       + n(ox+(R+0.30)*Math.cos(g*Math.PI/180)) + ',' + n(oy+(R+0.30)*Math.sin(g*Math.PI/180)) + ');\n';
+    s += '\\draw[black!65, line width=0.3pt, ->, >=stealth] ('+n(ox+R)+','+n(oy)+') arc (0:'+g.toFixed(2)+':'+n(R)+');\n';
+
+    // La variable se coloca en un hueco libre: en el croquis del rectángulo
+    // caía justo encima de la cota de altura. Se reutiliza el colocador, con
+    // las etiquetas de las dos cotas como obstáculos.
+    const anclaX = ox + (R+0.14)*Math.cos(g*Math.PI/360);
+    const anclaY = oy + (R+0.14)*Math.sin(g*Math.PI/360);
+    const obst = [
+      {x:(x0+x1)/2 - 0.42, y:yc - 0.13, w:0.84, h:0.26},         // rótulo del ancho
+      {x:xc - 0.13, y:(y0+y1)/2 - 0.42, w:0.26, h:0.84},         // rótulo del alto
+      {x:xc - 0.10, y:y0, w:0.20, h:y1-y0},                      // línea de cota vertical
+      {x:x0, y:yc - 0.10, w:x1-x0, h:0.20}                       // línea de cota horizontal
+    ];
+    const puesto = planCallouts(
+      [{txt:'\\beta', ancla:{x:anclaX, y:anclaY}, w:0.30, h:0.26}],
+      obst, null, [0.16, 0.28, 0.42, 0.58, 0.76])[0];
+    // Si tuvo que apartarse bastante, se le pone una guía fina hasta el arco.
+    const d = Math.hypot(puesto.cx-anclaX, puesto.cy-anclaY);
+    if(d > 0.30){
+      s += '\\draw[black!45, line width=0.22pt] ('+n(puesto.cx)+','+n(puesto.cy)+') -- ('+n(anclaX)+','+n(anclaY)+');\n';
+    }
+    s += '\\node[font=\\small, inner sep=1pt] at ('+n(puesto.cx)+','+n(puesto.cy)+') {$\\beta$};\n';
+  }
+  s += '\\end{tikzpicture}';
+  return s;
+}
+
+function construirLatex(){
+  if(!results){ aviso('Primero calcula el centroide.'); return null; }
+  const het = results.hetero;
+  const u2 = unit+'\\textsuperscript{2}', u1 = unit;
+  const simb = (matSimbolo() === 'ρ') ? '\\rho' : '\\gamma';
+
+  let figN = 0, tablaN = 0;
+  function figCaption(txt){
+    figN++;
+    return '\n\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n';
+  }
+  function tablaCaption(txt){
+    tablaN++;
+    return '\n\\begin{center}{\\small\\color{bsaMuted}\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n';
+  }
+
+  const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
+
+  const preambulo = '\\documentclass[11pt]{article}\n'
+    + '\\usepackage[utf8]{inputenc}\n'
+    + '\\usepackage[T1]{fontenc}\n'
+    + '\\usepackage[a4paper,margin=2.2cm]{geometry}\n'
+    + '\\usepackage{amsmath,amssymb}\n'
+    + '\\usepackage{tikz}\n'
+    + '\\usetikzlibrary{patterns,arrows.meta,calc}\n'
+    + '\\usepackage{xcolor}\n\n'
+    + '\\definecolor{bsaAcc}{HTML}{B45309}\n'
+    + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
+    + '\\definecolor{bsaAlerta}{HTML}{B8860C}\n'
+    + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
+    + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
+    + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
+    + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
+    + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
+    + '\\makeatletter\n'
+    + '\\def\\ps@bsa{%\n'
+    + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Centro de Gravedad y Centroide}\\hfill'
+    +      '\\color{bsaMuted}Cap.\\ 9}%\n'
+    + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\hfill}%\n'
+    + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n'
+    + '\\makeatother\n'
+    + '\\newcommand{\\sen}{\\operatorname{sen}}\n'
+    + '\\pagestyle{bsa}\n\n'
+    + '\\newcommand{\\veredicto}[1]{%\n'
+    + '  \\begin{center}\\fcolorbox{bsaAcc}{bsaAcc!7}{\\parbox{0.93\\textwidth}{\\vspace{3pt}#1\\vspace{3pt}}}\\end{center}}\n\n'
+    + '\\newcommand{\\seccion}[1]{%\n'
+    + '  \\vspace{10pt}{\\large\\bfseries\\color{bsaAcc}#1}\\par\\vspace{3pt}\\hrule\\vspace{7pt}}\n\n'
+    + '\\begin{document}\n\n';
+
+  let tex = preambulo;
+  tex += '\\begin{center}\n'
+    + '  {\\LARGE\\bfseries\\color{bsaAcc} Reporte de An\\\'alisis de Secci\\\'on Compuesta}\\\\[3pt]\n'
+    + '  {\\small\\color{bsaMuted} Generado: ' + escLatex(dt) + '}\n'
+    + '\\end{center}\n\\vspace{8pt}\n\n';
+
+  // ── 1. Sección compuesta con cotas ──
+  tex += '\\seccion{1. Secci\\\'on compuesta}\n'
+    + '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n' + tikzSeccionCompuesta({cotas:true}) + '\\end{tikzpicture}\n\\end{center}\n';
+  tex += figCaption('Secci\\\'on compuesta con sus figuras y cotas generales.');
+  tex += '\\begin{center}\n\\begin{tabular}{@{}ll@{\\hspace{18pt}}ll@{}}\n'
+    + '\\tikz{\\filldraw[fill=bsaAcc2, fill opacity=0.30, draw=bsaAcc2] (0,0) rectangle (0.35,0.22);} & {\\footnotesize \\\'Area que suma} & '
+    + '\\tikz{\\filldraw[pattern=north east lines, pattern color=bsaAcc2, draw=bsaAcc2, dashed] (0,0) rectangle (0.35,0.22);} & {\\footnotesize \\\'Area que resta} \\\\\n'
+    + '\\end{tabular}\n\\end{center}\n\\vspace{6pt}\n';
+
+  // ── 2. Propiedades de cada figura ──
+  // Desarrollo completo por figura: fórmula del área, sustitución, resultado,
+  // centroide, giro y (si el cuerpo es heterogéneo) peso o masa. El croquis
+  // acotado va al costado, a la misma altura, en una minipágina.
+  tex += '\\seccion{2. Propiedades de cada figura}\n';
+  results.steps.forEach((st,i)=>{
+    const f = st.fig;
+    const nom = f.etiqueta || f.name || FIG_DEFS[f.type].name;
+    const fa = formulaArea(f);
+    const areaBruta = FIG_DEFS[f.type].area(f.dims);
+    const cl = centroideLocalTex(f);
+    const g = f.rotation || 0;
+
+    // Cada figura arranca con una regla fina y aire por arriba y por abajo:
+    // sin eso los 18 desarrollos se leen como un único bloque continuo y no se
+    // distingue dónde acaba uno y empieza el siguiente.
+    if(i > 0) tex += '\\vspace{12pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{12pt}\n\n';
+    tex += '\\noindent{\\bfseries\\color{bsaAcc} Figura ' + (i+1) + ': '
+         + escLatex(nom) + '}\\ \\ {\\small\\color{bsaMuted}('
+         + (f.sign > 0 ? 'se \\textbf{suma}' : 'se \\textbf{resta}') + ')}\\\\[6pt]\n';
+
+    tex += '\\noindent\\begin{minipage}[t]{0.60\\textwidth}\n\\small\n';
+    tex += '\\textbf{\\\'Area}\n';
+    tex += '\\[ ' + fa.sim + ' \\]\n';
+    tex += '\\[ ' + fa.sus + ' = ' + decP(areaBruta,'area') + '\\,' + utex(u2) + ' \\]\n';
+    if(f.sign < 0){
+      tex += '{\\footnotesize Al ser un hueco entra en las sumas con signo negativo: '
+           + '$A_{' + (i+1) + '} = -' + decP(areaBruta,'area') + '$.}\\\\[3pt]\n';
+    }
+    tex += '\\textbf{Centroide}\n';
+    if(cl) tex += '\\[ ' + cl + ' \\]\n';
+    tex += '\\[ \\tilde{x}_{' + (i+1) + '} = ' + decP(st.xi,'len') + '\\,' + utex(u1)
+         + ' \\qquad \\tilde{y}_{' + (i+1) + '} = ' + decP(st.yi,'len') + '\\,' + utex(u1) + ' \\]\n';
+    if(Math.abs(g) >= 0.5){
+      tex += '{\\footnotesize Figura girada un \\\'angulo $\\beta = ' + decP(g,'len')
+           + '^\\circ$ respecto al eje $x$. El giro reubica el centroide, pero no '
+           + 'altera el \\\'area.}\\\\[3pt]\n';
+    }
+    if(het){
+      const gs = st.mat ? decP(st.g,'len') : '1';
+      tex += '\\textbf{' + (matMagnitud === 'densidad' ? 'Masa' : 'Peso') + '}\n';
+      tex += '\\[ ' + (matMagnitud === 'densidad' ? 'm_i' : 'W_i') + ' = '
+           + simb + '_i\\,A_i\\,t_i = (' + gs + ')(' + decP(Math.abs(st.a),'area')
+           + ')(' + decP(st.t,'len') + ') = ' + decP(Math.abs(st.w),'area') + ' \\]\n';
+      tex += '{\\footnotesize Espesor perpendicular al plano $XY$: $t_i = '
+           + decP(st.t,'len') + '\\,' + u1 + '$.}\n';
+    }
+    tex += '\\end{minipage}\\hfill\n';
+    tex += '\\begin{minipage}[t]{0.36\\textwidth}\n\\vspace{2pt}\\centering\n'
+         + tikzCroquisFigura(f, 4.4) + '\n';
+    if(Math.abs(g) >= 0.5){
+      tex += '\\\\[3pt]{\\scriptsize$\\beta = ' + decP(g,'len') + '^\\circ$}\n';
+    }
+    tex += '\\\\[2pt]{\\scriptsize\\color{bsaMuted}Croquis acotado, en ' + u1 + '}\n'
+         + '\\end{minipage}\n\\vspace{6pt}\n';
+  });
+
+  // ── 3. Tabla resumen ──
+  // Aquí sí va el cuadro de valores y de productos, con un factor 10^n común
+  // por columna para que los números no se desborden.
+  tex += '\\seccion{3. Tabla resumen de figuras}\n';
+  {
+    const fA  = factorColumna(results.steps.map(s2=>s2.a));
+    const fX  = factorColumna(results.steps.map(s2=>s2.xi));
+    const fY  = factorColumna(results.steps.map(s2=>s2.yi));
+    const fAX = factorColumna(results.steps.map(s2=>s2.ax).concat([results.Qy]));
+    const fAY = factorColumna(results.steps.map(s2=>s2.ay).concat([results.Qx]));
+    const cab = (t, f, u) => '\\textbf{' + t + '}' + (f.cab ? ' $' + f.cab + '$' : '')
+                           + (u ? ' {\\scriptsize(' + u + ')}' : '');
+
+    tex += '\\begin{center}\\begin{tabular}{clccccc}\\hline\n'
+      + '\\textbf{N\\textsuperscript{o}} & \\textbf{Figura} & '
+      + cab('$A_i$', fA, u2) + ' & ' + cab('$\\tilde{x}_i$', fX, u1) + ' & '
+      + cab('$\\tilde{y}_i$', fY, u1) + ' & ' + cab('$A_i\\tilde{x}_i$', fAX, '') + ' & '
+      + cab('$A_i\\tilde{y}_i$', fAY, '') + '\\\\\\hline\n';
+    results.steps.forEach((s2,i)=>{
+      const nom = s2.fig.etiqueta || s2.fig.name || FIG_DEFS[s2.fig.type].name;
+      tex += (i+1) + ' & ' + escLatex(nom)
+        + ' & ' + celdaCol(s2.a, fA, DEC.area)
+        + ' & ' + celdaCol(s2.xi, fX, DEC.len)
+        + ' & ' + celdaCol(s2.yi, fY, DEC.len)
+        + ' & ' + celdaCol(s2.ax, fAX, DEC.area)
+        + ' & ' + celdaCol(s2.ay, fAY, DEC.area) + ' \\\\\n';
+    });
+    tex += '\\hline\n\\multicolumn{2}{l}{$\\sum$ (Total)} & '
+      + celdaCol(results.A, fA, DEC.area) + ' & --- & --- & '
+      + celdaCol(results.Qy, fAX, DEC.area) + ' & '
+      + celdaCol(results.Qx, fAY, DEC.area) + ' \\\\\n'
+      + '\\hline\\end{tabular}\\end{center}\n'
+      + tablaCaption('\\\'Areas, centroides y momentos est\\\'aticos de \\\'area. '
+        + 'Las columnas con factor $\\times 10^{n}$ llevan ese factor en la cabecera.');
+  }
+
+  // Segunda tabla, solo si el cuerpo es heterogéneo: la de pesos o masas.
+  if(het){
+    const fG  = factorColumna(results.steps.map(s2=>s2.g));
+    const fW  = factorColumna(results.steps.map(s2=>s2.w));
+    const fWX = factorColumna(results.steps.map(s2=>s2.wx).concat([results.Wx]));
+    const fWY = factorColumna(results.steps.map(s2=>s2.wy).concat([results.Wy]));
+    const cab = (t, f, u) => '\\textbf{' + t + '}' + (f.cab ? ' $' + f.cab + '$' : '')
+                           + (u ? ' {\\scriptsize(' + u + ')}' : '');
+    const Wsim = (matMagnitud === 'densidad') ? 'm' : 'W';
+
+    tex += '\\begin{center}\\begin{tabular}{clcccccc}\\hline\n'
+      + '\\textbf{N\\textsuperscript{o}} & \\textbf{Figura} & \\textbf{$' + simb + '_i$} & '
+      + cab('$' + simb + '_i$', fG, '') + ' & \\textbf{$t_i$} {\\scriptsize(' + u1 + ')} & '
+      + cab('$' + Wsim + '_i$', fW, '') + ' & '
+      + cab('$' + Wsim + '_i\\tilde{x}_i$', fWX, '') + ' & '
+      + cab('$' + Wsim + '_i\\tilde{y}_i$', fWY, '') + '\\\\\\hline\n';
+    results.steps.forEach((s2,i)=>{
+      const nom = s2.fig.etiqueta || s2.fig.name || FIG_DEFS[s2.fig.type].name;
+      tex += (i+1) + ' & ' + escLatex(nom)
+        + ' & ' + (s2.mat ? ('$'+simb+'_{'+s2.mat.id+'}$') : '---')
+        + ' & ' + celdaCol(s2.g, fG, DEC.len)
+        + ' & ' + decP(s2.t,'len')
+        + ' & ' + celdaCol(s2.w, fW, DEC.area)
+        + ' & ' + celdaCol(s2.wx, fWX, DEC.area)
+        + ' & ' + celdaCol(s2.wy, fWY, DEC.area) + ' \\\\\n';
+    });
+    tex += '\\hline\n\\multicolumn{5}{l}{$\\sum$ (Total)} & '
+      + celdaCol(results.W, fW, DEC.area) + ' & '
+      + celdaCol(results.Wx, fWX, DEC.area) + ' & '
+      + celdaCol(results.Wy, fWY, DEC.area) + ' \\\\\n'
+      + '\\hline\\end{tabular}\\end{center}\n'
+      + tablaCaption((matMagnitud === 'densidad' ? 'Densidades, masas' : 'Pesos espec\\\'ificos, pesos')
+        + ' y sus momentos est\\\'aticos. Es la tabla que alimenta el centro de gravedad.');
+  }
+
+  // ── 4. Centroide / centro de gravedad ──
+  tex += '\\seccion{4. ' + (het?'Centroide, centro de gravedad y \\\'area':'Centroide y \\\'area de la secci\\\'on compuesta') + '}\n';
+  tex += '\\textbf{\\\'Area total}:\\\\[2pt]\n'
+    + '\\[ A_{total} = \\sum A_i = ' + ftex(results.A) + '\\,' + utex(u2) + ' \\]\n';
+  tex += '\\textbf{Coordenadas del centroide C}:\\\\[2pt]\n'
+    + '\\[ \\bar{x} = \\dfrac{\\sum A_i \\tilde{x}_i}{\\sum A_i} = \\dfrac{' + ftex(results.Qy) + '}{' + ftex(results.A) + '} = '
+    + decP(results.xbar,'len') + '\\,' + u1 + ' \\]\n'
+    + '\\[ \\bar{y} = \\dfrac{\\sum A_i \\tilde{y}_i}{\\sum A_i} = \\dfrac{' + ftex(results.Qx) + '}{' + ftex(results.A) + '} = '
+    + decP(results.ybar,'len') + '\\,' + u1 + ' \\]\n';
+  if(het){
+    tex += '\\textbf{Coordenadas del centro de gravedad G}:\\\\[2pt]\n'
+      + '\\[ \\sum W_i = \\sum ' + simb + '_i A_i t_i = ' + decP(results.W,'area') + ' \\]\n'
+      + '\\[ x_G = \\dfrac{\\sum W_i \\tilde{x}_i}{\\sum W_i} = \\dfrac{' + ftex(results.Wx) + '}{' + ftex(results.W) + '} = '
+      + decP(results.xg,'len') + '\\,' + u1 + ' \\]\n'
+      + '\\[ y_G = \\dfrac{\\sum W_i \\tilde{y}_i}{\\sum W_i} = \\dfrac{' + ftex(results.Wy) + '}{' + ftex(results.W) + '} = '
+      + decP(results.yg,'len') + '\\,' + u1 + ' \\]\n';
+  }
+  tex += '\\veredicto{'
+    + (het
+      ? 'Cuerpo \\textbf{heterog\\\'eneo}: el centro de gravedad G queda a ' + decP(results.sep,'len') + '\\,' + u1
+        + ' del centroide C, desplazado hacia el material m\\\'as pesado.'
+      : 'Cuerpo \\textbf{homog\\\'eneo}: el peso espec\\\'ifico se cancela en el cociente, de modo que el centroide, '
+        + 'el centro de masa y el centro de gravedad son el mismo punto.')
+    + '}\n\n';
+
+  // ── 5. Sección resuelta ──
+  // Aquí NO se repite la cadena de cotas: se acota únicamente la posición de C
+  // (y de G si el cuerpo es heterogéneo) respecto a los ejes X e Y, que aquí
+  // sí se dibujan porque son la referencia de la medida.
+  tex += '\\seccion{5. Secci\\\'on resuelta}\n'
+    + '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
+    + tikzSeccionCompuesta({cotas:false, marcarC:true, ejes:true, cotasC:true})
+    + '\\end{tikzpicture}\n\\end{center}\n';
+  // Los valores no van dentro del dibujo (allí solo la variable): se listan
+  // debajo, donde caben con todos sus decimales y su unidad.
+  tex += '\\begin{center}\\begin{tabular}{ll}\n'
+    + '$\\bar{x}_{C} = ' + decP(results.xbar,'len') + '\\,' + utex(u1) + '$'
+    + ' & $\\bar{y}_{C} = ' + decP(results.ybar,'len') + '\\,' + utex(u1) + '$ \\\\\n';
+  if(het && results.sep > 1e-9){
+    tex += '$\\bar{x}_{G} = ' + decP(results.xg,'len') + '\\,' + utex(u1) + '$'
+      + ' & $\\bar{y}_{G} = ' + decP(results.yg,'len') + '\\,' + utex(u1) + '$ \\\\\n';
+  }
+  tex += '\\end{tabular}\\end{center}\n';
+  tex += figCaption('Secci\\\'on resuelta: posici\\\'on del centroide C'
+    + (het?' y del centro de gravedad G':'') + ' medida desde los ejes $X$ e $Y$.');
+
+  // ── Cierre con la marca BSA ──
+  tex += '\\vspace{18pt}\\hrule\\vspace{14pt}\n'
+    + '\\begin{center}\n'
+    + '{\\small\\color{bsaMuted}\\textbf{BEAM \\& SECTION ANALYSIS (BSA)}}\\\\[2pt]\n'
+    + '{\\footnotesize\\color{bsaMuted}Plataforma educativa de an\\\'alisis estructural}\\\\[8pt]\n'
+    + '\\begin{tikzpicture}[baseline]\n'
+    + '  \\node[font=\\fontsize{26}{26}\\selectfont\\bfseries, color=bsaLogoB] at (0,0) {B};\n'
+    + '  \\node[font=\\fontsize{26}{26}\\selectfont\\bfseries, color=bsaLogoS] at (0.47,0) {S};\n'
+    + '  \\node[font=\\fontsize{26}{26}\\selectfont\\bfseries, color=bsaLogoA] at (0.96,0) {A};\n'
+    + '\\end{tikzpicture}\\\\[7pt]\n'
+    + '{\\footnotesize\\color{bsaMuted}Creado por \\textbf{Luis Alejandro Baz\\\'an Campos}}\\\\[2pt]\n'
+    + '{\\scriptsize\\color{bsaMuted}beamsectionanalysis.com}\n'
+    + '\\end{center}\n\n';
+
+  tex += '\\end{document}\n';
+  return tex;
+}
+
 function downloadPDF(){
-  if(!results){alert('Primero calcula el centro de gravedad.');return;}
+  if(!results){aviso('Primero calcula el centro de gravedad.');return;}
 
   // La ventana debe abrirse ANTES de cualquier operación async, o el
   // bloqueador de pop-ups del navegador la cancela.
   const pdfWin = window.open('', '_blank');
-  if(!pdfWin){ alert('El navegador bloqueó la ventana de impresión. Habilita las ventanas emergentes para este sitio.'); return; }
+  if(!pdfWin){ aviso('El navegador bloqueó la ventana de impresión. Habilita las ventanas emergentes para este sitio.', 'error'); return; }
 
   // Se capturan los tres lienzos del desarrollo: editor, sección con cotas
   // y sección resuelta. (Este capítulo no usa círculos de Mohr.)
@@ -3874,7 +5070,7 @@ function downloadPDF(){
   html += '<link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">';
   html += '<style>'+katexCss+'</style><style>'+printCss+'</style></head><body>';
   html += wmSeal;
-  html += '<div class="pdf-header"><div><div class="pdf-title">BSA \u2014 Centro de Gravedad y Centroide</div><div class="pdf-sub">Hibbeler Est\u00e1tica 12\u00aa ed. \u00b7 Cap. 9 \u00b7 by Luis Alejandro Baz\u00e1n Campos</div></div><div class="pdf-date">Generado: '+dt+'</div></div>';
+  html += '<div class="pdf-header"><div><div class="pdf-title">BSA \u2014 Centro de Gravedad y Centroide</div><div class="pdf-sub">Cap. 9 \u00b7 by Luis Alejandro Baz\u00e1n Campos</div></div><div class="pdf-date">Generado: '+dt+'</div></div>';
   html += encabezadoImg + body;
   html += '<div class="pdf-foot">BSA \u00b7 by Luis Alejandro Baz\u00e1n Campos</div>';
   html += '</body></html>';
@@ -3903,10 +5099,43 @@ function drawCompositeFigure(canvasId) {
       xMin=Math.min(xMin,rx);xMax=Math.max(xMax,rx);yMin=Math.min(yMin,ry);yMax=Math.max(yMax,ry);
     }
   }
-  const PAD=55,fw=Math.max(xMax-xMin,.001),fh=Math.max(yMax-yMin,.001);
-  const scale=Math.min((W-PAD*2)/fw,(H-PAD*2)/fh);
-  const ox=W/2-(xMin+xMax)/2*scale, oy=H/2+(yMin+yMax)/2*scale;
-  const toSx=wx=>ox+wx*scale, toSy=wy=>oy-wy*scale;
+  // ── Encaje en DOS PASADAS ──
+  // La acotación no ocupa lo mismo arriba que abajo: la cadena y la cota total
+  // van debajo y a la derecha. Con un margen simétrico la cota total del eje X
+  // se salía del lienzo y aparecía cortada. Así que primero se encaja con un
+  // margen provisional, se pregunta cuánto espacio pide la acotación con esa
+  // escala, y se vuelve a encajar reservándolo de verdad.
+  const fw=Math.max(xMax-xMin,.001), fh=Math.max(yMax-yMin,.001);
+  const cfgCotas = base => ({
+    px: x => base.toSx(x), py: y => base.toSy(y),
+    fuente:'600 9px Inter, sans-serif', fuenteTotal:'700 9.5px Inter, sans-serif',
+    tick:3.8, salto:13, sepX:26, sepY:30, angulos:false
+  });
+  // El dibujo se centra en el hueco libre. Antes se anclaba al margen
+  // izquierdo: como la escala la manda la altura, en una pantalla ancha el
+  // dibujo quedaba pegado a la izquierda con medio lienzo en blanco.
+  const encajar = (mIzq, mDer, mSup, mInf)=>{
+    const dispW = W - mIzq - mDer, dispH = H - mSup - mInf;
+    const sc = Math.min(dispW/fw, dispH/fh);
+    const sobraX = dispW - fw*sc, sobraY = dispH - fh*sc;
+    return {
+      toSx: wx => mIzq + sobraX/2 + (wx-xMin)*sc,
+      toSy: wy => H - mInf - sobraY/2 - (wy-yMin)*sc,
+      scale: sc
+    };
+  };
+  // Los rótulos de radio y ángulo se colocan junto a su figura, así que no hay
+  // que reservar una banda lateral; sí un margen holgado para que las cajas
+  // quepan alrededor del dibujo.
+  const MARGEN_ROT = 62;
+  let T = encajar(MARGEN_ROT, 70, 30, 70);           // provisional
+  let esp = {abajo:70, derecha:70};
+  try{ esp = espacioCotas(c, cfgCotas(T)); }catch(e){}
+  T = encajar(MARGEN_ROT,
+              Math.min(esp.derecha+10, W*0.42),
+              30,
+              Math.min(esp.abajo+8, H*0.42));
+  const scale=T.scale, toSx=T.toSx, toSy=T.toSy;
   // Grid
   c.strokeStyle='rgba(228,172,23,.07)'; c.lineWidth=0.5;
   const gs=Math.pow(10,Math.round(Math.log10(fw/5)));
@@ -3943,6 +5172,7 @@ function drawCompositeFigure(canvasId) {
     c.fillStyle='#f0c040';c.font='bold 10px Inter';c.textAlign='left';c.fillText('G',gsx+8,gsy-5);
   }
   c.textAlign='center';
+  const etiq = crearColocador(c, {x0:4, y0:4, x1:W-4, y1:H-4});
   for(const fig of figures){
     const def=FIG_DEFS[fig.type]; if(!def||!def.bounds) continue;
     const b=def.bounds(fig.dims),d=fig.dims,rot=(fig.rotation||0)*Math.PI/180;
@@ -3987,22 +5217,35 @@ function drawCompositeFigure(canvasId) {
         c.lineTo(p1.x-7*Math.cos(ang-0.38), p1.y-7*Math.sin(ang-0.38));
         c.lineTo(p1.x-7*Math.cos(ang+0.38), p1.y-7*Math.sin(ang+0.38));
         c.closePath(); c.fill();
-        // etiqueta perpendicular a la línea, para que no la tape
+        // Las etiquetas NO se escriben aquí: se encolan en el colocador y se
+        // pintan al final, para que puedan apartarse unas de otras.
         const mx=(p0.x+p1.x)/2, my=(p0.y+p1.y)/2;
-        c.font='bold 9px Inter'; c.textAlign='center';
-        c.fillText('R='+d.r+unit, mx-8*Math.sin(ang), my+8*Math.cos(ang)-2);
+        etiq.add('R='+d.r+unit, mx-8*Math.sin(ang), my+8*Math.cos(ang)-2, clr, 'bold 9px Inter');
         if(fig.type==='sector'){
-          c.font='9px Inter';
-          c.fillText('\u03b8='+d.alpha+'\u00b0', p0.x, p0.y+13);
+          etiq.add('\u03b8='+d.alpha+'\u00b0', p0.x, p0.y+13, clr, '9px Inter');
         }
         c.restore();
       }
     }
   }
+  // Huecos prohibidos para los rótulos: la caja de cada figura (con algo de
+  // aire) y las bandas donde van las cotas, abajo y a la derecha.
+  const obstaculos = figures.map(f=>{
+    const b = figuraBoundsMundo(f);
+    const x0 = toSx(b.left), x1 = toSx(b.right);
+    const y0 = toSy(b.top),  y1 = toSy(b.bottom);
+    return {x:x0-4, y:y0-4, w:(x1-x0)+8, h:(y1-y0)+8};
+  });
+  {
+    const yb = toSy(yMin), xr = toSx(xMax);
+    obstaculos.push({x:0, y:yb+6, w:W, h:H});          // banda inferior de cotas
+    obstaculos.push({x:xr+6, y:0, w:W, h:H});          // banda derecha de cotas
+  }
+  etiq.pintar(obstaculos);   // cada valor en su recuadro, junto a su figura
   // Cotas generales encadenadas de toda la sección (criterio del Cap. 7)
   try{ cotasCompuestaGenerales(c, toSx, toSy, W, H, scale); }catch(e){}
   c.textAlign='left';c.fillStyle='rgba(30,33,38,.35)';c.font='8px Inter';
-  c.fillText('G = centroide global de la secci\u00f3n',PAD/2,H-8);
+  c.fillText('G = centroide global de la secci\u00f3n', 12, H-8);
 }
 
 // ── Cotas generales de la sección compuesta ──
@@ -4010,194 +5253,477 @@ function drawCompositeFigure(canvasId) {
 // fuera del dibujo (horizontales abajo, verticales a la derecha) tomadas de los
 // BORDES reales de las figuras. Recibe la transformación del lienzo destino
 // para poder usarse también en el PDF.
+// Cotas de la sección compuesta en la vista de resultados. Usa EXACTAMENTE el
+// mismo motor que el lienzo del editor (planCotas + pintarCadenaCotas), solo
+// cambia la proyección y el tamaño de letra: antes eran dos implementaciones
+// distintas del mismo criterio y se veían diferentes.
 function cotasCompuestaGenerales(c, toSx, toSy, W, H, esc){
   if(!figures.length) return;
-  const {xs, ys} = bordesFiguras();
-  if(xs.length < 2 && ys.length < 2) return;
-  const yMin = Math.min(...ys), xMax = Math.max(...xs);
-  c.save();
-  c.strokeStyle='#1b1f24'; c.fillStyle='#1b1f24'; c.lineWidth=1;
-  c.font='600 9px Inter, sans-serif';
-  const marca=(x,y)=>{ c.beginPath(); c.moveTo(x-4,y+4); c.lineTo(x+4,y-4); c.stroke(); };
-  const NIVEL = 15;   // separación entre niveles de cota escalonados
-  const HOLGURA = 4;  // margen mínimo entre dos etiquetas contiguas
-
-  // ── Reparto en niveles para que las etiquetas nunca se pisen ──
-  // A cada cota se le asigna el nivel más bajo (más cercano al dibujo) en el
-  // que su etiqueta no invada el espacio ya ocupado por otra del mismo nivel.
-  // Las cotas cortas suben de nivel en lugar de superponerse.
-  function repartirNiveles(tramos){
-    const ocupado = [];              // por nivel: lista de intervalos [a,b]
-    return tramos.map(t=>{
-      const semi = Math.max(t.ancho, 14)/2 + HOLGURA;
-      const a = t.centro - semi, b = t.centro + semi;
-      let n = 0;
-      while(true){
-        const lista = ocupado[n] || (ocupado[n] = []);
-        if(!lista.some(iv => a < iv[1] && b > iv[0])){ lista.push([a,b]); break; }
-        n++;
-        if(n > 6) break;             // tope de seguridad
-      }
-      return Object.assign({}, t, {nivel:n});
-    });
-  }
-
-  // ── Cadena horizontal, debajo del dibujo ──
-  if(xs.length > 1){
-    const yb = toSy(yMin);
-    const tramos = [];
-    for(let i=0;i<xs.length-1;i++){
-      const x1=toSx(xs[i]), x2=toSx(xs[i+1]);
-      if(Math.abs(x2-x1) < 3) continue;       // bordes prácticamente coincidentes
-      const txt = decFix(xs[i+1]-xs[i],'len')+' '+unit;
-      tramos.push({x1, x2, txt, centro:(x1+x2)/2, ancho:c.measureText(txt).width});
-    }
-    const conNivel = repartirNiveles(tramos);
-    const nMax = conNivel.reduce((m,t)=>Math.max(m,t.nivel),0);
-    // si hiciera falta más espacio del disponible, se acerca la base
-    const base = Math.min(yb + 26, H - 12 - nMax*NIVEL);
-    conNivel.forEach(t=>{
-      const y = base + t.nivel*NIVEL;
-      c.beginPath(); c.moveTo(t.x1,y); c.lineTo(t.x2,y); c.stroke();
-      marca(t.x1,y); marca(t.x2,y);
-      c.textAlign='center';
-      c.fillText(t.txt, t.centro, y-4);
-    });
-    // líneas de referencia desde el borde de la figura hasta su cota
-    c.save(); c.setLineDash([3,3]); c.strokeStyle='rgba(27,31,36,.35)';
-    const hasta = base + nMax*NIVEL + 4;
-    xs.forEach(x=>{ const px=toSx(x);
-      c.beginPath(); c.moveTo(px,yb+3); c.lineTo(px,hasta); c.stroke(); });
-    c.restore();
-  }
-
-  // ── Cadena vertical, a la derecha del dibujo ──
-  if(ys.length > 1){
-    const xr = toSx(xMax);
-    const tramos = [];
-    for(let i=0;i<ys.length-1;i++){
-      const y1=toSy(ys[i]), y2=toSy(ys[i+1]);
-      if(Math.abs(y2-y1) < 3) continue;
-      const txt = decFix(ys[i+1]-ys[i],'len')+' '+unit;
-      tramos.push({x1:y1, x2:y2, txt, centro:(y1+y2)/2, ancho:c.measureText(txt).width});
-    }
-    const conNivel = repartirNiveles(tramos);
-    const nMax = conNivel.reduce((m,t)=>Math.max(m,t.nivel),0);
-    const base = Math.min(xr + 30, W - 14 - nMax*NIVEL);
-    conNivel.forEach(t=>{
-      const x = base + t.nivel*NIVEL;
-      c.beginPath(); c.moveTo(x,t.x1); c.lineTo(x,t.x2); c.stroke();
-      marca(x,t.x1); marca(x,t.x2);
-      c.save(); c.translate(x+10, t.centro); c.rotate(-Math.PI/2);
-      c.textAlign='center';
-      c.fillText(t.txt, 0, 0);
-      c.restore();
-    });
-    c.save(); c.setLineDash([3,3]); c.strokeStyle='rgba(27,31,36,.35)';
-    const hasta = base + nMax*NIVEL + 4;
-    ys.forEach(y=>{ const py=toSy(y);
-      c.beginPath(); c.moveTo(xr+3,py); c.lineTo(hasta,py); c.stroke(); });
-    c.restore();
-  }
-  c.textAlign='left';
-  c.restore();
+  dibujarCotasSobre(c, {
+    px: x => toSx(x), py: y => toSy(y),
+    fuente: '600 9px Inter, sans-serif',
+    fuenteTotal: '700 9.5px Inter, sans-serif',
+    tick: 3.8, salto: 13, sepX: 26, sepY: 30, angulos: false
+  });
 }
 // ── Acotación general de la sección (mismo criterio que el Cap. 7) ──
 // Cotas encadenadas fuera del dibujo: horizontales debajo y verticales a la
 // derecha, en las coordenadas donde hay bordes de figura.
+// ═══════════════════════════════════════════════════════════
+//  ACOTACIÓN
+// ═══════════════════════════════════════════════════════════
+// Criterio: una sola cadena por eje sobre los BORDES reales de las figuras
+// (no sus centros), más una cota total por fuera y el ángulo propio de cada
+// figura girada dibujado junto a ella. Lo que evita la saturación del dibujo
+// de AutoCAD es fusionar los bordes que caen casi en el mismo sitio y repartir
+// las etiquetas en dos niveles cuando no caben, en vez de amontonarlas.
+
+// Estos cuatro números gobiernan por completo la densidad del acotado.
+// Calibrados con el ejemplo de 18 figuras: con ellos los 36 bordes por eje se
+// quedan en unos 14, repartidos en dos niveles.
+const COTA_FUSION_PX   = 12;   // bordes más juntos que esto se cuentan como uno
+const COTA_MIN_SEG_PX  = 26;   // por debajo de esto el borde se descarta entero
+const COTA_MAX_NIVELES = 4;    // escalones de etiquetas antes de renunciar
+const COTA_HOLGURA_PX  = 14;   // aire entre etiquetas del mismo nivel; subirlo
+                               // reparte antes en varios niveles
+
+// Bordes reales de todas las figuras, ya girados. Antes esto llamaba a una
+// función de bordes que NO existía: el try/catch se tragaba el ReferenceError
+// y la cota terminaba midiendo los CENTROS de las figuras en lugar de sus
+// bordes, que es justo lo que se veía mal.
 function bordesFiguras(){
-  // se acota por los BORDES reales de cada figura, no por sus centros
-  const xs = new Set(), ys = new Set();
+  const xs = [], ys = [];
   figures.forEach(f=>{
-    try{
-      const b = getFigBounds(f);
-      xs.add(+b.xmin.toFixed(6)); xs.add(+b.xmax.toFixed(6));
-      ys.add(+b.ymin.toFixed(6)); ys.add(+b.ymax.toFixed(6));
-    }catch(e){ xs.add(+f.cx.toFixed(6)); ys.add(+f.cy.toFixed(6)); }
+    const b = figuraBoundsMundo(f);
+    xs.push(b.left, b.right);
+    ys.push(b.bottom, b.top);
   });
-  return {xs:[...xs].sort((a,b)=>a-b), ys:[...ys].sort((a,b)=>a-b)};
+  return {xs:xs.sort((a,b)=>a-b), ys:ys.sort((a,b)=>a-b)};
 }
-function dibujarCotasGenerales(ctx2, W2, H2){
-  if(!figures.length) return;
+
+// ── Planificador de la cadena de cotas ──────────────────────────────────
+// Devuelve QUÉ dibujar, sin dibujar nada. Lo comparten el lienzo del editor y
+// la vista de resultados, para que las dos muestren lo mismo.
+//
+// Tres pasos, en este orden:
+//  1. FUSIONAR bordes que en pantalla caen a menos de COTA_FUSION_PX.
+//  2. PODAR los que aún dejarían un tramo ilegible. Se descarta la coordenada
+//     entera, no solo su etiqueta: así no quedan líneas de referencia que no
+//     acotan nada, que es lo que ensuciaba el dibujo.
+//  3. REPARTIR las etiquetas en niveles, cada una en el más bajo donde no pise
+//     a otra. Con eso una cadena densa se lee sin amontonarse.
+function planCotas(valores, pos, medir, opts){
+  const o = Object.assign({fusion:COTA_FUSION_PX, minSeg:COTA_MIN_SEG_PX,
+                           maxNiveles:COTA_MAX_NIVELES, holgura:COTA_HOLGURA_PX}, opts||{});
+  if(!valores || valores.length < 2) return null;
+
+  // 1 · fusión
+  const orden = valores.slice().sort((a,b)=>a-b);
+  const fus = []; let grupo = [orden[0]];
+  for(let i=1;i<orden.length;i++){
+    if(Math.abs(pos(orden[i]) - pos(grupo[grupo.length-1])) <= o.fusion) grupo.push(orden[i]);
+    else { fus.push(grupo.reduce((a,b)=>a+b,0)/grupo.length); grupo = [orden[i]]; }
+  }
+  fus.push(grupo.reduce((a,b)=>a+b,0)/grupo.length);
+  if(fus.length < 2) return null;
+
+  // 2 · poda: se conserva siempre el primero y el último
+  const usados = [fus[0]];
+  for(let i=1;i<fus.length-1;i++){
+    if(Math.abs(pos(fus[i]) - pos(usados[usados.length-1])) >= o.minSeg) usados.push(fus[i]);
+  }
+  const ult = fus[fus.length-1];
+  if(Math.abs(pos(ult) - pos(usados[usados.length-1])) < o.minSeg && usados.length > 1) usados.pop();
+  usados.push(ult);
+  if(usados.length < 2) return null;
+
+  // 3 · segmentos y reparto en niveles
+  const segs = [];
+  for(let i=0;i<usados.length-1;i++){
+    const a = pos(usados[i]), b = pos(usados[i+1]);
+    // decFix devuelve un NÚMERO. En canvas measureText lo convierte solo, pero
+    // aquí se mide y se compara, así que se fuerza a texto: si no, .length es
+    // undefined, el ancho sale NaN y el reparto en niveles deja de funcionar
+    // sin dar ningún error (todo cae en el nivel 0 y las etiquetas se pisan).
+    const txt = String(decFix(Math.abs(usados[i+1]-usados[i]),'len'));
+    segs.push({a, b, txt, centro:(a+b)/2, ancho: medir(txt)});
+  }
+  const ocupado = [];
+  segs.forEach(sg=>{
+    const semi = sg.ancho/2 + o.holgura;
+    const i0 = sg.centro - semi, i1 = sg.centro + semi;
+    let n = 0;
+    while(n < o.maxNiveles){
+      const lista = ocupado[n] || (ocupado[n] = []);
+      if(!lista.some(iv => i0 < iv[1] && i1 > iv[0])){ lista.push([i0,i1]); break; }
+      n++;
+    }
+    sg.nivel = n;
+    sg.visible = n < o.maxNiveles;   // si no cabe en ningún nivel, sin etiqueta
+  });
+  return {
+    coords: usados,
+    segs,
+    nMax: segs.reduce((m,sg)=>Math.max(m, sg.visible ? sg.nivel : 0), 0)
+  };
+}
+
+// ── Pintado de una cadena ya planificada ──
+// Una sola línea continua con marcas oblicuas en cada borde conservado, y las
+// etiquetas escalonadas con su guía. Nunca se dibuja una referencia sobre un
+// borde que no participa en ninguna cota.
+function pintarCadenaCotas(c, plan, eje, base, cfg){
+  if(!plan) return 0;
+  const TICK = cfg.tick, SALTO = cfg.salto;
+  const q0 = plan.coords.map(v=>cfg.pos(v));
+  const ini = Math.min(...q0), fin = Math.max(...q0);
+
+  c.save();
+  c.setLineDash([3,3]); c.strokeStyle='rgba(27,31,36,.28)'; c.lineWidth=1;
+  q0.forEach(q=>{
+    c.beginPath();
+    if(eje==='x'){ c.moveTo(q, cfg.borde+3); c.lineTo(q, base+5); }
+    else         { c.moveTo(cfg.borde+3, q); c.lineTo(base+5, q); }
+    c.stroke();
+  });
+  c.restore();
+
+  c.save();
+  c.strokeStyle='#1b1f24'; c.fillStyle='#1b1f24'; c.lineWidth=1.15;
+  c.font = cfg.fuente; c.textAlign='center'; c.textBaseline='middle';
+
+  c.beginPath();
+  if(eje==='x'){ c.moveTo(ini, base); c.lineTo(fin, base); }
+  else         { c.moveTo(base, ini); c.lineTo(base, fin); }
+  c.stroke();
+
+  q0.forEach(q=>{
+    c.beginPath();
+    if(eje==='x'){ c.moveTo(q-TICK, base+TICK); c.lineTo(q+TICK, base-TICK); }
+    else         { c.moveTo(base-TICK, q+TICK); c.lineTo(base+TICK, q-TICK); }
+    c.stroke();
+  });
+
+  // Las etiquetas se escalonan SIEMPRE alejándose del dibujo. Si van hacia
+  // dentro, a partir del segundo nivel se meten encima de las figuras.
+  plan.segs.forEach(sg=>{
+    if(!sg.visible) return;
+    const d = 12 + sg.nivel*SALTO;
+    c.save(); c.strokeStyle='rgba(27,31,36,.40)'; c.lineWidth=.9;
+    if(eje==='x'){
+      const y = base + d;
+      c.beginPath(); c.moveTo(sg.centro, base+2); c.lineTo(sg.centro, y-5); c.stroke(); c.restore();
+      c.fillText(sg.txt, sg.centro, y);
+    } else {
+      const x = base + d;
+      c.beginPath(); c.moveTo(base+2, sg.centro); c.lineTo(x-5, sg.centro); c.stroke(); c.restore();
+      c.save(); c.translate(x, sg.centro); c.rotate(-Math.PI/2);
+      c.fillText(sg.txt, 0, 0); c.restore();
+    }
+  });
+  c.restore();
+  return plan.nMax;
+}
+
+// Cota total: una sola, por fuera de la cadena, con flechas.
+function pintarCotaTotal(c, c0, c1, eje, base, cfg){
+  const a = cfg.pos(c0), b = cfg.pos(c1);
+  if(Math.abs(b-a) < 34) return;
+  c.save();
+  c.strokeStyle='#0f5c56'; c.fillStyle='#0f5c56'; c.lineWidth=1.3;
+  c.font = cfg.fuenteTotal; c.textAlign='center'; c.textBaseline='middle';
+  const flecha = (q, dir)=>{
+    c.beginPath();
+    if(eje==='x'){ c.moveTo(q, base); c.lineTo(q+dir*7, base-3.2); c.lineTo(q+dir*7, base+3.2); }
+    else         { c.moveTo(base, q); c.lineTo(base-3.2, q+dir*7); c.lineTo(base+3.2, q+dir*7); }
+    c.closePath(); c.fill();
+  };
+  const txt = decFix(Math.abs(c1-c0),'len') + ' ' + unit;
+  c.beginPath();
+  if(eje==='x'){ c.moveTo(a, base); c.lineTo(b, base); } else { c.moveTo(base, a); c.lineTo(base, b); }
+  c.stroke();
+  flecha(a, +1); flecha(b, -1);
+  const m = (a+b)/2, w = c.measureText(txt).width;
+  if(eje==='x'){
+    c.save(); c.fillStyle = CANVAS_BG; c.fillRect(m-w/2-4, base-8, w+8, 16); c.restore();
+    c.fillText(txt, m, base);
+  } else {
+    c.save(); c.translate(base, m); c.rotate(-Math.PI/2);
+    c.fillStyle = CANVAS_BG; c.fillRect(-w/2-4, -8, w+8, 16);
+    c.fillStyle = '#0f5c56'; c.fillText(txt, 0, 0); c.restore();
+  }
+  c.restore();
+}
+
+// Ángulo propio de cada figura girada, junto a la figura y no en el margen.
+function dibujarAngulosFiguras(c, proy){
+  c.save();
+  c.font='700 10px Inter, sans-serif'; c.textBaseline='middle';
+  figures.forEach(f=>{
+    const g = f.rotation || 0;
+    if(Math.abs(g) < 0.5) return;
+    const p = proy(f.cx, f.cy);
+    const R = 26, a0 = 0, a1 = -g*Math.PI/180;   // el canvas tiene la Y hacia abajo
+    c.strokeStyle='rgba(180,83,9,.85)'; c.fillStyle='rgba(180,83,9,.95)'; c.lineWidth=1.1;
+    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x+R+8, p.y); c.stroke();
+    c.beginPath(); c.arc(p.x, p.y, R, Math.min(a0,a1), Math.max(a0,a1)); c.stroke();
+    const am = (a0+a1)/2;
+    const tx = p.x + (R+13)*Math.cos(am), ty = p.y + (R+13)*Math.sin(am);
+    const txt = decFix(g,'len').replace(/\.?0+$/,'') + '°';
+    const w = c.measureText(txt).width;
+    c.save(); c.fillStyle = CANVAS_BG; c.fillRect(tx-w/2-3, ty-7, w+6, 14); c.restore();
+    c.textAlign='center'; c.fillText(txt, tx, ty);
+  });
+  c.restore();
+}
+
+// Planificación de las dos cadenas. Se separa del pintado porque el layout
+// necesita saber CUÁNTO espacio harán falta antes de decidir la escala.
+function planificarCotas(c, cfg){
+  if(!figures.length) return null;
   const {xs, ys} = bordesFiguras();
-  if(xs.length < 2 && ys.length < 2) return;
-  const P = (x,y)=>worldToScreen(x,y);
-  const yMin = Math.min(...ys), xMax = Math.max(...xs);
-  ctx2.save();
-  ctx2.strokeStyle='#1b1f24'; ctx2.fillStyle='#1b1f24'; ctx2.lineWidth=1.2;
-  ctx2.font='600 10.5px Inter, sans-serif';
-  const marca=(x,y)=>{ ctx2.beginPath(); ctx2.moveTo(x-5,y+5); ctx2.lineTo(x+5,y-5); ctx2.stroke(); };
-
-  if(xs.length > 1){
-    const yb = P(0,yMin).y, yl = yb + 54;
-    for(let i=0;i<xs.length-1;i++){
-      const x1=P(xs[i],0).x, x2=P(xs[i+1],0).x;
-      if(Math.abs(x2-x1) < 14) continue;
-      ctx2.beginPath(); ctx2.moveTo(x1,yl); ctx2.lineTo(x2,yl); ctx2.stroke();
-      marca(x1,yl); marca(x2,yl);
-      ctx2.textAlign='center';
-      ctx2.fillText(decFix(xs[i+1]-xs[i],'len')+' '+unit, (x1+x2)/2, yl-6);
-    }
-    ctx2.setLineDash([3,3]); ctx2.strokeStyle='rgba(27,31,36,.35)';
-    xs.forEach(x=>{ const px=P(x,0).x;
-      ctx2.beginPath(); ctx2.moveTo(px,yb+4); ctx2.lineTo(px,yl+6); ctx2.stroke(); });
-    ctx2.setLineDash([]); ctx2.strokeStyle='#1b1f24';
-  }
-  if(ys.length > 1){
-    const xr = P(xMax,0).x, xl = xr + 62;
-    for(let i=0;i<ys.length-1;i++){
-      const y1=P(0,ys[i]).y, y2=P(0,ys[i+1]).y;
-      if(Math.abs(y2-y1) < 14) continue;
-      ctx2.beginPath(); ctx2.moveTo(xl,y1); ctx2.lineTo(xl,y2); ctx2.stroke();
-      marca(xl,y1); marca(xl,y2);
-      ctx2.save(); ctx2.translate(xl+13,(y1+y2)/2); ctx2.rotate(-Math.PI/2);
-      ctx2.textAlign='center';
-      ctx2.fillText(decFix(ys[i+1]-ys[i],'len')+' '+unit, 0, 0);
-      ctx2.restore();
-    }
-    ctx2.setLineDash([3,3]); ctx2.strokeStyle='rgba(27,31,36,.35)';
-    ys.forEach(y=>{ const py=P(0,y).y;
-      ctx2.beginPath(); ctx2.moveTo(xr+4,py); ctx2.lineTo(xl+6,py); ctx2.stroke(); });
-    ctx2.setLineDash([]);
-  }
-  ctx2.textAlign='start';
-  ctx2.restore();
+  const medir = t => { c.save(); c.font = cfg.fuente; const w = c.measureText(t).width; c.restore(); return w; };
+  return {
+    xs, ys,
+    planX: planCotas(xs, cfg.px, medir),
+    planY: planCotas(ys, cfg.py, medir)
+  };
 }
 
-function drawDimLine(ctx,p1,p2,label,offset,color){
-  const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy); if(len<4) return;
-  const nx=-dy/len*offset,ny=dx/len*offset;
-  const ax=p1.x+nx,ay=p1.y+ny,bx=p2.x+nx,by=p2.y+ny;
-  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=0.9;
-  ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(ax,ay);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(p2.x,p2.y);ctx.lineTo(bx,by);ctx.stroke();
-  const an=Math.atan2(by-ay,bx-ax),aL=5;
-  ctx.beginPath();
-  ctx.moveTo(ax,ay);ctx.lineTo(ax+aL*Math.cos(an+.35),ay+aL*Math.sin(an+.35));
-  ctx.moveTo(ax,ay);ctx.lineTo(ax+aL*Math.cos(an-.35),ay+aL*Math.sin(an-.35));
-  ctx.moveTo(bx,by);ctx.lineTo(bx-aL*Math.cos(an-.35),by-aL*Math.sin(an-.35));
-  ctx.moveTo(bx,by);ctx.lineTo(bx-aL*Math.cos(an+.35),by-aL*Math.sin(an+.35));
-  ctx.stroke();
-  ctx.font='bold 9px Inter';ctx.fillText(label,(ax+bx)/2,(ay+by)/2-3);
+// Espacio en píxeles que la acotación necesita más allá del dibujo. Sin esto
+// la cota total del eje X caía fuera del lienzo y se veía cortada.
+function espacioCotas(c, cfg){
+  const pl = planificarCotas(c, cfg);
+  const abajo   = pl && pl.planX ? cfg.sepX + 12 + (pl.planX.nMax+1)*cfg.salto + 22 : 12;
+  const derecha = pl && pl.planY ? cfg.sepY + 12 + (pl.planY.nMax+1)*cfg.salto + 24 : 12;
+  return {abajo, derecha};
 }
+
+// Punto de entrada común. cfg define la proyección y el tamaño; el resto del
+// criterio es idéntico en el editor y en la vista de resultados.
+function dibujarCotasSobre(c, cfg){
+  const pl = planificarCotas(c, cfg);
+  if(!pl) return;
+  const {xs, ys, planX, planY} = pl;
+
+  if(planX){
+    const borde = cfg.py(Math.min(...ys));
+    const base = borde + cfg.sepX;
+    pintarCadenaCotas(c, planX, 'x', base,
+      {pos:cfg.px, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente});
+    pintarCotaTotal(c, planX.coords[0], planX.coords[planX.coords.length-1], 'x',
+      base + 12 + (planX.nMax+1)*cfg.salto, {pos:cfg.px, fuenteTotal:cfg.fuenteTotal});
+  }
+  if(planY){
+    const borde = cfg.px(Math.max(...xs));
+    const base = borde + cfg.sepY;
+    pintarCadenaCotas(c, planY, 'y', base,
+      {pos:cfg.py, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente});
+    pintarCotaTotal(c, planY.coords[0], planY.coords[planY.coords.length-1], 'y',
+      base + 12 + (planY.nMax+1)*cfg.salto, {pos:cfg.py, fuenteTotal:cfg.fuenteTotal});
+  }
+  if(cfg.angulos !== false) dibujarAngulosFiguras(c, (x,y)=>({x:cfg.px(x), y:cfg.py(y)}));
+}
+
+// ── Rótulos con recuadro y guía ("callouts") ──────────────────────────────
+// Cada valor va en su propia caja, colocada en un hueco LIBRE cerca de su
+// figura, con una línea corta que apunta a la figura a la que pertenece.
+//
+// planCallouts sólo decide POSICIONES; no dibuja. Trabaja en coordenadas
+// abstractas, así que lo usan igual el lienzo (píxeles, Y hacia abajo) y el
+// generador de LaTeX (centímetros, Y hacia arriba).
+//
+//   items       : [{txt, ancla:{x,y}, w, h, ...}]
+//   obstaculos  : rectángulos que hay que esquivar (figuras, banda de cotas)
+//   marco       : {x0,y0,x1,y1} límites en los que puede caer una caja
+//   d           : distancias de tanteo, de la más corta a la más larga
+function planCallouts(items, obstaculos, marco, d){
+  const dist = d || [30, 46, 66, 90, 118, 150];
+  const angs = [0, -30, 30, -60, 60, -90, 90, -120, 120, -150, 150, 180];
+  const puestas = [];
+  const choca = (r, lista) => lista.some(o =>
+    r.x < o.x+o.w && r.x+r.w > o.x && r.y < o.y+o.h && r.y+r.h > o.y);
+
+  items.forEach(it=>{
+    let mejor = null;
+    for(const D of dist){
+      for(const A of angs){
+        const a = A*Math.PI/180;
+        const cx = it.ancla.x + D*Math.cos(a);
+        const cy = it.ancla.y + D*Math.sin(a);
+        const r = {x:cx-it.w/2, y:cy-it.h/2, w:it.w, h:it.h};
+        if(marco && (r.x < marco.x0 || r.y < marco.y0 ||
+                     r.x+r.w > marco.x1 || r.y+r.h > marco.y1)) continue;
+        if(choca(r, obstaculos)) continue;
+        if(choca(r, puestas.map(p=>p.caja))) continue;
+        mejor = {cx, cy, caja:r};
+        break;
+      }
+      if(mejor) break;
+    }
+    // Si no hay ningún hueco limpio se coloca igual, lo más lejos posible: es
+    // preferible un rótulo algo apretado a perder el dato.
+    if(!mejor){
+      const D = dist[dist.length-1];
+      const cx = it.ancla.x + D, cy = it.ancla.y;
+      mejor = {cx, cy, caja:{x:cx-it.w/2, y:cy-it.h/2, w:it.w, h:it.h}};
+    }
+    puestas.push(Object.assign({}, it, mejor));
+  });
+  return puestas;
+}
+
+// Punto de la caja desde el que sale la guía: el más cercano al ancla, para
+// que la línea nunca atraviese el propio rótulo.
+function bordeCaja(caja, hacia){
+  return {
+    x: Math.max(caja.x, Math.min(hacia.x, caja.x + caja.w)),
+    y: Math.max(caja.y, Math.min(hacia.y, caja.y + caja.h))
+  };
+}
+
+function crearColocador(c, marco){
+  const pend = [];
+  return {
+    add(txt, x, y, color, fuente){
+      c.save(); c.font = fuente;
+      const w = c.measureText(txt).width + 12, h = 16;
+      c.restore();
+      pend.push({txt, ancla:{x, y}, color, fuente, w, h});
+      return true;
+    },
+    ancho(){
+      if(!pend.length) return 0;
+      let w = 0;
+      c.save(); pend.forEach(p=>{ c.font = p.fuente; w = Math.max(w, c.measureText(p.txt).width); }); c.restore();
+      return w + 16;
+    },
+    // obstaculos: cajas de las figuras y de la banda de cotas
+    pintar(obstaculos){
+      if(!pend.length) return;
+      const puestas = planCallouts(pend, obstaculos || [],
+        marco || {x0:4, y0:4, x1:1e5, y1:1e5});
+      c.save();
+      c.textAlign='center'; c.textBaseline='middle';
+      puestas.forEach(p=>{
+        const salida = bordeCaja(p.caja, p.ancla);
+        // guía y punto sobre la figura
+        c.strokeStyle = p.color; c.lineWidth = 1; c.globalAlpha = .75;
+        c.beginPath(); c.moveTo(salida.x, salida.y); c.lineTo(p.ancla.x, p.ancla.y); c.stroke();
+        c.globalAlpha = 1;
+        c.fillStyle = p.color;
+        c.beginPath(); c.arc(p.ancla.x, p.ancla.y, 2.2, 0, Math.PI*2); c.fill();
+        // recuadro
+        c.fillStyle = '#ffffff';
+        c.strokeStyle = p.color; c.lineWidth = 1;
+        const r = 3, b = p.caja;
+        c.beginPath();
+        c.moveTo(b.x+r, b.y);
+        c.arcTo(b.x+b.w, b.y,      b.x+b.w, b.y+b.h, r);
+        c.arcTo(b.x+b.w, b.y+b.h,  b.x,     b.y+b.h, r);
+        c.arcTo(b.x,     b.y+b.h,  b.x,     b.y,     r);
+        c.arcTo(b.x,     b.y,      b.x+b.w, b.y,     r);
+        c.closePath();
+        c.fill(); c.stroke();
+        c.fillStyle = p.color; c.font = p.fuente;
+        c.fillText(p.txt, p.cx, p.cy);
+      });
+      c.restore();
+      pend.length = 0;
+    }
+  };
+}
+
+function dibujarCotasGenerales(ctx2, W2, H2){
+  dibujarCotasSobre(ctx2, {
+    px: x => worldToScreen(x,0).x,
+    py: y => worldToScreen(0,y).y,
+    fuente: '600 10.5px Inter, sans-serif',
+    fuenteTotal: '700 11px Inter, sans-serif',
+    tick: 4.5, salto: 15, sepX: 44, sepY: 50, angulos: true
+  });
+}
+
+
 </script>
 
 <!-- ── MODAL DE UNIDADES ── -->
+<!-- MODAL REPLICAR -->
+<!-- MODAL EDITAR FIGURA -->
+<!-- Aloja el panel de propiedades REAL: al abrirse se traslada aquí el nodo
+     #propPanel y al cerrarse vuelve a la columna. Así no existe una segunda
+     copia de los campos que pueda quedar desincronizada. -->
+<div class="modal-ov" id="edFigModal" onclick="cerrarEdicionSiFondo(event)">
+  <div class="modal-box ancho">
+    <div class="modal-h">Editar figura <span id="edFigNom" style="color:var(--text);font-weight:700"></span></div>
+    <p class="modal-note">Los cambios se aplican al instante sobre el dibujo. Usa Deshacer si quieres volver atrás.</p>
+    <div class="modal-cuerpo" id="edFigBody"></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="edicionAlPanel()">Ver en el panel lateral</button>
+      <button class="mbtn ok" onclick="cerrarEdicionFigura()">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TRANSFORMAR (mover o girar respecto a una coordenada) -->
+<div class="modal-ov" id="transModal">
+  <div class="modal-box">
+    <div class="modal-h">Transformar selección</div>
+    <p class="modal-note" id="transSub">Mueve o gira las figuras seleccionadas tomando una coordenada como referencia.</p>
+    <div class="modal-field">
+      <label>Referencia</label>
+      <select id="transRef" onchange="cambiarRefTrans()"></select>
+    </div>
+    <div id="transCampoRef" style="display:none">
+      <div class="modal-field"><label>Referencia x</label><input type="number" id="transRx" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+      <div class="modal-field"><label>Referencia y</label><input type="number" id="transRy" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+    </div>
+    <div style="display:flex;gap:7px;margin:12px 0 13px">
+      <button class="modo-btn active" id="transTabMover" onclick="setTransModo('mover')">Mover</button>
+      <button class="modo-btn" id="transTabGirar" onclick="setTransModo('girar')">Girar</button>
+    </div>
+    <div id="transCampoMover">
+      <div class="modal-field"><label>Desplazamiento en x</label><input type="number" id="transDx" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+      <div class="modal-field"><label>Desplazamiento en y</label><input type="number" id="transDy" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+    </div>
+    <div id="transCampoGirar" style="display:none">
+      <div class="modal-field"><label>Ángulo (°, antihorario)</label><input type="number" id="transAng" value="90" step="any" oninput="actualizarPrevTrans()"></div>
+    </div>
+    <div class="modal-preview" id="transPrev"></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="closeTransformar()">Cancelar</button>
+      <button class="mbtn ok" onclick="applyTransformar()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-ov" id="repModal">
+  <div class="modal-box">
+    <div class="modal-h">Replicar selección</div>
+    <p class="modal-note" id="repSub">Se copiarán las figuras seleccionadas desplazándolas la distancia indicada, tantas veces como pidas.</p>
+    <div class="modal-field"><label>Distancia en x</label><input type="number" id="repDx" value="5" step="any" oninput="actualizarPrevRep()"></div>
+    <div class="modal-field"><label>Distancia en y</label><input type="number" id="repDy" value="0" step="any" oninput="actualizarPrevRep()"></div>
+    <div class="modal-field"><label>Repeticiones</label><input type="number" id="repN" value="2" min="1" max="50" step="1" oninput="actualizarPrevRep()"></div>
+    <div class="modal-preview" id="repPrev"></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="closeReplicar()">Cancelar</button>
+      <button class="mbtn ok" onclick="applyReplicar()">Replicar</button>
+    </div>
+  </div>
+</div>
 <!-- MODAL GUARDAR PROYECTO -->
 <div class="modal-ov" id="guardarModal">
-  <div class="modal">
-    <h3>Guardar ejercicio</h3>
-    <p class="sub">Ponle un nombre para reconocerlo después. Puedes guardar hasta 10 ejercicios en este capítulo.</p>
+  <div class="modal-box">
+    <div class="modal-h">Guardar ejercicio</div>
+    <p class="modal-note">Ponle un nombre para reconocerlo después. Puedes guardar hasta 10 ejercicios en este capítulo.</p>
     <div class="modal-field">
       <label>Nombre</label>
-      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Armadura Howe 4 paneles"
-        style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px">
+      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Sección T con ala superior">
     </div>
     <div class="modal-preview" id="listaProyectos"></div>
-    <div class="modal-btns">
+    <div class="modal-actions">
       <button class="mbtn ghost" onclick="cerrarGuardar()">Cancelar</button>
-      <button class="mbtn" onclick="guardarProyecto()">Guardar</button>
+      <button class="mbtn ok" onclick="guardarProyecto()">Guardar</button>
     </div>
   </div>
 </div>

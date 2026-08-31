@@ -376,6 +376,36 @@ body{
 .mbtn{padding:8px 16px; border-radius:8px; border:none; font-size:12px; font-weight:700;
   cursor:pointer; font-family:inherit; background:var(--acc); color:#fff;}
 .mbtn.ghost{background:#fff; border:1px solid var(--border2); color:var(--text);}
+/* ── Avisos no bloqueantes ──
+   Reemplazan al diálogo nativo del navegador, que en móvil queda silenciado,
+   con lo que la acción parecía no tener ningún efecto. El z-index queda por
+   encima de los modales (200) para que también se vean los avisos disparados
+   desde dentro de una ventana. */
+.aviso-caja{position:fixed; left:50%; bottom:22px; z-index:300;
+  transform:translateX(-50%) translateY(14px);
+  max-width:min(92vw,460px); display:flex; align-items:flex-start; gap:10px;
+  padding:11px 14px; border-radius:11px; background:var(--acc2); color:#fff;
+  font-size:12px; line-height:1.5; box-shadow:0 8px 26px rgba(0,0,0,.28);
+  opacity:0; pointer-events:none; transition:opacity .18s ease, transform .18s ease;}
+.aviso-caja.visible{opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto;}
+.aviso-caja.error{background:#7a1f16;}
+.aviso-caja .aviso-x{margin-left:auto; background:none; border:none; color:#fff;
+  font-size:16px; line-height:1; cursor:pointer; font-family:inherit; padding:0 2px; opacity:.75;}
+.aviso-caja .aviso-x:hover{opacity:1;}
+/* ── Animación de espera del informe ──
+   Las tres letras del logo suben en cadena: cuando una baja arranca la
+   siguiente, y el ciclo se repite mientras texlive.net compila. */
+.bsa-let{font-size:46px; font-weight:900; line-height:1; display:inline-block;
+  font-family:inherit; animation:bsaSalto 1.05s cubic-bezier(.3,.7,.4,1) infinite;}
+@keyframes bsaSalto{
+  0%, 60%, 100%{transform:translateY(0)     scale(1);}
+  25%          {transform:translateY(-22px) scale(1.06);}
+  45%          {transform:translateY(0)     scale(.97);}
+}
+@media (prefers-reduced-motion:reduce){
+  .bsa-let{animation:bsaLatido 1.2s ease-in-out infinite;}
+  @keyframes bsaLatido{0%,100%{opacity:.45;}50%{opacity:1;}}
+}
 
 /* ── MÓVIL ── */
 /* En escritorio la columna de control está siempre a la vista: solo se
@@ -560,6 +590,7 @@ body{
       <div class="cfg-lbl" style="margin:12px 0 6px">Visualización</div>
       <div class="vis-row">
         <label class="vis-item"><input type="checkbox" id="visGrilla" checked onchange="setVis('grilla',this.checked)"><span>Grilla</span></label>
+        <label class="vis-item"><input type="checkbox" id="visEjes" checked onchange="setVis('ejes',this.checked)"><span>Ejes</span></label>
         <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas</span></label>
         <label class="vis-item"><input type="checkbox" id="visCargas" checked onchange="setVis('cargas',this.checked)"><span>Cargas</span></label>
         <label class="vis-item"><input type="checkbox" id="visApoyos" checked onchange="setVis('apoyos',this.checked)"><span>Apoyos</span></label>
@@ -881,6 +912,40 @@ let gesto = null;        // {tipo:'tap'|'mover'|'rubber', ...} en curso durante 
 // Solo si se mantiene presionado más que esto, un arrastre posterior traza
 // el recuadro de selección/borrado masivo.
 const UMBRAL_MANTENER_MS = 450;
+
+// ── Avisos no bloqueantes (sustituyen a alert) ──
+// Los diálogos nativos del navegador quedan silenciados en móvil: el usuario
+// tocaba un botón, la función salía por su `return` temprano y no aparecía
+// absolutamente nada en pantalla. Este aviso se dibuja dentro de la página,
+// así que se ve en cualquier dispositivo y no bloquea el hilo.
+let _avisoTimer = null;
+function aviso(msg, tipo){
+  let c = document.getElementById('avisoCaja');
+  if(!c){
+    c = document.createElement('div');
+    c.id = 'avisoCaja';
+    c.className = 'aviso-caja';
+    const t = document.createElement('span');
+    t.id = 'avisoTxt';
+    const x = document.createElement('button');
+    x.className = 'aviso-x'; x.type = 'button';
+    x.setAttribute('aria-label','Cerrar aviso');
+    x.textContent = '\u00d7';
+    x.addEventListener('click', cerrarAviso);
+    c.appendChild(t); c.appendChild(x);
+    document.body.appendChild(c);
+  }
+  document.getElementById('avisoTxt').textContent = msg;
+  c.classList.toggle('error', tipo === 'error');
+  c.classList.add('visible');
+  if(_avisoTimer) clearTimeout(_avisoTimer);
+  _avisoTimer = setTimeout(cerrarAviso, 4500);
+}
+function cerrarAviso(){
+  const c = document.getElementById('avisoCaja');
+  if(c) c.classList.remove('visible');
+  if(_avisoTimer){ clearTimeout(_avisoTimer); _avisoTimer = null; }
+}
 let subTab = 'nodos';
 let edNodoId = null, edBarraId = null;
 
@@ -974,7 +1039,11 @@ function dibujarRejilla(){
     ctx.strokeStyle = (j%5===0) ? 'rgba(120,132,148,.20)' : 'rgba(120,132,148,.09)';
     ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke();
   }
-  // ejes
+}
+
+// Los ejes X/Y se dibujan aparte de la rejilla: son dos capas distintas y
+// cada una tiene su propio interruptor en Configuración.
+function dibujarEjes(){
   const [ox,oy] = aPantalla(0,0);
   ctx.strokeStyle = 'rgba(80,92,108,.5)'; ctx.lineWidth = 1.4;
   ctx.beginPath(); ctx.moveTo(0,oy); ctx.lineTo(W,oy); ctx.stroke();
@@ -1151,7 +1220,7 @@ function dibujarCuadroBarra(){
 
 // ── Visibilidad de capas del dibujo ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, cotas:true, cargas:true, apoyos:true};
+const VIS = {grilla:true, ejes:true, cotas:true, cargas:true, apoyos:true};
 function setVis(cual, valor){
   VIS[cual] = !!valor;
   dibujar();
@@ -1259,6 +1328,7 @@ function dibujar(){
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
   if(VIS.grilla) dibujarRejilla();
+  if(VIS.ejes) dibujarEjes();
 
   // barras
   barras.forEach(b=>{
@@ -1920,6 +1990,9 @@ function descApoyoCorto(n){
 // si no hay ninguna abierta, cancela la selección actual. No sustituye ni
 // elimina el botón "Cancelar" de cada modal: es un atajo adicional.
 function manejarEsc(){
+  // Antes que nada, la ventana del informe PDF: se superpone a todo lo demás.
+  const pl = document.getElementById('panelLatexPDF');
+  if(pl && pl.style.display !== 'none' && pl.style.display !== ''){ cerrarPanelLatex(); return; }
   const modales = ['edNodoModal','edBarraModal','apoyoModal','repModal','cargaModal',
                     'transModal','unitsModal','decModal','histModal'];
   const abierto = modales.find(id=>{
@@ -1979,7 +2052,7 @@ function activarEliminar(){
 
 function eliminarSeleccion(){
   if(!selNodos.length && !selBarras.length){
-    alert('Primero elige la herramienta Seleccionar y marca los elementos que quieras borrar.');
+    aviso('Primero elige la herramienta Seleccionar y marca los elementos que quieras borrar.');
     return;
   }
   registrarCambio();
@@ -2000,7 +2073,7 @@ let transModo = 'mover';
 
 function abrirTransformar(){
   if(!selNodos.length){
-    alert('Marca al menos un nudo con la herramienta "Mover / editar" para transformarlo.');
+    aviso('Marca al menos un nudo con la herramienta "Mover / editar" para transformarlo.');
     return;
   }
   // El nudo de referencia se elige entre los seleccionados; si no hubiera
@@ -2074,7 +2147,7 @@ function actualizarPrevTrans(){
 
 function applyTransformar(){
   const t = calcularTransformacion();
-  if(!t){ alert('Elige un nudo de referencia válido.'); return; }
+  if(!t){ aviso('Elige un nudo de referencia válido.'); return; }
   registrarCambio();
   // El giro es un movimiento rígido: NO se engancha a la rejilla, porque
   // redondear cada nudo alteraría las longitudes de las barras y deformaría
@@ -2094,7 +2167,7 @@ function applyTransformar(){
 
 function abrirReplicar(){
   if(!selNodos.length){
-    alert('Elige la herramienta Seleccionar y marca al menos un nudo para replicar.');
+    aviso('Elige la herramienta Seleccionar y marca al menos un nudo para replicar.');
     return;
   }
   document.getElementById('repSub').textContent =
@@ -2122,7 +2195,7 @@ function applyReplicar(){
   const g = id => parseFloat(document.getElementById(id).value) || 0;
   const dx = g('repDx'), dy = g('repDy');
   const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
-  if(dx === 0 && dy === 0){ alert('Indica un desplazamiento en x o en y.'); return; }
+  if(dx === 0 && dy === 0){ aviso('Indica un desplazamiento en x o en y.'); return; }
   registrarCambio();
   const orig = selNodos.slice();
   const barrasRep = barras.filter(b => selBarras.indexOf(b.id) >= 0
@@ -3085,7 +3158,7 @@ function aplicarVariacion(){
   if(!resultado) return;
   const mapa = cargasDeLosCampos();
   const res = analizarConCargas(mapa);
-  if(res.error){ alert('Con esas cargas la estructura no se puede resolver.'); return; }
+  if(res.error){ aviso('Con esas cargas la estructura no se puede resolver.', 'error'); return; }
   const antes = resultado.fuerzas;      // el original nunca se sobrescribe
   const dm = document.getElementById('dclMod');
   if(dm) dm.innerHTML = svgArmadura({fuerzas:res.fuerzas, etiqueta:'valor',
@@ -3835,9 +3908,10 @@ function tikzApoyo(tipo, px, py){
 // ── Cotas (cadena de dimensiones) bajo la armadura ──
 // Acota cada tramo horizontal entre coordenadas x consecutivas y, si la
 // armadura tiene altura, una cota vertical total a la izquierda.
-function tikzCotas(tx, ty, minX, maxX, minY, maxY, esc){
+function tikzCotas(tx, ty, minX, maxX, minY, maxY, esc, nodosSubconjunto){
+  const nodosParaCotas = nodosSubconjunto || nodos;
   let s = '';
-  const xsReales = [...new Set(nodos.map(n=>Math.round(n.x*1000)/1000))].sort((a,b)=>a-b);
+  const xsReales = [...new Set(nodosParaCotas.map(n=>Math.round(n.x*1000)/1000))].sort((a,b)=>a-b);
   const yDim = -0.85;
   const yTop = parseFloat(ty(minY));
   xsReales.forEach(x=>{
@@ -3883,10 +3957,230 @@ function tikzFlechaCarga(n, tx, ty, factor, longBase){
 }
 
 // ── DCL individual de un nudo (esquemático, sin escala geométrica) ──
+// Ancla del texto de una etiqueta según su dirección: la aparta de la línea
+// en vez de dejarla centrada encima (era la causa de los solapes).
+// Generador de letras griegas para etiquetar ángulos en un mismo diagrama:
+// cada llamada a .siguiente() da la próxima (θ, α, β, γ...); se reinicia
+// con letrasGriegas() para cada DCL nuevo.
+// Generador de letras griegas que REUTILIZA la misma letra si el ángulo ya
+// apareció antes en este diagrama (con la misma medida): si tres ángulos
+// valen 56.31°, los tres se llaman θ, no θ/α/β.
+function letrasGriegas(){
+  const lista = ['\\theta','\\alpha','\\beta','\\gamma','\\delta','\\varepsilon','\\zeta','\\eta'];
+  let i = 0;
+  const vistos = [];   // {valor, letra}
+  return {
+    para(valor){
+      const igual = vistos.find(v => Math.abs(v.valor-valor) < 0.15);
+      if(igual) return igual.letra;
+      const l = lista[i % lista.length]; i++;
+      vistos.push({valor, letra:l});
+      return l;
+    }
+  };
+}
+
+// Colocador anti-solape genérico: reparte etiquetas alrededor de un punto
+// por ángulo; si dos quedan demasiado cerca angularmente, aleja la más
+// reciente a un radio mayor. Devuelve si hubo que desplazarla, para poder
+// dibujar una línea conectora delgada hacia su posición real.
+function crearColocador(minSepDeg, pasoRadio){
+  const puestos = [];
+  return {
+    ubicar(angDeg, radioBase){
+      let radio = radioBase, vueltas = 0;
+      let choque = puestos.some(p => Math.min(Math.abs(p.ang-angDeg), 360-Math.abs(p.ang-angDeg)) < minSepDeg);
+      while(choque && vueltas < 6){
+        radio += pasoRadio; vueltas++;
+        choque = puestos.some(p => Math.min(Math.abs(p.ang-angDeg), 360-Math.abs(p.ang-angDeg)) < minSepDeg && Math.abs(p.radio-radio) < pasoRadio*0.6);
+      }
+      puestos.push({ang:angDeg, radio});
+      return {radio, desplazada: radio > radioBase + 1e-6};
+    }
+  };
+}
+
+// Arco de ángulo respecto de una referencia horizontal EXPLÍCITA (se dibuja
+// un pequeño trazo punteado desde el nudo, para que se vea de qué línea se
+// mide el ángulo). El ángulo es siempre agudo (0-90°): acos(|ux|), porque
+// (ux,uy) es unitario. Si la letra chocaría con otra ya puesta, se aleja y
+// se conecta con una línea delgada.
+function arcoAngulo(ux, uy, col, gen, radio, ox, oy, colocadorLetras){
+  ox = ox || 0; oy = oy || 0;
+  const acuteDeg = Math.acos(Math.min(1, Math.abs(ux))) * 180/Math.PI;
+  if(acuteDeg < 4 || acuteDeg > 86) return {tikz:'', letra:null, valor:null};
+  const R2 = radio || 0.65;
+  const rayDeg = (ux >= 0) ? 0 : 180;
+  const rawDeg = Math.atan2(uy, ux) * 180/Math.PI;
+  const tickLen = R2 * 0.62;
+  const tx1 = ox.toFixed(3), ty1 = oy.toFixed(3);
+  const tx2 = (ox + tickLen*Math.cos(rayDeg*Math.PI/180)).toFixed(3), ty2 = (oy + tickLen*Math.sin(rayDeg*Math.PI/180)).toFixed(3);
+  const x1 = (ox + R2*Math.cos(rayDeg*Math.PI/180)).toFixed(3), y1 = (oy + R2*Math.sin(rayDeg*Math.PI/180)).toFixed(3);
+  const letra = gen.para(acuteDeg);
+  const midDeg = (rayDeg+rawDeg)/2;
+
+  let tikz = '\\draw[' + col + '!55, line width=0.35pt, dash pattern=on 1.5pt off 1.5pt] (' + tx1 + ',' + ty1 + ') -- (' + tx2 + ',' + ty2 + ');\n';
+  tikz += '\\draw[' + col + '!70, line width=0.45pt] (' + x1 + ',' + y1 + ') arc [start angle=' + rayDeg + ', end angle=' + rawDeg.toFixed(2) + ', radius=' + R2 + '];\n';
+
+  const baseLetraR = R2 + 0.30;
+  const pos = colocadorLetras ? colocadorLetras.ubicar(midDeg, baseLetraR) : {radio:baseLetraR, desplazada:false};
+  const lx = (ox + pos.radio*Math.cos(midDeg*Math.PI/180)).toFixed(3), ly = (oy + pos.radio*Math.sin(midDeg*Math.PI/180)).toFixed(3);
+  if(pos.desplazada){
+    const ax = (ox + (R2+0.10)*Math.cos(midDeg*Math.PI/180)).toFixed(3), ay = (oy + (R2+0.10)*Math.sin(midDeg*Math.PI/180)).toFixed(3);
+    tikz += '\\draw[' + col + '!50, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + lx + ',' + ly + ');\n';
+  }
+  tikz += '\\node[font=\\tiny, text=' + col + '] at (' + lx + ',' + ly + ') {$' + letra + '$};\n';
+  return {tikz, letra, valor:acuteDeg};
+}
+
+function anclaPara(ux, uy){
+  const ang = Math.atan2(uy, ux)*180/Math.PI;
+  if(ang > -22.5 && ang <= 22.5)   return 'left';
+  if(ang > 22.5 && ang <= 67.5)    return 'below left';
+  if(ang > 67.5 && ang <= 112.5)   return 'below';
+  if(ang > 112.5 && ang <= 157.5)  return 'below right';
+  if(ang > 157.5 || ang <= -157.5) return 'right';
+  if(ang > -157.5 && ang <= -112.5)return 'above right';
+  if(ang > -112.5 && ang <= -67.5) return 'above';
+  return 'above left';
+}
+
+// Inclinación de una barra respecto de la horizontal, normalizada a [0,180):
+// una barra a 210 grados y otra a 30 tienen la misma inclinación.
+function inclinacionBarra(ux, uy){
+  let a = Math.atan2(uy, ux)*180/Math.PI;
+  if(a < 0) a += 180;
+  if(a >= 180) a -= 180;
+  return a;
+}
+
+// ── Porción aislada del método de secciones (auto o manual) ──
+// Dibuja solo el lado analizado: sus barras (color real según resultado),
+// las fuerzas supuestas en las barras cortadas (con su valor calculado en
+// este paso), las cargas/reacciones que actúan sobre la porción, y un
+// marcador en los centros de momento usados para despejar cada incógnita.
+function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
+  const enLado = id => lado.indexOf(id) >= 0;
+  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const anchoReal = Math.max(maxX-minX, 1e-6);
+  const esc = 9.3/anchoReal;
+  const tx = (x)=> ((x-minX)*esc).toFixed(3);
+  const ty = (y)=> ((y-minY)*esc).toFixed(3);
+  const gen = letrasGriegas();
+  const angulos = [];
+
+  // Un colocador anti-solape POR NUDO: la aglomeración ocurre alrededor de
+  // cada nudo por separado (varias barras/cargas saliendo del mismo punto),
+  // no en todo el dibujo a la vez.
+  const colocPorNudo = {};
+  function colocadorDe(idNudo, minSep, paso){
+    if(!colocPorNudo[idNudo]) colocPorNudo[idNudo] = crearColocador(minSep, paso);
+    return colocPorNudo[idNudo];
+  }
+
+  let s = '';
+  barras.forEach(b=>{
+    if(!(enLado(b.a) && enLado(b.b))) return;   // solo barras enteramente dentro de la porción
+    const na = nodos.find(x=>x.id===b.a), nb = nodos.find(x=>x.id===b.b);
+    const f = resultado.fuerzas[b.id]||0;
+    s += '\\draw[' + tikzColorFuerza(f) + ', line width=1.3pt] (' + tx(na.x) + ',' + ty(na.y) + ') -- (' + tx(nb.x) + ',' + ty(nb.y) + ');\n';
+  });
+  nodos.forEach(n=>{
+    if(!enLado(n.id)) return;
+    s += '\\fill (' + tx(n.x) + ',' + ty(n.y) + ') circle (1.5pt);\n';
+    s += '\\node[font=\\tiny, above right, xshift=1pt] at (' + tx(n.x) + ',' + ty(n.y) + ') {' + escLatex(n.nombre) + '};\n';
+    if(n.apoyo === 'fijo' || n.apoyo === 'movil') s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y));
+  });
+
+  // fuerzas supuestas en las barras cortadas (tracción hacia afuera)
+  const Lf0 = 1.55;
+  datosCorte.forEach(d=>{
+    const nodoRef = d.nd || d.nodoDentro;   // 'nd' en modo auto, 'nodoDentro' en modo manual
+    const item = itemsSol.find(it => it.d.barra.id === d.barra.id);
+    const val = item ? item.val : null;
+    const col = (val!==null && isFinite(val)) ? tikzColorFuerza(val) : 'bsaAcc';
+    const px = parseFloat(tx(d.px)), py = parseFloat(ty(d.py));
+    const ex = (px+d.ux*Lf0).toFixed(3), ey = (py+d.uy*Lf0).toFixed(3);
+    s += '\\draw[->, >=stealth, ' + col + ', line width=1.1pt] (' + px.toFixed(3) + ',' + py.toFixed(3) + ') -- (' + ex + ',' + ey + ');\n';
+
+    // Etiqueta simple (solo la variable), separada según lo que ya haya en
+    // este mismo nudo; si se aleja, queda unida con una línea delgada.
+    const clc = colocadorDe(nodoRef.id, 24, 0.85);
+    const angDeg = Math.atan2(d.uy,d.ux)*180/Math.PI;
+    const pos = clc.ubicar(angDeg, Lf0+0.35);
+    const lx = (px + pos.radio*Math.cos(angDeg*Math.PI/180)).toFixed(3), ly = (py + pos.radio*Math.sin(angDeg*Math.PI/180)).toFixed(3);
+    if(pos.desplazada){
+      const ax = (px + (Lf0+0.10)*Math.cos(angDeg*Math.PI/180)).toFixed(3), ay = (py + (Lf0+0.10)*Math.sin(angDeg*Math.PI/180)).toFixed(3);
+      s += '\\draw[' + col + '!55, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + lx + ',' + ly + ');\n';
+    }
+    s += '\\node[font=\\small, text=' + col + ', inner sep=1.5pt] at (' + lx + ',' + ly + ') {$F_{' + escLatex(d.nombre) + '}$};\n';
+
+    // Arco con letra griega para el ángulo agudo (0-90°) de esta barra,
+    // usando el mismo colocador de letras que las fuerzas de este nudo.
+    const clcAng = colocadorDe('ang-'+nodoRef.id, 22, 0.40);
+    const arco = arcoAngulo(d.ux, d.uy, col, gen, 0.55, px, py, clcAng);
+    if(arco.tikz){ s += arco.tikz; angulos.push({letra:arco.letra, valor:arco.valor}); }
+  });
+
+  // cargas y reacciones externas sobre la porción
+  externas.forEach(e=>{
+    const mag = Math.hypot(e.fx, e.fy);
+    if(mag < 1e-9) return;
+    const ux = e.fx/mag, uy = e.fy/mag;
+    const col = e.et.charAt(0) === 'R' ? 'bsaVerde' : 'bsaAcc';
+    const px = parseFloat(tx(e.x)), py = parseFloat(ty(e.y));
+    const nodoAqui = nodos.find(z=>Math.abs(z.x-e.x)<1e-6 && Math.abs(z.y-e.y)<1e-6);
+    const clc = colocadorDe(nodoAqui ? nodoAqui.id : (e.x+','+e.y), 24, 0.85);
+    const angDeg = Math.atan2(-uy,-ux)*180/Math.PI;   // dirección hacia la cola de la flecha
+    const pos = clc.ubicar(angDeg, 1.15);
+    const sx = (px + pos.radio*Math.cos(angDeg*Math.PI/180)).toFixed(3), sy = (py + pos.radio*Math.sin(angDeg*Math.PI/180)).toFixed(3);
+    const ex = (px-ux*0.28).toFixed(3), ey = (py-uy*0.28).toFixed(3);
+    s += '\\draw[->, >=stealth, ' + col + ', line width=1.1pt] (' + sx + ',' + sy + ') -- (' + ex + ',' + ey + ');\n';
+    s += '\\node[font=\\tiny, text=' + col + ', inner sep=1.5pt] at (' + sx + ',' + sy + ') {' + dec(mag,'f') + '\\,' + unitFor + '};\n';
+  });
+
+  // centros de momento usados en este paso
+  itemsSol.forEach(it=>{
+    if(it.tipo !== 'momento' || !it.centro) return;
+    const cx = tx(it.centro.x), cy = ty(it.centro.y);
+    s += '\\draw[bsaAcc, line width=0.6pt, dashed] (' + cx + ',' + cy + ') circle (2.2pt);\n';
+  });
+
+  // Cotas en x e y de los nudos visibles de la porción (mismo estilo que la
+  // Figura 1 general).
+  const nodosLado = nodos.filter(n=>enLado(n.id));
+  if(nodosLado.length > 1){
+    const lx0 = Math.min(...nodosLado.map(n=>n.x)), lx1 = Math.max(...nodosLado.map(n=>n.x));
+    const ly0 = Math.min(...nodosLado.map(n=>n.y)), ly1 = Math.max(...nodosLado.map(n=>n.y));
+    s += tikzCotas(tx, ty, lx0, lx1, ly0, ly1, esc, nodosLado);
+  }
+  return {tikz:s, angulos};
+}
+
 function tikzDCLNudo(n, res){
-  const R = 1.35;
+  const R = 2.10;
   let s = '';
   const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
+  const gen = letrasGriegas();
+  const colocadorLetras = crearColocador(24, 0.42);
+  const colocadorFuerzas = crearColocador(26, 0.55);
+  const angulos = [];   // {letra, valor} — se listan como texto aparte
+
+  function etiquetaFuerza(ux, uy, col, texto, radioBase){
+    const angDeg = Math.atan2(uy,ux)*180/Math.PI;
+    const pos = colocadorFuerzas.ubicar(angDeg, radioBase);
+    const lx = (pos.radio*Math.cos(angDeg*Math.PI/180)).toFixed(3), ly = (pos.radio*Math.sin(angDeg*Math.PI/180)).toFixed(3);
+    let tikz = '';
+    if(pos.desplazada){
+      const ax = ((radioBase-0.10)*Math.cos(angDeg*Math.PI/180)).toFixed(3), ay = ((radioBase-0.10)*Math.sin(angDeg*Math.PI/180)).toFixed(3);
+      tikz += '\\draw[' + col + '!55, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + lx + ',' + ly + ');\n';
+    }
+    tikz += '\\node[font=\\small, text=' + col + ', inner sep=1.5pt] at (' + lx + ',' + ly + ') {' + texto + '};\n';
+    return tikz;
+  }
+
   conec.forEach(b=>{
     const o = nodos.find(z=>z.id === (b.a===n.id?b.b:b.a));
     const dx=o.x-n.x, dy=o.y-n.y, L=Math.hypot(dx,dy);
@@ -3898,38 +4192,45 @@ function tikzDCLNudo(n, res){
     s += '\\draw[' + col + (cero?', dashed':'') + ', line width=1pt] (0,0) -- (' + x2 + ',' + y2 + ');\n';
     if(!cero){
       if(val>0){
-        s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + (ux*(R-0.32)).toFixed(3) + ',' + (uy*(R-0.32)).toFixed(3) + ') -- (' + x2 + ',' + y2 + ');\n';
+        s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + (ux*(R-0.30)).toFixed(3) + ',' + (uy*(R-0.30)).toFixed(3) + ') -- (' + x2 + ',' + y2 + ');\n';
       } else {
-        s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + (ux*0.32).toFixed(3) + ',' + (uy*0.32).toFixed(3) + ') -- (0,0);\n';
+        s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + (ux*0.30).toFixed(3) + ',' + (uy*0.30).toFixed(3) + ') -- (0,0);\n';
       }
     }
-    const lx=(ux*(R+0.32)).toFixed(3), ly=(uy*(R+0.32)).toFixed(3);
-    s += '\\node[font=\\tiny, color=' + col + '] at (' + lx + ',' + ly + ') {$F_{' + nombreBarra(b) + '}$};\n';
+    // Etiqueta simple (solo la variable); si chocaría con otra, se aleja y
+    // se conecta con una línea delgada hasta la punta de su propia barra.
+    s += etiquetaFuerza(ux, uy, col, '$F_{' + nombreBarra(b) + '}$', R+0.30);
+    // Arco con letra griega para el ángulo (agudo, 0-90°) respecto de la horizontal.
+    const arco = arcoAngulo(ux, uy, col, gen, 0.65, 0, 0, colocadorLetras);
+    if(arco.tikz){ s += arco.tikz; angulos.push({letra:arco.letra, valor:arco.valor, barra:nombreBarra(b)}); }
   });
+
   if(!esCero(n.fx) || !esCero(n.fy)){
     const mag=Math.hypot(n.fx,n.fy), ux=n.fx/mag, uy=n.fy/mag;
-    const sx=(-ux*1.7).toFixed(3), sy=(-uy*1.7).toFixed(3);
-    const ex=(-ux*0.32).toFixed(3), ey=(-uy*0.32).toFixed(3);
+    const sx=(-ux*2.15).toFixed(3), sy=(-uy*2.15).toFixed(3);
+    const ex=(-ux*0.30).toFixed(3), ey=(-uy*0.30).toFixed(3);
     s += '\\draw[->, >=stealth, bsaAcc, line width=1.2pt] (' + sx + ',' + sy + ') -- (' + ex + ',' + ey + ');\n';
-    s += '\\node[font=\\tiny, color=bsaAcc] at (' + sx + ',' + (parseFloat(sy)+0.28*(uy<=0?1:-1)).toFixed(3) + ') {' + dec(mag,'f') + '\\,' + unitFor + '};\n';
+    s += etiquetaFuerza(-ux, -uy, 'bsaAcc', dec(mag,'f') + '\\,' + unitFor, 2.55);
   }
+
   const rr = res.reacciones[n.id];
   if(rr){
     if(rr.ry !== undefined && !esCero(rr.ry)){
       const dir = rr.ry>0?1:-1;
-      s += '\\draw[->, >=stealth, bsaVerde, line width=1.2pt] (0,' + (dir*1.7).toFixed(3) + ') -- (0,' + (dir*0.32).toFixed(3) + ');\n';
-      s += '\\node[font=\\tiny, color=bsaVerde] at (0.42,' + (dir*1.35).toFixed(3) + ') {$R_{y' + escLatex(n.nombre) + '}$};\n';
+      s += '\\draw[->, >=stealth, bsaVerde, line width=1.2pt] (0,' + (dir*2.15).toFixed(3) + ') -- (0,' + (dir*0.30).toFixed(3) + ');\n';
+      s += etiquetaFuerza(0, dir, 'bsaVerde', '$R_{y' + escLatex(n.nombre) + '}$ (' + dec(Math.abs(rr.ry),'f') + '\\,' + unitFor + ')', 2.55);
     }
     if(rr.rx !== undefined && !esCero(rr.rx)){
       const dir = rr.rx>0?1:-1;
-      s += '\\draw[->, >=stealth, bsaVerde, line width=1.2pt] (' + (dir*1.7).toFixed(3) + ',0) -- (' + (dir*0.32).toFixed(3) + ',0);\n';
-      s += '\\node[font=\\tiny, color=bsaVerde] at (' + (dir*1.35).toFixed(3) + ',0.30) {$R_{x' + escLatex(n.nombre) + '}$};\n';
+      s += '\\draw[->, >=stealth, bsaVerde, line width=1.2pt] (' + (dir*2.15).toFixed(3) + ',0) -- (' + (dir*0.30).toFixed(3) + ',0);\n';
+      s += etiquetaFuerza(dir, 0, 'bsaVerde', '$R_{x' + escLatex(n.nombre) + '}$ (' + dec(Math.abs(rr.rx),'f') + '\\,' + unitFor + ')', 2.55);
     }
   }
+
   s += '\\fill[bsaAcc] (0,0) circle (2pt);\n';
-  s += '\\node[font=\\small\\bfseries, above right, xshift=1pt, yshift=1pt] at (0,0) {' + escLatex(n.nombre) + '};\n';
-  s += '\\path (-1.95,-1.95) rectangle (1.95,1.95);\n';   // marco invisible: mismo tamaño en todos los DCL
-  return s;
+  s += '\\node[font=\\small\\bfseries, above right, xshift=2pt, yshift=2pt] at (0,0) {' + escLatex(n.nombre) + '};\n';
+  s += '\\path (-4.70,-4.40) rectangle (4.70,4.40);\n';   // marco invisible: mismo tamaño en todos los DCL
+  return {tikz:s, angulos};
 }
 
 // ── Armadura completa reutilizable: geometría base + variantes ──
@@ -3982,7 +4283,7 @@ function tikzArmaduraCompleta(opts){
 // Arma el texto .tex y lo DEVUELVE (no descarga nada).
 // Lo usan tanto descargarTex() como generarPDFLatex().
 function construirLatex(){
-  if(!resultado || resultado.error){ alert('Primero resuelve la armadura sin errores.'); return null; }
+  if(!resultado || resultado.error){ aviso('Primero resuelve la armadura sin errores.'); return null; }
   const uL = unitLen, uF = unitFor;
   const capT = parseFloat(document.getElementById('capT') ? document.getElementById('capT').value : NaN);
   const capC = parseFloat(document.getElementById('capC') ? document.getElementById('capC').value : NaN);
@@ -4014,6 +4315,14 @@ function construirLatex(){
         : '\\textbf{Armadura hiperest\\\'atica.} Hay m\\\'as inc\\\'ognitas que ecuaciones; se necesitan m\\\'etodos adicionales.');
   const check = (m + r === 2*j) ? '\\;\\checkmark' : '';
 
+  // El encabezado de página debe nombrar el método realmente usado, no
+  // "método de nudos" fijo: la app puede estar en método de secciones.
+  const usaSecciones = (typeof metodo !== 'undefined') && metodo === 'secciones';
+  const nombreMetodo = !usaSecciones
+    ? 'M\\\'etodo de nudos'
+    : (modoCorte === 'auto' ? 'M\\\'etodo de secciones (autom\\\'atico)'
+                            : 'M\\\'etodo de secciones (corte manual)');
+
   const preambulo = '\\documentclass[11pt]{article}\n'
     + '\\usepackage[utf8]{inputenc}\n'
     + '\\usepackage[T1]{fontenc}\n'
@@ -4027,11 +4336,14 @@ function construirLatex(){
     + '\\definecolor{bsaRoj}{HTML}{B3261E}\n'
     + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
     + '\\definecolor{bsaAlerta}{HTML}{DB2777}\n'
-    + '\\definecolor{bsaMuted}{HTML}{6B7280}\n\n'
+    + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
+    + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
+    + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
+    + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
     + '\\makeatletter\n'
     + '\\def\\ps@bsa{%\n'
     + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- An\\\'alisis de Armaduras}\\hfill'
-    +      '\\color{bsaMuted}Cap.\\ 6 \\textperiodcentered\\ M\\\'etodo de nudos}%\n'
+    +      '\\color{bsaMuted}Cap.\\ 6 \\textperiodcentered\\ ' + nombreMetodo + '}%\n'
     + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\hfill}%\n'
     + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n'
     + '\\makeatother\n'
@@ -4127,60 +4439,175 @@ function construirLatex(){
     + filasReac + '\\hline\n\\end{tabular}\n\\end{center}\n'
     + tablaCaption('Reacciones resueltas en cada apoyo.');
 
-  // ── 4. Método de nudos, paso a paso, con DCL individual por nudo ──
-  tex += '\\seccion{4. M\\\'etodo de nudos, paso a paso}\n'
-    + '\\noindent Los nudos se recorren de modo que en cada uno queden como m\\\'aximo dos '
-    + 'inc\\\'ognitas, porque en cada nudo solo hay dos ecuaciones: $\\sum F_x = 0$ y $\\sum F_y = 0$.\\\\[8pt]\n\n';
-  const orden = ordenNudos();
-  orden.forEach((paso, i)=>{
-    const n = paso.nodo;
-    const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
-    let textoIzq = '\\textbf{Nudo ' + (i+1) + ': ' + escLatex(n.nombre) + '} \\hfill '
-      + '{\\small\\color{bsaMuted}' + conec.length + ' barra(s)'
-      + (paso.nuevas.length ? ', ' + paso.nuevas.length + ' inc\\\'ognita(s) en este paso' : ' \\textperiodcentered\\ comprobaci\\\'on')
-      + '}\\\\[3pt]\n';
+  // ── 4. Desarrollo por nudos o por secciones, según el método activo ──
+  // La app permite resolver por método de nudos O por método de secciones
+  // (corte automático o manual); el PDF debe mostrar el mismo que está
+  // seleccionado en pantalla, no siempre nudos.
+  // usaSecciones ya se calculó arriba, junto al encabezado de página.
 
-    let exFx = [], exFy = [];
-    conec.forEach(b=>{
-      const o = nodos.find(z=>z.id === (b.a===n.id ? b.b : b.a));
-      const dx = o.x-n.x, dy = o.y-n.y, L = Math.hypot(dx,dy);
-      const cx = dx/L, cy = dy/L;
-      const nb = nombreBarra(b);
-      if(Math.abs(cx) > 1e-9) exFx.push(fmtCoef(cx) + 'F_{'+nb+'}');
-      if(Math.abs(cy) > 1e-9) exFy.push(fmtCoef(cy) + 'F_{'+nb+'}');
-    });
-    const R = resultado.reacciones[n.id];
-    if(R && R.rx !== undefined) exFx.push('R_{x' + escLatex(n.nombre) + '}');
-    if(R && R.ry !== undefined) exFy.push('R_{y' + escLatex(n.nombre) + '}');
-    if(!esCero(n.fx)) exFx.push(fmtNum(n.fx));
-    if(!esCero(n.fy)) exFy.push(fmtNum(n.fy));
+  if(!usaSecciones){
+    tex += '\\seccion{4. M\\\'etodo de nudos, paso a paso}\n'
+      + '\\noindent Los nudos se recorren de modo que en cada uno queden como m\\\'aximo dos '
+      + 'inc\\\'ognitas, porque en cada nudo solo hay dos ecuaciones: $\\sum F_x = 0$ y $\\sum F_y = 0$.\\\\[8pt]\n\n';
+    const orden = ordenNudos();
+    orden.forEach((paso, i)=>{
+      const n = paso.nodo;
+      const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
+      let textoIzq = '\\textbf{Nudo ' + (i+1) + ': ' + escLatex(n.nombre) + '} \\hfill '
+        + '{\\small\\color{bsaMuted}' + conec.length + ' barra(s)'
+        + (paso.nuevas.length ? ', ' + paso.nuevas.length + ' inc\\\'ognita(s) en este paso' : ' \\textperiodcentered\\ comprobaci\\\'on')
+        + '}\\\\[3pt]\n';
 
-    textoIzq += '\\begin{footnotesize}\n'
-      + '\\[ \\textstyle\\sum F_x = 0:\\quad ' + (exFx.join(' + ').replace(/\+ -/g,'- ') || '0') + ' = 0 \\]\n'
-      + '\\[ \\textstyle\\sum F_y = 0:\\quad ' + (exFy.join(' + ').replace(/\+ -/g,'- ') || '0') + ' = 0 \\]\n'
-      + '\\end{footnotesize}\n';
-
-    if(paso.nuevas.length){
-      paso.nuevas.forEach(bid=>{
-        const b = barras.find(x=>x.id===bid);
-        const val = resultado.fuerzas[bid];
-        const tipo = esCero(val) ? '\\text{(fuerza cero)}'
-                   : (val > 0 ? '\\text{(tracci\\\'on)}' : '\\text{(compresi\\\'on)}');
-        textoIzq += '\\[ F_{' + nombreBarra(b) + '} = ' + dec(Math.abs(val),'f') + '\\;\\text{' + uF + '}\\;' + tipo + ' \\]\n';
+      let exFx = [], exFy = [];
+      conec.forEach(b=>{
+        const o = nodos.find(z=>z.id === (b.a===n.id ? b.b : b.a));
+        const dx = o.x-n.x, dy = o.y-n.y, L = Math.hypot(dx,dy);
+        const cx = dx/L, cy = dy/L;
+        const nb = nombreBarra(b);
+        if(Math.abs(cx) > 1e-9) exFx.push(fmtCoef(cx) + 'F_{'+nb+'}');
+        if(Math.abs(cy) > 1e-9) exFy.push(fmtCoef(cy) + 'F_{'+nb+'}');
       });
+      const R = resultado.reacciones[n.id];
+      if(R && R.rx !== undefined) exFx.push('R_{x' + escLatex(n.nombre) + '}');
+      if(R && R.ry !== undefined) exFy.push('R_{y' + escLatex(n.nombre) + '}');
+      if(!esCero(n.fx)) exFx.push(fmtNum(n.fx));
+      if(!esCero(n.fy)) exFy.push(fmtNum(n.fy));
+
+      textoIzq += '\\begin{footnotesize}\n'
+        + '\\[ \\textstyle\\sum F_x = 0:\\quad ' + (exFx.join(' + ').replace(/\+ -/g,'- ') || '0') + ' = 0 \\]\n'
+        + '\\[ \\textstyle\\sum F_y = 0:\\quad ' + (exFy.join(' + ').replace(/\+ -/g,'- ') || '0') + ' = 0 \\]\n'
+        + '\\end{footnotesize}\n';
+
+      if(paso.nuevas.length){
+        paso.nuevas.forEach(bid=>{
+          const b = barras.find(x=>x.id===bid);
+          const val = resultado.fuerzas[bid];
+          const tipo = esCero(val) ? '\\text{(fuerza cero)}'
+                     : (val > 0 ? '\\text{(tracci\\\'on)}' : '\\text{(compresi\\\'on)}');
+          textoIzq += '\\[ F_{' + nombreBarra(b) + '} = ' + dec(Math.abs(val),'f') + '\\;\\text{' + uF + '}\\;' + tipo + ' \\]\n';
+        });
+      } else {
+        textoIzq += '{\\small\\color{bsaMuted}Todas las barras de este nudo ya se conocen: sirve como '
+          + 'comprobaci\\\'on del equilibrio.}\\\\[2pt]\n';
+      }
+
+      const dclA = tikzDCLNudo(n, resultado);
+      const leyendaAng = dclA.angulos.length
+        ? '{\\tiny\\color{bsaMuted}' + dclA.angulos.map(a=>'$' + a.letra + '=' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '}\\\\[2pt]\n'
+        : '';
+      figN++;
+      tex += '\\noindent\\begin{minipage}[c]{0.54\\textwidth}\n' + textoIzq + '\\end{minipage}\\hfill\n'
+        + '\\begin{minipage}[c]{0.44\\textwidth}\\centering\n'
+        + '\\begin{tikzpicture}[scale=0.68]\n' + dclA.tikz + '\\end{tikzpicture}\\\\[1pt]\n'
+        + leyendaAng
+        + '{\\tiny\\color{bsaMuted}Figura ' + figN + '. DCL del nudo ' + escLatex(n.nombre) + '.}\n'
+        + '\\end{minipage}\n'
+        + '\\vspace{6pt}\\hrule\\vspace{9pt}\n';
+    });
+
+  } else if(modoCorte === 'auto'){
+    tex += '\\seccion{4. M\\\'etodo de secciones \\textperiodcentered\\ resoluci\\\'on autom\\\'atica}\n'
+      + '\\noindent En cada paso se busca, entre todos los cortes posibles, el que separa la armadura en '
+      + 'dos partes dejando como m\\\'aximo tres inc\\\'ognitas (una porci\\\'on solo aporta tres ecuaciones '
+      + 'de equilibrio), y de esos se toma el que resuelve m\\\'as barras a la vez.\\\\[8pt]\n\n';
+    const pasosAuto = buscarCortes();
+    if(!pasosAuto.length){
+      tex += '{\\small\\color{bsaMuted}No se encontr\\\'o ning\\\'un corte que deje tres o menos '
+        + 'inc\\\'ognitas; esta armadura necesita empezar por el equilibrio de alg\\\'un nudo.}\\\\[6pt]\n';
     } else {
-      textoIzq += '{\\small\\color{bsaMuted}Todas las barras de este nudo ya se conocen: sirve como '
-        + 'comprobaci\\\'on del equilibrio.}\\\\[2pt]\n';
+      const resueltasPrev = {};
+      miembrosCero().map(c=>c.barra).forEach(id=>{ resueltasPrev[id] = 0; });
+      pasosAuto.forEach((paso, i)=>{
+        const previas = Object.assign({}, resueltasPrev);
+        const est = estrategiaPaso(paso, previas);
+        const nomLado = paso.lado.map(id=>nodos.find(n=>n.id===id).nombre).sort().join(', ');
+        const nomInc = paso.sol.incog.map(b=>nombreBarra(b)).join(', ');
+
+        let textoIzq = '\\textbf{Corte ' + (i+1) + '} \\hfill {\\small\\color{bsaMuted}resuelve ' + nomInc
+          + ' \\textperiodcentered\\ porci\\\'on: ' + nomLado + '}\\\\[3pt]\n';
+        est.items.forEach(p=>{
+          const detalleTxt = p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('');
+          if(p.tipo === 'momento'){
+            textoIzq += '\\begin{footnotesize}\\[ \\textstyle\\sum M_O = 0:\\quad ' + fmtCoef(p.coef) + 'F_{' + nombreBarra(p.d.barra) + '}'
+              + detalleTxt + ' = 0 \\]\\end{footnotesize}\n';
+          } else {
+            textoIzq += '\\begin{footnotesize}\\[ \\textstyle\\sum F_{\\perp} = 0:\\quad ' + fmtCoef(p.coef) + 'F_{' + nombreBarra(p.d.barra) + '}'
+              + detalleTxt + ' = 0 \\]\\end{footnotesize}\n';
+          }
+          const tipoTxt = esCero(p.val) ? '\\text{(fuerza cero)}' : (p.val > 0 ? '\\text{(tracci\\\'on)}' : '\\text{(compresi\\\'on)}');
+          textoIzq += '\\[ F_{' + nombreBarra(p.d.barra) + '} = ' + dec(Math.abs(p.val),'f') + '\\;\\text{' + uF + '}\\;' + tipoTxt + ' \\]\n';
+        });
+
+        const dclC = tikzSeccionPorcion(paso.lado, est.datos, est.externas, est.items);
+        const leyendaAngC = dclC.angulos.length
+          ? '{\\tiny\\color{bsaMuted}' + dclC.angulos.map(a=>'$' + a.letra + '=' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '}\\\\[2pt]\n'
+          : '';
+        figN++;
+        tex += '\\noindent\\begin{minipage}[c]{0.56\\textwidth}\n' + textoIzq + '\\end{minipage}\\hfill\n'
+          + '\\begin{minipage}[c]{0.40\\textwidth}\\centering\n'
+          + '\\begin{tikzpicture}[scale=0.72]\n' + dclC.tikz + '\\end{tikzpicture}\\\\[1pt]\n'
+          + leyendaAngC
+          + '{\\tiny\\color{bsaMuted}Figura ' + figN + '. Porci\\\'on del corte ' + (i+1) + '.}\n'
+          + '\\end{minipage}\n'
+          + '\\vspace{6pt}\\hrule\\vspace{9pt}\n';
+
+        Object.keys(paso.sol.valores).forEach(id=>{ resueltasPrev[id] = paso.sol.valores[id]; });
+      });
+      const faltanAuto = barras.filter(b=>resueltasPrev[b.id] === undefined);
+      if(faltanAuto.length){
+        tex += '{\\small\\color{bsaMuted}Quedan ' + faltanAuto.map(b=>escLatex(nombreBarra(b))).join(', ')
+          + ' sin resolver por cortes: ning\\\'un corte v\\\'alido las deja con tres o menos inc\\\'ognitas, '
+          + 'as\\\'i que se obtienen con el equilibrio de un nudo. Sus valores igual aparecen en la tabla siguiente.}\\\\[6pt]\n';
+      }
     }
 
-    figN++;
-    tex += '\\noindent\\begin{minipage}[t]{0.60\\textwidth}\n' + textoIzq + '\\end{minipage}\\hfill\n'
-      + '\\begin{minipage}[t]{0.36\\textwidth}\\centering\n'
-      + '\\begin{tikzpicture}[scale=0.85]\n' + tikzDCLNudo(n, resultado) + '\\end{tikzpicture}\\\\[1pt]\n'
-      + '{\\tiny\\color{bsaMuted}Figura ' + figN + '. DCL del nudo ' + escLatex(n.nombre) + '.}\n'
-      + '\\end{minipage}\n'
-      + '\\vspace{6pt}\\hrule\\vspace{9pt}\n';
-  });
+  } else {
+    // modoCorte === 'manual'
+    tex += '\\seccion{4. M\\\'etodo de secciones \\textperiodcentered\\ corte manual}\n';
+    const info = analizarCorte();
+    if(!info.valido){
+      const motivos = {
+        'sin-corte':'No se ha trazado ning\\\'un corte en la aplicaci\\\'on.',
+        'no-corta':'El corte trazado no atraviesa ninguna barra.',
+        'no-separa':'El corte trazado no separa la armadura en exactamente dos partes.',
+        'muchas':'El corte trazado deja m\\\'as de tres inc\\\'ognitas; una porci\\\'on solo aporta tres ecuaciones de equilibrio.'
+      };
+      tex += '{\\small\\color{bsaMuted}' + (motivos[info.motivo] || 'El corte trazado no es v\\\'alido.') + '}\\\\[6pt]\n';
+    } else {
+      const sol = resolverSeccion(info);
+      const nomLado = info.lado.map(id=>nodos.find(n=>n.id===id).nombre).sort().join(', ');
+      const nomInc = info.incog.map(b=>nombreBarra(b)).join(', ');
+      tex += '\\noindent Corte manual \\textperiodcentered\\ resuelve ' + escLatex(nomInc)
+        + ' \\textperiodcentered\\ porci\\\'on analizada: ' + escLatex(nomLado) + '.\\\\[8pt]\n\n';
+
+      let textoIzq = '';
+      sol.pasos.forEach(p=>{
+        const detalleTxt = p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('');
+        if(p.tipo === 'momento'){
+          textoIzq += '\\begin{footnotesize}\\[ \\textstyle\\sum M_O = 0:\\quad ' + fmtCoef(p.coef) + 'F_{' + nombreBarra(p.d.barra) + '}'
+            + detalleTxt + ' = 0 \\]\\end{footnotesize}\n';
+        } else {
+          textoIzq += '\\begin{footnotesize}\\[ \\textstyle\\sum F_{\\perp} = 0:\\quad ' + fmtCoef(p.coef) + 'F_{' + nombreBarra(p.d.barra) + '}'
+            + detalleTxt + ' = 0 \\]\\end{footnotesize}\n';
+        }
+        const tipoTxt = esCero(p.val) ? '\\text{(fuerza cero)}' : (p.val > 0 ? '\\text{(tracci\\\'on)}' : '\\text{(compresi\\\'on)}');
+        textoIzq += '\\[ F_{' + nombreBarra(p.d.barra) + '} = ' + dec(Math.abs(p.val),'f') + '\\;\\text{' + uF + '}\\;' + tipoTxt + ' \\]\n';
+      });
+
+      const dclM = tikzSeccionPorcion(info.lado, sol.datos, sol.externas, sol.pasos);
+      const leyendaAngM = dclM.angulos.length
+        ? '{\\tiny\\color{bsaMuted}' + dclM.angulos.map(a=>'$' + a.letra + '=' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '}\\\\[2pt]\n'
+        : '';
+      figN++;
+      tex += '\\noindent\\begin{minipage}[c]{0.56\\textwidth}\n' + textoIzq + '\\end{minipage}\\hfill\n'
+        + '\\begin{minipage}[c]{0.40\\textwidth}\\centering\n'
+        + '\\begin{tikzpicture}[scale=0.78]\n' + dclM.tikz + '\\end{tikzpicture}\\\\[1pt]\n'
+        + leyendaAngM
+        + '{\\tiny\\color{bsaMuted}Figura ' + figN + '. Porci\\\'on analizada por el corte.}\n'
+        + '\\end{minipage}\n'
+        + '\\vspace{6pt}\\hrule\\vspace{9pt}\n';
+    }
+  }
 
   // ── 5. Resumen de fuerzas en las barras ──
   let filasBarras = '';
@@ -4318,17 +4745,15 @@ function construirLatex(){
     }
   }
 
-  tex += '\\vspace{18pt}\\hrule\\vspace{16pt}\n'
+  tex += '\\vspace{18pt}\\hrule\\vspace{14pt}\n'
     + '\\begin{center}\n'
     + '{\\small\\color{bsaMuted}\\textbf{BEAM \\& SECTION ANALYSIS (BSA)}}\\\\[2pt]\n'
-    + '{\\footnotesize\\color{bsaMuted}Plataforma educativa de an\\\'alisis estructural}\\\\[10pt]\n'
-    + '\\begin{tikzpicture}\n'
-    + '  \\draw[bsaAcc, line width=1pt] (0,0) circle (1.55);\n'
-    + '  \\draw[bsaAcc, line width=0.4pt] (0,0) circle (1.30);\n'
-    + '  \\node[font=\\Large\\bfseries, color=bsaAcc] at (0,0.16) {BSA};\n'
-    + '  \\draw[bsaAcc, line width=0.4pt] (-0.62,-0.24) -- (0.62,-0.24);\n'
-    + '  \\node[font=\\scriptsize, color=bsaAcc] at (0,-0.47) {EST\\\'ATICA};\n'
-    + '\\end{tikzpicture}\\\\[8pt]\n'
+    + '{\\footnotesize\\color{bsaMuted}Plataforma educativa de an\\\'alisis estructural}\\\\[8pt]\n'
+    + '\\begin{tikzpicture}[baseline]\n'
+    + '  \\node[font=\\fontsize{26}{26}\\selectfont\\bfseries, color=bsaLogoB] at (0,0) {B};\n'
+    + '  \\node[font=\\fontsize{26}{26}\\selectfont\\bfseries, color=bsaLogoS] at (0.47,0) {S};\n'
+    + '  \\node[font=\\fontsize{26}{26}\\selectfont\\bfseries, color=bsaLogoA] at (0.96,0) {A};\n'
+    + '\\end{tikzpicture}\\\\[7pt]\n'
     + '{\\footnotesize\\color{bsaMuted}Creado por \\textbf{Luis Alejandro Baz\\\'an Campos}}\\\\[2pt]\n'
     + '{\\scriptsize\\color{bsaMuted}beamsectionanalysis.com}\n'
     + '\\end{center}\n\n';
@@ -4361,21 +4786,49 @@ function _panelLatexPDF(){
   panel.id = 'panelLatexPDF';
   panel.style.cssText = 'display:none; position:fixed; inset:0; z-index:9000; '
     + 'background:rgba(15,20,28,.72); align-items:center; justify-content:center; padding:16px;';
+  // El cierre pasa por una función con nombre en vez de código en línea: así no
+  // depende de cómo queden escapadas las comillas dentro del atributo, y de
+  // paso puede limpiar el visor.
   panel.innerHTML =
       '<div style="background:#fff; border-radius:10px; width:100%; max-width:900px; '
-    +   'height:92vh; display:flex; flex-direction:column; overflow:hidden;">'
+    +   'height:92vh; display:flex; flex-direction:column; overflow:hidden; position:relative;">'
     +   '<div style="display:flex; align-items:center; justify-content:space-between; '
     +     'padding:10px 14px; border-bottom:1px solid #e5d9c8;">'
     +     '<strong style="color:#B45309">Reporte PDF (LaTeX)</strong>'
-    +     '<button onclick="document.getElementById(\'panelLatexPDF\').style.display=\'none\'" '
-    +       'style="border:none;background:none;font-size:20px;cursor:pointer;line-height:1;">×</button>'
+    +     '<button onclick="cerrarPanelLatex()" title="Cerrar" aria-label="Cerrar" '
+    +       'style="border:none;background:none;font-size:22px;cursor:pointer;line-height:1;'
+    +       'color:#6B7280;padding:0 4px;">&times;</button>'
     +   '</div>'
     +   '<div id="latexEstado" style="padding:8px 14px; font-size:12.5px; color:#6B7280;">'
     +     'Enviando a texlive.net…</div>'
     +   '<iframe id="latexFrame" name="latexFrame" style="flex:1; border:none;"></iframe>'
+    +   '<div id="latexPie" style="padding:6px 14px; font-size:10.5px; color:#9aa3ad; '
+    +     'border-top:1px solid #f0eee9;">Si en lugar del PDF aparece texto, es el registro '
+    +     'de LaTeX: c\u00f3pialo y av\u00edsanos.</div>'
+    +   '<div id="latexCargando" style="position:absolute; inset:0; background:#fff; '
+    +     'display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;">'
+    +     '<div style="display:flex; gap:10px; align-items:flex-end; height:64px;">'
+    +       '<span class="bsa-let" style="color:#CDA953; animation-delay:0s">B</span>'
+    +       '<span class="bsa-let" style="color:#8AB4CA; animation-delay:.22s">S</span>'
+    +       '<span class="bsa-let" style="color:#22584B; animation-delay:.44s">A</span>'
+    +     '</div>'
+    +     '<div style="font-size:12px;color:#6B7280">Compilando el informe…</div>'
+    +   '</div>'
     + '</div>';
   document.body.appendChild(panel);
   return panel;
+}
+
+// Cierra la ventana del informe y deja el visor limpio, para que al volver a
+// generar no se vea por un instante el PDF anterior.
+function cerrarPanelLatex(){
+  const panel = document.getElementById('panelLatexPDF');
+  if(!panel) return;
+  panel.style.display = 'none';
+  const frame = document.getElementById('latexFrame');
+  if(frame) frame.setAttribute('src', 'about:blank');
+  const btn = document.getElementById('btnLatex');
+  if(btn) btn.dataset.ocupado = '0';
 }
 
 function generarPDFLatex(){
@@ -4394,6 +4847,8 @@ function generarPDFLatex(){
     const estado = document.getElementById('latexEstado');
     const frame = document.getElementById('latexFrame');
     estado.textContent = 'Enviando a texlive.net…';
+    const cargando = document.getElementById('latexCargando');
+    if(cargando) cargando.style.display = 'flex';
     panel.style.display = 'flex';
 
     // 2. Formulario oculto, exactamente con los campos que documenta
@@ -4427,9 +4882,15 @@ function generarPDFLatex(){
     //    para saber cuál de los dos es, pero el alumno lo ve directamente.
     //    El evento se adjunta DESPUÉS de submit(): la navegación real tarda
     //    al menos una vuelta de red, así que no hay riesgo de perdérnoslo.
+    // Al llegar la respuesta se retira la animación. El mensaje ya NO habla de
+    // errores: la advertencia sobre el registro de LaTeX vive en el pie, en
+    // pequeño y permanente, para no dar a entender que algo falló cuando el
+    // informe se generó bien.
     frame.addEventListener('load', function(){
-      estado.textContent = 'Listo. Si ves texto en vez del PDF, es el registro '
-        + 'de errores de LaTeX — cópialo para revisarlo.';
+      const cg = document.getElementById('latexCargando');
+      if(cg) cg.style.display = 'none';
+      estado.textContent = 'Informe generado.';
+      estado.style.color = '#15803D';
     }, {once:true});
 
     // Límite de cortesía: si en 45 s no hubo respuesta visible, avisamos
@@ -4441,9 +4902,16 @@ function generarPDFLatex(){
       }
     }, 45000);
 
+    // Salvavidas: si por lo que sea nunca llega el evento 'load', la animación
+    // no puede quedarse girando para siempre encima del informe.
+    setTimeout(()=>{
+      const cg = document.getElementById('latexCargando');
+      if(cg) cg.style.display = 'none';
+    }, 90000);
+
   } catch(e){
     console.error('Error al enviar a texlive.net:', e);
-    alert('Ocurrió un error al preparar el envío: ' + e.message);
+    aviso('Ocurrió un error al preparar el envío: ' + e.message, 'error');
   } finally {
     if(btn) btn.dataset.ocupado = '0';
     _estadoBotonLatex('LaTeX');
@@ -4471,7 +4939,7 @@ function descargarTex(){
 
 function downloadPDF(){
   const rp = document.getElementById('resultsPanel');
-  if(!rp || !rp.innerHTML.trim()){ alert('Primero resuelve la armadura.'); return; }
+  if(!rp || !rp.innerHTML.trim()){ aviso('Primero resuelve la armadura.'); return; }
   const img = recortarLienzo(document.getElementById('mainCanvas'));
   const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
   const kEl = document.getElementById('katex-css');
@@ -4586,7 +5054,7 @@ function downloadPDF(){
   html += '</body></html>';
 
   const w = window.open('', '_blank', 'width=980,height=760');
-  if(!w){ alert('El navegador bloque\u00f3 la ventana emergente. Perm\u00edtelas para generar el PDF.'); return; }
+  if(!w){ aviso('El navegador bloque\u00f3 la ventana emergente. Perm\u00edtelas para generar el PDF.', 'error'); return; }
   w.document.write(html);
   w.document.close();
 }
@@ -5461,7 +5929,7 @@ function pintarHistorial(){
 
 function cargarProyecto(id){
   const it = histItems.find(x=>x.id===id);
-  if(!it || !it.estado){ alert('Ese ejercicio no tiene datos para abrir.'); return; }
+  if(!it || !it.estado){ aviso('Ese ejercicio no tiene datos para abrir.', 'error'); return; }
   const e = it.estado;
   try{
     nodos = (e.nodos||[]).map(n=>({id:n.id, x:n.x, y:n.y, nombre:'',
@@ -5475,7 +5943,7 @@ function cargarProyecto(id){
     resultado = null;
     reNombrar(); centrar(); refrescar();
     cerrarHistorial();
-  }catch(err){ alert('No se pudo abrir el ejercicio.'); }
+  }catch(err){ aviso('No se pudo abrir el ejercicio.', 'error'); }
 }
 
 function borrarProyecto(id){
@@ -5488,9 +5956,9 @@ function borrarProyecto(id){
 function guardarProyecto(){
   const inp = document.getElementById('nombreProyecto');
   const nombre = (inp.value || '').trim();
-  if(!nombre){ alert('Ponle un nombre al ejercicio antes de guardarlo.'); inp.focus(); return; }
+  if(!nombre){ aviso('Ponle un nombre al ejercicio antes de guardarlo.'); inp.focus(); return; }
   if(histItems.length >= MAX_PROYECTOS){
-    alert('Ya tienes ' + MAX_PROYECTOS + ' ejercicios guardados en este capítulo. '
+    aviso('Ya tienes ' + MAX_PROYECTOS + ' ejercicios guardados en este capítulo. '
         + 'Borra alguno desde el portal para guardar este.');
     return;
   }
@@ -5501,7 +5969,7 @@ function guardarProyecto(){
     estado: estadoActual()
   }});
   cerrarGuardar();
-  alert('Ejercicio guardado como "' + nombre + '".');
+  aviso('Ejercicio guardado como "' + nombre + '".');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -5564,6 +6032,14 @@ window.addEventListener('load', ()=>{
   cv.addEventListener('touchend', e=>{
     if(e.touches.length < 2) pinchDist = null;
     if(e.touches.length === 0) onCanvasUp();
+  });
+  // Sin esto, una llamada entrante o el gesto "atrás" del sistema dejaban el
+  // arrastre a medias: touchend nunca llega y el gesto quedaba colgado.
+  cv.addEventListener('touchcancel', ()=>{
+    pinchDist = null;
+    if(gesto){ if(gesto.tEsperaId) clearTimeout(gesto.tEsperaId); gesto = null; }
+    dragNodo = null;
+    dibujar();
   });
   cv.addEventListener('wheel', e=>{
     e.preventDefault();
