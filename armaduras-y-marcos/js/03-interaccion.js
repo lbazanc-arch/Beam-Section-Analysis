@@ -220,8 +220,11 @@ function onCanvasUp(){
         nodos = nodos.filter(nn => nodosIds.indexOf(nn.id) < 0);
         reNombrar();
       }
-      resultado = null; refrescar();
-      gesto = null;
+      // El recuadro se pinta en el lienzo mientras `gesto` sigue vivo, así que hay
+      // que limpiarlo ANTES del último repintado: si no, el recuadro se queda
+      // dibujado hasta el siguiente redibujado. Los otros cuatro temas lo ocultan
+      // porque el suyo es un <div>, no parte del lienzo.
+      resultado = null; gesto = null; refrescar();
       return;
     }
     if(!gesto.moved){
@@ -251,6 +254,7 @@ function onCanvasUp(){
       // haya capturado uno solo: esa caja es exclusiva del toque simple.
       selBarra = null;
       selNodoInfo = null;
+      gesto = null;          // limpiar antes de repintar: ver nota de la rama de borrado
       refrescar();
     }
     gesto = null;
