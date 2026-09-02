@@ -294,6 +294,16 @@ function tzOcuparBloque(A, B, ex, ey, h1, h2){
              Math.max.apply(null,xs), Math.max.apply(null,ys));
   }
 }
+// Extensión de todo lo reservado hasta ahora (flechas, rótulos, bloques).
+// Sirve para arrancar las cotas MÁS ALLÁ de lo dibujado, en vez de a una
+// distancia fija del último nudo: así una cota nunca cruza el valor de una
+// fuerza que sobresale del contorno de la estructura.
+function tzExtension(){
+  const e = {x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity};
+  _tzCajas.forEach(c=>{ e.x0 = Math.min(e.x0, c.x0); e.y0 = Math.min(e.y0, c.y0);
+                        e.x1 = Math.max(e.x1, c.x1); e.y1 = Math.max(e.y1, c.y1); });
+  return e;
+}
 // ── Rótulo fijo ──
 // Una etiqueta de cota debe quedarse SOBRE su propia línea: si se la deja
 // buscar hueco acaba lejos de la línea que mide y ya no se sabe qué acota.
@@ -537,6 +547,11 @@ function pasoAPasoReacciones(R){
     return v;
   };
 
+  // Una ecuación con muchos términos (pórtico con rótula y varias cargas) se
+  // salía del margen en una sola línea: a partir de seis términos se parte.
+  const _ecLarga = (t) => (t.length <= 5)
+    ? '$$' + _sumaTex(t) + ' = 0$$\n'
+    : _alineada([_fila('', t, ' = 0', 5, '&\\ ')]);
   const carg = [];                 // términos de carga de cada ecuación
   for(let e=0;e<nEq;e++) carg.push(terminosEquilibrio(R, e));
 
@@ -556,7 +571,7 @@ function pasoAPasoReacciones(R){
         if(usada[e]) continue;
         usada[e] = true; restantes--;
         out += '$$' + nomEq[e] + (notaEq[e] ? '\\quad\\text{(' + notaEq[e] + ')}' : '') + '$$\n';
-        out += '$$' + _sumaTex(izqTerms(e, true).concat(carg[e])) + ' = 0$$\n';
+        out += _ecLarga(izqTerms(e, true).concat(carg[e]));
         pendientes(e).forEach(p=>{ if(libres.indexOf(p.j) < 0) libres.push(p.j); });
       }
       if(libres.length){
@@ -580,14 +595,14 @@ function pasoAPasoReacciones(R){
     //     escribirla repetía la misma línea dos veces.
     const trivial = !hayPrevias && !carg[el].length && Math.abs(Math.abs(p.a)-1) < 1e-9;
     if(!trivial)
-      out += '$$' + _sumaTex(izqTerms(el, false).concat(carg[el])) + ' = 0$$\n';
+      out += _ecLarga(izqTerms(el, false).concat(carg[el]));
     // 2 · Sustitución de lo ya hallado y suma de lo conocido
     const sust = izqTerms(el, true).concat(carg[el]);
     const cte = sust.filter(t=>t.tex.indexOf('R_') < 0 && t.tex.indexOf('M_') < 0)
                     .reduce((s,t)=>s + t.v, 0);
     const coefTxt = Math.abs(Math.abs(p.a)-1) < 1e-9 ? '' : dec(Math.abs(p.a),'len') + '\\,';
     if(hayPrevias)
-      out += '$$' + _sumaTex(sust) + ' = 0$$\n';
+      out += _ecLarga(sust);
     // 3 · Despeje, con la división a la vista si el coeficiente no es 1
     const dtI = (p.u.tipo === 'M' && p.u.ang === undefined) ? 'momento' : 'fuerza';
     const izqDes = (p.a < 0 ? '-' : '') + coefTxt + simb(p.u);

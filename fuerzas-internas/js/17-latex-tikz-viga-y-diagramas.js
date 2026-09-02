@@ -20,6 +20,8 @@ function tikzViga(conReacciones){
       // Empotramiento: las rayas miran hacia afuera de la viga
       const lado = (n.x >= maxx - 1e-9 && n.x > minx + 1e-9) ? 1 : -1;
       out += tikzApoyo(x, y, n.apoyo, 1, lado);
+      if(n.apoyo === 'empotrado') tzOcupar(x-0.2, y-0.45, x+0.2, y+0.45);
+      else tzOcupar(x-0.42, y-0.62, x+0.42, y+0.02);
     }
   });
   nodos.forEach(n=>{
@@ -217,8 +219,13 @@ function tikzViga(conReacciones){
     }
     // Cotas corridas horizontales desde O, ordenadas de menor a mayor: cada
     // una en su nivel, con la etiqueta sobre su propia línea.
+    // Mismo criterio en los dos ejes: la banda de cotas empieza por debajo
+    // (o a la derecha) de TODO lo ya dibujado, no a una distancia fija del
+    // último nudo. Antes las cotas verticales cruzaban los valores de las
+    // fuerzas horizontales que sobresalen de la columna.
+    const ext = tzExtension();
     const xsB = [...new Set(brazosX.map(v=>+v.toFixed(4)))].sort((a,b)=>Math.abs(a)-Math.abs(b));
-    let base = minY - 1.75;
+    let base = Math.min(minY - 1.60, ext.y0 - 0.45);
     const x0 = Xn(0);
     if(xsB.length){
       out += '\\draw[black!45, line width=.35pt, dashed] (' + F(x0) + ',' + F(minY-0.15) + ') -- ('
@@ -236,7 +243,7 @@ function tikzViga(conReacciones){
     });
     // Cotas corridas verticales desde O (brazos de las fuerzas horizontales)
     const ysB = [...new Set(brazosY.map(v=>+v.toFixed(4)))].sort((a,b)=>Math.abs(a)-Math.abs(b));
-    let baseX = Math.max(...nodos.map(n=>Xn(n.x))) + 0.75;
+    let baseX = Math.max(Math.max(...nodos.map(n=>Xn(n.x))) + 0.75, ext.x1 + 0.45);
     const y0 = Yn(0);
     ysB.forEach((yv, i)=>{
       const xx = baseX + i*0.42, y1 = Yn(yv);
@@ -254,7 +261,8 @@ function tikzViga(conReacciones){
   // ── Figura del modelo: primero las posiciones de las cargas (niveles
   //    interiores), después la cadena de nudos, y por último la luz total.
   //    Mismo orden que en el panel, para que el alumno lea igual las dos.
-  let base = minY - 0.75;
+  const ext = tzExtension();
+  let base = Math.min(minY - 0.75, ext.y0 - 0.40);
 
   const xsCargas = [...new Set(xsDeCargas().map(v=>+v.toFixed(6)))];
   const xsNodos  = [...new Set(nodos.map(n=>+n.x.toFixed(6)))];
@@ -283,7 +291,7 @@ function tikzViga(conReacciones){
   //    derecha del dibujo, primero las cargas y después los nudos.
   const ysNodos = [...new Set(nodos.map(n=>+n.y.toFixed(6)))];
   if(ysNodos.length > 1){
-    let baseX = Math.max(...nodos.map(n=>Xn(n.x))) + 0.55;
+    let baseX = Math.max(Math.max(...nodos.map(n=>Xn(n.x))) + 0.55, ext.x1 + 0.45);
     const ysCargas = [...new Set(ysDeCargas().map(v=>+v.toFixed(6)))];
     const aportaY = ysCargas.some(v => !ysNodos.some(q => Math.abs(Yn(q)-Yn(v)) < 0.10));
     if(aportaY){
