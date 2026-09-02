@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
-window.addEventListener('load', ()=>{ resizeCanvas(); fitView(); });
+window.addEventListener('load', ()=>{ try{ setHerramienta('pan'); }catch(e){} resizeCanvas(); fitView(); });
 window.addEventListener('resize', resizeCanvas);
 
 // ═══════════════════════════════════════════════════════════

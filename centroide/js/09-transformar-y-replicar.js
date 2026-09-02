@@ -226,7 +226,6 @@ function calculate(){
   results = {xbar, ybar, xg, yg, A, W, Qx, Qy, Wx, Wy, sep, hetero, steps,
              // se conservan por compatibilidad con el resto del aplicativo
              Ix:0, Iy:0, Ixy:0, Imax:0, Imin:0, thetaP:0, Jo:0, kx:0, ky:0};
-  try{ histPush(); }catch(e){}
 
   renderResults(results, unit+'⁴', u2, u1);
   render();

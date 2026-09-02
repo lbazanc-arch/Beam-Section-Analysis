@@ -129,13 +129,19 @@ function onMouseMove(e){
       } else if(gesto.hitFig !== null){
         // Arrastre sobre una figura: la mueve. registrarCambio() se hace AQUÍ y
         // no al pulsar, para que un toque simple no ensucie el historial.
+        // Arrastrar una figura ya marcada mueve TODO el grupo marcado (mismo
+        // criterio que centroide y los demás temas); arrastrar una suelta la
+        // convierte en la única selección.
         gesto.tipo = 'mover';
         const f = figures.find(x=>x.id===gesto.hitFig);
         if(f){
           registrarCambio();
+          const grupo = selFiguras.indexOf(f.id) >= 0 ? selFiguras.slice() : [f.id];
+          if(selFiguras.indexOf(f.id) < 0) selFiguras = grupo;
+          if(selectedFigId !== f.id) selectFigure(f.id);
+          gesto.origenes = grupo.map(id=>{ const g=figures.find(z=>z.id===id); return g?{id, cx:g.cx, cy:g.cy}:null; }).filter(Boolean);
           isDraggingFig = true; dragFigId = f.id; dragAnchorId = 'C';
           dragFigOffset = {x: gesto.wx0 - f.cx, y: gesto.wy0 - f.cy};
-          if(selectedFigId !== f.id) selectFigure(f.id);
         }
       } else if(gesto.mantenido){
         gesto.tipo = 'rubber';
@@ -163,6 +169,14 @@ function onMouseMove(e){
     render(); return;
   }
   if(isDraggingFig && dragFigId !== null){
+    // Grupo de varias figuras: se trasladan todas por el mismo vector, sin
+    // imantado (el imantado es de una figura sola contra las demás).
+    if(gesto && gesto.tipo === 'mover' && gesto.origenes && gesto.origenes.length > 1){
+      const wdx = wp.x - gesto.wx0, wdy = wp.y - gesto.wy0;
+      gesto.origenes.forEach(o=>{ const g=figures.find(z=>z.id===o.id); if(g){ g.cx=o.cx+wdx; g.cy=o.cy+wdy; } });
+      updatePropPanel(); results=null; render();
+      return;
+    }
     const fig = figures.find(f=>f.id===dragFigId);
     if(fig){
       if(dragAnchorId && dragAnchorId !== 'C'){

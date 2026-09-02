@@ -35,6 +35,7 @@ let gesto = null;        // {tipo:'tap'|'mover'|'rubber', ...} en curso durante 
 // interpreta como desplazamiento del panel (igual que la herramienta Pan).
 // Solo si se mantiene presionado más que esto, un arrastre posterior traza
 // el recuadro de selección/borrado masivo.
+const UMBRAL_ARRASTRE = 4;        // px en pantalla antes de considerarlo arrastre
 const UMBRAL_MANTENER_MS = 450;
 
 // ── Avisos no bloqueantes (sustituyen a alert) ──

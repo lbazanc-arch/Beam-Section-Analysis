@@ -399,7 +399,7 @@ function actualizarBotonesHistorial(){
 
 function eliminarSeleccion(){
   if(!selNodos.length && !selTramos.length && !selCargas.length){
-    aviso('Selecciona antes lo que quieras borrar con la herramienta Ver / editar.', 'error');
+    aviso('Selecciona antes lo que quieras borrar con la herramienta Mover / editar.', 'error');
     return;
   }
   registrarCambio();

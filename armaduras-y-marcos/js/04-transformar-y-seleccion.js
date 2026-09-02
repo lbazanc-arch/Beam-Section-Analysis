@@ -145,21 +145,42 @@ function abrirTransformar(){
     aviso('Marca al menos un nudo con la herramienta "Mover / editar" para transformarlo.');
     return;
   }
-  // El nudo de referencia se elige entre los seleccionados; si no hubiera
-  // ninguno válido se ofrecen todos, para poder girar respecto a un punto
-  // que no forma parte de la selección.
+  // Mismo contrato que los demás temas: la referencia puede ser el origen, un
+  // nudo de la selección o una coordenada escrita a mano.
   const sel = document.getElementById('transRef');
-  const candidatos = nodos.filter(n=>selNodos.indexOf(n.id)>=0);
-  const lista = candidatos.length ? candidatos : nodos;
-  sel.innerHTML = lista.map(n=>'<option value="'+n.id+'">'+n.nombre+
-      '  (x='+dec(n.x,'len')+', y='+dec(n.y,'len')+')</option>').join('');
+  const opciones = ['<option value="origen">Origen (0 ; 0)</option>'];
+  selNodos.forEach(id=>{
+    const n = nodos.find(z=>z.id===id);
+    if(n) opciones.push('<option value="nodo:'+n.id+'">Nudo '+n.nombre
+      + '  ('+dec(n.x,'len')+' ; '+dec(n.y,'len')+')</option>');
+  });
+  opciones.push('<option value="libre">Coordenada a elegir…</option>');
+  sel.innerHTML = opciones.join('');
   document.getElementById('transSub').textContent =
-    'Se transformarán ' + selNodos.length + ' nudo(s). Al girar, el nudo de referencia '
-    + 'permanece fijo y es el centro de rotación; al mover, toda la selección se desplaza por igual.';
+    'Se transformarán ' + selNodos.length + ' nudo(s). Al girar, la referencia '
+    + 'queda fija y es el centro de rotación; al mover, toda la selección se desplaza por igual.';
+  cambiarRefTrans();
   setTransModo('mover');
   document.getElementById('transModal').classList.add('show');
 }
 function closeTransformar(){ document.getElementById('transModal').classList.remove('show'); }
+
+function cambiarRefTrans(){
+  const v = document.getElementById('transRef').value;
+  document.getElementById('transCampoRef').style.display = (v==='libre') ? 'block' : 'none';
+  actualizarPrevTrans();
+}
+
+function refTransformar(){
+  const v = document.getElementById('transRef').value;
+  const num = id => { const e=document.getElementById(id); const n=parseFloat(e && e.value); return isFinite(n)?n:0; };
+  if(v === 'origen') return {x:0, y:0, nombre:'el origen'};
+  if(v === 'libre')  return {x:num('transRx'), y:num('transRy'), nombre:'la coordenada indicada'};
+  const id = parseInt(String(v).split(':')[1]);
+  const n = nodos.find(z=>z.id===id);
+  if(!n) return null;
+  return {x:n.x, y:n.y, nombre:'el nudo '+n.nombre};
+}
 
 function setTransModo(m){
   transModo = m;
@@ -173,62 +194,62 @@ function setTransModo(m){
 
 // Calcula las posiciones resultantes sin aplicarlas todavía.
 function calcularTransformacion(){
-  const refId = parseInt(document.getElementById('transRef').value);
-  const ref = nodos.find(n=>n.id===refId);
+  const ref = refTransformar();
   if(!ref) return null;
-  const num = id => parseFloat(document.getElementById(id).value) || 0;
+  const num = id => { const e=document.getElementById(id); const n=parseFloat(e && e.value); return isFinite(n)?n:0; };
   const destinos = [];
   if(transModo === 'mover'){
     const dx = num('transDx'), dy = num('transDy');
     selNodos.forEach(id=>{
       const n = nodos.find(z=>z.id===id); if(!n) return;
-      // En un desplazamiento se mueve TODA la selección por igual, incluido el
-      // nudo de referencia: éste solo permanece fijo cuando se gira.
+      // En un desplazamiento se mueve TODA la selección por igual: la
+      // referencia solo queda fija cuando se gira.
       destinos.push({id, x:n.x+dx, y:n.y+dy});
     });
     return {ref, destinos, dx, dy};
   }
-  const ang = num('transAng') * Math.PI/180;
+  const grados = num('transAng');
+  const ang = grados*Math.PI/180;
   const cs = Math.cos(ang), sn = Math.sin(ang);
   selNodos.forEach(id=>{
     const n = nodos.find(z=>z.id===id); if(!n) return;
-    // rotación 2D estándar alrededor del nudo de referencia
-    const ux = n.x - ref.x, uy = n.y - ref.y;
-    destinos.push({id, x: ref.x + ux*cs - uy*sn, y: ref.y + ux*sn + uy*cs});
+    const ux = n.x-ref.x, uy = n.y-ref.y;      // rotación 2D alrededor de la referencia
+    destinos.push({id, x: ref.x+ux*cs-uy*sn, y: ref.y+ux*sn+uy*cs});
   });
-  return {ref, destinos, ang: num('transAng')};
+  return {ref, destinos, ang:grados};
 }
 
 function actualizarPrevTrans(){
   const p = document.getElementById('transPrev');
   if(!p) return;
   const t = calcularTransformacion();
-  if(!t){ p.textContent = 'Elige un nudo de referencia.'; return; }
+  if(!t){ p.textContent = 'Elige una referencia válida.'; return; }
   if(transModo === 'mover'){
-    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) seleccionados se desplazan ('
-      + dec(t.dx,'len') + ', ' + dec(t.dy,'len') + '), tomando ' + t.ref.nombre
-      + ' como referencia de medida.';
+    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) se desplazan ('
+      + dec(t.dx,'len') + ' ; ' + dec(t.dy,'len') + ') ' + unitLen
+      + ', midiendo desde ' + t.ref.nombre + '.';
   } else {
-    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) giran '
-      + t.ang + '° alrededor de ' + t.ref.nombre + '.';
+    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) giran ' + t.ang
+      + '° alrededor de ' + t.ref.nombre + ' (' + dec(t.ref.x,'len') + ' ; '
+      + dec(t.ref.y,'len') + ') ' + unitLen + '.';
   }
 }
 
 function applyTransformar(){
   const t = calcularTransformacion();
-  if(!t){ aviso('Elige un nudo de referencia válido.'); return; }
-  registrarCambio();
-  // El giro es un movimiento rígido: NO se engancha a la rejilla, porque
-  // redondear cada nudo alteraría las longitudes de las barras y deformaría
-  // la armadura (un giro de 37° llegaba a cambiar una barra de 6 a 6.10).
-  // En el desplazamiento sí se engancha, como al arrastrar con el ratón.
-  const rigido = (transModo === 'girar');
-  t.destinos.forEach(d=>{
-    const n = nodos.find(z=>z.id===d.id);
-    if(!n) return;
-    n.x = rigido ? d.x : snap(d.x);
-    n.y = rigido ? d.y : snap(d.y);
-  });
+  if(!t){ aviso('Elige una referencia válida.', 'error'); return; }
+  if(transModo === 'mover' && t.dx === 0 && t.dy === 0){
+    aviso('Indica un desplazamiento en x o en y.'); return;
+  }
+  if(transModo === 'girar' && t.ang === 0){
+    aviso('Indica un ángulo de giro distinto de cero.'); return;
+  }
+  registrarCambio();   // un solo paso de deshacer para todo el lote
+  // Ni el giro ni el desplazamiento se enganchan a la rejilla: redondear cada
+  // nudo alteraría las longitudes de las barras y deformaría la armadura (un
+  // giro de 37° llegó a cambiar una barra de 6 a 6.10). Mismo criterio que
+  // los demás temas.
+  t.destinos.forEach(d=>{ const n = nodos.find(z=>z.id===d.id); if(n){ n.x = d.x; n.y = d.y; } });
   resultado = null;
   closeTransformar();
   refrescar();
@@ -269,19 +290,22 @@ function applyReplicar(){
   const orig = selNodos.slice();
   const barrasRep = barras.filter(b => selBarras.indexOf(b.id) >= 0
                     && orig.indexOf(b.a) >= 0 && orig.indexOf(b.b) >= 0);
+  const nuevosN = [], nuevasB = [];
   for(let i=1;i<=nrep;i++){
     const mapa = {};
     orig.forEach(id=>{
       const o = nodos.find(z=>z.id===id);
       if(!o) return;
       const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), nombre:''};
-      nodos.push(nn); mapa[id] = nn.id;
+      nodos.push(nn); mapa[id] = nn.id; nuevosN.push(nn.id);
     });
-    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]) addBarra(mapa[b.a], mapa[b.b]); });
+    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b]); if(nb) nuevasB.push(nb.id); } });
   }
   reNombrar(); resultado = null;
-  selNodos = []; selBarras = []; selBarra = null;
-  closeReplicar(); centrar(); refrescar();
+  // Las copias quedan seleccionadas y la vista no se mueve, como en los demás
+  // temas: así se puede seguir replicando o transformando el resultado.
+  selNodos = nuevosN; selBarras = nuevasB; selBarra = null;
+  closeReplicar(); refrescar();
 }
 
 // ── Pestañas Nudos / Barras / Cargas ──

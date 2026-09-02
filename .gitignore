@@ -5,3 +5,6 @@ CLAUDE.md
 # Respaldo local de los archivos previos al desglose (4,8 MB).
 # Vive solo en la máquina; el historial de git ya conserva las versiones antiguas.
 _respaldo-original/
+
+# Bibliografía de estudio (síntesis propia de fuentes con derechos): solo en local.
+Bibliografia/

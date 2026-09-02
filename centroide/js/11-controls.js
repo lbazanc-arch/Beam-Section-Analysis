@@ -61,7 +61,7 @@ function histFmtDate(ts){
     return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());
   }catch(e){ return ''; }
 }
-function openHist(){ histRequest(); document.getElementById('histModal').classList.add('show'); }
+function openHist(){ document.getElementById('histModal').classList.add('show'); }
 function closeHist(){ document.getElementById('histModal').classList.remove('show'); }
 function histRenderList(){
   const box=document.getElementById('histList'); if(!box) return;

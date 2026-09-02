@@ -72,6 +72,7 @@ window.addEventListener('load', ()=>{
     if(e.deltaY < 0) zoomIn(); else zoomOut();
   }, {passive:false});
   window.addEventListener('resize', ajustarCanvas);
+  try{ new ResizeObserver(()=>ajustarCanvas()).observe(document.getElementById('canvasArea')); }catch(e){}
   document.addEventListener('keydown', e=>{
     if(e.key === 'Escape') manejarEsc();
   });  document.getElementById('chipDec').textContent = textoDecimales();

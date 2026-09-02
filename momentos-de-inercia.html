@@ -70,7 +70,7 @@
     </div>
     <div class="tb-sep"></div>
     <div class="tb-zona" id="tbZona3">
-      <button class="tool-btn" onclick="openHist()" title="Ver ejercicios guardados">
+      <button class="tool-btn" onclick="openHist()" title="Abrir un ejercicio guardado en tu equipo">
         <svg viewBox="0 0 40 34"><circle cx="20" cy="17" r="10" fill="none" stroke="#c9930f" stroke-width="2.2"/><path d="M20 11 v6 l4 3" fill="none" stroke="#c9930f" stroke-width="2.2" stroke-linecap="round"/></svg>
         <span>Historial</span>
       </button>
@@ -437,18 +437,15 @@
 <!-- ── MODAL DE HISTORIAL ── -->
 <div class="modal-ov" id="histModal">
   <div class="modal-box">
-    <div class="modal-h">Ejercicios guardados</div>
-    <p class="modal-note">Si iniciaste sesión en el portal, aquí aparecen tus últimos
-      ejercicios. También puedes abrir cualquier archivo <code>.bsa10.json</code>
-      que hayas descargado antes.</p>
-    <!-- Lista del portal. El id debe ser histList: es el que rellena
-         histRenderList(); con #histLista la lista nunca llegaba a pintarse. -->
-    <div id="histList"></div>
+    <div class="modal-h">Abrir ejercicio</div>
+    <p class="modal-note">Elige un archivo <code>.bsa10.json</code> que hayas guardado
+      antes. No se guarda nada en este navegador ni en el portal: el archivo
+      es tuyo y se abre desde donde lo tengas.</p>
     <input type="file" id="archivoAbrir" accept=".json,application/json"
            style="display:none" onchange="onArchivoElegido(event)">
     <div class="modal-actions">
-      <button class="mbtn ghost" onclick="cerrarHistorial()">Cerrar</button>
-      <button class="mbtn ok" onclick="document.getElementById('archivoAbrir').click()">Abrir archivo…</button>
+      <button class="mbtn ghost" onclick="cerrarHistorial()">Cancelar</button>
+      <button class="mbtn ok" onclick="document.getElementById('archivoAbrir').click()">Elegir archivo…</button>
     </div>
   </div>
 </div>

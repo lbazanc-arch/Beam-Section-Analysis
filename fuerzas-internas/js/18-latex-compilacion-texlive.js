@@ -177,6 +177,7 @@ window.addEventListener('load', ()=>{
   cv.addEventListener('touchcancel', ()=>cancelarGestoEnCurso());
   cv.addEventListener('wheel', e=>{ e.preventDefault(); e.deltaY<0?zoomIn():zoomOut(); },{passive:false});
   window.addEventListener('resize', ajustarCanvas);
+  try{ new ResizeObserver(()=>ajustarCanvas()).observe(document.getElementById('canvasArea')); }catch(e){}
   document.getElementById('chipDec').textContent=textoDecimales();
   posicionarToggle();
   ajustarCanvas(); setTool('pan'); setModoEdicion('nudos'); centrar(); refrescar();

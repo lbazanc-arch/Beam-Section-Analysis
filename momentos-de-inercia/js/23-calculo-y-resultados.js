@@ -190,7 +190,6 @@ function calculate(){
   const kx = Math.sqrt(Math.abs(Ix/A)), ky = Math.sqrt(Math.abs(Iy/A));
 
   results = {xbar,ybar,Ix,Iy,Ixy,Imax,Imin,thetaP,Jo,kx,ky,A,steps};
-  try{ histPush(); }catch(e){}
 
   renderResults(results, u4, u2, u1);
   render();

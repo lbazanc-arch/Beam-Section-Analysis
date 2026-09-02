@@ -129,7 +129,7 @@ function onCanvasMove(e){
 
   if(gesto){
     const dx = mx - gesto.x0, dy = my - gesto.y0;
-    if(!gesto.moved && Math.hypot(dx,dy) > 4){
+    if(!gesto.moved && Math.hypot(dx,dy) > UMBRAL_ARRASTRE){
       gesto.moved = true;
       if(gesto.tEsperaId){ clearTimeout(gesto.tEsperaId); }
       const esVacio = gesto.hitNodo === null && gesto.hitBarra === null;

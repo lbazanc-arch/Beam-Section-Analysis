@@ -83,7 +83,7 @@ window.addEventListener('message', ev=>{
 // ── Jerarquía de Esc (criterio cap9): cierra lo más superficial primero ────
 function manejarEsc(){
   // 1) Un modal abierto: se cierra con su función propia para no dejar estado sucio
-  const cierres = {apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal',
+  const cierres = {edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal',
     unitsModal:'closeUnitsModal', decModal:'closeDecModal',
     guardarModal:'cerrarGuardar', histModal:'cerrarHistorial',
     transModal:'closeTransformar', repModal:'closeReplicar'};
@@ -167,6 +167,7 @@ window.addEventListener('load', ()=>{
   cv.addEventListener('touchcancel', ()=>cancelarGestoEnCurso());
   cv.addEventListener('wheel',e=>{ e.preventDefault(); e.deltaY<0?zoomIn():zoomOut(); },{passive:false});
   window.addEventListener('resize',ajustarCanvas);
+  try{ new ResizeObserver(()=>ajustarCanvas()).observe(document.getElementById('canvasArea')); }catch(e){}
   ['pB'].forEach(id=>{ const e=document.getElementById(id);
     if(e) e.addEventListener('input',()=>{ R=null; refrescar(); }); });
   const ap=document.getElementById('apAng');

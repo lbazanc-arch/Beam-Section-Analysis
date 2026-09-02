@@ -70,7 +70,8 @@ function applyDecModal(){
 //  propio dispositivo, sin límite de espacio en la cuenta ni dependencia de
 //  haber iniciado sesión.
 // ═══════════════════════════════════════════════════════════
-const BSA_FORMATO = 'bsa7';     // marca de formato: evita abrir un archivo de otro capítulo
+const BSA_FORMATO = 'bsa7';
+const BSA_EXT     = '.bsa7.json';     // marca de formato: evita abrir un archivo de otro capítulo
 const BSA_VERSION = 1;
 
 function nombreArchivoSeguro(nombre){
@@ -97,7 +98,7 @@ async function guardarProyecto(){
     estado: estadoActual()
   };
   const texto = JSON.stringify(paquete, null, 2);
-  const archivo = nombreArchivoSeguro(nombre) + '.bsa7.json';
+  const archivo = nombreArchivoSeguro(nombre) + BSA_EXT;
 
   // ── Camino preferido: el diálogo "Guardar como" del sistema ──
   // Deja elegir carpeta y nombre, como cualquier programa de escritorio.

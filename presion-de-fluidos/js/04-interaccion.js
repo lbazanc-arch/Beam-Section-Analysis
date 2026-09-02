@@ -234,7 +234,7 @@ function onDbl(e){
   const r=cv.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
   const n=nodoEn(mx,my);
-  if(n){ abrirApoyoModal(n.id); return; }
+  if(n){ abrirEdNodo(n.id); return; }
   const t=tramoEn(mx,my);
   if(t){ infoTramo=t.id; if(selT.indexOf(t.id)<0) selT.push(t.id); refrescar(); }
 }
@@ -318,7 +318,7 @@ function actualizarBotonesHistorial(){
 }
 
 function eliminarSeleccion(){
-  if(!selN.length && !selT.length){ aviso('Selecciona algo con la herramienta Ver / editar.', 'error'); return; }
+  if(!selN.length && !selT.length){ aviso('Selecciona algo con la herramienta Mover / editar.', 'error'); return; }
   registrarCambio();
   tramos = tramos.filter(t=>selT.indexOf(t.id)<0 && selN.indexOf(t.a)<0 && selN.indexOf(t.b)<0);
   nodos = nodos.filter(n=>selN.indexOf(n.id)<0);
@@ -334,4 +334,28 @@ function nodosDeSeleccion(){
 }
 function tramosDeGrupo(idsNodos){
   return tramos.filter(t=>idsNodos.indexOf(t.a)>=0 && idsNodos.indexOf(t.b)>=0).map(t=>t.id);
+}
+
+// ── Edición de un nudo por doble clic (mismo contrato que armaduras y fuerzas) ──
+let edNodoId = null;
+function abrirEdNodo(id){
+  const n = nodos.find(z=>z.id===id); if(!n) return;
+  edNodoId = id;
+  document.getElementById('edNodoNom').textContent = n.nombre || '';
+  document.getElementById('edNx').value = n.x;
+  document.getElementById('edNy').value = n.y;
+  const u = document.getElementById('edNuL');
+  if(u) u.textContent = (typeof unitLen !== 'undefined') ? unitLen : '';
+  document.getElementById('edNodoModal').classList.add('show');
+  const inp = document.getElementById('edNx'); if(inp) setTimeout(()=>inp.focus(), 50);
+}
+function closeEdNodo(){ document.getElementById('edNodoModal').classList.remove('show'); edNodoId = null; }
+function applyEdNodo(){
+  const n = nodos.find(z=>z.id===edNodoId); if(!n){ closeEdNodo(); return; }
+  const x = parseFloat(document.getElementById('edNx').value);
+  const y = parseFloat(document.getElementById('edNy').value);
+  if(!isFinite(x) || !isFinite(y)){ aviso('Escribe valores numéricos para x e y.', 'error'); return; }
+  registrarCambio();
+  n.x = x; n.y = y; R = null;
+  closeEdNodo(); refrescar();
 }
