@@ -33,7 +33,11 @@ function tikzViga(conReacciones){
     // El nombre del nudo es intocable: reserva su hueco antes que nada.
     tzOcupar(+x, +y+0.06, +x+0.30, +y+0.34);
   });
-  cargas.forEach(c=>{
+  // Primero las repartidas y después el resto: el bloque relleno tapaba las
+  // flechas y los momentos que caían en su mismo tramo.
+  const _ordenadas = cargas.filter(c=>c.tipo==='U'||c.tipo==='T')
+    .concat(cargas.filter(c=>!(c.tipo==='U'||c.tipo==='T')));
+  _ordenadas.forEach(c=>{
     if(c.tipo==='P' || c.tipo==='PX' || c.tipo==='M'){
       const P = puntoDeCarga(c);
       if(!P) return;
@@ -214,9 +218,9 @@ function tablaDatosModelo(){
     lista.forEach(c=>{
       const t = tramos.find(z=>z.id === c.tramo);
       let tipo, donde, pos, mag;
-      const marco = (c.orient === 'local') ? ' (local al tramo)' : '';
-      if(c.tipo === 'P'){ tipo = 'Puntual' + marco; mag = dec(c.mag,'fuerza') + ' ' + uF; }
-      else if(c.tipo === 'PX'){ tipo = 'Axial' + marco; mag = dec(c.mag,'fuerza') + ' ' + uF; }
+      const marco = (c.tipo === 'M') ? ''
+        : ', ' + ((DIR_CARGA[dirDeCarga(c)]||{}).nom || '').toLowerCase();
+      if(c.tipo === 'P' || c.tipo === 'PX'){ tipo = 'Puntual' + marco; mag = dec(c.mag,'fuerza') + ' ' + uF; }
       else if(c.tipo === 'M'){ tipo = 'Momento (par)'; mag = dec(c.mag,'momento') + ' ' + uM + (c.mag >= 0 ? ' antihorario' : ' horario'); }
       else if(c.tipo === 'U'){ tipo = (c._peso ? 'Peso propio' : 'Repartida uniforme') + marco; mag = dec(c.mag,'fuerza') + ' ' + uW; }
       else { tipo = 'Repartida variable' + marco; mag = dec(c.mag,'fuerza') + ' a ' + dec(c.mag2||0,'fuerza') + ' ' + uW; }
@@ -343,10 +347,10 @@ function construirLatex(){
     });
     tex += '\\hline\n\\end{tabular}\\end{center}}\n';
   }
-  if(cargas.some(c=>c.orient === 'local'))
-    tex += '\\noindent{\\footnotesize Alguna carga se ha definido \\emph{local al tramo}: actúa '
-      + 'perpendicular al eje (o paralela a él, si es axial) en vez de seguir la '
-      + 'vertical y la horizontal globales.}\\\\[4pt]\n';
+  if(cargas.some(c=>c.tipo !== 'M' && marcoDeCarga(c) === 'local'))
+    tex += '\\noindent{\\footnotesize Alguna carga se ha definido respecto al \\emph{eje del tramo} '
+      + '(perpendicular o axial) en vez de seguir la vertical y la horizontal del plano; '
+      + 'en un tramo inclinado no son lo mismo.}\\\\[4pt]\n';
 
   tex += '\\subpaso{Objetivo}\n'
     + 'Determinar, en cada sección de la viga, las tres solicitaciones internas: la fuerza normal $N$, '

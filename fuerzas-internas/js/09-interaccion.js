@@ -18,9 +18,17 @@ function cargaEn(mx,my){
     } else {
       const s = Math.max(0, Math.min(g.L, c.pos||0));
       const [px,py]=aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
-      if(c.tipo==='P'  && Math.abs(mx-px)<12 && my<py && my>py-52) return c;
-      if(c.tipo==='PX' && Math.abs(my-py)<12 && Math.abs(mx-px)<52) return c;
-      if(c.tipo==='M'  && Math.hypot(mx-px,my-py)<22) return c;
+      if(c.tipo==='M'){ if(Math.hypot(mx-px,my-py)<22) return c; continue; }
+      // Puntual en cualquier dirección: se mide la distancia al TRAZO de la
+      // flecha, que nace a 52 px del punto en sentido contrario a la carga.
+      const d = dirCarga(c, g);
+      const sg = (c.mag < 0) ? -1 : 1;
+      const vx = d.x*sg, vy = -d.y*sg;
+      const qx = px - vx*52, qy = py - vy*52;
+      const ex = px - vx*52 + vx*52, ey = py - vy*52 + vy*52;   // el punto
+      const dx = ex-qx, dy = ey-qy, l2 = dx*dx+dy*dy;
+      const u = l2 > 1 ? Math.max(0, Math.min(1, ((mx-qx)*dx+(my-qy)*dy)/l2)) : 0;
+      if(Math.hypot(mx-(qx+u*dx), my-(qy+u*dy)) < 14) return c;
     }
   }
   return null;

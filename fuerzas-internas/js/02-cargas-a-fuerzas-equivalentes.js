@@ -28,7 +28,7 @@ function puntoDeCarga(c){
 function sDesdePos(c, g, valor){
   const v = Number(valor) || 0;
   const modo = c.basePos || 'eje';
-  const local = (c.orient === 'local');
+  const local = (marcoDeCarga(c) === 'local');
   if(modo === 'coordX'){
     if(Math.abs(g.ux) < 1e-9) return 0;   // tramo vertical: la x no distingue puntos
     return (local ? v : (v - g.a.x)) / g.ux;
@@ -64,20 +64,54 @@ function trozoCargado(c){
   if(s2 < s1){ const t2=s1; s1=s2; s2=t2; }
   return {g, s1, s2, len:s2-s1};
 }
-// ── Orientación de una carga ──
-// 'global': la puntual va vertical hacia abajo, la axial horizontal y la
-//   distribuida vertical, sea cual sea la inclinación del tramo.
-// 'local' : la puntual y la distribuida se vuelven PERPENDICULARES al eje del
-//   tramo, y la axial pasa a ser PARALELA a él.
-// Devuelve el vector unitario en el que actúa una magnitud positiva.
-function dirCarga(c, g){
+// ── Dirección de una carga ──
+// Toda carga —puntual o repartida— lleva el mismo juego de direcciones:
+//   'y'     : vertical del plano, positiva hacia abajo (la de siempre).
+//   'x'     : horizontal del plano, positiva hacia la derecha.
+//   'perp'  : perpendicular al eje del tramo ("contra" la barra).
+//   'axial' : paralela al eje del tramo, en su sentido.
+// Antes la dirección dependía del TIPO (había una puntual X y otra Y, y las
+// repartidas solo podían ir en vertical o perpendiculares), lo que dejaba sin
+// cubrir el caso corriente de una repartida horizontal sobre una columna.
+const DIR_CARGA = {
+  y:     {nom:'Vertical (Y)',     ico:'\u2193', ayuda:'Vertical del plano, positiva hacia abajo.'},
+  x:     {nom:'Horizontal (X)',   ico:'\u2192', ayuda:'Horizontal del plano, positiva hacia la derecha.'},
+  perp:  {nom:'Perpendicular',    ico:'\u21e3', ayuda:'Perpendicular al eje del tramo, positiva "contra" la barra.'},
+  axial: {nom:'Axial',            ico:'\u21e2', ayuda:'Paralela al eje del tramo, positiva en su sentido de avance.'}
+};
+// Dirección efectiva, con lectura de los archivos guardados antes de unificar
+// la puntual X con la puntual Y (ahí la dirección salía de tipo + orient).
+function dirDeCarga(c){
+  if(c.dir && DIR_CARGA[c.dir]) return c.dir;
   const local = (c.orient === 'local');
-  if(!g) return {x:0, y:-1};
-  if(c.tipo === 'PX'){
-    // paralela al eje (sentido del tramo) o horizontal
-    return local ? {x:g.ux, y:g.uy} : {x:1, y:0};
+  if(c.tipo === 'PX') return local ? 'axial' : 'x';
+  return local ? 'perp' : 'y';
+}
+// El marco de las COORDENADAS de posición va con la dirección: una carga
+// referida al tramo se sitúa también con las coordenadas del tramo.
+function marcoDeCarga(c){
+  const d = dirDeCarga(c);
+  return (d === 'perp' || d === 'axial') ? 'local' : 'global';
+}
+// Geometría que define los ejes locales de la carga. Una carga puesta sobre un
+// NUDO no guarda tramo válido, así que se toma el primero que llega a él: sin
+// esto una carga axial o perpendicular de nudo se dibujaba y se resolvía como
+// si fuera vertical.
+function geoDeCarga(c){
+  if(c.destino === 'nudo'){
+    const t = tramos.find(z=>z.a === c.nudo || z.b === c.nudo);
+    return t ? geoTramo(t) : null;
   }
-  if(!local) return {x:0, y:-1};
+  const t = tramos.find(z=>z.id === c.tramo);
+  return t ? geoTramo(t) : null;
+}
+// Vector unitario en el que actúa una magnitud positiva.
+function dirCarga(c, g){
+  const d = dirDeCarga(c);
+  if(d === 'y') return {x:0, y:-1};
+  if(d === 'x') return {x:1, y:0};
+  if(!g) return {x:0, y:-1};
+  if(d === 'axial') return {x:g.ux, y:g.uy};
   // Perpendicular al eje, apuntando "contra" la barra: para un tramo
   // horizontal debe coincidir con la vertical hacia abajo, así el cambio de
   // modo no altera el resultado en vigas rectas.
@@ -86,13 +120,25 @@ function dirCarga(c, g){
   return {x:nx*signo, y:ny*signo};
 }
 
+// Lleva una lista de cargas al modelo actual: la puntual X y la puntual Y son
+// ahora la misma carga con distinta dirección. Los archivos guardados antes
+// del cambio se leen igual, y al guardarlos de nuevo ya salen normalizados.
+function normalizarCargas(lista){
+  (lista || []).forEach(c=>{
+    if(!c || c.tipo === 'M') return;
+    if(!c.dir) c.dir = dirDeCarga(c);
+    if(c.tipo === 'PX') c.tipo = 'P';
+    c.orient = marcoDeCarga(c);
+  });
+  return lista;
+}
+
 function accionesDeCarga(c){
   if(c.tipo === 'P' || c.tipo === 'PX' || c.tipo === 'M'){
     const P = puntoDeCarga(c);
     if(!P) return [];
     if(c.tipo === 'M') return [{x:P.x, y:P.y, fx:0, fy:0, m:c.mag}];
-    const tt = tramos.find(z=>z.id===c.tramo), gg = tt && geoTramo(tt);
-    const d = dirCarga(c, gg);
+    const d = dirCarga(c, geoDeCarga(c));
     return [{x:P.x, y:P.y, fx:c.mag*d.x, fy:c.mag*d.y, m:0}];
   }
   if(c.tipo === 'U' || c.tipo === 'T'){
@@ -131,7 +177,7 @@ function cargasPesoPropio(){
     if(!p || !p.val) return;
     out.push({id:'pp'+t.id, tipo:'U', destino:'tramo', tramo:t.id,
               pos:0, posFin:null, mag:p.val, mag2:p.val,
-              orient:'global', basePos:'eje', _peso:true});
+              dir:'y', orient:'global', basePos:'eje', _peso:true});
   });
   return out;
 }

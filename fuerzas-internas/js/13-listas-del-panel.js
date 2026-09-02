@@ -71,12 +71,14 @@ function pintarListas(){
 // ═══════════════════════════════════════════════════════════
 const CARGA_FAMILIA = {
   P : {nom:'Cargas puntuales',    ico:'↓'},
-  PX: {nom:'Cargas axiales',      ico:'→'},
   U : {nom:'Cargas uniformes',    ico:'▭'},
   T : {nom:'Cargas variables',    ico:'◺'},
   M : {nom:'Momentos',            ico:'↻'}
 };
-const ORDEN_FAMILIA = ['P','PX','U','T','M'];
+const ORDEN_FAMILIA = ['P','U','T','M'];
+// La puntual X dejó de ser un tipo aparte: un archivo antiguo sin normalizar
+// todavía puede traerla, y debe listarse con las demás puntuales.
+function familiaDeCarga(c){ return (c.tipo === 'PX') ? 'P' : c.tipo; }
 let _arbolAbierto = {};          // qué elementos están desplegados
 
 function alternarRamaCarga(clave){
@@ -85,13 +87,17 @@ function alternarRamaCarga(clave){
   if(lc) lc.innerHTML = htmlArbolCargas();
 }
 
-// Icono que indica el sentido real de la carga (signo y orientación).
+// Icono que indica el sentido real de la carga: dirección elegida y signo.
+const _ICO_DIR = {
+  y:     ['↓','↑'],       // [magnitud positiva, negativa]
+  x:     ['→','←'],
+  perp:  ['⇣','⇡'],
+  axial: ['⇢','⇠']
+};
 function iconoSentido(c){
   if(c.tipo === 'M') return (c.mag < 0) ? '↻' : '↺';
-  const local = (c.orient === 'local');
-  if(c.tipo === 'PX') return local ? '⇢' : (c.mag < 0 ? '←' : '→');
-  const arriba = (c.mag < 0);
-  return local ? '⇣' : (arriba ? '↑' : '↓');
+  const par = _ICO_DIR[dirDeCarga(c)] || _ICO_DIR.y;
+  return (c.mag < 0) ? par[1] : par[0];
 }
 
 function htmlArbolCargas(){
@@ -123,7 +129,7 @@ function htmlArbolCargas(){
     if(abierto){
       h += '<div class="rama-cuerpo">';
       ORDEN_FAMILIA.forEach(f=>{
-        const lista = g.cargas.filter(c=>c.tipo === f);
+        const lista = g.cargas.filter(c=>familiaDeCarga(c) === f);
         if(!lista.length) return;      // la familia solo aparece si hay algo
         h += '<div class="fam">' + CARGA_FAMILIA[f].nom + '</div>';
         lista.forEach(c=>{
@@ -134,7 +140,8 @@ function htmlArbolCargas(){
           h += '<div class="item-row">'
             + '<span class="sent" title="sentido">' + iconoSentido(c) + '</span>'
             + '<div class="nm">' + val + ' ' + u
-            + (c.orient === 'local' ? ' <span class="loc">local</span>' : '') + '</div>'
+            + ((c.tipo !== 'M' && dirDeCarga(c) !== 'y')
+                ? ' <span class="loc">' + (DIR_CARGA[dirDeCarga(c)]||{}).nom + '</span>' : '') + '</div>'
             + '<button class="x" title="Editar" onclick="editarCarga(' + c.id + ')">✎</button>'
             + '<button class="x" title="Borrar" onclick="borrarCarga(' + c.id + ')">×</button>'
             + '</div>';

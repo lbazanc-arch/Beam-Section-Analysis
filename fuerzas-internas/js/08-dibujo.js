@@ -105,7 +105,14 @@ function dibujar(){
   });
 
   if(VIS.cotas) dibujarCotas();
-  if(VIS.cargas){ cargas.forEach(dibujarCarga); cargasPesoPropio().forEach(dibujarCarga); }
+  if(VIS.cargas){
+    // Las repartidas van SIEMPRE debajo: su bloque relleno tapaba las flechas
+    // y los arcos de momento que caían dentro de su tramo.
+    const _reps = c => (c.tipo === 'U' || c.tipo === 'T');
+    const _todas = cargas.concat(cargasPesoPropio());
+    _todas.filter(_reps).forEach(dibujarCarga);
+    _todas.filter(c=>!_reps(c)).forEach(dibujarCarga);
+  }
   nodos.forEach(n=>{ if(VIS.apoyos || edApoyo === n.id) dibujarApoyo(n); });
 
   // nudos
@@ -534,6 +541,7 @@ function dibujarCarga(c){
     const n = nodo(c.nudo);
     if(!n) return;
     [px, py] = aPantalla(n.x, n.y);
+    g = geoDeCarga(c);          // eje local del tramo que llega al nudo
   } else {
     t = tramos.find(z=>z.id===c.tramo); g = t && geoTramo(t);
     if(!g) return;
@@ -552,37 +560,45 @@ function dibujarCarga(c){
       ctx.beginPath(); ctx.arc(px, py-24, 26, 0, Math.PI*2); ctx.fill();
     }
   }
-  if(c.tipo==='P'){
-    // El signo decide el sentido: negativo = hacia arriba. Antes se dibujaba
-    // siempre hacia abajo, así que una carga de succión se veía como si
-    // empujara.
-    // La flecha apunta en la dirección REAL de la carga: si se marcó local,
-    // queda perpendicular al eje del tramo, no vertical.
+  if(c.tipo==='P' || c.tipo==='PX'){
+    // Una sola flecha para cualquier dirección: vertical, horizontal,
+    // perpendicular al tramo o axial. El signo decide el sentido (negativo =
+    // contrario al positivo de esa dirección).
     const d = dirCarga(c, g);
     const sg = (c.mag < 0) ? -1 : 1;
     // en pantalla el eje y crece hacia abajo, así que se invierte
     const vx = d.x*sg, vy = -d.y*sg;
+    // Una flecha casi paralela a la barra se dibujaba ENCIMA de ella y no
+    // había forma de leerla, sobre todo en un extremo. En ese caso se aparta
+    // perpendicularmente y se une al punto con una guía de puntos.
+    let ox = 0, oy = 0;
+    if(g){
+      const ux = g.ux, uy = -g.uy;                 // eje del tramo en pantalla
+      if(Math.abs(vx*ux + vy*uy) > 0.9){           // menos de ~25° con la barra
+        const nx = -uy, ny = ux;                   // normal en pantalla
+        const s2 = (ny > 0) ? -1 : 1;              // hacia arriba de la pantalla
+        ox = nx*s2*13; oy = ny*s2*13;
+      }
+    }
+    const bx = px + ox, by = py + oy;
     ctx.strokeStyle='#d94f5c'; ctx.fillStyle='#d94f5c'; ctx.lineWidth=2.6;
     // cola a 46 px del punto, punta a 5 px; la flecha "llega" a la barra
-    const qx = px - vx*46, qy = py - vy*46;
-    const ex = px - vx*5,  ey = py - vy*5;
+    const qx = bx - vx*46, qy = by - vy*46;
+    const ex = bx - vx*5,  ey = by - vy*5;
     ctx.beginPath(); ctx.moveTo(qx,qy); ctx.lineTo(ex,ey); ctx.stroke();
     const ang = Math.atan2(vy, vx);
-    ctx.save(); ctx.translate(px - vx*3, py - vy*3); ctx.rotate(ang);
+    ctx.save(); ctx.translate(bx - vx*3, by - vy*3); ctx.rotate(ang);
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-11,-5); ctx.lineTo(-11,5);
     ctx.closePath(); ctx.fill(); ctx.restore();
-    rotulo(dec(Math.abs(c.mag),'f')+' '+unitFor, qx - vx*10, qy - vy*10, '#d94f5c', 0, -1);
-  } else if(c.tipo==='PX'){
-    // Paralela al eje del tramo si se marcó local; horizontal si no.
-    const d = dirCarga(c, g);
-    const sg = (c.mag < 0) ? -1 : 1;
-    const vx = d.x*sg, vy = -d.y*sg;
-    ctx.strokeStyle='#d94f5c'; ctx.fillStyle='#d94f5c'; ctx.lineWidth=2.6;
-    ctx.beginPath(); ctx.moveTo(px-vx*46, py-vy*46); ctx.lineTo(px-vx*6, py-vy*6); ctx.stroke();
-    ctx.save(); ctx.translate(px-vx*4, py-vy*4); ctx.rotate(Math.atan2(vy,vx));
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-4.5); ctx.lineTo(-10,4.5);
-    ctx.closePath(); ctx.fill(); ctx.restore();
-    rotulo(dec(Math.abs(c.mag),'f')+' '+unitFor, px-vx*58, py-vy*58-8, '#d94f5c', 0, -1);
+    if(ox || oy){
+      ctx.save();
+      ctx.setLineDash([2,3]); ctx.lineWidth=1; ctx.strokeStyle='rgba(217,79,92,.75)';
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(px, py); ctx.stroke();
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(px, py, 2.4, 0, Math.PI*2); ctx.fill();
+    }
+    rotulo(dec(Math.abs(c.mag),'f')+' '+unitFor, qx - vx*10, qy - vy*10, '#d94f5c',
+           -vx, -vy);
   } else if(c.tipo==='M'){
     // El sentido del arco sigue al signo del momento.
     // El sentido debe leerse de un vistazo: arco de 300° con una punta
@@ -629,7 +645,9 @@ function dibujarCarga(c){
     // perpendicular al tramo; si es global, siempre vertical.
     const d = dirCarga(c, g);
     const ex = -d.x, ey = d.y;   // y de pantalla invertida
-    ctx.fillStyle='rgba(224,168,60,.20)'; ctx.strokeStyle='#e0a83c'; ctx.lineWidth=1.8;
+    // Relleno muy tenue: con el 20% anterior el bloque tapaba las flechas y
+    // los momentos que caían bajo la misma zona del tramo.
+    ctx.fillStyle='rgba(224,168,60,.10)'; ctx.strokeStyle='#e0a83c'; ctx.lineWidth=1.8;
     ctx.beginPath();
     ctx.moveTo(ax,ay); ctx.lineTo(ax+ex*h1, ay+ey*h1);
     ctx.lineTo(bx+ex*h2, by+ey*h2); ctx.lineTo(bx,by);

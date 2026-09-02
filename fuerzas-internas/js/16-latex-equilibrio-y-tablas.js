@@ -633,7 +633,7 @@ function tikzEsquemaGrupo(R, gg, W){
   });
   // cargas repartidas (componente perpendicular)
   let wmax = 1e-9;
-  const bloques = [];
+  const bloques = [], axiales = [];
   cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
     const el = gg.tramos.find(t2=>t2.tramo && t2.tramo.id === c.tramo);
     if(!el) return;
@@ -643,10 +643,30 @@ function tikzEsquemaGrupo(R, gg, W){
     const wFin = (c.tipo === 'U') ? c.mag : (c.mag2 || 0);
     const wA = inv ? wFin : c.mag, wB = inv ? c.mag : wFin;
     const dd = dirCarga(c, z.g);
-    const cp = dd.x*nx + dd.y*ny;
-    if(Math.abs(cp) < 1e-9) return;
+    const cp = dd.x*nx + dd.y*ny, cu = dd.x*ux + dd.y*uy;
+    if(Math.abs(cp) < 1e-9){
+      // Repartida puramente axial (por ejemplo horizontal sobre una viga
+      // horizontal): no levanta bloque, pero sí empuja a lo largo del eje.
+      if(Math.abs(cu) > 1e-9) axiales.push({g1, g2, w:wA*cu, w2:wB*cu});
+      return;
+    }
     bloques.push({g1, g2, w1:wA*cp, w2:wB*cp, wA, wB, cp});
     wmax = Math.max(wmax, Math.abs(wA*cp), Math.abs(wB*cp));
+  });
+  axiales.forEach(az=>{
+    const x1 = X(az.g1), x2 = X(az.g2), y = 0.30;
+    const sg = Math.sign(az.w) || 1;
+    const n = Math.max(2, Math.min(7, Math.round((x2-x1)/0.9)));
+    for(let i=0;i<=n;i++){
+      const xi = x1 + (x2-x1)*i/n;
+      out += '\\draw[-{Latex[length=1.4mm]}, color=bsaDist, line width=.7pt] ('
+           + F(xi - sg*0.34) + ',' + F(y) + ') -- (' + F(xi) + ',' + F(y) + ');\n';
+    }
+    tzOcuparTrazo(x1-0.34, y, x2, y, 0.09);
+    out += tzTexto((x1+x2)/2, y + 0.24,
+                   '$w_{\\parallel}=' + dec(Math.abs(az.w),'fuerza')
+                   + (Math.abs(az.w - az.w2) > 1e-9 ? '\\to' + dec(Math.abs(az.w2),'fuerza') : '')
+                   + '$\\,' + uW, 'font=\\tiny, color=bsaDist!70!black', 0, 1);
   });
   bloques.forEach(bq=>{
     const alt = 0.55;

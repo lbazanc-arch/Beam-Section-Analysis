@@ -180,7 +180,7 @@ function cargarEstadoDesdeArchivo(e, nombreArchivo){
     registrarCambio();
     nodos=(e.nodos||[]).map(n=>Object.assign({nombre:''},n));
     tramos=(e.tramos||[]).slice();
-    cargas=(e.cargas||[]).slice();
+    cargas=normalizarCargas((e.cargas||[]).map(c=>Object.assign({}, c)));
     pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
     nodoSeq=nodos.reduce((m,n)=>Math.max(m,n.id),0);
     tramoSeq=tramos.reduce((m,t)=>Math.max(m,t.id),0);
@@ -354,15 +354,17 @@ function tzCadenaCotas(valores, Xn, yBase, color, opts){
   return {tikz:out, nMax:plan.nMax};
 }
 
-// Términos que componen el lado derecho de una ecuación de equilibrio.
+// Términos que componen cada lado de una ecuación de equilibrio.
 // e = 0 -> suma de Fx ; 1 -> suma de Fy ; 2 -> momentos respecto al origen ;
 // 3+ -> momentos a un lado de cada rótula.
+// Devuelve [{v, tex}]: v da el signo con el que entra el término y tex su
+// expresión en valor absoluto, para poder componer la suma con sus signos.
 function terminosEquilibrio(R, e){
   const trm = [];
+  const dt = e >= 2 ? 'momento' : 'fuerza';
   const push = (v, det) => {
     if(Math.abs(v) < 1e-9) return;
-    const sg = trm.length ? (v < 0 ? '-' : '+') : (v < 0 ? '-' : '');
-    trm.push(sg + (det || dec(Math.abs(v), e>=2 ? 'momento' : 'fuerza')));
+    trm.push({v, tex: det || dec(Math.abs(v), dt)});
   };
   // Las acciones se agrupan por carga: una distribuida es un solo término,
   // con su resultante y su brazo, no una lista de rebanadas.
@@ -374,14 +376,8 @@ function terminosEquilibrio(R, e){
     o.fx += a.fx; o.fy += a.fy; o.m += a.m || 0;
   });
   const lista = [...porCarga.values()];
-  if(e === 0){
-    lista.forEach(o=>push(o.fx));
-    return trm.length ? [trm.join(' ').replace(/^\+/, '')] : [];
-  }
-  if(e === 1){
-    lista.forEach(o=>push(o.fy));
-    return trm.length ? [trm.join(' ').replace(/^\+/, '')] : [];
-  }
+  if(e === 0){ lista.forEach(o=>push(o.fx)); return trm; }
+  if(e === 1){ lista.forEach(o=>push(o.fy)); return trm; }
   // momentos: se muestra fuerza x brazo, que es lo que se hace a mano
   const rt = (e >= 3 && R.rotulas[e-3]) ? R.rotulas[e-3] : {x:0, y:0};
   const ok = (o) => {
@@ -397,20 +393,23 @@ function terminosEquilibrio(R, e){
     let det;
     if(Math.abs(o.fy) > 1e-9 && Math.abs(o.fx) < 1e-9 && Math.abs(o.m) < 1e-9)
       det = dec(Math.abs(o.fy),'fuerza') + '\\times' + dec(Math.abs(bx),'len');
+    else if(Math.abs(o.fx) > 1e-9 && Math.abs(o.fy) < 1e-9 && Math.abs(o.m) < 1e-9)
+      det = dec(Math.abs(o.fx),'fuerza') + '\\times' + dec(Math.abs(by),'len');
     else if(Math.abs(o.m) > 1e-9 && Math.abs(o.fx) < 1e-9 && Math.abs(o.fy) < 1e-9)
       det = dec(Math.abs(o.m),'momento');
     else
       det = dec(Math.abs(mv),'momento');
     push(mv, det);
   });
-  return trm.length ? [trm.join(' ').replace(/^\+/, '')] : [];
+  return trm;
 }
 
 // ── Desarrollo paso a paso de las reacciones ──
-// Reconstruye cada ecuación de equilibrio con sus términos: primero en
-// símbolos, después con los números sustituidos. Usa la MISMA matriz que
-// resolvió el sistema, así que lo escrito y lo calculado no pueden
-// discrepar.
+// Se plantea cada ecuación completa (incógnitas y cargas, todo a un lado) y
+// se resuelve en el orden en que se puede resolver a mano: primero la que
+// deja una sola incógnita, después las que se despejan sustituyendo lo ya
+// hallado. Cada reacción aparece con su valor en cuanto se obtiene; antes se
+// escribían tres líneas casi iguales y el valor solo salía en la tabla final.
 function pasoAPasoReacciones(R){
   if(!R || R.error || !R.inc.length) return '';
   const simb = (u) => {
@@ -418,13 +417,20 @@ function pasoAPasoReacciones(R){
     if(u.ang !== undefined) return 'R_{' + b + '}';
     return (u.tipo==='Rx' ? 'R_{x' : (u.tipo==='Ry' ? 'R_{y' : 'M_{')) + b + '}';
   };
-  const nEq = R.A.length;
+  const uInc = (u) => escLatex((u.tipo === 'M' && u.ang === undefined) ? unidadMomento() : unitFor);
+  const nEq = R.A.length, nInc = R.inc.length;
   const nomEq = [];
   nomEq.push('\\sum F_x = 0');
   nomEq.push('\\sum F_y = 0');
-  nomEq.push('\\sum M_O = 0 \\quad\\text{(momentos respecto al origen)}');
+  nomEq.push('\\sum M_O = 0');
+  for(let e=3;e<nEq;e++) nomEq.push('\\sum M_{' + escLatex(R.rotulas[e-3].nombre) + '} = 0');
+  const notaEq = [];
+  notaEq.push('');
+  notaEq.push('');
+  notaEq.push('momentos respecto al origen');
   for(let e=3;e<nEq;e++)
-    nomEq.push('\\sum M = 0 \\quad\\text{(r\\\'otula ' + (e-2) + ': momento nulo a un lado)}');
+    notaEq.push('momento nulo en la rótula ' + escLatex(R.rotulas[e-3].nombre)
+              + ', tomando solo lo que hay a un lado');
 
   let out = '\\noindent{\\bfseries\\color{bsaAcc2} Desarrollo}\\\\[3pt]\n';
   // Diagrama de cuerpo libre global: la viga con sus cargas Y con las
@@ -435,57 +441,112 @@ function pasoAPasoReacciones(R){
        + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre global: cargas '
        + 'aplicadas y reacciones incógnita, en su sentido positivo supuesto.}\n'
        + '\\end{center}\\vspace{4pt}\n';
-  out += '\\noindent Cada ecuaci\\\'on se escribe con las inc\\\'ognitas a la '
-       + 'izquierda y las cargas conocidas a la derecha.\\\\[4pt]\n';
 
-  for(let e=0;e<nEq;e++){
-    // lado izquierdo: coeficientes por incógnita
-    const trm = [];
+  const dtEq = e => (e >= 2 ? 'momento' : 'fuerza');
+  const unEq = e => escLatex(e >= 2 ? unidadMomento() : unitFor);
+  const conocido = new Array(nInc).fill(false);
+  const usada = new Array(nEq).fill(false);
+  // Términos de las incógnitas; las ya halladas entran como número.
+  const izqTerms = (e, sustituir) => {
+    const t = [];
     R.inc.forEach((u,j)=>{
       const a = R.A[e][j];
       if(Math.abs(a) < 1e-9) return;
-      const co = Math.abs(Math.abs(a)-1) < 1e-9 ? '' : dec(Math.abs(a),'len');
-      trm.push((trm.length ? (a<0 ? ' - ' : ' + ') : (a<0 ? '-' : '')) + co + simb(u));
+      if(sustituir && conocido[j]){
+        const v = a*R.val[j];
+        if(Math.abs(v) < 1e-9) return;
+        t.push({v, tex: dec(Math.abs(v), dtEq(e))});
+      } else {
+        const co = Math.abs(Math.abs(a)-1) < 1e-9 ? '' : dec(Math.abs(a),'len') + '\\,';
+        t.push({v:a, tex: co + simb(u)});
+      }
     });
-    const izq = trm.length ? trm.join('') : '0';
-    out += '$$' + nomEq[e] + '$$\n';
-    // Desglose del lado derecho: de dónde sale ese número. Se recorre la
-    // MISMA lista de acciones que usó el sistema, así que la suma escrita
-    // coincide por construcción con el valor resuelto.
-    const det = terminosEquilibrio(R, e);
-    const uEq  = (e>=2) ? unidadMomento() : unitFor;
-    const valB = dec(R.b[e], e>=2 ? 'momento' : 'fuerza');
-    // Fila 1: el desglose completo. Fila 2: la ecuación ya reducida, que es
-    // la que se arrastra al siguiente paso. Antes iban en una sola línea y
-    // el resultado quedaba enterrado al final del desarrollo.
-    if(det.length) out += '$$' + izq + ' = ' + det.join(' ') + '$$\n';
-    out += '$$' + izq + ' = ' + valB + '\\ \\text{' + escLatex(uEq) + '}$$\n';
+    return t;
+  };
+  const pendientes = (e) => {
+    const v = [];
+    R.inc.forEach((u,j)=>{ if(Math.abs(R.A[e][j]) > 1e-9 && !conocido[j]) v.push({u, j, a:R.A[e][j]}); });
+    return v;
+  };
 
-    // Fila 3: si la ecuación deja una sola incógnita, se despeja aquí mismo.
-    const vivos = [];
-    R.inc.forEach((u,j)=>{ if(Math.abs(R.A[e][j]) > 1e-9) vivos.push({u, j, a:R.A[e][j]}); });
-    if(vivos.length === 1){
-      const v = vivos[0];
-      const esMom = (v.u.tipo === 'M' && v.u.ang === undefined);
-      const uInc = esMom ? unidadMomento() : unitFor;
-      out += '$$' + simb(v.u) + ' = ' + dec(R.val[v.j], esMom ? 'momento' : 'fuerza')
-           + '\\ \\text{' + escLatex(uInc) + '}$$\n';
+  const carg = [];                 // términos de carga de cada ecuación
+  for(let e=0;e<nEq;e++) carg.push(terminosEquilibrio(R, e));
+
+  let restantes = nEq;
+  while(restantes > 0){
+    // Se elige la ecuación que deje UNA sola incógnita: es la que se puede
+    // despejar sin tocar las demás.
+    let el = -1;
+    for(let e=0;e<nEq;e++){
+      if(usada[e]) continue;
+      if(pendientes(e).length === 1){ el = e; break; }
     }
+    if(el < 0){
+      // Ninguna se despeja sola: las que quedan forman un sistema simultáneo.
+      const libres = [];
+      for(let e=0;e<nEq;e++){
+        if(usada[e]) continue;
+        usada[e] = true; restantes--;
+        out += '$$' + nomEq[e] + (notaEq[e] ? '\\quad\\text{(' + notaEq[e] + ')}' : '') + '$$\n';
+        out += '$$' + _sumaTex(izqTerms(e, true).concat(carg[e])) + ' = 0$$\n';
+        pendientes(e).forEach(p=>{ if(libres.indexOf(p.j) < 0) libres.push(p.j); });
+      }
+      if(libres.length){
+        out += '\\noindent{\\footnotesize Estas ecuaciones no se despejan por separado: '
+          + 'forman un sistema simultáneo. Resolviéndolo:}\\\\[2pt]\n';
+        out += '$$' + libres.map(j=>simb(R.inc[j]) + ' = '
+          + dec(R.val[j], (R.inc[j].tipo === 'M' && R.inc[j].ang === undefined) ? 'momento' : 'fuerza')
+          + '\\ \\text{' + uInc(R.inc[j]) + '}').join('\\qquad ') + '$$\n';
+        libres.forEach(j=>{ conocido[j] = true; });
+      }
+      break;
+    }
+
+    usada[el] = true; restantes--;
+    const p = pendientes(el)[0];
+    const hayPrevias = izqTerms(el, false).length > 1;
+    out += '$$' + nomEq[el] + (notaEq[el] ? '\\quad\\text{(' + notaEq[el] + ')}' : '') + '$$\n';
+    // 1 · La ecuación completa, con las incógnitas en símbolos. Se omite
+    //     cuando no aporta nada: una ecuación con una sola incógnita de
+    //     coeficiente unidad y sin cargas ya es el propio despeje, y
+    //     escribirla repetía la misma línea dos veces.
+    const trivial = !hayPrevias && !carg[el].length && Math.abs(Math.abs(p.a)-1) < 1e-9;
+    if(!trivial)
+      out += '$$' + _sumaTex(izqTerms(el, false).concat(carg[el])) + ' = 0$$\n';
+    // 2 · Sustitución de lo ya hallado y suma de lo conocido
+    const sust = izqTerms(el, true).concat(carg[el]);
+    const cte = sust.filter(t=>t.tex.indexOf('R_') < 0 && t.tex.indexOf('M_') < 0)
+                    .reduce((s,t)=>s + t.v, 0);
+    const coefTxt = Math.abs(Math.abs(p.a)-1) < 1e-9 ? '' : dec(Math.abs(p.a),'len') + '\\,';
+    if(hayPrevias)
+      out += '$$' + _sumaTex(sust) + ' = 0$$\n';
+    // 3 · Despeje, con la división a la vista si el coeficiente no es 1
+    const dtI = (p.u.tipo === 'M' && p.u.ang === undefined) ? 'momento' : 'fuerza';
+    const izqDes = (p.a < 0 ? '-' : '') + coefTxt + simb(p.u);
+    let linea = izqDes + ' = ' + dec(-cte, dtEq(el)) + '\\ \\text{' + unEq(el) + '}';
+    if(Math.abs(Math.abs(p.a)-1) > 1e-9)
+      linea += ' \\quad\\Rightarrow\\quad ' + simb(p.u) + ' = \\dfrac{' + dec(-cte, dtEq(el))
+             + '}{' + dec(p.a,'len') + '} = ' + dec(R.val[p.j], dtI)
+             + '\\ \\text{' + uInc(p.u) + '}';
+    else if(p.a < 0)
+      linea += ' \\quad\\Rightarrow\\quad ' + simb(p.u) + ' = ' + dec(R.val[p.j], dtI)
+             + '\\ \\text{' + uInc(p.u) + '}';
+    out += '$$' + linea + '$$\n';
+    conocido[p.j] = true;
   }
 
-  // comprobación: sustituir los valores hallados
-  out += '\\noindent Sustituyendo los valores obtenidos, cada ecuaci\\\'on cierra:\\\\[3pt]\n';
-  out += '\\begin{center}\\begin{tabular}{lrr}\n\\hline\n'
-       + 'Ecuaci\\\'on & Suma con los valores & Residuo \\\\\n\\hline\n';
+  // Comprobación compacta: con todas las reacciones halladas, cada ecuación
+  // debe cerrar. Antes se listaba una tabla entera de residuos nulos, que
+  // repetía lo que el propio desarrollo ya había demostrado.
+  let peor = 0;
   for(let e=0;e<nEq;e++){
     let acc = 0;
     R.inc.forEach((u,j)=>{ acc += R.A[e][j]*R.val[j]; });
-    const nom = e===0 ? '$\\sum F_x$' : (e===1 ? '$\\sum F_y$'
-              : (e===2 ? '$\\sum M_O$' : '$\\sum M$ (r\\\'otula ' + (e-2) + ')'));
-    const u2 = e>=2 ? 'momento' : 'fuerza';
-    out += nom + ' & ' + dec(acc,u2) + ' & ' + dec(acc - R.b[e], u2) + ' \\\\\n';
+    peor = Math.max(peor, Math.abs(acc - R.b[e]));
   }
-  out += '\\hline\n\\end{tabular}\\end{center}\n\\vspace{4pt}\n';
+  out += '\\noindent{\\footnotesize Sustituyendo los valores hallados en las '
+    + nEq + ' ecuaciones, el mayor residuo es ' + dec(peor,'momento')
+    + ': el sistema cierra.}\\\\[4pt]\n';
   return out;
 }
 
@@ -523,14 +584,15 @@ function tikzApoyo(x, y, tipo, k, lado){
 // ── DCL del trozo cortado, en TikZ ──
 // Se ve la porción de viga que queda antes del corte con TODO lo que actúa
 // sobre ella: el apoyo y sus reacciones (con nombre y valor), las cargas
-// puntuales, los pares, las repartidas con su resultante en el centroide y,
-// en la cara cortada, N, V y M en sentido positivo. Reutiliza el colocador
-// de rótulos, así que las etiquetas se apartan en vez de pisarse.
+// puntuales, los pares, las repartidas con su resultante y, en la cara
+// cortada, N, V y M en sentido positivo. Reutiliza el colocador de rótulos,
+// así que las etiquetas se apartan en vez de pisarse.
+//
+// Ojo con las repartidas: si la sección cae DENTRO de la carga, la parte que
+// actúa depende de la abscisa, así que su resultante no es un número sino
+// w(x-d), aplicada a la mitad de ese trozo. Solo las cargas que terminan
+// antes del intervalo se sustituyen por su resultante numérica.
 function tikzDCLSub(R, gg, seg, sub, info){
-  // El DCL muestra SOLO el grupo que se está analizando, desde su nudo de
-  // arranque hasta el corte. En los grupos posteriores al primero, todo lo
-  // que hay antes del quiebre se sustituye por las tres solicitaciones que
-  // llegan a ese nudo (N0, V0, M0).
   const EPS = 1e-9;
   const primero = (gg.idx === 0);
   const sIni = gg.s0;
@@ -542,6 +604,9 @@ function tikzDCLSub(R, gg, seg, sub, info){
   const Lz = v => dec(v,'len');
   const sb = gg.simbolo;
   const brazo = d => (Math.abs(d) < 1e-6 ? sb : '(' + sb + ' - ' + Lz(d) + ')');
+  // Abscisa donde empieza el intervalo: una carga que termina antes de él ya
+  // es una fuerza conocida; una que lo cruza, no.
+  const A0 = info ? info.a : (seg.s0 - gg.s0 + sub.sa);
 
   // nudos del grupo que quedan dentro del trozo
   const pts = [{x:O.x, y:O.y, nom:O.nombre, n:O}];
@@ -560,6 +625,17 @@ function tikzDCLSub(R, gg, seg, sub, info){
   const X = x => (x-minx)*k, Y = y => (y-miny)*k;
   const F = n => n.toFixed(3);
   tzReiniciar();
+
+  // Ejes locales y puntos clave, que necesitan tanto las cargas como las cotas.
+  const ux = seg.ux, uy = seg.uy, nx = -uy, ny = ux;
+  const px = X(P.x), py = Y(P.y);
+  let nxq = nx, nyq = ny;
+  if(nyq > 0){ nxq = -nxq; nyq = -nyq; }        // hacia el lado libre (abajo)
+  const rCut = sCut - sIni;
+  const pxU = Math.hypot(px - X(O.x), py - Y(O.y)) / (rCut || 1);
+  // Punto del eje a la abscisa r del grupo, separado sep hacia el lado libre.
+  const qEje = (r, sep) => ({x: X(O.x) + ux*(r*pxU) + nxq*sep,
+                             y: Y(O.y) + uy*(r*pxU) + nyq*sep});
 
   let out = '';
   for(let i=0;i<todos.length-1;i++)
@@ -582,7 +658,95 @@ function tikzDCLSub(R, gg, seg, sub, info){
       out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.8pt] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.09);\n';
   });
 
-  const ux = seg.ux, uy = seg.uy, nx = -uy, ny = ux;
+  // ── Cargas repartidas hasta el corte ──
+  // Van las PRIMERAS para que su bloque quede por debajo de las flechas y de
+  // los arcos de momento, que antes tapaba.
+  const marcasCota = [];        // abscisas que merecen cota (centroides, inicios)
+  const brazos = [];            // {r, tex} brazo de cada resultante hasta el corte
+  cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
+    const z = trozoCargado(c);
+    if(!z || z.len <= 1e-12) return;
+    const el = gg.tramos.find(t2=>t2.tramo && t2.tramo.id === c.tramo);
+    if(!el) return;
+    const inv = (el.invert);
+    const offT = el.s0 - gg.s0;
+    const r1 = inv ? (z.g.L - z.s2) : z.s1;
+    const r2Tot = inv ? (z.g.L - z.s1) : z.s2;
+    const hasta = Math.min(el.L, sCut - el.s0);
+    if(hasta <= 1e-9) return;
+    const r2 = Math.min(r2Tot, hasta);
+    if(r2 <= r1 + 1e-9) return;
+    const g1 = offT + r1, g2 = offT + r2Tot;
+    // Activa = sigue actuando cuando la sección recorre el intervalo. Su
+    // resultante depende de la abscisa y NO puede escribirse como un número.
+    const activa = (g2 > A0 + 1e-6);
+    const wFin = (c.tipo==='U') ? c.mag : (c.mag2||0);
+    const wA = inv ? wFin : c.mag, wBtot = inv ? c.mag : wFin;
+    const kw = (wBtot - wA)/(r2Tot - r1);
+    const w1 = wA, w2 = wA + kw*(r2 - r1);   // intensidad al inicio y en el corte
+    const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9);
+    const A = {x:X(el.desde.x+el.ux*r1), y:Y(el.desde.y+el.uy*r1)};
+    const B = {x:X(el.desde.x+el.ux*r2), y:Y(el.desde.y+el.uy*r2)};
+    const d = dirCarga(c, geoTramo(el.tramo));
+    const ex = -d.x, ey = -d.y, alt = 0.55;
+    const h1 = alt*w1/wm, h2 = alt*w2/wm;
+    out += '\\draw[color=bsaDist, fill=bsaDist!12] (' + F(A.x) + ',' + F(A.y)
+         + ') -- (' + F(A.x+ex*h1) + ',' + F(A.y+ey*h1)
+         + ') -- (' + F(B.x+ex*h2) + ',' + F(B.y+ey*h2)
+         + ') -- (' + F(B.x) + ',' + F(B.y) + ') -- cycle;\n';
+    for(let i=0;i<=4;i++){
+      const t3=i/4, xi=A.x+(B.x-A.x)*t3, yi=A.y+(B.y-A.y)*t3, hi=h1+(h2-h1)*t3;
+      const sg = Math.sign(hi)||1;
+      if(Math.abs(hi) < 0.10) continue;
+      out += '\\draw[-{Latex[length=1.4mm]}, color=bsaDist, line width=.7pt] ('
+           + F(xi+ex*hi) + ',' + F(yi+ey*hi) + ') -- (' + F(xi+ex*0.04*sg) + ',' + F(yi+ey*0.04*sg) + ');\n';
+    }
+    tzOcuparTrazo(A.x+ex*h1, A.y+ey*h1, B.x+ex*h2, B.y+ey*h2, 0.06);
+    const sgR = (Math.abs(h1) >= Math.abs(h2) ? Math.sign(h1) : Math.sign(h2)) || 1;
+    out += tzTexto((A.x+B.x)/2+ex*sgR*(alt+0.24), (A.y+B.y)/2+ey*sgR*(alt+0.24),
+                   '$w=' + dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '\\to' + dec(Math.abs(w2),'fuerza') : '')
+                   + '$\\,' + escLatex(uDist()),
+                   'font=\\tiny, color=bsaDist!70!black', ex*sgR, ey*sgR);
+
+    // Resultantes, en trazo discontinuo y con su punto de aplicación.
+    // Cada una se dibuja donde de verdad actúa, para que el brazo del
+    // desarrollo se pueda medir sobre el propio dibujo.
+    const flecha = (rLocal, val, lab, largo)=>{
+      if(Math.abs(val) < 1e-9) return;
+      const Cq = {x:X(el.desde.x+el.ux*rLocal), y:Y(el.desde.y+el.uy*rLocal)};
+      const sA = Math.sign(val) || 1;
+      const dx = d.x*sA, dy = d.y*sA;
+      out += '\\draw[-{Latex[length=2mm]}, color=bsaDist!60!black, dashed, line width=1pt] ('
+           + F(Cq.x-dx*largo) + ',' + F(Cq.y-dy*largo) + ') -- (' + F(Cq.x-dx*0.08) + ',' + F(Cq.y-dy*0.08) + ');\n';
+      tzOcuparTrazo(Cq.x-dx*largo, Cq.y-dy*largo, Cq.x-dx*0.08, Cq.y-dy*0.08, 0.06);
+      out += tzTexto(Cq.x-dx*(largo+0.22), Cq.y-dy*(largo+0.22), lab,
+                     'font=\\tiny, color=bsaDist!60!black', -dx, -dy);
+    };
+    const tr = r2 - r1;
+    if(!activa){
+      // Terminó antes del intervalo: es una fuerza conocida en su centroide.
+      const Ares = (w1+w2)/2*tr;
+      if(Math.abs(Ares) < 1e-9) return;
+      const dc = tr*(w1+2*w2)/(3*(w1+w2));
+      flecha(r1+dc, Ares, '$W=' + Fz(Ares) + '$', alt + 0.85);
+      marcasCota.push(g1 + dc);
+      return;
+    }
+    // La sección cae dentro: rectángulo (intensidad inicial) y triángulo (lo
+    // que crece), cada uno con su resultante en función de la abscisa.
+    marcasCota.push(g1);
+    const rect = w1*tr;
+    if(Math.abs(w1) > 1e-9){
+      flecha(r1 + tr/2, rect, '$W_1=' + Fz(w1) + '\\,' + brazo(g1) + '$', alt + 0.85);
+      brazos.push({r: g1 + tr/2, tex: '$\\tfrac{1}{2}' + brazo(g1) + '$'});
+    }
+    if(Math.abs(kw) > 1e-9){
+      const tri = kw*tr*tr/2;
+      flecha(r1 + tr*2/3, tri,
+             '$W_2=\\tfrac{1}{2}\\,' + Fz(kw) + '\\,' + brazo(g1) + '^{2}$', alt + 1.35);
+      brazos.push({r: g1 + tr*2/3, tex: '$\\tfrac{1}{3}' + brazo(g1) + '$'});
+    }
+  });
 
   // ── Solicitaciones heredadas en el nudo de arranque (grupos 2.º en adelante) ──
   const t0 = gg.tramos[0], su0 = t0.subs[0];
@@ -650,76 +814,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
     }
   });
 
-  // ── Cargas repartidas hasta el corte, con su resultante en el centroide ──
-  const centroides = [];
-  cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
-    const z = trozoCargado(c);
-    if(!z || z.len <= 1e-12) return;
-    const el = gg.tramos.find(t2=>t2.tramo && t2.tramo.id === c.tramo);
-    if(!el) return;
-    const inv = (el.invert);
-    let r1 = inv ? (z.g.L - z.s2) : z.s1;
-    let r2 = inv ? (z.g.L - z.s1) : z.s2;
-    const hasta = Math.min(el.L, sCut - el.s0);
-    if(hasta <= 1e-9) return;
-    const cortada = r2 > hasta + 1e-9;
-    r2 = Math.min(r2, hasta);
-    if(r2 <= r1 + 1e-9) return;
-    const wFin = (c.tipo==='U') ? c.mag : (c.mag2||0);
-    const wA = inv ? wFin : c.mag, wBtot = inv ? c.mag : wFin;
-    const lenTot = (inv ? (z.g.L - z.s1) : z.s2) - r1;
-    const kw = (wBtot - wA)/lenTot;
-    const w1 = wA, w2 = wA + kw*(r2 - r1);            // intensidad en el corte si está cortada
-    const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9);
-    const A = {x:X(el.desde.x+el.ux*r1), y:Y(el.desde.y+el.uy*r1)};
-    const B = {x:X(el.desde.x+el.ux*r2), y:Y(el.desde.y+el.uy*r2)};
-    const d = dirCarga(c, geoTramo(el.tramo));
-    const ex = -d.x, ey = -d.y, alt = 0.55;
-    const h1 = alt*w1/wm, h2 = alt*w2/wm;
-    out += '\\draw[color=bsaDist, fill=bsaDist!12] (' + F(A.x) + ',' + F(A.y)
-         + ') -- (' + F(A.x+ex*h1) + ',' + F(A.y+ey*h1)
-         + ') -- (' + F(B.x+ex*h2) + ',' + F(B.y+ey*h2)
-         + ') -- (' + F(B.x) + ',' + F(B.y) + ') -- cycle;\n';
-    for(let i=0;i<=4;i++){
-      const t3=i/4, xi=A.x+(B.x-A.x)*t3, yi=A.y+(B.y-A.y)*t3, hi=h1+(h2-h1)*t3;
-      const sg = Math.sign(hi)||1;
-      if(Math.abs(hi) < 0.10) continue;
-      out += '\\draw[-{Latex[length=1.4mm]}, color=bsaDist, line width=.7pt] ('
-           + F(xi+ex*hi) + ',' + F(yi+ey*hi) + ') -- (' + F(xi+ex*0.04*sg) + ',' + F(yi+ey*0.04*sg) + ');\n';
-    }
-    tzOcuparTrazo(A.x+ex*h1, A.y+ey*h1, B.x+ex*h2, B.y+ey*h2, 0.06);
-    const sgR = (Math.abs(h1) >= Math.abs(h2) ? Math.sign(h1) : Math.sign(h2)) || 1;
-    out += tzTexto((A.x+B.x)/2+ex*sgR*(alt+0.24), (A.y+B.y)/2+ey*sgR*(alt+0.24),
-                   '$w=' + dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '\\to' + dec(Math.abs(w2),'fuerza') : '')
-                   + '$\\,' + escLatex(uDist()),
-                   'font=\\tiny, color=bsaDist!70!black', ex*sgR, ey*sgR);
-    // Resultante de la parte dibujada, en su centroide (trazo discontinuo).
-    const tr = r2 - r1, Ares = (w1+w2)/2*tr;
-    if(Math.abs(Ares) < 1e-9) return;
-    const dc = tr*(w1+2*w2)/(3*(w1+w2));
-    const Cq = {x:X(el.desde.x+el.ux*(r1+dc)), y:Y(el.desde.y+el.uy*(r1+dc))};
-    const sA = Math.sign(Ares) || 1;                   // sentido real de la resultante
-    const dx = d.x*sA, dy = d.y*sA;
-    const largo = alt + 0.85;
-    out += '\\draw[-{Latex[length=2mm]}, color=bsaDist!60!black, dashed, line width=1pt] ('
-         + F(Cq.x-dx*largo) + ',' + F(Cq.y-dy*largo) + ') -- (' + F(Cq.x-dx*0.08) + ',' + F(Cq.y-dy*0.08) + ');\n';
-    tzOcuparTrazo(Cq.x-dx*largo, Cq.y-dy*largo, Cq.x-dx*0.08, Cq.y-dy*0.08, 0.06);
-    const g1 = (el.s0 - gg.s0) + r1;
-    let lab;
-    if(!cortada) lab = '$W=' + Fz(Ares) + '$';
-    else {
-      const partes = [];
-      if(Math.abs(w1) > 1e-9) partes.push({v:w1, tex:Fz(w1) + '\\,' + brazo(g1)});
-      if(Math.abs(kw) > 1e-9) partes.push({v:kw, tex:'\\tfrac{1}{2}\\,' + Fz(kw) + '\\,' + brazo(g1) + '^{2}'});
-      lab = '$W=' + _sumaTex(partes) + '$';
-    }
-    out += tzTexto(Cq.x-dx*(largo+0.22), Cq.y-dy*(largo+0.22), lab,
-                   'font=\\tiny, color=bsaDist!60!black', -dx, -dy);
-    if(!cortada) centroides.push(g1 + dc);
-  });
-
   // ── Cara del corte: N, V y M en sentido positivo ──
-  const px = X(P.x), py = Y(P.y);
   out += '\\draw[color=bsaAcc, line width=1pt] (' + F(px+nx*0.24) + ',' + F(py+ny*0.24)
        + ') -- (' + F(px-nx*0.24) + ',' + F(py-ny*0.24) + ');\n';
   out += tzTexto(px+nx*0.40, py+ny*0.40, '$S$', 'font=\\scriptsize\\itshape, color=bsaAcc', nx, ny);
@@ -733,32 +828,43 @@ function tikzDCLSub(R, gg, seg, sub, info){
        + F(px-ux*0.42+0.26) + ',' + F(py-uy*0.42) + ') arc (0:300:0.26);\n';
   out += tzTexto(px-ux*0.42, py-uy*0.42+0.50, '$M$', 'font=\\scriptsize, color=bsaAcc', 0, 1);
 
-  // ── Cotas PARALELAS al eje: posiciones de las acciones, centroides y la
-  //    abscisa x completa en el nivel exterior ──
-  let nxq = nx, nyq = ny;
-  if(nyq > 0){ nxq = -nxq; nyq = -nyq; }        // hacia el lado libre (abajo)
-  const rCut = sCut - sIni;
-  const pxU = Math.hypot(px-X(O.x), py-Y(O.y)) / (rCut || 1);
+  // ── Brazos de las resultantes repartidas, medidos hasta el corte ──
+  // Se acotan aparte porque son los que entran en la ecuación de momentos y
+  // no se pueden leer de la cadena de posiciones.
+  let SEP0 = 0.30;
+  brazos.slice(0, 2).forEach((bz, i)=>{
+    const sep = 0.30 + i*0.30;
+    const p1 = qEje(bz.r, sep), p2 = qEje(rCut, sep);
+    out += '\\draw[bsaDist!70!black, line width=.45pt, {Latex[length=1.2mm]}-{Latex[length=1.2mm]}] ('
+         + F(p1.x) + ',' + F(p1.y) + ') -- (' + F(p2.x) + ',' + F(p2.y) + ');\n';
+    tzOcuparTrazo(p1.x, p1.y, p2.x, p2.y, 0.04);
+    out += tzTexto((p1.x+p2.x)/2, (p1.y+p2.y)/2, bz.tex,
+                   'font=\\tiny, color=bsaDist!70!black, fill=white, inner sep=.5pt', nxq, nyq);
+    SEP0 = sep + 0.30;
+  });
+
+  // ── Cotas PARALELAS al eje: posiciones de las acciones, inicios y
+  //    centroides de las repartidas, y la abscisa completa en el nivel
+  //    exterior ──
   const marcas = [0, rCut];
   (R.internas.puntuales || []).forEach(o=>{
     if(o.s === null) return;
     const rr = o.s - sIni;
     if(rr > 1e-6 && rr < rCut - 1e-6) marcas.push(rr);
   });
-  centroides.forEach(cq=>{ if(cq > 1e-6 && cq < rCut - 1e-6) marcas.push(cq); });
+  marcasCota.forEach(cq=>{ if(cq > 1e-6 && cq < rCut - 1e-6) marcas.push(cq); });
   const uniq = [...new Set(marcas.map(v=>+v.toFixed(4)))].sort((a,b)=>a-b);
-  const BASE = 0.72, SALTO = 0.30;
+  const BASE = Math.max(0.72, SEP0 + 0.20), SALTO = 0.30;
   let niv = -1;
   if(uniq.length > 2){
     const plan = planCotas(uniq, v => v*pxU*100, t => tzAncho(t)*100,
                            {maxNiveles:2, minSeg:16, fusion:8, holgura:10});
     if(plan){
       niv = plan.nMax;
-      const q = (v, sep)=>({x:X(O.x)+ux*(v*pxU)+nxq*sep, y:Y(O.y)+uy*(v*pxU)+nyq*sep});
-      const e0=q(plan.coords[0],BASE), e1=q(plan.coords[plan.coords.length-1],BASE);
+      const e0=qEje(plan.coords[0],BASE), e1=qEje(plan.coords[plan.coords.length-1],BASE);
       out += '\\draw[black!75, line width=.5pt] (' + F(e0.x) + ',' + F(e0.y)
            + ') -- (' + F(e1.x) + ',' + F(e1.y) + ');\n';
-      plan.coords.forEach(v=>{ const p2=q(v,BASE);
+      plan.coords.forEach(v=>{ const p2=qEje(v,BASE);
         out += '\\draw[black!75, line width=.6pt] (' + F(p2.x-(ux-nxq)*0.08) + ',' + F(p2.y-(uy-nyq)*0.08)
              + ') -- (' + F(p2.x+(ux-nxq)*0.08) + ',' + F(p2.y+(uy-nyq)*0.08) + ');\n'; });
       plan.segs.forEach((sg,m)=>{
@@ -767,7 +873,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
         const ult = (m === plan.segs.length-1);
         const txt = ult ? (Math.abs(d0)<1e-6 ? '$'+gg.simbolo+'$'
                           : '$'+gg.simbolo+' - '+dec(d0,'len')+'$') : sg.txt;
-        const pm = q((plan.coords[m]+plan.coords[m+1])/2, BASE+0.20+sg.nivel*SALTO);
+        const pm = qEje((plan.coords[m]+plan.coords[m+1])/2, BASE+0.20+sg.nivel*SALTO);
         out += tzTexto(pm.x, pm.y, txt, 'font=\\tiny, color=black!75', nxq, nyq);
       });
     }
@@ -775,7 +881,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
   // abscisa completa, en el nivel exterior
   let SEP = BASE + 0.24 + (niv+1)*SALTO + (niv>=0 ? 0.26 : 0);
   const _lineaLibre = sep => {
-    const p1={x:X(O.x)+nxq*sep, y:Y(O.y)+nyq*sep}, p2={x:px+nxq*sep, y:py+nyq*sep};
+    const p1 = qEje(0, sep), p2 = qEje(rCut, sep);
     for(let m=0;m<6;m++){
       const f0=m/6, f1=(m+1)/6;
       const c={x0:Math.min(p1.x+(p2.x-p1.x)*f0, p1.x+(p2.x-p1.x)*f1)-0.05,
@@ -787,8 +893,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
     return true;
   };
   for(let k2=0; k2<5 && !_lineaLibre(SEP); k2++) SEP += 0.32;
-  const a1 = {x:X(O.x)+nxq*SEP, y:Y(O.y)+nyq*SEP};
-  const b1 = {x:px+nxq*SEP, y:py+nyq*SEP};
+  const a1 = qEje(0, SEP), b1 = qEje(rCut, SEP);
   tzOcuparTrazo(a1.x, a1.y, b1.x, b1.y, 0.05);
   out += '\\draw[bsaMuted, line width=.5pt] (' + F(a1.x) + ',' + F(a1.y)
        + ') -- (' + F(b1.x) + ',' + F(b1.y) + ');\n';

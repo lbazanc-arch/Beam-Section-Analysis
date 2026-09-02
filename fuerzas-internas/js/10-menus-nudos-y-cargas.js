@@ -5,13 +5,14 @@ function nuevaCarga(tipo){
   abrirCargaModal(tipo, null);
 }
 function abrirCargaModal(tipo, c){
-  const tit={P:'Carga puntual vertical',PX:'Carga puntual horizontal',
+  const tit={P:'Carga puntual', PX:'Carga puntual',
              U:'Carga uniforme',T:'Carga triangular',M:'Momento concentrado'};
   const distrib = (tipo==='U'||tipo==='T');
   document.getElementById('cgTitulo').textContent = tit[tipo]||'Carga';
   document.getElementById('cgSub').textContent = distrib
-    ? 'Indica dónde empieza y dónde acaba dentro del tramo. Actúa perpendicular a él.'
-    : 'Puede ir sobre un tramo, a una distancia de su inicio, o directamente sobre un nudo.';
+    ? 'Indica dónde empieza y dónde acaba dentro del tramo, y en qué dirección actúa.'
+    : 'Puede ir sobre un tramo, a una distancia de su inicio, o directamente sobre un nudo. '
+      + 'La dirección se elige abajo: ya no hay una carga puntual para cada eje.';
 
   const selT=document.getElementById('cgTramo');
   selT.innerHTML = tramos.map(t=>'<option value="'+t.id+'">Tramo '+nomTramo(t)+'</option>').join('');
@@ -62,20 +63,19 @@ function abrirCargaModal(tipo, c){
   // esto los <select> conservaban la elección anterior, y una carga nueva
   // podía heredar "coordenada x": sus posiciones caían fuera del tramo, la
   // longitud cargada quedaba en cero y la carga no llegaba a dibujarse.
-  const _o = document.getElementById('cgOrient');
-  if(_o) _o.value = (c && c.orient) || 'global';
+  const _o = document.getElementById('cgDir');
+  const _dirIni = c ? dirDeCarga(c) : (tipo === 'PX' ? 'x' : 'y');
+  if(_o) _o.value = _dirIni;
   const _b = document.getElementById('cgBase');
   if(_b) _b.value = (c && c.basePos) || 'eje';
   // Se fija el modo de partida ANTES de refrescar etiquetas, para que al
   // abrir no se dispare una conversión de valores que ya están en su modo.
   _baseAnterior = (c && c.basePos) || 'eje';
   if(typeof cambioBasePos === 'function') cambioBasePos();
-  setOrientCarga((c && c.orient) || 'global');
-  document.getElementById('cgPrev').innerHTML =
-    (tipo==='P') ? 'Positiva hacia abajo.' :
-    (tipo==='PX') ? 'Positiva hacia la derecha.' :
-    (tipo==='M') ? 'Positivo en sentido antihorario.' :
-    'Positiva hacia abajo, perpendicular al tramo.';
+  // El momento no tiene dirección que elegir: gira en el plano.
+  const _grDir = document.getElementById('cgGrupoDir');
+  if(_grDir) _grDir.style.display = (tipo === 'M') ? 'none' : '';
+  setDirCarga(_dirIni);
   cambioDestinoCarga();
   document.getElementById('cargaModal').classList.add('show');
 }
@@ -153,8 +153,7 @@ function dibujarCroquisTramo(){
   // marca. Leerlos en crudo hacía que con Δy negativa el croquis no pintara
   // nada, porque interpretaba -1.2 como una distancia fuera del tramo.
   const _modo  = (document.getElementById('cgBase')||{}).value || 'eje';
-  const _marco = (document.getElementById('cgOrient')||{}).value || 'global';
-  const _aS = v => sDesdePos({basePos:_modo, orient:_marco}, g, v);
+  const _aS = v => sDesdePos({basePos:_modo, dir:_dirModal()}, g, v);
   const p1 = _aS(parseFloat(document.getElementById('cgPos').value)||0);
   const p2 = distrib ? _aS(parseFloat(document.getElementById('cgFin').value)||0) : p1;
   const f1 = Math.max(0, Math.min(1, p1/g.L)), f2 = Math.max(0, Math.min(1, p2/g.L));
@@ -187,18 +186,24 @@ function setBasePos(v){
   marcarSeg('cgSegBase', h.value);   // puede haberse revertido si no era válido
 }
 function cambioTramoCarga(){
-  const h = document.getElementById('cgOrient');
-  if(h) setOrientCarga(h.value);   // mismo marco: solo refresca pista y rótulos
+  const h = document.getElementById('cgDir');
+  if(h) setDirCarga(h.value);      // misma dirección: solo refresca pista y rótulos
   dibujarCroquisTramo();
 }
-function setOrientCarga(v){
-  const h = document.getElementById('cgOrient');
+// Dirección elegida en el modal, con su marco de coordenadas asociado.
+function _dirModal(){ return (document.getElementById('cgDir')||{}).value || 'y'; }
+function _marcoDeDir(v){ return (v === 'perp' || v === 'axial') ? 'local' : 'global'; }
+
+function setDirCarga(v){
+  const h = document.getElementById('cgDir');
   if(!h) return;
   const antes = h.value;
   // Cambiar de marco cambia el SIGNIFICADO de las coordenadas, así que hay
   // que reexpresarlas; si no, la carga saltaría de sitio al pulsar el botón.
   const modo = (document.getElementById('cgBase')||{}).value || 'eje';
-  if(antes !== v && modo !== 'eje'){
+  // Solo importa el cambio de MARCO (global <-> local): pasar de vertical a
+  // horizontal no toca las coordenadas.
+  if(_marcoDeDir(antes) !== _marcoDeDir(v) && modo !== 'eje'){
     const t = tramos.find(z=>z.id===parseInt(document.getElementById('cgTramo').value,10));
     const g = t && geoTramo(t);
     if(g){
@@ -207,27 +212,37 @@ function setOrientCarga(v){
         if(!el) return;
         const val = parseFloat(el.value);
         if(!isFinite(val)) return;
-        const sEje = sDesdePos({basePos:modo, orient:antes}, g, val);
-        el.value = +posDesdeS(modo, g, sEje, v === 'local').toFixed(4);
+        const sEje = sDesdePos({basePos:modo, dir:antes}, g, val);
+        el.value = +posDesdeS(modo, g, sEje, _marcoDeDir(v) === 'local').toFixed(4);
       };
       conv('cgPos');
       if(document.getElementById('cgTdFin').style.display !== 'none') conv('cgFin');
     }
   }
   h.value = v;
-  marcarSeg('cgSegOrient', v);
+  marcarSeg('cgSegDir', v);
   const t = tramos.find(z=>z.id===parseInt(document.getElementById('cgTramo').value,10));
   const g = t && geoTramo(t);
   const recto = !g || Math.abs(g.ang) < 0.05;
-  const hint = document.getElementById('cgHintOrient');
-  if(hint) hint.innerHTML = (v === 'global')
-    ? 'Referido a <b>todo el sistema</b>: la carga sigue la vertical y la '
-      + 'horizontal del plano, y las coordenadas son las del plano.'
-      + (recto ? ' En este tramo, horizontal, ambas opciones coinciden.' : '')
-    : 'Referido <b>al tramo seleccionado</b>: la carga se orienta respecto a su '
-      + 'eje (perpendicular, o paralela si es axial) y las coordenadas se miden '
-      + 'desde su nudo inicial.'
-      + (recto ? ' En este tramo, horizontal, ambas opciones coinciden.' : '');
+  const hint = document.getElementById('cgHintDir');
+  const distrib2 = edCarga && (edCarga.tipo==='U'||edCarga.tipo==='T');
+  if(hint){
+    let txt = (DIR_CARGA[v] ? DIR_CARGA[v].ayuda : '');
+    if(_marcoDeDir(v) === 'local'){
+      txt += ' Las coordenadas se miden entonces desde el nudo inicial del tramo.';
+      if(recto) txt += ' En un tramo horizontal, «Perpendicular» coincide con «Vertical».';
+    } else {
+      txt += ' Las coordenadas son las del plano.';
+    }
+    if(distrib2 && (v === 'x' || v === 'y'))
+      txt += ' La intensidad se reparte sobre la <b>longitud real del eje</b> del tramo, '
+           + 'no sobre su proyección.';
+    hint.innerHTML = txt;
+  }
+  const prev = document.getElementById('cgPrev');
+  if(prev) prev.innerHTML = (edCarga && edCarga.tipo === 'M')
+    ? 'Positivo en sentido antihorario.'
+    : 'Un valor negativo invierte el sentido de la flecha.';
   // Las etiquetas de la matriz dependen del marco: se refrescan aquí.
   if(typeof cambioBasePos === 'function' && document.getElementById('cgBase')){
     const _m = document.getElementById('cgBase').value;
@@ -260,13 +275,13 @@ function cambioBasePos(){
         sel.value = _baseAnterior;
         return;
       }
-      const marco = (document.getElementById('cgOrient')||{}).value || 'global';
+      const marco = _marcoDeDir(_dirModal());
       const conv = (id)=>{
         const el = document.getElementById(id);
         if(!el) return;
         const v = parseFloat(el.value);
         if(!isFinite(v)) return;
-        const s = sDesdePos({basePos:_baseAnterior, orient:marco}, g, v);
+        const s = sDesdePos({basePos:_baseAnterior, dir:_dirModal()}, g, v);
         el.value = +posDesdeS(modo, g, s, marco === 'local').toFixed(4);
       };
       conv('cgPos');
@@ -277,12 +292,12 @@ function cambioBasePos(){
 
   marcarSeg('cgSegBase', modo);
   const th = document.getElementById('cgThDist');
-  const mk = (document.getElementById('cgOrient')||{}).value === 'local';
+  const mk = _marcoDeDir(_dirModal()) === 'local';
   if(th) th.textContent = (modo === 'eje') ? 'Distancia'
         : (modo === 'coordX' ? (mk ? 'Δx' : 'Coord. x')
                              : (mk ? 'Δy' : 'Coord. y'));
   const l = document.getElementById('cgLblPos');
-  const _marco = (document.getElementById('cgOrient')||{}).value || 'global';
+  const _marco = _marcoDeDir(_dirModal());
   if(l) l.textContent = (modo === 'eje')
     ? 'Distancias medidas sobre el eje del tramo, desde su nudo inicial.'
     : (_marco === 'local'
@@ -296,8 +311,12 @@ function aplicarCarga(){
   if(!edCarga) return;
   const distrib = (edCarga.tipo==='U'||edCarga.tipo==='T');
   const destino = distrib ? 'tramo' : document.getElementById('cgDestino').value;
+  const _dir = (edCarga.tipo === 'M') ? null : _dirModal();
   const datos = {
-    orient: (document.getElementById('cgOrient')||{}).value || 'global',
+    dir: _dir,
+    // El marco de las coordenadas va con la dirección; se guarda aparte
+    // porque es lo que leen las funciones de posición.
+    orient: _dir ? _marcoDeDir(_dir) : 'global',
     basePos: (document.getElementById('cgBase')||{}).value || 'eje',
     destino,
     tramo: parseInt(document.getElementById('cgTramo').value,10),
@@ -324,8 +343,9 @@ function aplicarCarga(){
       }
     }
   }
-  if(edCarga.nuevo) cargas.push(Object.assign({id:++cargaSeq, tipo:edCarga.tipo}, datos));
-  else Object.assign(edCarga, datos);
+  const _tipo = (edCarga.tipo === 'PX') ? 'P' : edCarga.tipo;
+  if(edCarga.nuevo) cargas.push(Object.assign({id:++cargaSeq, tipo:_tipo}, datos));
+  else Object.assign(edCarga, datos, {tipo:_tipo});
   R=null; cerrarCarga(); refrescar();
 }
 function editarCarga(id){
@@ -364,7 +384,7 @@ function restaurarInstantanea(txt){
   const e = JSON.parse(txt);
   nodos  = e.nodos.map(n=>Object.assign({}, n));
   tramos = e.tramos.map(t=>Object.assign({}, t));
-  cargas = e.cargas.map(c=>Object.assign({}, c));
+  cargas = normalizarCargas(e.cargas.map(c=>Object.assign({}, c)));
   pesos  = (e.pesos || []).map(p=>Object.assign({}, p));
   nodoSeq = e.nodoSeq; tramoSeq = e.tramoSeq; cargaSeq = e.cargaSeq;
   pesoSeq = e.pesoSeq || pesoSeq;

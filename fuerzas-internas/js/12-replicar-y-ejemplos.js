@@ -139,8 +139,8 @@ const EJEMPLOS = [
       // definición, no transmite momento
       cargas.push({id:++cargaSeq, tipo:'M', destino:'nudo', nudo:D.id, mag:-5, mag2:0});
       const P = 100, c = Math.SQRT1_2;
-      cargas.push({id:++cargaSeq, tipo:'P',  destino:'tramo', tramo:tramos[3].id, pos:2, mag:P*c, mag2:0});
-      cargas.push({id:++cargaSeq, tipo:'PX', destino:'tramo', tramo:tramos[3].id, pos:2, mag:P*c, mag2:0});
+      cargas.push({id:++cargaSeq, tipo:'P', dir:'y', destino:'tramo', tramo:tramos[3].id, pos:2, mag:P*c, mag2:0});
+      cargas.push({id:++cargaSeq, tipo:'P', dir:'x', destino:'tramo', tramo:tramos[3].id, pos:2, mag:P*c, mag2:0});
       cargas.push({id:++cargaSeq, tipo:'U',  destino:'tramo', tramo:tramos[4].id, pos:0, posFin:2, mag:5, mag2:5});
     }
   },
