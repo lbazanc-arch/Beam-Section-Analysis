@@ -111,7 +111,7 @@ function tikzViga(conReacciones){
       // perpendicular al tramo; si es global, siempre vertical.
       const dd = dirCarga(c, g);
       const ex = -dd.x, ey = -dd.y;
-      out += '\\draw[color=bsaDist, fill=bsaDist!12] (' + F(ax) + ',' + F(ay)
+      out += '\\draw[color=bsaDist] (' + F(ax) + ',' + F(ay)
            + ') -- (' + F(ax+ex*h1) + ',' + F(ay+ey*h1)
            + ') -- (' + F(bx+ex*h2) + ',' + F(by+ey*h2)
            + ') -- (' + F(bx) + ',' + F(by) + ') -- cycle;\n';

@@ -673,7 +673,7 @@ function tikzEsquemaGrupo(R, gg, W){
     // el bloque se levanta EN CONTRA del sentido de la carga
     const h1 = -alt*bq.w1/wmax, h2 = -alt*bq.w2/wmax;
     const x1 = X(bq.g1), x2 = X(bq.g2);
-    out += '\\draw[color=bsaDist, fill=bsaDist!12] (' + F(x1) + ',0) -- (' + F(x1) + ',' + F(h1)
+    out += '\\draw[color=bsaDist] (' + F(x1) + ',0) -- (' + F(x1) + ',' + F(h1)
          + ') -- (' + F(x2) + ',' + F(h2) + ') -- (' + F(x2) + ',0) -- cycle;\n';
     const n = Math.max(2, Math.min(8, Math.round((x2-x1)/0.7)));
     for(let i=0;i<=n;i++){

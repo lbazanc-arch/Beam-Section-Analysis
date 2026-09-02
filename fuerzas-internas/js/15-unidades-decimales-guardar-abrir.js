@@ -451,7 +451,7 @@ function terminosEquilibrio(R, e){
   const ok = (o) => {
     if(e < 3) return true;
     const lado = ladoDeRotula(R.rotulas[e-3], R.cad);
-    return o.c && lado.tramos.indexOf(o.c.tramo) >= 0;
+    return accionEnLado(o.c, lado);
   };
   lista.forEach(o=>{
     if(!ok(o)) return;
@@ -760,7 +760,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
     const d = dirCarga(c, geoTramo(el.tramo));
     const ex = -d.x, ey = -d.y, alt = 0.55;
     const h1 = alt*w1/wm, h2 = alt*w2/wm;
-    out += '\\draw[color=bsaDist, fill=bsaDist!12] (' + F(A.x) + ',' + F(A.y)
+    out += '\\draw[color=bsaDist] (' + F(A.x) + ',' + F(A.y)
          + ') -- (' + F(A.x+ex*h1) + ',' + F(A.y+ey*h1)
          + ') -- (' + F(B.x+ex*h2) + ',' + F(B.y+ey*h2)
          + ') -- (' + F(B.x) + ',' + F(B.y) + ') -- cycle;\n';

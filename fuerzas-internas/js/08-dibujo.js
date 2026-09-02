@@ -644,13 +644,13 @@ function dibujarCarga(c){
     // perpendicular al tramo; si es global, siempre vertical.
     const d = dirCarga(c, g);
     const ex = -d.x, ey = d.y;   // y de pantalla invertida
-    // Relleno muy tenue: con el 20% anterior el bloque tapaba las flechas y
-    // los momentos que caían bajo la misma zona del tramo.
-    ctx.fillStyle='rgba(224,168,60,.10)'; ctx.strokeStyle='#e0a83c'; ctx.lineWidth=1.8;
+    // Sin relleno: solo el contorno y las flechas. El bloque relleno, por
+    // tenue que fuera, tapaba lo que caía debajo.
+    ctx.strokeStyle='#e0a83c'; ctx.lineWidth=1.8;
     ctx.beginPath();
     ctx.moveTo(ax,ay); ctx.lineTo(ax+ex*h1, ay+ey*h1);
     ctx.lineTo(bx+ex*h2, by+ey*h2); ctx.lineTo(bx,by);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.closePath(); ctx.stroke();
     for(let i=0;i<=6;i++){
       const tt=i/6, X=ax+(bx-ax)*tt, Y=ay+(by-ay)*tt, hh=h1+(h2-h1)*tt;
       ctx.beginPath(); ctx.moveTo(X+ex*hh, Y+ey*hh); ctx.lineTo(X+ex*4, Y+ey*4); ctx.stroke();

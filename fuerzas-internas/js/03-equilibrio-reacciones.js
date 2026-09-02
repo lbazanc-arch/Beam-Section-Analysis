@@ -71,7 +71,7 @@ function analizar(){
     });
     let m = 0;
     acc.forEach(a=>{
-      if(lado.tramos.indexOf(a.carga.tramo) < 0) return;
+      if(!accionEnLado(a.carga, lado)) return;
       m += (a.x-rt.x)*a.fy - (a.y-rt.y)*a.fx + a.m;
     });
     b[3+k] = -m;
@@ -87,6 +87,16 @@ function analizar(){
 function esExtremo(n){
   const c = tramos.filter(t=>t.a===n.id || t.b===n.id).length;
   return c <= 1;
+}
+// ¿Cae esta carga en el lado de la rótula que se aísla? Una carga sobre un
+// tramo se decide por el tramo; una carga sobre un NUDO (por ejemplo un par
+// aplicado en D) no tiene tramo y se decide por el nudo. Antes se miraba solo
+// el tramo, y un par de nudo quedaba fuera de la ecuación de la rótula: las
+// reacciones salían con el momento de la rótula distinto de cero.
+function accionEnLado(c, lado){
+  if(!c) return false;
+  if(c.destino === 'nudo') return lado.nodos.indexOf(c.nudo) >= 0;
+  return lado.tramos.indexOf(c.tramo) >= 0;
 }
 function ladoDeRotula(rt, cad){
   // se toma la parte de la cadena a partir de la rótula hacia el final
