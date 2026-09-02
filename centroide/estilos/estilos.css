@@ -1,0 +1,742 @@
+html{color-scheme:light only;}
+:root{
+  color-scheme:light only;
+  --bg:#f1f2f5;--panel:#f7f8fa;--card:#ffffff;--card2:#e9ebef;--border:#dee1e7;--border2:#c8ccd4;
+  --grn:#0f5c56;--grn2:#14766d;--grn3:#14766d;--grnglow:rgba(15,92,86,.28);
+  --text:#1e2126;--muted:#6b7280;--muted2:#c8ccd4;
+  --green:#2f9e6f;--yellow:#d99e18;--blue:#0d3a8f;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+/* min-height en vez de height: así la página crece con los resultados
+   y se puede desplazar con el dedo hasta el editor. */
+html,body{min-height:100%;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:12px;
+  display:flex;flex-direction:column;}
+
+/* ── HEADER ── */
+.topbar{
+  flex-shrink:0;height:48px;display:flex;align-items:center;gap:12px;padding:0 16px;
+  background:rgba(255,255,255,.85);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);z-index:60;position:sticky;top:0;
+}
+.topbar .tb-title{font-size:14px;font-weight:700;color:var(--grn2);}
+.topbar .tb-sub{color:var(--muted);font-size:10px;}
+.tb-v{background:var(--grn);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:auto;}
+
+/* ── MAIN AREA (fills remaining height) ── */
+.main-wrap{
+  display:flex;flex-direction:column;
+  min-height:calc(100vh - 48px);
+}
+
+/* ── TOP ROW: left panel + canvas ──
+   Mismas medidas que Cap. 6 y Cap. 7: 108px = 48 (cabecera) + 59 (barra) + 1 (borde). */
+.top-row{position:relative; display:block; height:calc(100vh - 108px); min-height:420px; overflow:hidden;}
+
+/* ── LEFT PANEL ── */
+.left-panel{position:absolute; top:0; left:0; bottom:0; width:96px; z-index:32;
+  background:#fff; border-right:1px solid var(--border); display:flex; flex-direction:column;
+  overflow-y:auto; padding:6px 0 10px; box-shadow:2px 0 14px rgba(0,0,0,.07);
+  transition:transform .22s ease;}
+.left-panel.plegado{transform:translateX(-100%);}
+.lp-scroll{
+  flex:1;min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.lp-scroll::-webkit-scrollbar{width:3px;}
+.lp-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.lp-sticky{
+  flex-shrink:0;
+  padding:8px 10px;
+  border-top:1px solid var(--border);
+  background:rgba(255,255,255,.9);
+  display:flex;flex-direction:column;gap:5px;
+}
+
+/* ── CANVAS AREA ── */
+.canvas-area{
+  position:relative;background:var(--bg);
+  overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  height:100%;
+}
+#mainCanvas{display:block;cursor:crosshair;width:100%;height:100%;}
+.canvas-controls{position:absolute;top:10px;right:10px;display:flex;gap:5px;z-index:5;}
+/* Mismo aspecto que los .zoom-btn de Cap. 6 y Cap. 7: fondo blanco y texto
+   oscuro, no la píldora verde translúcida que tenía antes. */
+.cc-btn{background:#fff;border:1px solid var(--border2);color:var(--text);
+  width:31px;height:31px;border-radius:7px;cursor:pointer;font-size:15px;
+  font-family:inherit;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.cc-btn:hover{background:#e8f4f1;border-color:#0f5c56;color:var(--text);}
+.cc-btn:disabled{opacity:.35;cursor:default;}
+.cc-btn:disabled:hover{background:#fff;border-color:var(--border2);}
+.canvas-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  background:rgba(15,36,32,.85);border:1px solid var(--border);border-radius:6px;
+  padding:4px 12px;font-size:10px;color:var(--muted);pointer-events:none;white-space:nowrap;z-index:5;}
+/* Realce breve al abrir la edición de una figura con doble clic/toque */
+@keyframes destelloProp{0%{box-shadow:0 0 0 0 rgba(15,92,86,.45);}100%{box-shadow:0 0 0 9px rgba(15,92,86,0);}}
+#propPanel.recien-abierto{animation:destelloProp .9s ease-out;border-radius:9px;}
+
+/* ── RESULTS AREA (full width below) ── */
+.results-area{
+  border-top:2px solid var(--border);
+  background:var(--bg);
+  display:none;
+}
+
+
+/* ── PANEL COMPONENTS ── */
+.panel-section{padding:8px 11px 5px;}
+.panel-section-title{font-size:9px;font-weight:700;letter-spacing:1px;color:var(--grn2);padding:0;text-transform:uppercase;margin-bottom:6px;}
+.unit-row{display:flex;gap:5px;}
+.unit-btn{flex:1;padding:4px 3px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;
+  border:1px solid var(--border2);background:none;color:var(--muted);transition:all .15s;font-family:inherit;}
+.unit-btn.active{background:var(--grn);border-color:var(--grn);color:#fff;}
+.divider{height:1px;background:var(--border);margin:4px 8px;}
+/* ── Modales (unidades / decimales) ── */
+.modal-ov{position:fixed;inset:0;background:rgba(15,20,35,.45);backdrop-filter:blur(3px);z-index:400;
+  display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-ov.show{display:flex;}
+/* ── Avisos no bloqueantes ──
+   Reemplazan al diálogo nativo del navegador, que en móvil queda
+   silenciado, con lo que la acción parecía no tener ningún efecto. El
+   z-index queda por encima de los modales (400) para que también se vean
+   los avisos disparados desde dentro de una ventana. */
+.aviso-caja{position:fixed;left:50%;bottom:22px;z-index:500;
+  transform:translateX(-50%) translateY(14px);
+  max-width:min(92vw,460px);display:flex;align-items:flex-start;gap:10px;
+  padding:11px 14px;border-radius:11px;background:#12332f;color:#fff;
+  font-size:12px;line-height:1.5;box-shadow:0 8px 26px rgba(0,0,0,.28);
+  opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease;}
+.aviso-caja.visible{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+.aviso-caja.error{background:#7a1f16;}
+.aviso-caja .aviso-x{margin-left:auto;background:none;border:none;color:#fff;
+  font-size:16px;line-height:1;cursor:pointer;font-family:inherit;padding:0 2px;opacity:.75;}
+.aviso-caja .aviso-x:hover{opacity:1;}
+/* ── Animación de espera del informe ──
+   Las tres letras del logo suben en cadena: cuando una baja arranca la
+   siguiente, y el ciclo se repite mientras texlive.net compila. */
+.bsa-let{font-size:46px;font-weight:900;line-height:1;display:inline-block;
+  font-family:inherit;animation:bsaSalto 1.05s cubic-bezier(.3,.7,.4,1) infinite;}
+@keyframes bsaSalto{
+  0%, 60%, 100%{transform:translateY(0)   scale(1);}
+  25%          {transform:translateY(-22px) scale(1.06);}
+  45%          {transform:translateY(0)   scale(.97);}
+}
+@media (prefers-reduced-motion:reduce){
+  .bsa-let{animation:bsaLatido 1.2s ease-in-out infinite;}
+  @keyframes bsaLatido{0%,100%{opacity:.45;}50%{opacity:1;}}
+}
+.modal-box{background:var(--card);border:1px solid var(--border2);border-radius:16px;max-width:380px;width:100%;
+  padding:20px 22px;box-shadow:0 20px 50px rgba(15,25,55,.3);}
+/* Variante para el modal de edición de figura: aloja el panel de propiedades
+   completo, que es alto, así que se le da más ancho y scroll propio. */
+.modal-box.ancho{max-width:440px;display:flex;flex-direction:column;max-height:86vh;padding:18px 20px;}
+.modal-box.ancho .modal-cuerpo{flex:1;overflow-y:auto;margin:0 -6px;padding:0 6px;}
+.modal-box.ancho .modal-actions{margin-top:14px;padding-top:13px;border-top:1px solid var(--border);}
+/* Dentro del modal el panel de propiedades no necesita su marco de columna. */
+.modal-cuerpo #propPanel{display:block;}
+.modal-cuerpo #propPanel .prop-section{border:none;padding:0;margin:0;}
+.modal-h{font-size:15px;font-weight:900;color:var(--grn2);margin-bottom:6px;}
+.modal-note{font-size:10.5px;color:var(--muted);line-height:1.5;margin-bottom:14px;}
+.modal-field{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.modal-field label{font-size:12px;font-weight:700;min-width:96px;color:var(--text);}
+.modal-field select,
+.modal-field input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--border2);color:var(--text);
+  padding:7px 9px;border-radius:7px;font-size:12px;font-family:inherit;outline:none;
+  transition:border-color .15s, box-shadow .15s;}
+.modal-field select:focus,
+.modal-field input:focus{border-color:var(--grn);box-shadow:0 0 0 3px var(--grnglow);}
+.modal-field input::placeholder{color:var(--muted);}
+.modal-preview{font-size:11.5px;color:var(--muted);background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:9px 11px;margin:6px 0 16px;line-height:1.6;
+  font-family:var(--mf);word-break:break-word;}
+.modal-preview b{color:var(--grn2);}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+.hist-list{max-height:340px;overflow-y:auto;margin-bottom:14px;}
+.hist-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);
+  border-radius:8px;margin-bottom:6px;background:var(--bg);}
+.hist-info{flex:1;min-width:0;}
+.hist-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hist-date{font-size:10px;color:var(--muted);margin-top:2px;}
+.hist-load{border:1px solid var(--border2);background:var(--card);font-size:11px;font-weight:700;
+  padding:5px 10px;border-radius:6px;cursor:pointer;font-family:inherit;}
+.hist-del{border:1px solid var(--border2);background:var(--card);color:var(--muted);font-size:11px;
+  padding:5px 8px;border-radius:6px;cursor:pointer;font-family:inherit;}
+.hist-empty{font-size:11.5px;color:var(--muted);text-align:center;padding:26px 10px;line-height:1.6;}
+
+.mbtn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid var(--border2);}
+.mbtn.ghost{background:var(--card);color:var(--muted);}
+.mbtn.ghost:hover{color:var(--text);}
+.mbtn.ok{background:var(--grn);color:#fff;border-color:var(--grn);}
+.mag-btn{flex:1;padding:5px 3px;border-radius:6px;font-size:9.5px;font-weight:700;cursor:pointer;
+  font-family:inherit;background:var(--card);border:1px solid var(--border2);color:var(--muted);transition:all .15s;}
+.mag-btn.active{background:var(--grn2);border-color:var(--grn2);color:#fff;}
+.mat-item{display:flex;align-items:center;gap:5px;padding:5px 7px;background:var(--card);
+  border:1px solid var(--border);border-radius:6px;margin-bottom:4px;}
+.mat-sym{font-size:10.5px;font-weight:800;color:var(--grn2);min-width:20px;}
+.mat-val{flex:1;font-size:10px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mat-x{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:11px;
+  line-height:1;padding:1px 3px;font-family:inherit;}
+.mat-x:hover{color:#c0392b;}
+.modo-btn{flex:1;padding:6px 4px;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer;
+  font-family:inherit;background:var(--card);border:1px solid var(--border2);color:var(--muted);transition:all .15s;}
+.modo-btn.active{background:var(--grn);border-color:var(--grn);color:#fff;}
+.cfg-row{display:flex;gap:6px;padding:0 8px;}
+.cfg-chip{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  background:var(--card2);border:1px solid var(--border2);border-radius:8px;padding:6px 9px;
+  cursor:pointer;font-family:inherit;transition:all .15s;}
+.cfg-chip:hover{border-color:var(--grn);}
+.cfg-k{font-size:8.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+.cfg-v{font-size:11.5px;font-weight:800;color:var(--grn2);}
+.cfg-btn{width:100%;margin-top:6px;width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border2);color:var(--text);
+  font-size:11px;font-weight:700;padding:6px 8px;border-radius:7px;cursor:pointer;font-family:inherit;}
+.cfg-btn:hover{border-color:var(--grn);color:var(--grn2);}
+/* Interruptores de visibilidad de capas del dibujo (patrón de cap6). */
+.vis-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:0 8px;}
+.vis-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);
+  background:var(--card2);border:1px solid var(--border2);border-radius:7px;
+  padding:6px 8px;cursor:pointer;font-weight:600;transition:all .15s;}
+.vis-item:hover{border-color:var(--grn);}
+.vis-item input{accent-color:var(--grn);cursor:pointer;margin:0;}
+.cfg-sub{font-size:8.5px;font-weight:800;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.6px;padding:0 8px;margin:13px 0 6px;}
+.cfg-hint{font-size:9.5px;color:var(--muted);line-height:1.45;padding:0 8px;margin-top:7px;}
+.fig-category{font-size:9px;font-weight:700;color:var(--grn2);text-transform:uppercase;letter-spacing:1px;margin:6px 10px 4px;}
+.fig-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:0 8px;}
+.pal{background:var(--card);border-bottom:1px solid var(--border);padding:8px 10px 9px;position:sticky;top:0;z-index:20;}
+/* Cuadrícula 3×3: se ven 6 figuras (dos filas) y "Ver más" despliega el
+   resto. Sustituye al carrusel horizontal, en el que las figuras de la
+   derecha quedaban ocultas sin ninguna señal de que existieran. */
+.pal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.pal-grid .fig-btn{width:auto;}
+.pal-grid .fig-btn.oculta{display:none;}
+.pal-mas{width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--border2);
+  color:var(--grn2);font-size:10.5px;font-weight:700;padding:7px 8px;border-radius:7px;
+  cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:all .15s;}
+.pal-mas:hover{border-color:var(--grn);background:var(--card);}
+.pal-mas svg{width:13px;height:13px;transition:transform .2s ease;}
+.pal-mas.abierto svg{transform:rotate(180deg);}
+.fig-btn{
+  aspect-ratio:1;border:1px solid var(--border2);border-radius:8px;background:var(--card2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  cursor:pointer;transition:all .15s;padding:5px 2px;color:var(--grn);
+}
+.fig-btn:hover{border-color:var(--grn);background:var(--card2);}
+.fig-btn.selected{border-color:var(--grn);background:rgba(4,29,86,.12);box-shadow:0 0 8px rgba(4,29,86,.16);}
+.fig-btn svg{width:30px;height:30px;color:var(--grn);stroke:var(--grn);}
+.fig-btn span{font-size:8px;color:#123f8f;text-align:center;line-height:1.2;font-weight:600;}
+.fig-list-wrap{padding:6px 9px;}
+.fig-list{list-style:none;display:flex;flex-direction:column;gap:4px;max-height:120px;overflow-y:auto;}
+.fig-list::-webkit-scrollbar{width:2px;}
+.fig-list::-webkit-scrollbar-thumb{background:var(--border);}
+.fig-item{display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--card);
+  border:1px solid var(--border);border-radius:7px;cursor:pointer;transition:all .15s;}
+.fig-item:hover,.fig-item.selected{border-color:var(--grn);}
+.fig-item.selected{background:rgba(228,172,23,.1);}
+.fig-color{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.fig-name{flex:1;font-size:10px;font-weight:500;}
+.fig-sign{font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;}
+.fig-sign.pos{background:rgba(79,201,138,.15);color:var(--green);}
+.fig-sign.neg{background:rgba(228,172,23,.15);color:var(--grn2);}
+.fig-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;line-height:1;}
+.fig-del:hover{color:var(--grn2);}
+
+/* ── PROP PANEL ── */
+.prop-section{padding:8px 10px;}
+.prop-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;flex-wrap:wrap;}
+.prop-title span{font-size:11px;font-weight:700;color:var(--grn2);}
+.sign-toggle{display:flex;gap:4px;}
+.sign-btn{padding:4px 7px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;
+  border:1px solid var(--border2);background:none;color:var(--muted);transition:all .15s;font-family:inherit;}
+.sign-btn.active.pos{background:rgba(79,201,138,.2);border-color:var(--green);color:var(--green);}
+.sign-btn.active.neg{background:rgba(228,172,23,.2);border-color:var(--grn2);color:var(--grn2);}
+.field{margin-bottom:7px;}
+.field label{display:block;font-size:9px;font-weight:700;color:var(--muted);
+  letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px;}
+.field input,.field select{width:100%;background:var(--bg);border:1px solid var(--border2);
+  border-radius:6px;color:var(--text);padding:6px 8px;font-size:11px;outline:none;
+  transition:border-color .15s;font-family:inherit;}
+.field input:focus,.field select:focus{border-color:var(--grn);}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.pos-label-row{font-size:9px;color:var(--grn2);font-weight:700;text-transform:uppercase;
+  letter-spacing:.4px;margin-bottom:4px;margin-top:6px;}
+.anchor-row{display:flex;gap:4px;flex-wrap:wrap;}
+.anchor-btn{padding:3px 7px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;
+  border:1px solid var(--border2);background:none;color:var(--muted);transition:all .15s;font-family:inherit;}
+.anchor-btn.active{background:rgba(228,172,23,.2);border-color:var(--grn2);color:var(--grn2);}
+
+/* ── REF FIG ── */
+.ref-fig-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:6px;margin-bottom:8px;text-align:center;}
+.ref-fig-box svg{width:100%;max-width:160px;height:85px;display:block;margin:0 auto;}
+.ref-fig-title{font-size:9px;color:var(--grn2);font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:4px;}
+.ref-fig-formula{font-size:9px;color:#123f8f;margin-top:4px;line-height:1.5;
+  font-family:'Latin Modern Math',Georgia,serif;}
+
+/* ── STICKY BUTTONS ── */
+.btn-calc{background:linear-gradient(135deg,var(--grn),var(--grn2));color:#fff;border:none;
+  padding:9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;width:100%;
+  box-shadow:0 0 16px var(--grnglow);font-family:inherit;}
+.btn-calc:hover{opacity:.9;}
+.btn-row{display:flex;gap:5px;}
+.btn-sm{flex:1;background:var(--card);border:1px solid var(--border2);color:var(--muted);
+  padding:6px 3px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;
+  transition:all .15s;font-family:inherit;white-space:nowrap;}
+.btn-sm:hover{border-color:var(--grn2);color:var(--text);}
+.btn-sm.pdf{border-color:#e02020;color:#fff;background:#e02020;}
+.btn-sm.pdf:hover{background:#c81c1c;border-color:#c81c1c;}
+
+/* ── RESULTS ── */
+.notation-bar{display:flex;gap:4px;align-items:center;padding:10px 16px 6px;flex-wrap:wrap;}
+.notation-bar label{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;}
+.notbtn{padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;
+  border:1px solid var(--border2);background:none;color:var(--muted);transition:all .15s;font-family:inherit;}
+.notbtn.active{background:var(--grn);border-color:var(--grn);color:#fff;}
+.result-card{margin:8px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+.result-title{font-size:11px;font-weight:700;color:var(--grn2);margin-bottom:10px;display:flex;align-items:center;gap:5px;}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.result-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 9px;}
+.result-box.full{grid-column:1/-1;}
+.result-box .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;}
+.result-box .val{font-size:13px;font-weight:700;color:var(--grn3);}
+.result-box .unit{font-size:9px;color:var(--muted);}
+.mohr-wrap{margin-top:8px;}
+#mohrCanvas{width:100%;height:340px;display:block;border-radius:8px;border:1px solid var(--border);background:var(--bg);}
+.step-card{margin:0 14px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+.step-title{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px;}
+.eq{display:block;background:var(--bg);border-radius:4px;padding:3px 8px;
+  font-family:'Latin Modern Math',Georgia,serif;font-size:11px;color:var(--green);
+  margin:2px 0;line-height:1.7;border-left:2px solid rgba(228,172,23,.2);}
+.eq .val{color:var(--grn3);font-weight:700;}
+.empty-hint{text-align:center;padding:28px 12px;color:var(--muted);font-size:11px;line-height:1.6;}
+
+/* ── TOOLTIP ── */
+#tooltip{position:fixed;background:var(--card);border:1px solid var(--border);
+  border-radius:6px;padding:4px 9px;font-size:10px;pointer-events:none;display:none;z-index:999;}
+
+
+
+/* ── RESULTS SECTIONS ── */
+.results-wrap{padding:24px 20px 48px;max-width:1300px;margin:0 auto;}
+.res-section{margin-bottom:28px;}
+.res-section-title{
+  font-size:13px;font-weight:800;color:var(--grn2);letter-spacing:.5px;
+  margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.res-section-title .num{
+  width:22px;height:22px;border-radius:50%;background:var(--grn);
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;color:#fff;flex-shrink:0;
+}
+
+/* Table for per-figure data */
+.fig-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;}
+.fig-table th{
+  padding:6px 10px;text-align:left;font-size:9px;font-weight:700;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.5px;
+  border-bottom:1px solid var(--border);background:var(--card);
+}
+.fig-table td{
+  padding:7px 10px;border-bottom:1px solid rgba(228,172,23,.08);
+  vertical-align:middle;
+}
+.fig-table tr:last-child td{border-bottom:none;}
+.fig-table tr:hover td{background:rgba(228,172,23,.05);}
+.fig-color-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle;}
+.fig-table .num-cell{font-weight:700;color:var(--grn3);font-variant-numeric:tabular-nums;}
+.fig-table .name-cell{font-weight:600;color:var(--text);}
+.fig-table .sign-cell{font-size:10px;font-weight:700;}
+.fig-table .sign-pos{color:var(--green);}
+.fig-table .sign-neg{color:var(--grn2);}
+.fig-table tfoot td{
+  padding:8px 10px;font-weight:700;border-top:2px solid var(--border);
+  background:rgba(228,172,23,.06);color:var(--grn3);
+}
+
+/* Summary grid */
+.res-sub-title{font-size:11px;font-weight:800;color:var(--grn2);text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:3px;}
+
+/* ── Tarjeta de figura: datos + croquis a la misma altura ── */
+.fig-card{display:flex;gap:12px;align-items:stretch;background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:13px 14px;margin-bottom:11px;}
+.fig-card-datos{flex:1;min-width:0;display:flex;flex-direction:column;}
+.fig-card-h{display:flex;align-items:center;gap:7px;font-size:12.5px;margin-bottom:9px;flex-wrap:wrap;}
+.fig-card-dib{flex:0 0 190px;display:flex;align-items:stretch;}
+.fig-card-dib .fig-card-dib .croq-svg{flex:1;min-height:0;}
+.fig-tabla{width:100%;border-collapse:collapse;font-size:11px;}
+.fig-tabla th{text-align:left;padding:5px 7px;font-size:9.5px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.5px;font-weight:800;border-bottom:1px solid var(--border);}
+.fig-tabla td{padding:5px 7px;border-bottom:1px solid var(--border);}
+.fig-tabla tr:last-child td{border-bottom:none;}
+.fig-tabla .v{text-align:right;font-weight:800;color:var(--grn2);font-style:italic;}
+.fig-tabla i{font-style:italic;color:var(--text);}
+
+/* ── Tabla resumen ── */
+.tabla-res{width:100%;border-collapse:collapse;font-size:11px;min-width:520px;}
+.tabla-res th{padding:7px 8px;font-size:9.5px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.4px;font-weight:800;border-bottom:1.5px solid var(--border2);text-align:right;}
+.tabla-res th:nth-child(1),.tabla-res th:nth-child(2){text-align:left;}
+.tabla-res th span{font-weight:600;text-transform:none;letter-spacing:0;}
+.tabla-res td{padding:7px 8px;border-bottom:1px solid var(--border);}
+.tabla-res td.v{text-align:right;font-weight:700;color:var(--grn2);font-style:italic;}
+.tabla-res .fila-total td{background:rgba(15,92,86,.06);font-weight:800;color:var(--grn2);
+  border-top:2px solid var(--grn);border-bottom:none;}
+.teoria{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--grn);
+  border-radius:10px;padding:14px 16px;margin-top:12px;}
+.teoria-t{font-size:10.5px;font-weight:800;color:var(--grn2);text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:8px;}
+.teoria p{font-size:11.5px;line-height:1.7;color:var(--text);}
+.teoria b{color:var(--grn2);}
+.proc-sub{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.7px;margin-bottom:7px;}
+
+
+.toolbar{display:flex;align-items:stretch;gap:6px;padding:7px 10px;background:#fff;
+  border-bottom:1px solid var(--border);overflow-x:auto;
+  position:sticky;top:48px;z-index:50;flex:none;min-height:59px;}
+.tb-sep{width:1px;background:var(--border2);margin:4px 6px;flex:none;}
+.tb-sel-info{margin-left:auto;align-self:center;font-size:10.5px;color:var(--muted);font-weight:600;white-space:nowrap;padding-left:10px;}
+.tool-btn{border:1px solid var(--border2);border-radius:9px;background:#fff;cursor:pointer;
+  flex:none;padding:5px 9px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  font-family:inherit;transition:all .15s;min-width:62px;}
+.tool-btn:hover{border-color:#0f5c56;background:#e8f4f1;}
+.tool-btn svg{width:25px;height:21px;}
+.tool-btn span{font-size:9px;font-weight:700;text-align:center;line-height:1.15;}
+.tool-btn.danger:hover{border-color:#c0392b;background:#fef2f2;}
+.tool-btn.danger span{color:#c0392b;}
+/* Herramienta activa. Faltaba por completo en cap9: setHerramienta ya ponía
+   la clase .active sobre tSel, pero ninguna regla la dibujaba, así que
+   "Mover / editar" nunca se veía marcado. */
+.tool-btn.active{border-color:#0f5c56;background:#e8f4f1;box-shadow:0 0 0 1px #0f5c56;}
+.tool-btn.danger.active{border-color:#c0392b;background:#fef2f2;box-shadow:0 0 0 1px #c0392b;}
+.tb-menu{position:fixed;top:0;left:0;z-index:70;width:300px;max-width:calc(100vw - 24px);
+  background:#fff;border:1px solid var(--border2);border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);display:none;overflow:hidden;}
+.tb-menu.abierto{display:block;}
+.tb-menu-head{background:#0f5c56;color:#fff;font-size:11.5px;font-weight:800;
+  letter-spacing:.4px;text-transform:uppercase;padding:8px 12px;}
+.tb-menu-body{padding:10px 12px 14px;max-height:min(70vh,520px);overflow-y:auto;}
+
+/* ── PANEL DE CONTROL ESTÁNDAR BSA (dos niveles) ── */
+.tb-zona{display:flex; align-items:stretch; gap:6px; flex:none;}
+.tb-pan{flex:none; width:40px; border:1px solid var(--border2); border-radius:9px;
+  background:#fff; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; font-family:inherit; margin-right:2px;
+  /* Fijo al borde izquierdo de la barra (que se desplaza en pantallas
+     angostas) para que esté siempre al alcance, sin importar el desplazamiento. */
+  position:sticky; left:0; z-index:5;
+  box-shadow:6px 0 8px -6px rgba(0,0,0,.18);}
+.tb-pan:hover{border-color:#0f5c56; background:#e8f4f1;}
+.tb-pan.active{border-color:#0f5c56; background:#e8f4f1; box-shadow:6px 0 8px -6px rgba(0,0,0,.18), 0 0 0 1px #0f5c56;}
+.tb-pan svg{width:22px; height:22px;}
+.panel-toggle{position:absolute; top:10px; left:10px; z-index:35;
+  width:38px; height:38px; border-radius:10px; border:1px solid var(--border2);
+  background:#fff; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; font-family:inherit; box-shadow:0 2px 8px rgba(0,0,0,.10);
+  transition:left .22s ease;}
+.panel-toggle svg{width:20px; height:20px;}
+.panel-toggle.corrido{left:106px;}
+.panel-toggle.corrido.expandido{left:366px;}
+.rail-group{display:flex; flex-direction:column; gap:4px; padding:6px;}
+.rail-group + .rail-group{border-top:1px solid var(--border);}
+.rail-btn{border:1px solid transparent; border-radius:9px; background:none; cursor:pointer;
+  padding:7px 3px 5px; display:flex; flex-direction:column; align-items:center; gap:3px;
+  font-family:inherit; color:#0f5c56; transition:all .15s;}
+.rail-btn:hover{background:#e8f4f1; border-color:var(--border2);}
+.rail-btn.active{background:#e8f4f1; border-color:#0f5c56; box-shadow:0 0 0 1px #0f5c56;}
+.rail-btn svg{width:21px; height:21px;}
+.rail-btn span{font-size:8.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.15;}
+.rail-btn.accion{color:#0b3f3a;}
+.rail-btn.accion.pdf{color:#c0392b;}
+.panel-flyout{position:absolute; top:0; left:96px; bottom:0; width:260px; z-index:31;
+  background:#fff; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:3px 0 16px rgba(0,0,0,.09);
+  transition:transform .22s ease, opacity .18s ease;}
+.panel-flyout.plegado{transform:translateX(-115%); opacity:0; pointer-events:none;}
+.flyout-head{display:flex; align-items:center; gap:8px; padding:9px 12px;
+  border-bottom:1px solid var(--border); background:#0f5c56; color:#fff;
+  font-size:11.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase;}
+.flyout-x{margin-left:auto; border:none; background:none; color:#fff; font-size:18px;
+  cursor:pointer; line-height:1; padding:0 2px; font-family:inherit;}
+.flyout-body{flex:1; overflow-y:auto; padding:10px 12px 14px;}
+@media(min-width:821px){
+  .left-panel.plegado{transform:none;}
+  .panel-toggle{display:none;}
+  .panel-flyout{left:96px;}
+}
+@media(max-width:820px){
+  .left-panel{width:88px; z-index:34; box-shadow:4px 0 22px rgba(0,0,0,.16);}
+  .panel-flyout{left:88px; width:calc(100vw - 96px); max-width:260px;}
+}
+
+@media(max-width:760px){
+  .fig-card{flex-direction:column;}
+  .fig-card-dib{flex:0 0 auto;max-width:260px;margin:0 auto;}
+}
+
+.graf-box{background:#fff;border:1px solid var(--border);border-radius:11px;padding:12px;margin-top:10px;}
+.graf-svg{width:100%;height:auto;display:block;}
+.graf-nota{font-size:10.5px;color:var(--muted);line-height:1.6;margin-top:9px;padding-top:9px;
+  border-top:1px solid var(--border);}
+.croq-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;}
+.croq{background:#fff;border:1px solid var(--border);border-radius:10px;padding:9px 10px 7px;width:196px;}
+/* Dentro de la tarjeta de figura ocupa todo el ancho reservado y se centra */
+.fig-card-dib .croq{width:100%;display:flex;flex-direction:column;justify-content:center;margin:0;}
+.croq-h{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.croq-n{width:17px;height:17px;border-radius:50%;background:var(--grn2);color:#fff;font-size:9.5px;
+  font-weight:800;display:flex;align-items:center;justify-content:center;}
+.croq-t{font-size:10px;font-weight:700;color:var(--text);line-height:1.25;}
+.croq-t i{color:#c0392b;font-style:normal;font-size:9px;}
+.croq-svg{width:100%;height:auto;display:block;}
+.croq-d{display:flex;justify-content:space-between;gap:6px;font-size:9px;color:var(--muted);
+  border-top:1px solid var(--border);padding-top:5px;margin-top:3px;}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;}
+.summary-box{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+.summary-box .s-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;}
+.summary-box .s-val{font-size:14px;font-weight:800;color:var(--grn3);}
+.summary-box .s-unit{font-size:9px;color:var(--muted);}
+.summary-box.highlight{background:rgba(228,172,23,.12);border-color:rgba(228,172,23,.4);}
+
+/* Procedure equations */
+.proc-block{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+/* Reparte las fórmulas en columnas usando todo el ancho disponible, en vez de
+   apilarlas en una sola columna angosta con espacio vacío a la derecha. */
+.proc-block.proc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 28px;}
+.proc-block.proc-cols .proc-col{min-width:0;}
+.proc-block.proc-cols .proc-sub{margin-top:0;}
+.proc-subtitle{font-size:10px;font-weight:700;color:var(--grn);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+.eq-row{display:flex;align-items:baseline;gap:8px;padding:3px 0;}
+.eq-lbl{font-size:11px;color:var(--muted);min-width:40px;flex-shrink:0;}
+.eq-body{font-family:'Georgia',serif;font-size:12px;color:var(--text);line-height:1.7;}
+.eq-body .v{color:var(--grn3);font-weight:700;}
+.eq-body .op{color:var(--muted);}
+.eq-sep{height:1px;background:var(--border);margin:6px 0;}
+.eq-result{font-size:13px;font-weight:800;color:var(--grn2);margin-top:6px;}
+
+/* Steiner procedure table */
+.steiner-table{width:100%;border-collapse:collapse;font-size:11px;}
+.steiner-table th{padding:5px 9px;text-align:center;font-size:9px;font-weight:700;
+  color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border);
+  white-space:normal;line-height:1.25;vertical-align:bottom;}
+.steiner-table td{padding:6px 9px;text-align:center;border-bottom:1px solid rgba(228,172,23,.06);
+  white-space:nowrap;font-variant-numeric:tabular-nums;}
+.steiner-table td:first-child{text-align:left;}
+.steiner-table tfoot td{font-weight:700;color:var(--grn3);border-top:2px solid var(--border);
+  background:rgba(228,172,23,.06);}
+.steiner-table .num{color:var(--grn3);}
+
+/* Principal moments */
+.principal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
+.principal-box{background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:12px;text-align:center;}
+.principal-box .p-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+.principal-box .p-val{font-size:16px;font-weight:800;color:var(--grn2);}
+.principal-box .p-unit{font-size:10px;color:var(--muted);}
+.principal-box.main{background:rgba(228,172,23,.1);border-color:rgba(228,172,23,.4);}
+
+/* Mohr canvas full width */
+.mohr-full{width:100%;height:340px;display:block;border-radius:10px;
+  border:1px solid var(--border);background:var(--bg);}
+
+
+
+/* ═══ Escritorio: aprovechar el ancho disponible ═══ */
+@media(min-width:1100px){
+  .results-wrap{padding:28px 32px 56px;}
+  .fig-card{gap:18px;padding:16px 18px;}
+  .fig-card-dib{flex:0 0 230px;}        /* croquis más grande, se lee mejor */
+  .fig-tabla{font-size:12px;}
+  .fig-tabla td,.fig-tabla th{padding:6px 9px;}
+  .tabla-res{font-size:12px;}
+  .tabla-res td,.tabla-res th{padding:8px 10px;}
+  .summary-grid{grid-template-columns:repeat(4,1fr);gap:10px;}
+  .croq-row{gap:14px;}
+}
+@media(min-width:1500px){
+  .results-wrap{max-width:1420px;}
+  .fig-card-dib{flex:0 0 260px;}
+}
+/* Dos tarjetas de figura por fila cuando sobra ancho */
+@media(min-width:1250px){
+  .res-section .fig-card{margin-bottom:14px;}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ADAPTACIÓN A MÓVIL
+   En pantallas estrechas el panel se convierte en un cajón
+   deslizante: el lienzo ocupa todo y las herramientas se abren
+   con un botón. Antes el panel quedaba fuera de la pantalla.
+   ═══════════════════════════════════════════════════════════ */
+/* Botón para regresar del desarrollo al panel de dibujo */
+@media(max-width:520px){
+}
+@media(max-width:820px){
+  .top-row{ height:calc(100dvh - 108px); min-height:0; position:relative; }
+  .canvas-area{ height:100%; }
+  /* Las reglas del cajón lateral antiguo se retiraron: mantenían el panel
+     fuera de pantalla (translateX(-101%)) y anulaban la columna de control. */
+}
+@media(max-width:820px){
+  .lp-cerrar{display:flex;}
+}
+@media(min-width:821px){
+  .lp-cerrar{display:none;}
+}
+@media(max-width:480px){
+  .summary-grid{grid-template-columns:1fr;}
+}
+
+@media(max-width:900px){
+  .summary-grid{grid-template-columns:repeat(2,1fr);}
+  .principal-grid{grid-template-columns:1fr 1fr;}
+  
+}
+
+
+/* ══ MATHCAD TYPOGRAPHY ══ */
+@import url('https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
+:root{--mf:'STIX Two Text','Times New Roman',Georgia,serif;}
+.eq-body{font-family:var(--mf);font-size:13px;line-height:1.9;}
+.eq-body .katex{font-size:1.06em;}
+.eq-body .v{color:var(--grn2);font-weight:700;}
+.fig-table td,.steiner-table td{font-family:var(--mf);}
+.fig-table td:nth-child(2){font-family:var(--mf);font-style:italic;color:var(--grn);}
+.fig-table .num-cell,.steiner-table .num{font-family:var(--mf);font-style:italic;}
+.s-val{font-size:15px;font-family:var(--mf);font-style:italic;}
+.p-val{font-size:17px;font-family:var(--mf);font-style:italic;}
+
+
+/* ══ MATH TYPOGRAPHY ══ */
+.mth-sqrt{display:inline-flex;align-items:flex-start;font-family:var(--mf,'STIX Two Text',Georgia,serif);}
+.mth-rad{font-size:1.3em;line-height:0.88;padding-right:1px;color:inherit;}
+.mth-cnt{border-top:1.8px solid currentColor;padding:1px 4px 0 2px;margin-top:3px;}
+.mth-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 3px;font-family:var(--mf,'STIX Two Text',Georgia,serif);font-size:0.92em;}
+.mth-num{border-bottom:1.5px solid currentColor;padding:0 5px;text-align:center;min-width:24px;white-space:nowrap;}
+.mth-den{padding:1px 5px 0;text-align:center;white-space:nowrap;}
+
+
+/* ══ MATH FORMULA TYPOGRAPHY ══ */
+.mth-sqrt{display:inline-flex;align-items:flex-start;font-family:var(--mf,'STIX Two Text',Georgia,serif);vertical-align:middle;}
+.mth-rad{font-size:1.4em;line-height:0.85;padding-right:2px;color:inherit;flex-shrink:0;}
+.mth-radicand{border-top:2px solid currentColor;padding:1px 4px 0 2px;margin-top:2px;display:inline-block;}
+.mth-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 4px;font-family:var(--mf,'STIX Two Text',Georgia,serif);}
+.mth-num{border-bottom:1.5px solid currentColor;padding:0 6px;text-align:center;line-height:1.6;white-space:nowrap;}
+.mth-den{padding:1px 6px 0;text-align:center;line-height:1.6;white-space:nowrap;}
+
+
+/* ═══ TASK 4 FIX: Print/PDF layout — clean table, no green circles ═══ */
+@media print {
+  /* Hide interactive UI elements */
+  .btn-calc, .btn-sm, .btn-row, .lp-sticky,
+  .canvas-controls, .canvas-hint, .notbtn,
+  #canvasHint, .notation-bar { display: none !important; }
+
+  /* Prevent fig-color-dot from expanding into blobs */
+  .fig-color-dot {
+    display: inline-block !important;
+    width: 8px !important;
+    height: 8px !important;
+    min-width: 8px !important;
+    max-width: 8px !important;
+    border-radius: 50% !important;
+    margin-right: 5px !important;
+    vertical-align: middle !important;
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Force fixed table layout so columns don't reflow */
+  .steiner-table, .fig-table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10px !important;
+  }
+
+  .steiner-table th, .steiner-table td,
+  .fig-table th, .fig-table td {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    padding: 4px 6px !important;
+    border: 1px solid #ccc !important;
+  }
+
+  /* First column (figure name) gets enough width */
+  .steiner-table td:first-child,
+  .fig-table td:first-child {
+    max-width: 130px !important;
+    min-width: 80px !important;
+  }
+
+  /* Summary boxes */
+  .summary-grid, .principal-grid {
+    display: grid !important;
+    gap: 4px !important;
+  }
+
+  /* Canvas snapshots */
+  .mohr-full, #mohrCanvas, #compositeCanvas { 
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Force white background for readability */
+  body { background: #fff !important; }
+  .results-area, .results-wrap { background: #fff !important; }
+}
+
+
+/* ── Guardar e Historial: presentación limpia y táctil en móvil ──
+   Alcance deliberadamente acotado a estos dos diálogos. */
+#guardarModal code, #histModal code{
+  font-family:var(--mf, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size:.94em; background:rgba(127,127,127,.12);
+  border-radius:4px; padding:1px 4px;
+}
+/* La tarjeta nunca debe superar la pantalla: si el texto crece, se
+   desplaza dentro en vez de empujar los botones fuera del viewport. */
+#guardarModal .modal-box, #histModal .modal-box{
+  max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+}
+#histModal #histList{ max-height:46vh; overflow-y:auto; margin-bottom:2px; }
+
+@media(max-width:820px){
+  /* Etiqueta encima del campo: en la misma línea el hueco útil para
+     escribir el nombre bajaba de 150 px. */
+  #guardarModal .modal-field, #histModal .modal-field{
+    display:block; margin-bottom:12px;
+  }
+  #guardarModal .modal-field label, #histModal .modal-field label{
+    display:block; min-width:0; margin-bottom:5px; font-size:12px;
+  }
+  #guardarModal .modal-field input, #histModal .modal-field input{
+    width:100%; box-sizing:border-box; padding:11px 12px; font-size:15px;
+  }
+  /* 15px evita que iOS haga zoom automático al enfocar el campo. */
+
+  /* Botones a lo ancho y con altura de dedo. El principal va arriba:
+     es la acción que se busca al abrir el diálogo. */
+  #guardarModal .modal-btns, #guardarModal .modal-actions,
+  #histModal .modal-btns,   #histModal .modal-actions{
+    display:flex; flex-direction:column-reverse; gap:8px;
+    justify-content:stretch;
+  }
+  #guardarModal .mbtn, #histModal .mbtn{
+    width:100%; min-height:44px; font-size:13.5px; border-radius:10px;
+  }
+  #guardarModal .modal-box, #histModal .modal-box{ padding:18px 16px; }
+  #guardarModal .modal-h, #guardarModal h3,
+  #histModal .modal-h,   #histModal h3{ font-size:16px; }
+  #guardarModal .modal-note, #guardarModal .sub,
+  #histModal .modal-note,   #histModal .sub{ font-size:11.5px; }
+}

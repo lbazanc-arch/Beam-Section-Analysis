@@ -1,0 +1,739 @@
+@import url('https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
+:root{--mf:'STIX Two Text','Times New Roman',Georgia,serif;}
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --acc:#2563eb; --acc2:#1e3a8a; --acc-l:#eef3ff;
+  --bg:#f1f3f5; --card:#fff; --border:#e0e4e8; --border2:#ccd2d8;
+  --text:#1b1f24; --muted:#66727e;
+  --nor:#0e9f6e; --cor:#d94f5c; --mom:#8b5cf6; --reac:#15803d;
+}
+body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);
+  font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased;}
+.topbar{height:48px;background:#fff;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;padding:0 16px;position:sticky;top:0;z-index:60;flex:none;}
+.tb-title{font-size:15px;font-weight:800;color:var(--acc);letter-spacing:-.2px;}
+.tb-sub{font-size:11px;color:var(--muted);}
+.tb-v{margin-left:auto;font-size:10px;font-weight:700;color:#fff;background:var(--acc);
+  padding:3px 9px;border-radius:20px;}
+/* ── ESTRUCTURA ESTÁNDAR BSA ──
+   Barra de herramientas arriba (ícono de desplazamiento + 3 zonas).
+   Debajo, el lienzo ocupa todo el ancho y el panel de control se
+   SUPERPONE a la izquierda; se pliega y despliega con su ícono. */
+.main-wrap{display:flex; flex-direction:column;}
+.toolbar{
+  display:flex; align-items:stretch; gap:6px; padding:7px 10px; background:#fff;
+  border-bottom:1px solid var(--border); overflow-x:auto; position:relative; z-index:40;
+}
+/* Zonas de la barra: cada grupo de herramientas va junto y separado del resto */
+.tb-zona{display:flex; align-items:stretch; gap:6px; flex:none;}
+.tb-sep{width:1px; background:var(--border2); margin:4px 6px; flex:none;}
+.tb-sel-info{
+  margin-left:auto; align-self:center; font-size:10.5px; color:var(--muted);
+  font-weight:600; white-space:nowrap; padding-left:10px;
+}
+/* Ícono de desplazamiento por el panel (herramienta de arrastre de vista) */
+.tb-pan{
+  flex:none; width:40px; border:1px solid var(--border2); border-radius:9px;
+  background:#fff; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; font-family:inherit; margin-right:2px;
+  /* Fijo al borde izquierdo de la barra (que se desplaza en pantallas
+     angostas) para que esté siempre al alcance, sin importar el desplazamiento. */
+  position:sticky; left:0; z-index:5;
+  box-shadow:6px 0 8px -6px rgba(0,0,0,.18);
+}
+.tb-pan:hover{border-color:var(--acc); background:var(--acc-l);}
+.tb-pan.active{border-color:var(--acc); background:var(--acc-l); box-shadow:6px 0 8px -6px rgba(0,0,0,.18), 0 0 0 1px var(--acc);}
+.tb-pan svg{width:22px; height:22px;}
+
+.top-row{position:relative; display:block; height:calc(100vh - 108px); min-height:420px; overflow:hidden;}
+.canvas-area{position:relative; background:#fff; overflow:hidden;
+  height:calc(100vh - 108px); width:100%;}
+
+/* ── Panel de control en dos niveles ──
+   Nivel 1: barra vertical de botones (Zona 1 propiedades, Zona 2 acciones).
+   Nivel 2: columna que se despliega a la derecha con el contenido de la
+   sección elegida. El botón de plegado abre y cierra el nivel 1. */
+.left-panel{
+  position:absolute; top:0; left:0; bottom:0; width:96px; z-index:32;
+  background:#fff; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow-y:auto; padding:6px 0 10px;
+  box-shadow:2px 0 14px rgba(0,0,0,.07);
+  transition:transform .22s ease;
+}
+.left-panel.plegado{transform:translateX(-100%);}
+
+.rail-group{display:flex; flex-direction:column; gap:4px; padding:6px;}
+.rail-group + .rail-group{border-top:1px solid var(--border);}
+.rail-btn{
+  border:1px solid transparent; border-radius:9px; background:none; cursor:pointer;
+  padding:7px 3px 5px; display:flex; flex-direction:column; align-items:center; gap:3px;
+  font-family:inherit; color:var(--acc); transition:all .15s;
+}
+.rail-btn:hover{background:var(--acc-l); border-color:var(--border2);}
+.rail-btn.active{background:var(--acc-l); border-color:var(--acc); box-shadow:0 0 0 1px var(--acc);}
+.rail-btn svg{width:21px; height:21px;}
+.rail-btn span{font-size:8.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.15;}
+.rail-btn.accion{color:var(--acc2);}
+.rail-btn.accion.pdf{color:#c0392b;}
+
+/* Nivel 2: columna desplegable */
+.panel-flyout{
+  position:absolute; top:0; left:96px; bottom:0; width:260px; z-index:31;
+  background:#fff; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:3px 0 16px rgba(0,0,0,.09);
+  transition:transform .22s ease, opacity .18s ease;
+}
+.panel-flyout.plegado{transform:translateX(-115%); opacity:0; pointer-events:none;}
+.flyout-head{
+  display:flex; align-items:center; gap:8px; padding:9px 12px;
+  border-bottom:1px solid var(--border); background:var(--acc); color:#fff;
+  font-size:11.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase;
+}
+.flyout-x{
+  margin-left:auto; border:none; background:none; color:#fff; font-size:18px;
+  cursor:pointer; line-height:1; padding:0 2px; font-family:inherit;
+}
+.flyout-body{flex:1; overflow-y:auto; padding:10px 12px 14px;}
+.sec-cont .panel-title{margin-bottom:7px;}
+/* Botón que pliega y despliega el panel */
+.panel-toggle{
+  position:absolute; top:10px; left:10px; z-index:35;
+  width:38px; height:38px; border-radius:10px; border:1px solid var(--border2);
+  background:#fff; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; font-family:inherit; box-shadow:0 2px 8px rgba(0,0,0,.10);
+  transition:left .22s ease;
+}
+.panel-toggle:hover{border-color:var(--acc); background:var(--acc-l);}
+.panel-toggle svg{width:20px; height:20px;}
+/* La posición del botón la fija JS con esta clase: depender de un selector
+   de hermano fallaba porque el botón va antes del panel en el DOM. */
+.panel-toggle.corrido{left:106px;}
+.panel-toggle.corrido.expandido{left:366px;}
+/* Rótulo de cada zona del panel */
+.zona-tag{
+  font-size:8.5px; font-weight:800; letter-spacing:1.2px; color:#fff;
+  background:var(--acc2); padding:3px 9px; border-radius:0 0 8px 0;
+  display:inline-block; text-transform:uppercase;
+}
+
+
+.left-panel{
+  background:#fff; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow-y:auto;
+}
+/* La lista NO se estira: si lo hace, con pocos elementos queda un recuadro
+   vacío delimitado por bordes que parece un corte en la interfaz. El bloque de
+   botones queda pegado al contenido y se ancla abajo solo cuando hay scroll. */
+.panel-grow{flex:0 1 auto; min-height:0;}
+.panel-grow:last-of-type{border-bottom:none;}
+.panel-foot{position:sticky; bottom:0; background:#fff;
+  border-top:1px solid var(--border); padding:10px 12px 12px; margin-top:4px;}
+.canvas-area{position:relative; background:#fff; overflow:hidden;}
+#mainCanvas{display:block; width:100%; height:100%; cursor:crosshair;}
+.canvas-hint{
+  position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+  background:rgba(27,31,36,.86); color:#e8eaed; border-radius:6px;
+  padding:5px 13px; font-size:10.5px; pointer-events:none; white-space:nowrap; z-index:5;
+}
+.zoom-box{position:absolute; top:12px; right:12px; display:flex; gap:5px; z-index:6;}
+.zoom-btn{
+  width:31px; height:31px; border-radius:7px; border:1px solid var(--border2);
+  background:#fff; color:var(--text); font-size:15px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-family:inherit;
+}
+.zoom-btn:hover{background:var(--acc-l); border-color:var(--acc);}
+
+/* ── PANEL ── */
+.panel-section{padding:9px 12px 6px; border-bottom:1px solid var(--border);}
+.panel-title{
+  font-size:9px; font-weight:800; letter-spacing:1px; color:var(--acc);
+  text-transform:uppercase; margin-bottom:7px;
+}
+.cfg-row{display:flex; gap:7px;}
+.cfg-chip{
+  flex:1; border:1px solid var(--border2); border-radius:8px; padding:6px 9px;
+  cursor:pointer; background:#fff; text-align:left; font-family:inherit;
+}
+.cfg-chip:hover{border-color:var(--acc); background:var(--acc-l);}
+.cfg-lbl{font-size:8.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px;}
+.cfg-val{font-size:13px; font-weight:700; color:var(--acc); margin-top:1px;}
+
+.mode-row{display:flex; gap:6px; margin-bottom:6px;}
+.mode-btn{
+  flex:1; padding:7px 5px; border-radius:8px; font-size:11.5px; font-weight:700;
+  cursor:pointer; border:1px solid var(--border2); background:#fff; color:var(--muted);
+  font-family:inherit; transition:all .15s;
+}
+.mode-btn.active{background:var(--acc); border-color:var(--acc); color:#fff;}
+.hint-sm{font-size:10px; color:var(--muted); line-height:1.35; margin-top:4px;}
+
+.tool-btn{
+  border:1px solid var(--border2); border-radius:9px; background:#fff; cursor:pointer;
+  padding:5px 9px 4px; display:flex; flex-direction:column; align-items:center; gap:2px;
+  font-family:inherit; transition:all .15s; min-width:62px; flex:none;
+}
+.tool-btn.danger:hover{border-color:var(--cor); background:#fef2f2;}
+.tool-btn.danger span{color:var(--cor);}
+
+/* pestañas Nudos / Barras */
+.sub-tabs{display:flex; gap:5px; margin-bottom:2px;}
+.sub-tab{
+  flex:1; padding:6px 5px; border-radius:7px; border:1px solid var(--border2);
+  background:#fff; font-size:11px; font-weight:700; color:var(--muted);
+  cursor:pointer; font-family:inherit;
+}
+.sub-tab.active{background:var(--acc); border-color:var(--acc); color:#fff;}
+.sub-tab span{
+  display:inline-block; min-width:17px; padding:0 4px; border-radius:9px;
+  background:rgba(0,0,0,.10); font-size:9.5px; margin-left:3px;
+}
+.item-row.sel{border-color:var(--acc); background:var(--acc-l); box-shadow:0 0 0 1px var(--acc);}
+
+/* croquis de referencia de la plantilla */
+.tpl-ref{
+  width:100%; height:auto; display:block; margin:8px 0 4px;
+  border:1px solid var(--border); border-radius:8px; background:#fff;
+}
+.tool-btn:hover{border-color:var(--acc); background:var(--acc-l);}
+.tool-btn.active{border-color:var(--acc); background:var(--acc-l); box-shadow:0 0 0 1px var(--acc);}
+.tool-btn svg{width:25px; height:21px;}
+.tool-btn span{font-size:9px; font-weight:700; color:var(--text); text-align:center; line-height:1.15;}
+
+.tpl-row{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:7px;}
+.tpl-btn{
+  padding:5px 10px; border-radius:7px; border:1px solid var(--border2); background:#fff;
+  font-size:10.5px; font-weight:700; color:var(--text); cursor:pointer; font-family:inherit;
+}
+.tpl-btn:hover{border-color:var(--acc); background:var(--acc-l); color:var(--acc);}
+.tpl-btn.active{background:var(--acc); border-color:var(--acc); color:#fff;}
+.num-row{display:flex; gap:6px; align-items:center; margin-top:5px;}
+.num-row label{font-size:10px; color:var(--muted); font-weight:600; min-width:52px;}
+.num-row input{
+  flex:1; min-width:0; padding:5px 7px; border:1px solid var(--border2); border-radius:6px;
+  font-family:var(--mf); font-size:12px; color:var(--text); background:#fff;
+}
+.num-row input:focus{outline:none; border-color:var(--acc);}
+
+.list-empty{font-size:10.5px; color:var(--muted); text-align:center; padding:12px 6px; font-style:italic;}
+.item-row{
+  display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:7px;
+  border:1px solid var(--border); margin-bottom:4px; background:#fff; font-size:11px;
+}
+.item-row .dot{width:8px; height:8px; border-radius:50%; flex:none;}
+.item-row .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.item-row .x{
+  border:none; background:none; color:var(--muted); cursor:pointer; font-size:14px;
+  padding:0 2px; line-height:1; font-family:inherit;
+}
+.item-row .x:hover{color:var(--com);}
+
+.btn-main{
+  width:100%; padding:11px; border-radius:9px; border:none; background:var(--acc);
+  color:#fff; font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit;
+  display:flex; align-items:center; justify-content:center; gap:7px;
+}
+.btn-main:hover{background:var(--acc2);}
+.btn-row{display:flex; gap:5px; margin-top:6px; flex-wrap:wrap;}
+.btn-sm{
+  flex:1; min-width:62px; padding:6px 4px; border-radius:7px; border:1px solid var(--border2);
+  background:#fff; font-size:10.5px; font-weight:700; color:var(--text); cursor:pointer;
+  font-family:inherit;
+}
+.btn-sm:hover{border-color:var(--acc); color:var(--acc);}
+.btn-sm.pdf{background:#c0392b; border-color:#c0392b; color:#fff;}
+.btn-sm.pdf:hover{background:#96281b;}
+
+/* ── RESULTADOS ── */
+.results-area{border-top:2px solid var(--border); background:var(--bg); display:none;}
+.results-wrap{padding:22px 20px 46px; max-width:1320px; margin:0 auto;}
+.empty-hint{padding:40px 20px; text-align:center; color:var(--muted); font-size:12px;}
+.res-section{margin-bottom:24px;}
+.res-title{
+  font-size:13px; font-weight:800; color:var(--acc); letter-spacing:.4px;
+  margin-bottom:11px; padding-bottom:6px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:8px;
+}
+.res-title .num{
+  width:22px; height:22px; border-radius:50%; background:var(--acc2); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; flex:none;
+}
+.proc-block{
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  padding:13px 15px; margin-bottom:11px;
+}
+.dcl-par{display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-bottom:11px;}
+.proc-cols{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:6px 26px;}
+.proc-col{min-width:0;}
+.proc-sub{
+  font-size:9.5px; font-weight:800; color:var(--acc); text-transform:uppercase;
+  letter-spacing:.6px; margin-bottom:6px;
+}
+.eq-row{margin:3px 0;}
+.eq-body{font-family:var(--mf); font-size:13px; line-height:1.65;}
+.eq-body .v{color:var(--acc); font-weight:700;}
+
+.verdict{
+  border-radius:9px; padding:11px 14px; margin-bottom:11px; font-size:12px;
+  border-left:4px solid var(--acc); background:var(--acc-l);
+}
+.verdict.ok{border-left-color:#15803d; background:#f0fdf4;}
+.verdict.bad{border-left-color:var(--com); background:#fef2f2;}
+.verdict b{font-weight:800;}
+.verdict-t{font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px; color:var(--muted);}
+
+.tabla{width:100%; border-collapse:collapse; font-family:var(--mf); font-size:12.5px;}
+.tabla th{
+  padding:6px 9px; text-align:left; font-size:9px; font-weight:800; color:var(--acc);
+  text-transform:uppercase; letter-spacing:.5px; background:var(--acc-l);
+  border-bottom:2px solid var(--border2); font-family:Inter,sans-serif;
+}
+.tabla td{padding:5px 9px; border-bottom:1px solid var(--border);}
+.tabla tr:last-child td{border-bottom:none;}
+.tabla .r{text-align:right;}
+.tag{
+  display:inline-block; padding:1px 7px; border-radius:20px; font-size:9.5px;
+  font-weight:800; font-family:Inter,sans-serif;
+}
+.tag.t{background:#dbeafe; color:var(--ten);}
+.tag.c{background:#fee2e2; color:var(--com);}
+.tag.z{background:#eef0f3; color:var(--zero);}
+
+.joint-card{
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  padding:11px 14px; margin-bottom:9px;
+}
+.joint-h{
+  display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700;
+  margin-bottom:7px; flex-wrap:wrap;
+}
+.joint-n{
+  width:21px; height:21px; border-radius:50%; background:var(--acc); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; flex:none;
+}
+.joint-body{display:grid; grid-template-columns:1fr 190px; gap:14px; align-items:start;}
+.joint-svg{width:100%; max-width:185px; height:auto; display:block;
+  border:1px solid var(--border); border-radius:8px; background:#fff;}
+
+.summary-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:11px;}
+.summary-box{border:1px solid var(--border); border-radius:9px; padding:8px 11px; background:var(--card);}
+.summary-box.hl{background:var(--acc-l); border-color:var(--acc);}
+.s-lbl{font-size:8.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px; font-weight:700;}
+.s-val{font-size:16px; font-weight:700; color:var(--acc); font-family:var(--mf); font-style:italic;}
+.s-unit{font-size:9px; color:var(--muted);}
+
+.teoria{
+  border-left:3px solid var(--acc); background:var(--card); border:1px solid var(--border);
+  border-left-width:3px; border-radius:9px; padding:11px 14px; margin-bottom:11px; font-size:12px;
+}
+.teoria-t{font-size:9.5px; font-weight:800; color:var(--acc); text-transform:uppercase; letter-spacing:.5px; margin-bottom:5px;}
+
+/* ── MODALES ── */
+.modal-ov{
+  position:fixed; inset:0; background:rgba(15,20,28,.5); display:none;
+  align-items:center; justify-content:center; z-index:200; padding:16px;
+}
+.modal-ov.show{display:flex;}
+.modal{
+  background:#fff; border-radius:14px; padding:20px 22px; width:100%; max-width:380px;
+  box-shadow:0 18px 50px rgba(0,0,0,.25);
+}
+.modal h3{font-size:15px; font-weight:800; color:var(--acc); margin-bottom:4px;}
+.modal p.sub{font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.45;}
+.modal-field{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+.modal-field label{font-size:11.5px; font-weight:700; min-width:82px;}
+.modal-field select,.modal-field input{
+  flex:1; padding:7px 9px; border:1px solid var(--border2); border-radius:7px;
+  font-family:inherit; font-size:12px; background:#fff; color:var(--text);
+}
+.modal-preview{
+  background:var(--acc-l); border-radius:8px; padding:8px 11px; font-size:11px;
+  color:var(--muted); margin:12px 0; font-family:var(--mf);
+}
+.modal-btns{display:flex; gap:8px; justify-content:flex-end; margin-top:14px;}
+.mbtn{padding:8px 16px; border-radius:8px; border:none; font-size:12px; font-weight:700;
+  cursor:pointer; font-family:inherit; background:var(--acc); color:#fff;}
+.mbtn.ghost{background:#fff; border:1px solid var(--border2); color:var(--text);}
+
+/* ── Ventana «Diagramas interactivos» ── */
+.modal.vd{max-width:780px; padding:0; max-height:92vh; display:flex; flex-direction:column; overflow:hidden;}
+.vd-cab{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+  padding:16px 18px 12px; border-bottom:1px solid var(--border2);}
+.vd-x{border:none; background:transparent; font-size:17px; cursor:pointer; color:var(--muted); padding:2px 6px;}
+.vd-cuerpo{padding:4px 18px 14px; overflow-y:auto; flex:1;}
+.vd-pie{display:flex; gap:8px; justify-content:flex-end; padding:12px 18px; border-top:1px solid var(--border2);}
+.vd-sec-tit{font-size:11px; font-weight:800; color:var(--acc); text-transform:uppercase;
+  letter-spacing:.4px; margin:13px 0 6px;}
+.vd-dcl{border:1px solid var(--border2); border-radius:10px; overflow:hidden; background:#fff;}
+.vd-grupos{display:flex; flex-wrap:wrap; gap:7px;}
+.vd-radio{display:flex; align-items:center; gap:6px; border:1px solid var(--border2);
+  border-radius:8px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer; background:#fff;}
+.vd-radio.on{border-color:var(--acc); color:var(--acc); background:var(--acc-l);}
+.vd-carga-fila select{width:100%; padding:8px 10px; border:1px solid var(--border2);
+  border-radius:8px; font-family:inherit; font-size:12px; background:#fff;}
+.vd-rueda{border:1px solid var(--border2); border-radius:10px; padding:10px 12px; margin-top:9px;}
+.vd-rueda-cab{display:flex; justify-content:space-between; font-size:11.5px; font-weight:700; margin-bottom:6px;}
+.vd-val{color:var(--acc); font-family:var(--mf);}
+.vd-range{width:100%; accent-color:var(--acc);}
+.vd-lims{display:flex; gap:8px; margin-top:6px;}
+.vd-lims label{flex:1; font-size:10px; font-weight:700; color:var(--muted); display:flex;
+  flex-direction:column; gap:2px; min-width:0;}
+.vd-lims input{padding:5px 7px; border:1px solid var(--border2); border-radius:6px;
+  font-size:11px; font-family:var(--mf); width:100%; min-width:0;}
+.vd-stats{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+.vd-stat{flex:1 1 180px; border:1px solid var(--border2); border-left:3px solid var(--acc);
+  border-radius:8px; padding:7px 10px; font-size:11px; line-height:1.5; background:#fff;}
+.vd-stat-t{font-weight:800; font-size:10.5px; margin-bottom:2px;}
+
+/* ── MÓVIL ── */
+/* En escritorio la columna de control está siempre a la vista: solo se
+   pliega y despliega la segunda columna (la de izquierda a derecha). */
+@media(min-width:821px){
+  .left-panel.plegado{transform:none;}
+  .panel-toggle{display:none;}
+  .panel-flyout{left:96px;}
+}
+
+@media(max-width:820px){
+  /* El lienzo debe ocupar toda la altura visible: con una altura fija (62vh)
+     quedaba una franja muerta bajo él. Se usa dvh donde exista, porque en el
+     navegador móvil la barra de direcciones cambia la altura útil. */
+  .top-row{grid-template-columns:1fr; height:calc(100dvh - 108px); min-height:0; position:relative;}
+  /* En móvil el panel mantiene el esquema de dos niveles: la barra de
+     botones conserva su ancho y el desplegable se ajusta al espacio libre. */
+  .left-panel{width:88px; z-index:34; box-shadow:4px 0 22px rgba(0,0,0,.16);}
+  .panel-flyout{left:88px; width:calc(100vw - 96px); max-width:260px;}
+
+  .canvas-area{height:calc(100vh - 107px); height:calc(100dvh - 107px);}
+  /* El cajón móvil antiguo (fab-tools / fab-x) se retiró: su botón quedaba
+     encima de la columna de control y su velo bloqueaba los toques. */
+  .results-wrap{padding:16px 12px 38px;}
+  .summary-grid{grid-template-columns:repeat(2,1fr);}
+  /* dos DCL uno al lado del otro no caben en movil: se apilan */
+  .dcl-par{grid-template-columns:1fr;}
+  .joint-body{grid-template-columns:1fr;}
+  .joint-svg{max-width:100%; margin:0 auto;}
+}
+
+/* Barra de herramientas */
+.toolbar{display:flex;align-items:stretch;gap:6px;padding:7px 10px;background:#fff;
+  border-bottom:1px solid var(--border);overflow-x:auto;
+  position:sticky;top:48px;z-index:50;flex:none;min-height:59px;}
+.tb-sep{width:1px;background:var(--border2);margin:4px 6px;flex:none;}
+.tb-sel-info{margin-left:auto;align-self:center;font-size:10.5px;color:var(--muted);
+  font-weight:600;white-space:nowrap;padding-left:10px;}
+.tool-btn{border:1px solid var(--border2);border-radius:9px;background:#fff;cursor:pointer;
+  flex:none;padding:5px 9px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  font-family:inherit;transition:all .15s;min-width:62px;}
+.tool-btn:hover{border-color:var(--acc);background:var(--acc-l);}
+.tool-btn.active{border-color:var(--acc);background:var(--acc-l);box-shadow:0 0 0 1px var(--acc);}
+.tool-btn svg{width:25px;height:21px;}
+.tool-btn span{font-size:9px;font-weight:700;text-align:center;line-height:1.15;}
+.tool-btn.danger:hover{border-color:var(--cor);background:#fef2f2;}
+.tool-btn.danger span{color:var(--cor);}
+.tool-btn.danger.active{border-color:var(--cor);background:#fef2f2;box-shadow:0 0 0 1px var(--cor);}
+/* Menús desplegables bajo la barra */
+.tb-menu{position:fixed;top:0;left:0;z-index:70;width:300px;max-width:calc(100vw - 24px);
+  background:#fff;border:1px solid var(--border2);border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);display:none;overflow:hidden;}
+.tb-menu.abierto{display:block;}
+.tb-menu-head{background:var(--acc);color:#fff;font-size:11.5px;font-weight:800;
+  letter-spacing:.4px;text-transform:uppercase;padding:8px 12px;}
+.tb-menu-body{padding:10px 12px 14px;}
+.menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.menu-btn{border:1px solid var(--border2);border-radius:9px;background:#fff;cursor:pointer;
+  padding:8px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-family:inherit;transition:all .15s;}
+.menu-btn:hover{border-color:var(--acc);background:var(--acc-l);}
+/* Estado seleccionado: la lógica ya marcaba .active, pero no existía la
+   regla, así que el apoyo elegido no se distinguía de los demás. */
+.menu-btn.active{border-color:var(--acc);border-width:2px;background:var(--acc-l);
+  box-shadow:0 0 0 3px rgba(37,99,235,.13);padding:7px 3px 5px;}
+.menu-btn.active span{color:var(--acc);}
+.menu-btn.active::after{content:'';position:absolute;top:5px;right:6px;width:7px;height:7px;
+  border-radius:50%;background:var(--acc);}
+.menu-btn{position:relative;}
+.menu-btn svg{width:30px;height:26px;}
+.menu-btn span{font-size:9px;font-weight:700;text-align:center;line-height:1.15;}
+/* Configuración */
+.cfg-row{display:flex;gap:7px;}
+.cfg-chip{flex:1;border:1px solid var(--border2);border-radius:8px;padding:6px 9px;
+  cursor:pointer;background:#fff;text-align:left;font-family:inherit;}
+.cfg-chip:hover{border-color:var(--acc);background:var(--acc-l);}
+.cfg-lbl{font-size:8.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+.cfg-val{font-size:12px;font-weight:700;color:var(--acc);margin-top:1px;}
+/* Listas y filas */
+.panel-title{font-size:9px;font-weight:800;letter-spacing:1px;color:var(--acc);
+  text-transform:uppercase;margin-bottom:7px;}
+.hint-sm{font-size:10px;color:var(--muted);line-height:1.4;margin-top:5px;}
+.item-row{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:7px;
+  border:1px solid var(--border);margin-bottom:4px;background:#fff;font-size:11px;}
+.item-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.item-row .x{border:none;background:none;color:var(--muted);cursor:pointer;font-size:14px;
+  padding:0 2px;line-height:1;font-family:inherit;}
+.item-row .x:hover{color:var(--cor);}
+.item-row.sel{border-color:var(--acc);background:var(--acc-l);box-shadow:0 0 0 1px var(--acc);}
+.list-empty{font-size:10.5px;color:var(--muted);text-align:center;padding:12px 6px;font-style:italic;}
+.mini{width:56px;padding:3px 5px;border:1px solid var(--border2);border-radius:5px;
+  font-family:var(--mf);font-size:11px;}
+.mini:focus{outline:none;border-color:var(--acc);}
+.sub-tabs{display:flex;gap:5px;margin-bottom:7px;}
+.sub-tab{flex:1;padding:6px 5px;border-radius:7px;border:1px solid var(--border2);
+  background:#fff;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;}
+.sub-tab.active{background:var(--acc);border-color:var(--acc);color:#fff;}
+.num-row{display:flex;gap:6px;align-items:center;margin-bottom:5px;}
+.num-row label{font-size:10.5px;color:var(--muted);font-weight:600;min-width:92px;}
+.num-row input,.num-row select{flex:1;min-width:0;padding:5px 7px;border:1px solid var(--border2);
+  border-radius:6px;font-family:var(--mf);font-size:12px;background:#fff;}
+.num-row input:focus{outline:none;border-color:var(--acc);}
+/* Lienzo */
+.canvas-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  background:rgba(27,31,36,.86);color:#e8eaed;border-radius:6px;padding:5px 13px;
+  font-size:10.5px;pointer-events:none;white-space:nowrap;z-index:5;}
+.zoom-box{position:absolute;top:12px;right:12px;display:flex;gap:5px;z-index:6;}
+.zoom-btn{width:31px;height:31px;border-radius:7px;border:1px solid var(--border2);
+  background:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;font-family:inherit;}
+.zoom-btn:hover{background:var(--acc-l);border-color:var(--acc);}
+#mainCanvas{display:block;width:100%;height:100%;cursor:crosshair;}
+/* Resultados */
+.results-area{border-top:2px solid var(--border);background:var(--bg);display:none;}
+.results-wrap{padding:22px 20px 46px;max-width:1320px;margin:0 auto;}
+.empty-hint{padding:40px 20px;text-align:center;color:var(--muted);font-size:12px;}
+.res-section{margin-bottom:24px;}
+.res-title{font-size:13px;font-weight:800;color:var(--acc);letter-spacing:.4px;
+  margin-bottom:11px;padding-bottom:6px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;}
+.res-title .num{width:22px;height:22px;border-radius:50%;background:var(--acc2);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex:none;}
+.proc-block{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:13px 15px;margin-bottom:11px;}
+.proc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:6px 26px;}
+.proc-sub{font-size:9.5px;font-weight:800;color:var(--acc);text-transform:uppercase;
+  letter-spacing:.6px;margin-bottom:6px;}
+.eq-row{margin:3px 0;}
+.eq-body{font-family:var(--mf);font-size:13px;line-height:1.65;}
+.verdict{border-radius:9px;padding:11px 14px;margin-bottom:11px;font-size:12px;
+  border-left:4px solid var(--acc);background:var(--acc-l);}
+.verdict.ok{border-left-color:#15803d;background:#f0fdf4;}
+.verdict.bad{border-left-color:var(--cor);background:#fef2f2;}
+.verdict-t{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;
+  margin-bottom:4px;color:var(--muted);}
+.tabla{width:100%;border-collapse:collapse;font-family:var(--mf);font-size:12.5px;}
+.tabla th{padding:6px 9px;text-align:left;font-size:9px;font-weight:800;color:var(--acc);
+  text-transform:uppercase;letter-spacing:.5px;background:var(--acc-l);
+  border-bottom:2px solid var(--border2);font-family:Inter,sans-serif;}
+.tabla td{padding:5px 9px;border-bottom:1px solid var(--border);}
+.tabla .r{text-align:right;}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:11px;}
+.summary-box{border:1px solid var(--border);border-radius:9px;padding:8px 11px;background:var(--card);}
+.summary-box.hl{background:var(--acc-l);border-color:var(--acc);}
+.s-lbl{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;
+  margin-bottom:2px;font-weight:700;}
+.s-val{font-size:16px;font-weight:700;color:var(--acc);font-family:var(--mf);font-style:italic;}
+.s-unit{font-size:9px;color:var(--muted);}
+.teoria{border:1px solid var(--border);border-left:3px solid var(--acc);background:var(--card);
+  border-radius:9px;padding:11px 14px;margin-bottom:11px;font-size:12px;}
+.teoria-t{font-size:9.5px;font-weight:800;color:var(--acc);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:5px;}
+/* Modales */
+.modal-ov{position:fixed;inset:0;background:rgba(15,20,28,.5);display:none;
+  align-items:center;justify-content:center;z-index:200;padding:16px;}
+.modal-ov.show{display:flex;}
+.modal{background:#fff;border-radius:14px;padding:20px 22px;width:100%;max-width:400px;
+  box-shadow:0 18px 50px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto;}
+.modal h3{font-size:15px;font-weight:800;color:var(--acc);margin-bottom:4px;}
+.modal p.sub{font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.45;}
+.modal-field{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.modal-field label{font-size:11.5px;font-weight:700;min-width:96px;}
+.modal-field select,.modal-field input{flex:1;padding:7px 9px;border:1px solid var(--border2);
+  border-radius:7px;font-family:inherit;font-size:12px;background:#fff;}
+.modal-preview{background:var(--acc-l);border-radius:8px;padding:8px 11px;font-size:11px;
+  color:var(--muted);margin:12px 0;font-family:var(--mf);}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+.mbtn{padding:8px 16px;border-radius:8px;border:none;font-size:12px;font-weight:700;
+  cursor:pointer;font-family:inherit;background:var(--acc);color:#fff;}
+.mbtn.ghost{background:#fff;border:1px solid var(--border2);color:var(--text);}
+.btn-sm{padding:6px 10px;border-radius:7px;border:1px solid var(--border2);
+  background:#fff;font-size:10.5px;font-weight:700;color:var(--text);cursor:pointer;font-family:inherit;}
+.btn-sm:hover{border-color:var(--acc);color:var(--acc);}
+/* ── Avisos no bloqueantes ──
+   Reemplazan al diálogo nativo del navegador, que en móvil queda
+   silenciado, con lo que la acción parecía no tener ningún efecto. El
+   z-index queda por encima de los modales para que también se vean los
+   avisos disparados desde dentro de una ventana. */
+.aviso-caja{position:fixed;left:50%;bottom:22px;z-index:500;
+  transform:translateX(-50%) translateY(14px);
+  max-width:min(92vw,460px);display:flex;align-items:flex-start;gap:10px;
+  padding:11px 14px;border-radius:11px;background:#14204a;color:#fff;
+  font-size:12px;line-height:1.5;box-shadow:0 8px 26px rgba(0,0,0,.28);
+  opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease;}
+.aviso-caja.visible{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+.aviso-caja.error{background:#7a1f16;}
+.aviso-caja .aviso-x{margin-left:auto;background:none;border:none;color:#fff;
+  font-size:16px;line-height:1;cursor:pointer;font-family:inherit;padding:0 2px;opacity:.75;}
+.aviso-caja .aviso-x:hover{opacity:1;}
+
+
+/* ── Método de ecuaciones / áreas (sección 3) ── */
+.sub-tramo-cab{font:800 13px Inter,sans-serif;color:#26415e;margin:16px 0 6px;
+  padding-bottom:4px;border-bottom:2px solid #e3e8ee}
+.dcl-caja{border:1px solid #e3e8ee;border-radius:10px;padding:10px 12px;margin:10px 0;background:#fbfcfe}
+.dcl-rango{font:700 12.5px Inter,sans-serif;color:#1b1f24;margin-bottom:6px}
+.dcl-nota{font-weight:500;color:#66727e;font-size:11.5px}
+.dcl-ecs{margin-top:8px}
+.dcl-extremos{font:500 12px Inter,sans-serif;color:#3c4652;margin-top:6px;
+  padding-top:6px;border-top:1px dashed #e3e8ee}
+.dcl-saltos{font:500 12px Inter,sans-serif;color:#3c4652;margin:8px 0 4px}
+.dcl-svg{width:100%;max-width:520px;height:auto;display:block;margin:4px auto}
+.modo-btn{flex:1;padding:6px 4px;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer;
+  font-family:inherit;background:#fff;border:1px solid var(--border2);color:var(--muted);transition:all .15s;}
+.modo-btn.active{background:var(--acc);border-color:var(--acc);color:#fff;}
+.vis-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:7px;}
+.vis-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);
+  border:1px solid var(--border2);border-radius:7px;padding:6px 8px;cursor:pointer;
+  background:#fff;user-select:none;}
+.bsa-let{font-size:46px;font-weight:900;line-height:1;display:inline-block;
+  font-family:inherit;animation:bsaSalto 1.05s cubic-bezier(.3,.7,.4,1) infinite;}
+@keyframes bsaSalto{
+  0%, 60%, 100%{transform:translateY(0)   scale(1);}
+  25%          {transform:translateY(-22px) scale(1.06);}
+  45%          {transform:translateY(0)   scale(.97);}
+}
+@media (prefers-reduced-motion:reduce){
+  .bsa-let{animation:bsaLatido 1.2s ease-in-out infinite;}
+  @keyframes bsaLatido{0%,100%{opacity:.45;}50%{opacity:1;}}
+}
+.zoom-btn:disabled{opacity:.35;cursor:default;}
+.zoom-btn:disabled:hover{background:#fff;border-color:var(--border2);}
+.rama{border:1px solid var(--border2);border-radius:8px;margin-bottom:6px;overflow:hidden;background:#fff;}
+.rama-cab{display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:pointer;
+  user-select:none;transition:background .12s;}
+.rama-cab:hover{background:var(--acc-l);}
+.rama-fl{font-size:10px;color:var(--muted);width:10px;}
+.rama-tit{font-size:11px;font-weight:800;color:var(--acc2);flex:1;}
+.rama-n{font-size:9.5px;font-weight:700;color:#fff;background:var(--acc);
+  border-radius:9px;padding:1px 7px;}
+.rama-cuerpo{border-top:1px solid var(--border);padding:5px 8px 7px;}
+.fam{font-size:8.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--muted);margin:6px 0 3px;}
+.fam:first-child{margin-top:2px;}
+.sent{font-size:13px;font-weight:800;color:#d94f5c;width:15px;text-align:center;flex-shrink:0;}
+.loc{font-size:8.5px;font-weight:700;color:var(--acc);background:var(--acc-l);
+  border-radius:4px;padding:0 4px;}
+/* ── Ventana de carga ──
+   Era demasiado alta: en un móvil no cabía y los botones de Aplicar quedaban
+   fuera de la pantalla. Ahora el cuerpo se desplaza dentro del propio
+   diálogo y las dos columnas se apilan cuando no hay ancho. */
+#cargaModal .modal{max-width:640px;max-height:92vh;display:flex;flex-direction:column;}
+#cargaModal .cg-cols{display:grid;grid-template-columns:1fr 240px;gap:14px;
+  align-items:start;overflow-y:auto;min-height:0;flex:1;padding-right:2px;}
+#cargaModal .modal-field{margin-bottom:7px;}
+#cargaModal .modal-btns{flex-shrink:0;padding-top:10px;}
+.cg-cap{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.6px;margin-bottom:5px;}
+#cgCroquis{border:1px solid var(--border);border-radius:9px;background:#fff;padding:5px;}
+@media(max-width:760px){
+  #cargaModal .modal{max-width:96vw;padding:12px 12px 10px;}
+  #cargaModal .cg-cols{grid-template-columns:1fr;gap:8px;}
+  /* El croquis va primero: ver el tramo antes de teclear números ayuda más
+     que tenerlo al final, donde en móvil ni se llega a ver. Se recorta a
+     una banda baja porque el dibujo deja mucho aire arriba y abajo. */
+  #cargaModal .cg-croquis-col{order:-1;}
+  /* El viewBox ya viene ceñido al tramo desde el JS: aquí solo se limita
+     la altura máxima y el dibujo entra COMPLETO, sin recortes. */
+  #cgCroquis{max-height:215px;overflow:hidden;display:flex;align-items:center;
+    justify-content:center;padding:2px;}
+  #cgCroquis svg{width:100%;height:auto;max-height:210px;}
+  /* Etiqueta y campo en la misma línea: apilarlos duplicaba la altura y
+     dejaba los últimos campos fuera de la pantalla. */
+  #cargaModal .modal-field{margin-bottom:5px;gap:7px;}
+  #cargaModal .modal-field label{min-width:104px;font-size:10.5px;}
+  #cargaModal .modal-field input,#cargaModal .modal-field select{
+    padding:5px 7px;font-size:11.5px;}
+  #cargaModal h3{font-size:13.5px;margin-bottom:2px;}
+  #cargaModal .sub{font-size:10px;margin-bottom:6px;}
+  #cargaModal .hint-sm{font-size:9.5px;}
+  #cargaModal .cg-cap{margin-bottom:3px;}
+  #cargaModal .modal-preview{font-size:10px;padding:6px 8px;}
+}
+@media(max-width:760px){
+  /* Los demás diálogos también deben caber y poder desplazarse */
+  .modal{max-height:92vh;overflow-y:auto;}
+}
+/* Grupos de opción como botones, en vez de desplegables: con dos o tres
+   alternativas cortas se leen todas de un vistazo y se tocan mejor. */
+.cg-grupo{margin:9px 0 8px;}
+.cg-seg{display:flex;gap:0;border:1px solid var(--border2);border-radius:8px;
+  overflow:hidden;background:#fff;}
+.seg-btn{flex:1;padding:7px 6px;border:none;background:#fff;cursor:pointer;
+  font-family:inherit;font-size:10.5px;font-weight:700;color:var(--muted);
+  border-right:1px solid var(--border2);transition:all .13s;}
+.seg-btn:last-child{border-right:none;}
+.seg-btn:hover{background:var(--acc-l);}
+.seg-btn.active{background:var(--acc);color:#fff;}
+/* Matriz de doble entrada */
+.cg-tabla{width:100%;border-collapse:collapse;margin:4px 0 2px;}
+.cg-tabla th{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.5px;padding:3px 5px;text-align:center;}
+.cg-tabla tbody th{text-align:left;white-space:nowrap;padding-right:8px;
+  text-transform:none;font-size:10.5px;letter-spacing:0;color:var(--text);}
+.cg-tabla td{padding:2px 3px;}
+.cg-tabla input{width:100%;padding:6px 8px;border:1px solid var(--border2);
+  border-radius:7px;font-family:inherit;font-size:12px;background:#fff;color:var(--text);}
+.cg-tabla input:focus{outline:none;border-color:var(--acc);}
+/* Sin esto el contenido ancho estiraba la columna y aparecía una barra de
+   desplazamiento horizontal en el diálogo. */
+#cargaModal .cg-cols > *{min-width:0;}
+@media(max-width:760px){
+  .cg-tabla tbody th{font-size:10px;}
+  .cg-tabla input{padding:5px 6px;font-size:11.5px;}
+  .seg-btn{font-size:10px;padding:6px 4px;}
+}
+#btnPeso.active{border-color:#b07d1a;background:#fdf6e6;box-shadow:0 0 0 3px rgba(176,125,26,.16);}
+#btnPeso.active span{color:#8a6508;}
+
+/* ── Guardar e Historial: presentación limpia y táctil en móvil ──
+   Alcance deliberadamente acotado a estos dos diálogos. */
+#guardarModal code, #histModal code{
+  font-family:var(--mf, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size:.94em; background:rgba(127,127,127,.12);
+  border-radius:4px; padding:1px 4px;
+}
+/* La tarjeta nunca debe superar la pantalla: si el texto crece, se
+   desplaza dentro en vez de empujar los botones fuera del viewport. */
+#guardarModal .modal, #histModal .modal{
+  max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+}
+#histModal #histList{ max-height:46vh; overflow-y:auto; margin-bottom:2px; }
+
+@media(max-width:820px){
+  /* Etiqueta encima del campo: en la misma línea el hueco útil para
+     escribir el nombre bajaba de 150 px. */
+  #guardarModal .modal-field, #histModal .modal-field{
+    display:block; margin-bottom:12px;
+  }
+  #guardarModal .modal-field label, #histModal .modal-field label{
+    display:block; min-width:0; margin-bottom:5px; font-size:12px;
+  }
+  #guardarModal .modal-field input, #histModal .modal-field input{
+    width:100%; box-sizing:border-box; padding:11px 12px; font-size:15px;
+  }
+  /* 15px evita que iOS haga zoom automático al enfocar el campo. */
+
+  /* Botones a lo ancho y con altura de dedo. El principal va arriba:
+     es la acción que se busca al abrir el diálogo. */
+  #guardarModal .modal-btns, #guardarModal .modal-actions,
+  #histModal .modal-btns,   #histModal .modal-actions{
+    display:flex; flex-direction:column-reverse; gap:8px;
+    justify-content:stretch;
+  }
+  #guardarModal .mbtn, #histModal .mbtn{
+    width:100%; min-height:44px; font-size:13.5px; border-radius:10px;
+  }
+  #guardarModal .modal, #histModal .modal{ padding:18px 16px; }
+  #guardarModal .modal-h, #guardarModal h3,
+  #histModal .modal-h,   #histModal h3{ font-size:16px; }
+  #guardarModal .modal-note, #guardarModal .sub,
+  #histModal .modal-note,   #histModal .sub{ font-size:11.5px; }
+}

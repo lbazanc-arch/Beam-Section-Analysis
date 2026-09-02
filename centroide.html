@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSA — Centroide</title>
+<!-- Icono de pestaña. Incrustado en base64 para que funcione también si
+     el archivo se abre suelto desde el disco, sin servidor detrás. -->
+<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAABmJLR0QA/wD/AP+gvaeTAAAE80lEQVRIie1WXWxTZRh+vu+c9qw/a8c2Vsa2joVB2JyDsQ3EjbmBCEIiEIOJCSIIRsEYjYmaoImaGAM3JHqriXGJtwpuapDIymg3xspoYVugbGx23U/bdf3Z2p7+nHO8OLPUthBvuDG8ORfne9/vfZ7ve8/7PjlEkiQ8TqOPFf0JwX8xFkBwxsqHXOleRqlRqIp0hqcJVaScroWl2cCSKEnxpJhqjdqyomg0dMnaf6h9V75ak4MgwQfGLWeRq5dYTl+x+fiKimdD0XjXzfEZ/1LGBkpIXXnxe9+ctY87pjxznx19OxuESmJSRleoCjmNQX5YLh9AMhb0Oy1OX/CHqyMyuoKheQpWp1IWqDmDXrOpsmTWO20fdwC4YDbFE4ncJZLN2PiWtqQWogiAsnmhuSGXrdNQf+z7a/f5RJISsrnK0LTGIELiWAYAIYRjmS87v5XTg+Elk836QvO2hxKIySjDqlJL/epmfWnTLdd8NJ4E0FRlaNtQQci/kgVB6O7vTS1/vno5m+CRXUTIYjQOgFMw9caVGegALMM2b8APwGgoBWCyWQNLiw8lEIUcFaSEAFAwVKVks6PnzT0AdGrNF8dOAognEr8PmB9BEMuGUCQ8ACKxpD+cGY3w/KXBawAOtu1srW8oLSoGcMFseiiBkIhkxALTA8zUT5QQUZIuDU/Gk2J61GSzRmI8gFd37qGE7G/tAGC9Ozo978kgWJ6AyMJ4YPr6ovtWyG33T/VPDX030XdOCo7WFIsA3MFIp3l4aNLtWljkE0kAMlDtmrXryo0ADrZ2AJAk6RfLlXSCB5UNTA8EpgcyLqHUlLTXVC2KC05fyB+O/TniBEAIKov1B557kVMoKV3+9NXlxrqq6uGJsfPmnpP7D+UoUU4TEmEq8i83r2tZX6bhlmVDkjDpDf5oGW1vaju8a19q88HtOwCMuZwjE+MpJ4mFPcPdJwFUbftAXbhWEhKEMolowDd52TdhAiROu6pm9znKKAEEI7FFPj7hDVrvu5OiyFJ6tK1uhYaTsXyhwLZTrwuCcHzfgdOHT2TegFGoOY0hT1fOaUu1K2sqm99Z2/oRQGJLc37ncvPp1Vx5Yf7GihXbq4sAJEXxxsRcCqFIV9Dy1EYAXZZeQRSzS5Spd/rVzfrSBgDBmRvp/u6+3jfPfFyoIgA8ociUx33kq0/3n35/z4enbGN3AXgCC33D9kwCIR7O/gYqfSWAeMSbLrddfVdCkfC9ydsAEoIY5qOW27bhibF7LmcosgxywdIjv7CpzJyDFucXALCcDv8Ixaxv3npnBIBapQPAUFKo072x94A8E+Fo1D7ucLpn/xjs54/H85RpAiAk+Uz0sCfgGgCgLd6QfnxRktasKlPpygHoVFxJQeEnr51Ibfjtmvndr8+Eo1GTbXDPlhaaBud9cAlJCs5YHabPxSRPWa64endq28Xrfc/Ubd6784hc3k2VKzOO9Xzj1gJtPoBf+68ifdA8jm6PozurSKSi4cT1vxYtjjvyeuuWVwilcos0VhmMRbqMBKVC8VJLe+fFrp6bg5EYTwmjJCT3uDFKTeWWUx6u3uKYfkBIKQCWoS3ry3bUGnMmyuoUjcXmfPNEkqQl72hozgaAUJYySiERoQpVnnaVrrSRMkq70xuMxGT9UbAMQ4hOpVxfWqjOJeAp67UPCaLQ0dBMnvw6/v8J/gbSRi4xOMVDKgAAAABJRU5ErkJggg==">
+<link rel="icon" type="image/png" sizes="48x48" href="data:image/png;base64,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">
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="centroide/estilos/estilos.css">
+<link rel="stylesheet" href="vendor/katex.min.css">
+<script src="vendor/katex.min.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="tb-title">Centroide</div>
+  </div>
+</div>
+
+<div class="main-wrap">
+  <!-- TOP ROW: left panel | canvas -->
+  <div class="toolbar" id="toolbar">
+  <button class="tb-pan active" id="tPan" onclick="togglePanTool()" title="Desplazarse por el panel">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#0f5c56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3 L12 21 M3 12 L21 12"/>
+      <path d="M12 3 L9.5 5.5 M12 3 L14.5 5.5 M12 21 L9.5 18.5 M12 21 L14.5 18.5"/>
+      <path d="M3 12 L5.5 9.5 M3 12 L5.5 14.5 M21 12 L18.5 9.5 M21 12 L18.5 14.5"/>
+    </svg>
+  </button>
+  <div class="tb-sep"></div>
+  <div class="tb-zona" id="tbZona1">
+    <button class="tool-btn" id="btnFiguras" onclick="menuFiguras(event)" title="Insertar una figura">
+      <svg viewBox="0 0 40 34"><rect x="8" y="9" width="11" height="11" fill="none" stroke="#0f5c56" stroke-width="2.2"/><circle cx="27" cy="20" r="6" fill="none" stroke="#0f5c56" stroke-width="2.2"/></svg>
+      <span>Figuras</span>
+    </button>
+    <button class="tool-btn" id="btnTipoCuerpo" onclick="menuTipoCuerpo(event)" title="Cuerpo homogéneo o heterogéneo">
+      <svg viewBox="0 0 40 34"><rect x="7" y="10" width="12" height="14" fill="none" stroke="#0f5c56" stroke-width="2.2"/><rect x="21" y="10" width="12" height="14" fill="#0f5c56" opacity=".35" stroke="#0f5c56" stroke-width="2.2"/></svg>
+      <span>Tipo de cuerpo</span>
+    </button>
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-zona" id="tbZona2">
+    <button class="tool-btn" id="tSel" onclick="setHerramienta('sel')" title="Toca para seleccionar (varias) · mantén presionado y arrastra para mover · doble clic para editar">
+      <svg viewBox="0 0 40 34"><path d="M14 5 L14 25 L19 20 L23 28 L27 26 L23 18 L30 18 Z" fill="#0f5c56"/><path d="M20 3 L20 9 M20 3 L17.5 5.5 M20 3 L22.5 5.5" stroke="#0f5c56" stroke-width="1.6" fill="none" opacity=".7"/></svg>
+      <span>Mover / editar</span>
+    </button>
+    <button class="tool-btn danger" id="btnDel" onclick="activarEliminar()" title="Toca una figura para borrarla · mantén presionado y arrastra un recuadro para borrar todo lo que abarque">
+      <svg viewBox="0 0 40 34"><path d="M13 11 L27 11 L25 29 L15 29 Z" fill="none" stroke="#c0392b" stroke-width="2.2"/><line x1="10" y1="11" x2="30" y2="11" stroke="#c0392b" stroke-width="2.2"/><line x1="17" y1="7" x2="23" y2="7" stroke="#c0392b" stroke-width="2.2"/></svg>
+      <span>Eliminar</span>
+    </button>
+    <button class="tool-btn" id="btnTrans" onclick="abrirTransformar()" title="Mover o girar la selección respecto a una coordenada de referencia">
+      <svg viewBox="0 0 40 34"><circle cx="13" cy="24" r="3" fill="#0f5c56"/><path d="M13 24 L27 24" stroke="#0f5c56" stroke-width="2" stroke-dasharray="3,2"/><path d="M13 24 A 14 14 0 0 1 24 12" fill="none" stroke="#0f5c56" stroke-width="2.2"/><path d="M24 12 L21 13 M24 12 L24.5 15.2" stroke="#0f5c56" stroke-width="2.2" fill="none"/></svg>
+      <span>Transformar</span>
+    </button>
+    <button class="tool-btn" id="btnRep" onclick="abrirReplicar()" title="Replicar la selección desplazándola">
+      <svg viewBox="0 0 40 34"><rect x="7" y="12" width="12" height="12" rx="2" fill="none" stroke="#0f5c56" stroke-width="2.2"/><rect x="21" y="12" width="12" height="12" rx="2" fill="none" stroke="#0f5c56" stroke-width="2.2" stroke-dasharray="3,2"/><path d="M15 8 L15 5 M15 5 L26 5 L26 9" stroke="#0f5c56" stroke-width="1.8" fill="none"/></svg>
+      <span>Replicar</span>
+    </button>
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-zona" id="tbZona3">
+    <button class="tool-btn" onclick="openHist()" title="Ejercicios guardados">
+      <svg viewBox="0 0 40 34"><circle cx="20" cy="17" r="10" fill="none" stroke="#0f5c56" stroke-width="2.2"/><path d="M20 11 v6 l4 3" fill="none" stroke="#0f5c56" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <span>Historial</span>
+    </button>
+    <button class="tool-btn" onclick="abrirGuardar()" title="Guardar este ejercicio">
+      <svg viewBox="0 0 40 34"><path d="M11 8 h14 l4 4 v14 h-18 Z" fill="none" stroke="#0f5c56" stroke-width="2.2"/><rect x="15" y="8" width="10" height="6" fill="#0f5c56"/><rect x="15" y="19" width="10" height="7" fill="none" stroke="#0f5c56" stroke-width="1.8"/></svg>
+      <span>Guardar</span>
+    </button>
+  </div>
+  <div class="tb-sel-info" id="tbSelInfo">Nada seleccionado</div>
+</div>
+
+<div class="tb-menu" id="menuTipoCuerpo"><div class="tb-menu-head">Tipo de cuerpo</div><div class="tb-menu-body"><div style="display:flex;gap:5px;padding:0 8px;">
+            <button class="modo-btn active" id="modo-homo" onclick="setModoCuerpo('homogeneo')">Homogéneo</button>
+            <button class="modo-btn" id="modo-het" onclick="setModoCuerpo('heterogeneo')">Heterogéneo</button>
+          </div>
+          <div style="font-size:9px;color:var(--muted);margin:6px 8px 0;line-height:1.45;" id="modo-hint">
+            Un solo material: G coincide con el centroide.
+          </div>
+
+          <!-- Materiales que define el estudiante -->
+          <div id="matPanel" style="display:none;margin:9px 8px 2px;">
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+              <button class="mag-btn active" id="mag-peso" onclick="setMagnitud('peso')">Peso esp. γ</button>
+              <button class="mag-btn" id="mag-dens" onclick="setMagnitud('densidad')">Densidad ρ</button>
+            </div>
+            <div id="matLista"></div>
+            <div style="display:flex;gap:4px;margin-top:5px;">
+              <input type="number" id="mat-val" step="any" min="0.0001" placeholder="50"
+                style="flex:1;min-width:0;background:var(--bg);border:1px solid var(--border2);color:var(--text);
+                       padding:5px 7px;border-radius:6px;font-size:10.5px;font-family:inherit;">
+              <span id="mat-uni-lbl" title="Se define en el botón Unidad"
+                style="display:flex;align-items:center;padding:0 6px;font-size:9.5px;font-weight:700;
+                       color:var(--grn2);background:var(--card2);border:1px solid var(--border2);
+                       border-radius:6px;white-space:nowrap;">ton/mm³</span>
+              <button onclick="addMaterial()" style="background:var(--grn);color:#fff;border:none;
+                padding:5px 9px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;">+</button>
+            </div>
+            <div id="mat-msg" style="font-size:9px;color:var(--muted);margin-top:4px;line-height:1.4;"></div>
+          </div></div></div>
+
+<div class="tb-menu" id="menuFiguras"><div class="tb-menu-head">Insertar figura</div><div class="tb-menu-body"><div class="pal">
+          <div class="pal-grid" id="palGrid">
+            <button class="fig-btn" onclick="selectFigType('rect')" id="figbtn-rect">
+            <svg viewBox="0 0 44 44" fill="none"><rect x="4" y="10" width="36" height="24" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="4" y1="22" x2="40" y2="22" stroke="currentColor" stroke-width="0.8" stroke-dasharray="3,2" opacity=".5"/><line x1="22" y1="10" x2="22" y2="34" stroke="currentColor" stroke-width="0.8" stroke-dasharray="3,2" opacity=".5"/><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
+            <span>Rectángulo</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('rtriangle')" id="figbtn-rtriangle">
+            <svg viewBox="0 0 44 44" fill="none"><polygon points="6,38 38,38 6,6" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="6,30 14,30 14,38" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="17" cy="28" r="2.5" fill="#f0c040"/></svg>
+            <span>Trián. Rect.</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('rtriangle2')" id="figbtn-rtriangle2">
+            <svg viewBox="0 0 44 44" fill="none"><polygon points="6,38 38,38 38,6" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="30,38 30,30 38,30" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="27" cy="28" r="2.5" fill="#f0c040"/></svg>
+            <span>Trián. Rect. ②</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('circle')" id="figbtn-circle">
+            <svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="17" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="22" y1="22" x2="37" y2="22" stroke="currentColor" stroke-width="1.5"/><text x="30" y="19" font-size="8" fill="currentColor" font-style="italic">R</text><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
+            <span>Círculo</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('quarter')" id="figbtn-quarter">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8,38 L8,8 A30,30 0 0,1 38,38 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><polyline points="8,30 16,30 16,38" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="21" cy="25" r="2.5" fill="#f0c040"/></svg>
+            <span>¼ Círculo</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('sector')" id="figbtn-sector">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M22,40 L8,12 A18,18 0 0,1 36,12 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M22,40 A8,8 0 0,0 17,33" stroke="currentColor" stroke-width="1" fill="none"/><path d="M22,40 A8,8 0 0,1 27,33" stroke="currentColor" stroke-width="1" fill="none"/><text x="12" y="33" font-size="7" fill="currentColor">θ</text><text x="27" y="33" font-size="7" fill="currentColor">θ</text><circle cx="22" cy="26" r="2.5" fill="#f0c040"/></svg>
+            <span>Sector Circ.</span>
+            </button>
+            <button class="fig-btn oculta" onclick="selectFigType('semicircle')" id="figbtn-semicircle">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M4,32 A18,18 0 0,1 40,32" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><line x1="4" y1="32" x2="40" y2="32" stroke="currentColor" stroke-width="2"/><line x1="22" y1="32" x2="22" y2="14" stroke="currentColor" stroke-width="0.8" stroke-dasharray="2,2" opacity=".5"/><line x1="22" y1="32" x2="36" y2="18" stroke="currentColor" stroke-width="1.5"/><text x="36" y="16" font-size="8" fill="currentColor" font-style="italic">R</text><circle cx="22" cy="24" r="2.5" fill="#f0c040"/><text x="26" y="23" font-size="6" fill="#f0c040">G</text></svg>
+            <span>Semicírculo</span>
+            </button>
+          </div>
+          <button class="pal-mas" id="palMas" onclick="alternarVerMas()">
+            <span id="palMasTxt">Ver más</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div><!-- end .pal -->
+      </div><!-- end .tb-menu-body -->
+</div><!-- end #menuFiguras -->
+
+<div class="top-row">
+  <button class="panel-toggle" id="panelToggle" onclick="togglePanel()" title="Plegar o desplegar el panel">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#0f5c56" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4 L9 20"/>
+    </svg>
+  </button>
+
+    <!-- ── LEFT PANEL ── -->
+    <div class="left-panel plegado" id="leftPanel">
+    <div class="rail-group">
+      <button class="rail-btn active" id="rbConf" onclick="abrirSeccion('conf')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Configuración</span>
+      </button>
+      
+      <button class="rail-btn" id="rbFig" onclick="abrirSeccion('fig')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="8" height="8"/><circle cx="17" cy="16" r="4"/><path d="M3 20h8"/></svg>
+        <span>Figuras</span>
+      </button>
+    </div>
+    <div class="rail-group">
+      <button class="rail-btn accion" onclick="calculate()">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M7 4 L19 12 L7 20 Z"/></svg>
+        <span>Calcular</span>
+      </button>
+      <button class="rail-btn accion" onclick="resetAll()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1.4 13H7.4Z"/><path d="M4 7h16M10 4h4"/></svg>
+        <span>Limpiar</span>
+      </button>
+      <button class="rail-btn accion" onclick="loadExampleSection()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19V5h9l5 5v9z"/><path d="M9 12h6M9 15h4"/></svg>
+        <span>Ejemplo</span>
+      </button>
+      <button class="rail-btn accion pdf" onclick="downloadPDF()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/></svg>
+        <span>PDF</span>
+      </button>
+      <button class="rail-btn accion" id="btnLatex" onclick="generarPDFLatex()" title="Genera un PDF profesional compilado con LaTeX">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/><path d="M9 15l1.5 3L12 15l1.5 3L15 15"/></svg>
+        <span>LaTeX</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-flyout plegado" id="panelFlyout">
+    <div class="flyout-head"><span id="flyoutTitulo">Configuración</span>
+      <button class="flyout-x" onclick="cerrarSeccion()" title="Cerrar">×</button>
+    </div>
+    <div class="flyout-body">
+      <div class="sec-cont" id="sec_conf"><div class="cfg-row">
+            <button class="cfg-chip" onclick="openUnitsModal()" title="Unidad de longitud">
+              <span class="cfg-k">Unidad</span><span class="cfg-v" id="unitTag">mm</span>
+            </button>
+            <button class="cfg-chip" onclick="openDecModal()" title="Decimales del desarrollo">
+              <span class="cfg-k">Decimales</span><span class="cfg-v" id="decTag">0.00</span>
+            </button>
+          </div>
+          <div class="cfg-sub">Visualización</div>
+          <div class="vis-row">
+            <label class="vis-item"><input type="checkbox" id="visGrilla" checked onchange="setVis('grilla',this.checked)"><span>Grilla</span></label>
+            <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas</span></label>
+            <label class="vis-item"><input type="checkbox" id="visEjes" checked onchange="setVis('ejes',this.checked)"><span>Ejes</span></label>
+            <label class="vis-item"><input type="checkbox" id="visCentroide" checked onchange="setVis('centroide',this.checked)"><span>Centroide</span></label>
+          </div>
+          <div class="cfg-hint">Oculta lo que no necesites ver en el panel de dibujo. No afecta al cálculo.</div>
+          </div>
+      
+      <div class="sec-cont" id="sec_fig" style="display:none"><div class="hint-sm" style="font-size:10px;color:var(--muted);margin-bottom:8px">Propiedades de las figuras ya dibujadas. Para insertar una nueva usa <b>Figuras</b> en la barra de herramientas.</div><div class="divider"></div>
+
+        <!-- Figure palette -->
+        <div id="figuresPalette">
+          <!-- ═══ Paleta horizontal de figuras ═══ -->
+        
+        </div><!-- end figuresPalette -->
+
+        <!-- Figure list -->
+        <div class="fig-list-wrap" style="padding:6px 9px;">
+          <div class="panel-section-title" style="padding:0 0 5px">Figuras en la sección</div>
+          <ul class="fig-list" id="figList">
+            <li style="color:var(--muted);font-size:10px;text-align:center;padding:8px">Sin figuras. Selecciona una arriba.</li>
+          </ul>
+        </div>
+        <div class="divider"></div>
+
+        <!-- Properties panel -->
+        <div id="noSelection" style="display:none"></div>
+        <div id="propPanel" style="display:none">
+          <div class="prop-section">
+            <div class="prop-title">
+              <span id="propTitle">Propiedades</span>
+              <div class="sign-toggle">
+                <button class="sign-btn active pos" id="signPos" onclick="setSign(1)">＋ Suma</button>
+                <button class="sign-btn neg" id="signNeg" onclick="setSign(-1)">－ Resta</button>
+              </div>
+            </div>
+            <div id="dimFields"></div>
+            <div id="posLabel" class="pos-label-row">Posición del Centroide (G)</div>
+            <div class="field-row">
+              <div class="field"><label>X</label><input type="number" id="posX" value="0" step="any" onchange="updateFigFromProp()"></div>
+              <div class="field"><label>Y</label><input type="number" id="posY" value="0" step="any" onchange="updateFigFromProp()"></div>
+            </div>
+            <div class="field">
+              <label>Rotación α (°)</label>
+              <input type="number" id="rotation" value="0" step="1" onchange="updateFigFromProp()">
+            </div>
+            <div class="field">
+              <label>Punto de anclaje</label>
+              <div class="anchor-row" id="anchorBtns"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div><!-- end left-panel -->
+
+    <!-- ── CANVAS ── -->
+
+    <div class="canvas-area" id="canvasArea">
+      <canvas id="mainCanvas"></canvas>
+      <div class="canvas-controls">
+        <button class="cc-btn" onclick="zoomIn()" title="Zoom +">＋</button>
+        <button class="cc-btn" onclick="zoomOut()" title="Zoom −">−</button>
+        <button class="cc-btn" onclick="fitView()" title="Ajustar">⊙</button>
+        <button class="cc-btn" id="btnUndo" onclick="deshacer()" title="Deshacer" disabled>↶</button>
+        <button class="cc-btn" id="btnRedo" onclick="rehacer()" title="Rehacer" disabled>↷</button>
+      </div>
+      <div class="canvas-hint" id="canvasHint">Selecciona una figura del panel y haz clic para colocarla</div>
+    </div>
+
+  </div><!-- end top-row -->
+
+  <!-- ── RESULTS (full width below) ── -->
+  <div class="results-area" id="resultsArea">
+    <div id="noResultsHint" class="empty-hint">
+      <div style="font-size:26px;margin-bottom:8px">📊</div>
+      Configura la sección y pulsa <b style="color:var(--grn2)">▶ Calcular</b> para obtener el centroide, el centro de gravedad y la resolución completa.
+    </div>
+    <div id="resultsPanel" style="display:none"></div>
+  </div>
+
+</div><!-- end main-wrap -->
+
+<div id="tooltip"></div>
+
+<!-- ══ Nucleo comun a los cinco temas ══ -->
+<script src="core/comun.js"></script>
+<!-- ══ Codigo del tema: Centroide (ver centroide/LEEME.md) ══ -->
+<script src="centroide/js/00-estado-inicial.js"></script>
+<script src="centroide/js/01-cabecera-y-estado.js"></script>
+<script src="centroide/js/02-figure-definitions.js"></script>
+<script src="centroide/js/03-canvas-setup.js"></script>
+<script src="centroide/js/04-render.js"></script>
+<script src="centroide/js/05-mouse-events.js"></script>
+<script src="centroide/js/06-figure-management.js"></script>
+<script src="centroide/js/07-properties-panel.js"></script>
+<script src="centroide/js/08-calculation-engine.js"></script>
+<script src="centroide/js/09-transformar-y-replicar.js"></script>
+<script src="centroide/js/10-laminas-de-figuras-y-seccion.js"></script>
+<script src="centroide/js/11-controls.js"></script>
+<script src="centroide/js/12-paleta-de-figuras-y-materiales.js"></script>
+<script src="centroide/js/13-tecla-esc.js"></script>
+<script src="centroide/js/14-latex-tikz-figuras.js"></script>
+<script src="centroide/js/15-deshacer-rehacer.js"></script>
+<script src="centroide/js/16-latex-piezas-del-informe.js"></script>
+<script src="centroide/js/17-latex-desarrollo-y-tablas.js"></script>
+<script src="centroide/js/18-acotacion.js"></script>
+
+<!-- ── MODAL DE UNIDADES ── -->
+<!-- MODAL REPLICAR -->
+<!-- MODAL EDITAR FIGURA -->
+<!-- Aloja el panel de propiedades REAL: al abrirse se traslada aquí el nodo
+     #propPanel y al cerrarse vuelve a la columna. Así no existe una segunda
+     copia de los campos que pueda quedar desincronizada. -->
+<div class="modal-ov" id="edFigModal" onclick="cerrarEdicionSiFondo(event)">
+  <div class="modal-box ancho">
+    <div class="modal-h">Editar figura <span id="edFigNom" style="color:var(--text);font-weight:700"></span></div>
+    <p class="modal-note">Los cambios se aplican al instante sobre el dibujo. Usa Deshacer si quieres volver atrás.</p>
+    <div class="modal-cuerpo" id="edFigBody"></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="edicionAlPanel()">Ver en el panel lateral</button>
+      <button class="mbtn ok" onclick="cerrarEdicionFigura()">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TRANSFORMAR (mover o girar respecto a una coordenada) -->
+<div class="modal-ov" id="transModal">
+  <div class="modal-box">
+    <div class="modal-h">Transformar selección</div>
+    <p class="modal-note" id="transSub">Mueve o gira las figuras seleccionadas tomando una coordenada como referencia.</p>
+    <div class="modal-field">
+      <label>Referencia</label>
+      <select id="transRef" onchange="cambiarRefTrans()"></select>
+    </div>
+    <div id="transCampoRef" style="display:none">
+      <div class="modal-field"><label>Referencia x</label><input type="number" id="transRx" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+      <div class="modal-field"><label>Referencia y</label><input type="number" id="transRy" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+    </div>
+    <div style="display:flex;gap:7px;margin:12px 0 13px">
+      <button class="modo-btn active" id="transTabMover" onclick="setTransModo('mover')">Mover</button>
+      <button class="modo-btn" id="transTabGirar" onclick="setTransModo('girar')">Girar</button>
+    </div>
+    <div id="transCampoMover">
+      <div class="modal-field"><label>Desplazamiento en x</label><input type="number" id="transDx" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+      <div class="modal-field"><label>Desplazamiento en y</label><input type="number" id="transDy" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+    </div>
+    <div id="transCampoGirar" style="display:none">
+      <div class="modal-field"><label>Ángulo (°, antihorario)</label><input type="number" id="transAng" value="90" step="any" oninput="actualizarPrevTrans()"></div>
+    </div>
+    <div class="modal-preview" id="transPrev"></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="closeTransformar()">Cancelar</button>
+      <button class="mbtn ok" onclick="applyTransformar()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-ov" id="repModal">
+  <div class="modal-box">
+    <div class="modal-h">Replicar selección</div>
+    <p class="modal-note" id="repSub">Se copiarán las figuras seleccionadas desplazándolas la distancia indicada, tantas veces como pidas.</p>
+    <div class="modal-field"><label>Distancia en x</label><input type="number" id="repDx" value="5" step="any" oninput="actualizarPrevRep()"></div>
+    <div class="modal-field"><label>Distancia en y</label><input type="number" id="repDy" value="0" step="any" oninput="actualizarPrevRep()"></div>
+    <div class="modal-field"><label>Repeticiones</label><input type="number" id="repN" value="2" min="1" max="50" step="1" oninput="actualizarPrevRep()"></div>
+    <div class="modal-preview" id="repPrev"></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="closeReplicar()">Cancelar</button>
+      <button class="mbtn ok" onclick="applyReplicar()">Replicar</button>
+    </div>
+  </div>
+</div>
+<!-- MODAL GUARDAR PROYECTO -->
+<div class="modal-ov" id="guardarModal">
+  <div class="modal-box">
+    <div class="modal-h">Guardar ejercicio</div>
+    <p class="modal-note">Se descarga un archivo <code>.bsa9.json</code>. En el ordenador
+      podrás <b>elegir la carpeta</b>; en el móvil irá a tus descargas. Para
+      retomarlo más tarde, ábrelo desde <b>Historial</b>.</p>
+    <div class="modal-field"><label>Nombre</label>
+      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Ejercicio 1"></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="cerrarGuardar()">Cancelar</button>
+      <button class="mbtn ok" onclick="guardarProyecto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-ov" id="unitsModal">
+  <div class="modal-box">
+    <div class="modal-h">Sistema de Unidades</div>
+    <p class="modal-note">Al aplicar, todas las medidas y posiciones ya ingresadas se convierten
+      automáticamente para conservar la misma sección física.</p>
+    <div class="modal-field">
+      <label>Longitud</label>
+      <select id="selUnit" onchange="updateUnitsPreview()">
+        <option value="mm">Milímetros (mm)</option>
+        <option value="cm">Centímetros (cm)</option>
+        <option value="m">Metros (m)</option>
+        <option value="in">Pulgadas (in)</option>
+        <option value="ft">Pies (ft)</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Fuerza</label>
+      <select id="selForce" onchange="updateUnitsPreview()">
+        <option value="ton">Tonelada-fuerza (ton)</option>
+        <option value="kN">Kilonewton (kN)</option>
+        <option value="N">Newton (N)</option>
+        <option value="kgf">Kilogramo-fuerza (kgf)</option>
+        <option value="kip">Kip (kip)</option>
+        <option value="lb">Libra-fuerza (lb)</option>
+      </select>
+    </div>
+    <div class="modal-preview">
+      Área en <b id="uaPrev">mm²</b><br>
+      Peso específico γ en <b id="ugPrev">ton/mm³</b> &nbsp;·&nbsp; Peso en <b id="uwPrev">ton</b>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="closeUnitsModal()">Cancelar</button>
+      <button class="mbtn ok" onclick="applyUnitsModal()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL DE DECIMALES ── -->
+<div class="modal-ov" id="decModal">
+  <div class="modal-box">
+    <div class="modal-h">Decimales del desarrollo</div>
+    <p class="modal-note">Define con cuántos decimales se muestran los resultados de cada magnitud.</p>
+    <div class="modal-field">
+      <label>Longitud</label>
+      <select id="selDecLen" onchange="updateDecPreview()"></select>
+    </div>
+    <div class="modal-field">
+      <label>Área</label>
+      <select id="selDecArea" onchange="updateDecPreview()"></select>
+    </div>
+    <div class="modal-preview">Ejemplo: longitud <b id="dpL"></b> &nbsp;·&nbsp; área <b id="dpAr"></b></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="closeDecModal()">Cancelar</button>
+      <button class="mbtn ok" onclick="applyDecModal()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── MODAL DE HISTORIAL ── -->
+<div class="modal-ov" id="histModal">
+  <div class="modal-box">
+    <div class="modal-h">Ejercicios guardados</div>
+    <p class="modal-note">Si iniciaste sesión en el portal, aquí aparecen tus últimos
+      ejercicios. También puedes abrir cualquier archivo <code>.bsa9.json</code>
+      que hayas descargado antes.</p>
+    <!-- Lista del portal. El id debe ser histList: es el que rellena
+         histRenderList(); con #histLista la lista nunca llegaba a pintarse. -->
+    <div id="histList"></div>
+    <input type="file" id="archivoAbrir" accept=".json,application/json"
+           style="display:none" onchange="onArchivoElegido(event)">
+    <div class="modal-actions">
+      <button class="mbtn ghost" onclick="cerrarHistorial()">Cerrar</button>
+      <button class="mbtn ok" onclick="document.getElementById('archivoAbrir').click()">Abrir archivo…</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

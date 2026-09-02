@@ -1,0 +1,4 @@
+# Los archivos se guardan tal cual, sin conversión de fin de línea.
+# Importante: vendor/katex.* están minificados y datos/figuras-referencia.js
+# contiene rutas y texto que no deben alterarse.
+* -text

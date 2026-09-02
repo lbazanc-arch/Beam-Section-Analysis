@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="color-scheme" content="light only">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSA — Armaduras y Marcos</title>
+<!-- Icono de pestaña. Incrustado en base64 para que funcione también si
+     el archivo se abre suelto desde el disco, sin servidor detrás. -->
+<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAABmJLR0QA/wD/AP+gvaeTAAAE80lEQVRIie1WXWxTZRh+vu+c9qw/a8c2Vsa2joVB2JyDsQ3EjbmBCEIiEIOJCSIIRsEYjYmaoImaGAM3JHqriXGJtwpuapDIymg3xspoYVugbGx23U/bdf3Z2p7+nHO8OLPUthBvuDG8ORfne9/vfZ7ve8/7PjlEkiQ8TqOPFf0JwX8xFkBwxsqHXOleRqlRqIp0hqcJVaScroWl2cCSKEnxpJhqjdqyomg0dMnaf6h9V75ak4MgwQfGLWeRq5dYTl+x+fiKimdD0XjXzfEZ/1LGBkpIXXnxe9+ctY87pjxznx19OxuESmJSRleoCjmNQX5YLh9AMhb0Oy1OX/CHqyMyuoKheQpWp1IWqDmDXrOpsmTWO20fdwC4YDbFE4ncJZLN2PiWtqQWogiAsnmhuSGXrdNQf+z7a/f5RJISsrnK0LTGIELiWAYAIYRjmS87v5XTg+Elk836QvO2hxKIySjDqlJL/epmfWnTLdd8NJ4E0FRlaNtQQci/kgVB6O7vTS1/vno5m+CRXUTIYjQOgFMw9caVGegALMM2b8APwGgoBWCyWQNLiw8lEIUcFaSEAFAwVKVks6PnzT0AdGrNF8dOAognEr8PmB9BEMuGUCQ8ACKxpD+cGY3w/KXBawAOtu1srW8oLSoGcMFseiiBkIhkxALTA8zUT5QQUZIuDU/Gk2J61GSzRmI8gFd37qGE7G/tAGC9Ozo978kgWJ6AyMJ4YPr6ovtWyG33T/VPDX030XdOCo7WFIsA3MFIp3l4aNLtWljkE0kAMlDtmrXryo0ADrZ2AJAk6RfLlXSCB5UNTA8EpgcyLqHUlLTXVC2KC05fyB+O/TniBEAIKov1B557kVMoKV3+9NXlxrqq6uGJsfPmnpP7D+UoUU4TEmEq8i83r2tZX6bhlmVDkjDpDf5oGW1vaju8a19q88HtOwCMuZwjE+MpJ4mFPcPdJwFUbftAXbhWEhKEMolowDd52TdhAiROu6pm9znKKAEEI7FFPj7hDVrvu5OiyFJ6tK1uhYaTsXyhwLZTrwuCcHzfgdOHT2TegFGoOY0hT1fOaUu1K2sqm99Z2/oRQGJLc37ncvPp1Vx5Yf7GihXbq4sAJEXxxsRcCqFIV9Dy1EYAXZZeQRSzS5Spd/rVzfrSBgDBmRvp/u6+3jfPfFyoIgA8ociUx33kq0/3n35/z4enbGN3AXgCC33D9kwCIR7O/gYqfSWAeMSbLrddfVdCkfC9ydsAEoIY5qOW27bhibF7LmcosgxywdIjv7CpzJyDFucXALCcDv8Ixaxv3npnBIBapQPAUFKo072x94A8E+Fo1D7ucLpn/xjs54/H85RpAiAk+Uz0sCfgGgCgLd6QfnxRktasKlPpygHoVFxJQeEnr51Ibfjtmvndr8+Eo1GTbXDPlhaaBud9cAlJCs5YHabPxSRPWa64endq28Xrfc/Ubd6784hc3k2VKzOO9Xzj1gJtPoBf+68ifdA8jm6PozurSKSi4cT1vxYtjjvyeuuWVwilcos0VhmMRbqMBKVC8VJLe+fFrp6bg5EYTwmjJCT3uDFKTeWWUx6u3uKYfkBIKQCWoS3ry3bUGnMmyuoUjcXmfPNEkqQl72hozgaAUJYySiERoQpVnnaVrrSRMkq70xuMxGT9UbAMQ4hOpVxfWqjOJeAp67UPCaLQ0dBMnvw6/v8J/gbSRi4xOMVDKgAAAABJRU5ErkJggg==">
+<link rel="icon" type="image/png" sizes="48x48" href="data:image/png;base64,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">
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="armaduras-y-marcos/estilos/estilos.css">
+<link rel="stylesheet" href="vendor/katex.min.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="tb-title">Armaduras y Marcos</div>
+  </div>
+</div>
+
+<div class="main-wrap">
+
+  <!-- ══ BARRA DE HERRAMIENTAS (horizontal, arriba) ══ -->
+  <div class="toolbar" id="toolbar">
+    <button class="tb-pan" id="tPan" onclick="setTool('pan')" title="Desplazarse por el panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3 L12 21 M3 12 L21 12"/>
+        <path d="M12 3 L9.5 5.5 M12 3 L14.5 5.5 M12 21 L9.5 18.5 M12 21 L14.5 18.5"/>
+        <path d="M3 12 L5.5 9.5 M3 12 L5.5 14.5 M21 12 L18.5 9.5 M21 12 L18.5 14.5"/>
+      </svg>
+    </button>
+    <div class="tb-sep"></div>
+    <div class="tb-zona" id="tbZona1">
+    <button class="tool-btn" id="tNodo" onclick="setTool('nodo')">
+      <svg viewBox="0 0 40 34"><circle cx="20" cy="17" r="6" fill="#b45309"/></svg>
+      <span>Nudo</span>
+    </button>
+    <button class="tool-btn" id="tBarra" onclick="setTool('barra')">
+      <svg viewBox="0 0 40 34"><line x1="8" y1="25" x2="32" y2="9" stroke="#b45309" stroke-width="3"/><circle cx="8" cy="25" r="4" fill="#7c3a06"/><circle cx="32" cy="9" r="4" fill="#7c3a06"/></svg>
+      <span>Barra</span>
+    </button>
+    <button class="tool-btn" id="tApoyo" onclick="setTool('apoyo')">
+      <svg viewBox="0 0 40 34"><circle cx="20" cy="10" r="4" fill="#7c3a06"/><path d="M20 12 L11 26 L29 26 Z" fill="none" stroke="#b45309" stroke-width="2.5"/><line x1="8" y1="26" x2="32" y2="26" stroke="#7c3a06" stroke-width="2.5"/></svg>
+      <span>Apoyo</span>
+    </button>
+    <button class="tool-btn" id="tCarga" onclick="setTool('carga')">
+      <svg viewBox="0 0 40 34"><line x1="20" y1="5" x2="20" y2="24" stroke="#c0392b" stroke-width="3"/><path d="M20 29 L14 19 L26 19 Z" fill="#c0392b"/></svg>
+      <span>Carga</span>
+    </button>
+    <button class="tool-btn" id="tCorte" onclick="setTool('corte')">
+      <svg viewBox="0 0 40 34"><line x1="6" y1="27" x2="34" y2="7" stroke="#c0392b" stroke-width="2.2" stroke-dasharray="5,3"/><circle cx="11" cy="12" r="3.4" fill="none" stroke="#c0392b" stroke-width="2"/><circle cx="11" cy="22" r="3.4" fill="none" stroke="#c0392b" stroke-width="2"/><path d="M14 13 L26 20 M14 21 L26 14" stroke="#c0392b" stroke-width="2"/></svg>
+      <span>Corte</span>
+    </button>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="tb-zona" id="tbZona2">
+    <button class="tool-btn" id="tSel" onclick="setTool('sel')" title="Seleccionar · mantener presionado para mover · doble clic para editar">
+      <svg viewBox="0 0 40 34"><path d="M14 5 L14 25 L19 20 L23 28 L27 26 L23 18 L30 18 Z" fill="#b45309"/><path d="M20 3 L20 9 M20 3 L17.5 5.5 M20 3 L22.5 5.5" stroke="#b45309" stroke-width="1.6" fill="none" opacity=".7"/></svg>
+      <span>Mover / editar</span>
+    </button>
+    <button class="tool-btn danger" id="btnDel" onclick="activarEliminar()" title="Toca un elemento para borrarlo · arrastra un recuadro para borrar todo lo que abarque">
+      <svg viewBox="0 0 40 34"><path d="M13 11 L27 11 L25 29 L15 29 Z" fill="none" stroke="#c0392b" stroke-width="2.4"/><line x1="10" y1="11" x2="30" y2="11" stroke="#c0392b" stroke-width="2.4"/><line x1="17" y1="7" x2="23" y2="7" stroke="#c0392b" stroke-width="2.4"/></svg>
+      <span>Eliminar</span>
+    </button>
+    <button class="tool-btn" id="btnTrans" onclick="abrirTransformar()" title="Mover o girar la selección respecto a un nudo de referencia">
+      <svg viewBox="0 0 40 34"><circle cx="13" cy="24" r="3" fill="#b45309"/><path d="M13 24 L27 24" stroke="#b45309" stroke-width="2" stroke-dasharray="3,2"/><path d="M13 24 A 14 14 0 0 1 24 12" fill="none" stroke="#b45309" stroke-width="2.2"/><path d="M24 12 L21 13 M24 12 L24.5 15.2" stroke="#b45309" stroke-width="2.2" fill="none"/></svg>
+      <span>Transformar</span>
+    </button>
+    <button class="tool-btn" id="btnRep" onclick="abrirReplicar()">
+      <svg viewBox="0 0 40 34"><rect x="7" y="12" width="12" height="12" rx="2" fill="none" stroke="#b45309" stroke-width="2.2"/><rect x="21" y="12" width="12" height="12" rx="2" fill="none" stroke="#b45309" stroke-width="2.2" stroke-dasharray="3,2"/><path d="M15 8 L15 5 M15 5 L26 5 L26 9" stroke="#b45309" stroke-width="1.8" fill="none"/></svg>
+      <span>Replicar</span>
+    </button>
+    </div>
+
+    <div class="tb-sep"></div>
+    <div class="tb-zona" id="tbZona3">
+      <button class="tool-btn" onclick="abrirHistorial()" title="Ver ejercicios guardados">
+        <svg viewBox="0 0 40 34"><circle cx="20" cy="17" r="10" fill="none" stroke="#b45309" stroke-width="2.2"/><path d="M20 11 v6 l4 3" fill="none" stroke="#b45309" stroke-width="2.2" stroke-linecap="round"/></svg>
+        <span>Historial</span>
+      </button>
+      <button class="tool-btn" onclick="abrirGuardar()" title="Guardar este ejercicio">
+        <svg viewBox="0 0 40 34"><path d="M11 8 h14 l4 4 v14 h-18 Z" fill="none" stroke="#b45309" stroke-width="2.2"/><rect x="15" y="8" width="10" height="6" fill="#b45309"/><rect x="15" y="19" width="10" height="7" fill="none" stroke="#b45309" stroke-width="1.8"/></svg>
+        <span>Guardar</span>
+      </button>
+    </div>
+    <div class="tb-sel-info" id="tbSelInfo">Nada seleccionado</div>
+  </div>
+
+<div class="top-row">
+  <button class="panel-toggle" id="panelToggle" onclick="togglePanel()" title="Plegar o desplegar el panel">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4 L9 20"/>
+    </svg>
+  </button>
+
+  <!-- ══ PROPIEDADES Y CONFIGURACIONES ══ -->
+  <div class="left-panel plegado" id="leftPanel">
+
+    <!-- ZONA 1 · botones de propiedades -->
+    <div class="rail-group">
+      <button class="rail-btn active" id="rbConf" onclick="abrirSeccion('conf')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Configuración</span>
+      </button>
+      <button class="rail-btn" id="rbTpl" onclick="abrirSeccion('tpl')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18 L9 7 L15 18 Z"/><path d="M3 18 h18"/><path d="M15 18 L21 9"/></svg>
+        <span>Plantilla</span>
+      </button>
+      <button class="rail-btn" id="rbMet" onclick="abrirSeccion('met')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="7" r="2.4"/><circle cx="18" cy="7" r="2.4"/><circle cx="12" cy="18" r="2.4"/><path d="M8 8 L11 16M16 8 L13 16M8.4 7h7.2"/></svg>
+        <span>Método</span>
+      </button>
+      <button class="rail-btn" id="rbEle" onclick="abrirSeccion('ele')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="4" cy="6" r="1.6" fill="currentColor"/><circle cx="4" cy="12" r="1.6" fill="currentColor"/><circle cx="4" cy="18" r="1.6" fill="currentColor"/></svg>
+        <span>Elementos</span>
+      </button>
+    </div>
+
+    <!-- ZONA 2 · acciones -->
+    <div class="rail-group">
+      <button class="rail-btn accion" onclick="resolver()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4 L19 12 L7 20 Z"/></svg>
+        <span>Resolver</span>
+      </button>
+      <button class="rail-btn accion" onclick="limpiarTodo()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1.4 13H7.4Z"/><path d="M4 7h16M10 4h4"/></svg>
+        <span>Limpiar</span>
+      </button>
+      <button class="rail-btn accion" onclick="cargarEjemplo()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19V5h9l5 5v9z"/><path d="M9 12h6M9 15h4"/></svg>
+        <span>Ejemplo</span>
+      </button>
+      <button class="rail-btn accion pdf" onclick="downloadPDF()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/></svg>
+        <span>PDF</span>
+      </button>
+      <button class="rail-btn accion" id="btnLatex" onclick="generarPDFLatex()" title="Genera un PDF profesional compilado con LaTeX">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7Z"/><path d="M15 3v4h4"/><path d="M9 15l1.5 3L12 15l1.5 3L15 15"/></svg>
+        <span>LaTeX</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Columna desplegable: contenido de la sección elegida -->
+  <div class="panel-flyout plegado" id="panelFlyout">
+    <div class="flyout-head"><span id="flyoutTitulo">Configuración</span>
+      <button class="flyout-x" onclick="cerrarSeccion()" title="Cerrar">×</button>
+    </div>
+    <div class="flyout-body">
+      <div class="sec-cont" id="secConf"><div class="cfg-row">
+        <button class="cfg-chip" onclick="openUnitsModal()">
+          <div class="cfg-lbl">Unidades</div><div class="cfg-val" id="chipUnits">m · kN</div>
+        </button>
+        <button class="cfg-chip" onclick="openDecModal()">
+          <div class="cfg-lbl">Decimales</div><div class="cfg-val" id="chipDec">0.00</div>
+        </button>
+      </div>
+      <div class="cfg-lbl" style="margin:12px 0 6px">Visualización</div>
+      <div class="vis-row">
+        <label class="vis-item"><input type="checkbox" id="visGrilla" checked onchange="setVis('grilla',this.checked)"><span>Grilla</span></label>
+        <label class="vis-item"><input type="checkbox" id="visEjes" checked onchange="setVis('ejes',this.checked)"><span>Ejes</span></label>
+        <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas</span></label>
+        <label class="vis-item"><input type="checkbox" id="visCargas" checked onchange="setVis('cargas',this.checked)"><span>Cargas</span></label>
+        <label class="vis-item"><input type="checkbox" id="visApoyos" checked onchange="setVis('apoyos',this.checked)"><span>Apoyos</span></label>
+      </div>
+      <div class="hint-sm">Oculta lo que no necesites ver en el panel de dibujo. No afecta al cálculo.</div>
+      </div>
+      <div class="sec-cont" id="secTpl" style="display:none">
+      <div id="tplBox">
+        <div class="tpl-row">
+          <button class="tpl-btn active" onclick="setTipo('howe',this)">Howe</button>
+          <button class="tpl-btn" onclick="setTipo('pratt',this)">Pratt</button>
+          <button class="tpl-btn" onclick="setTipo('warren',this)">Warren</button>
+        </div>
+        <svg class="tpl-ref" id="tplRef" viewBox="0 0 260 132"></svg>
+        <div class="num-row"><label>Luz total</label><input type="number" id="tplL" value="12" step="any" oninput="dibujarRefPlantilla()"></div>
+        <div class="num-row"><label>Altura</label><input type="number" id="tplH" value="3" step="any" oninput="dibujarRefPlantilla()"></div>
+        <div class="num-row"><label>Paneles</label><input type="number" id="tplN" value="4" min="2" max="10" step="1" oninput="dibujarRefPlantilla()"></div>
+        <button class="btn-sm" style="width:100%;margin-top:8px" onclick="generarPlantilla()">Generar armadura</button>
+        <div class="hint-sm">Se genera con apoyos en los extremos. Después puedes mover, añadir o borrar lo que quieras con las herramientas de la barra.</div>
+      </div></div>
+      <div class="sec-cont" id="secMet" style="display:none"><div class="mode-row">
+        <button class="mode-btn active" id="metNudos" onclick="setMetodo('nudos')">Nudos</button>
+        <button class="mode-btn" id="metSecc" onclick="setMetodo('secciones')">Secciones</button>
+      </div>
+      <div class="hint-sm" id="metHint">Se resuelve nudo por nudo, en orden de resolubilidad.</div>
+      <div id="cutBox" style="display:none;margin-top:8px">
+        <div class="mode-row">
+          <button class="mode-btn active" id="modoAuto" onclick="setModoCorte('auto')">Cortes automáticos</button>
+          <button class="mode-btn" id="modoMan" onclick="setModoCorte('manual')">Corte manual</button>
+        </div>
+        <div class="hint-sm" id="cutHint">El programa busca la secuencia de cortes más corta y la muestra paso a paso.</div>
+      </div></div>
+      <div class="sec-cont" id="secEle" style="display:none"><div class="sub-tabs">
+        <button class="sub-tab active" id="stNodos" onclick="setSubTab('nodos')">Nudos <span id="cntNodos">0</span></button>
+        <button class="sub-tab" id="stBarras" onclick="setSubTab('barras')">Barras <span id="cntBarras">0</span></button>
+        <button class="sub-tab" id="stCargas" onclick="setSubTab('cargas')">Cargas <span id="cntCargas">0</span></button>
+      </div>
+      <div class="hint-sm" style="margin:6px 0">Toca ✎ para editar coordenadas. Con la herramienta <b>Seleccionar</b> puedes marcar varios y usar Eliminar o Replicar.</div>
+      <div id="listaNodos"><div class="list-empty">Sin nudos todavía.</div></div>
+      <div id="listaBarras" style="display:none"><div class="list-empty">Sin barras todavía.</div></div>
+      <div id="listaCargas" style="display:none"><div class="list-empty">Sin cargas todavía.</div></div></div>
+    </div>
+  </div>
+
+  <div class="canvas-area" id="canvasArea">
+    <div class="zoom-box">
+      <button class="zoom-btn" onclick="zoomIn()">+</button>
+      <button class="zoom-btn" onclick="zoomOut()">−</button>
+      <button class="zoom-btn" onclick="centrar()">⊙</button>
+      <button class="zoom-btn" id="btnUndo" onclick="deshacer()" title="Deshacer">↶</button>
+      <button class="zoom-btn" id="btnRedo" onclick="rehacer()" title="Rehacer">↷</button>
+    </div>
+    <canvas id="mainCanvas"></canvas>
+    <div class="canvas-hint" id="canvasHint">Elige una herramienta y haz clic para empezar</div>
+  </div>
+
+</div>
+
+<div class="results-area" id="resultsArea">
+  <div class="results-wrap">
+    <div id="noResultsHint" class="empty-hint">
+      Arma la estructura y pulsa <b style="color:var(--acc)">▶ Resolver</b> para obtener reacciones, miembros de fuerza cero y el desarrollo por nudos.
+    </div>
+    <div id="resultsPanel" style="display:none"></div>
+  </div>
+</div>
+</div>
+
+<!-- MODAL HISTORIAL DE EJERCICIOS GUARDADOS -->
+<div class="modal-ov" id="histModal">
+  <div class="modal">
+    <h3>Abrir ejercicio</h3>
+    <p class="sub">Elige un archivo <code>.bsa6.json</code> que hayas guardado
+      antes. No se guarda nada en este navegador ni en el portal: el archivo
+      es tuyo y se abre desde donde lo tengas.</p>
+    <div id="histLista"></div>
+    <input type="file" id="archivoAbrir" accept=".json,application/json"
+           style="display:none" onchange="onArchivoElegido(event)">
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="cerrarHistorial()">Cancelar</button>
+      <button class="mbtn" onclick="document.getElementById('archivoAbrir').click()">Elegir archivo…</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GUARDAR PROYECTO -->
+<div class="modal-ov" id="guardarModal">
+  <div class="modal">
+    <h3>Guardar ejercicio</h3>
+    <p class="sub">Se guarda un archivo <code>.bsa6.json</code>. En el ordenador
+      podrás <b>elegir la carpeta</b>; en el móvil irá a tus descargas. Para
+      retomarlo, usa <b>Historial → Abrir archivo</b>.</p>
+    <div class="modal-field"><label>Nombre</label>
+      <input type="text" id="nombreProyecto" maxlength="60" placeholder="Ej.: Ejercicio 1"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="cerrarGuardar()">Cancelar</button>
+      <button class="mbtn" onclick="guardarProyecto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL UNIDADES -->
+<div class="modal-ov" id="unitsModal">
+  <div class="modal">
+    <h3>Sistema de Unidades</h3>
+    <p class="sub">Al aplicar, las medidas y cargas ya ingresadas se convierten automáticamente.</p>
+    <div class="modal-field">
+      <label>Longitud</label>
+      <select id="selLen" onchange="updateUnitsPreview()">
+        <option value="m">Metros (m)</option>
+        <option value="cm">Centímetros (cm)</option>
+        <option value="mm">Milímetros (mm)</option>
+        <option value="ft">Pies (ft)</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Fuerza</label>
+      <select id="selFor" onchange="updateUnitsPreview()">
+        <option value="kN">Kilonewton (kN)</option>
+        <option value="N">Newton (N)</option>
+        <option value="ton">Tonelada-fuerza (ton)</option>
+        <option value="kg">Kilogramo-fuerza (kg)</option>
+        <option value="lb">Libra-fuerza (lb)</option>
+      </select>
+    </div>
+    <div class="modal-preview">Longitudes en <b id="upL">m</b> &nbsp;·&nbsp; Fuerzas en <b id="upF">kN</b></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeUnitsModal()">Cancelar</button>
+      <button class="mbtn" onclick="applyUnits()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DECIMALES -->
+<div class="modal-ov" id="decModal">
+  <div class="modal">
+    <h3>Decimales</h3>
+    <p class="sub">Define cuántos decimales se muestran en los resultados.</p>
+    <div class="modal-field">
+      <label>Longitud</label>
+      <select id="selDecLen" onchange="updateDecPreview()"></select>
+    </div>
+    <div class="modal-field">
+      <label>Fuerza</label>
+      <select id="selDecFor" onchange="updateDecPreview()"></select>
+    </div>
+    <div class="modal-preview">Ejemplo: longitud <b id="dpL"></b> &nbsp;·&nbsp; fuerza <b id="dpF"></b></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeDecModal()">Cancelar</button>
+      <button class="mbtn" onclick="applyDecModal()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CARGA -->
+<div class="modal-ov" id="cargaModal">
+  <div class="modal">
+    <h3>Cargas en el nudo <span id="cargaNodoNom"></span></h3>
+    <p class="sub">Puedes asignar más de una fuerza en el mismo nudo; se combinan por suma vectorial. Positivo: X hacia la derecha, Y hacia arriba.</p>
+    <div id="cargaLista"></div>
+    <button class="btn-sm" style="width:100%;margin:2px 0 10px" onclick="agregarFilaCarga()">+ Añadir otra fuerza</button>
+    <div class="modal-preview" id="cargaResultante"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeCargaModal()">Cancelar</button>
+      <button class="mbtn" onclick="applyCarga()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR NUDO -->
+<div class="modal-ov" id="edNodoModal">
+  <div class="modal">
+    <h3>Editar nudo <span id="edNodoNom"></span></h3>
+    <p class="sub">Cambia la posición exacta del nudo y la carga aplicada en él.</p>
+    <div class="modal-field"><label>x</label><input type="number" id="edNx" step="any"></div>
+    <div class="modal-field"><label>y</label><input type="number" id="edNy" step="any"></div>
+    <div class="modal-field" style="align-items:center">
+      <label>Cargas</label>
+      <button class="btn-sm" onclick="const _id=edNodoId; closeEdNodo(); abrirCarga(_id);">Editar cargas…</button>
+    </div>
+    <div class="hint-sm" id="edNCargasResumen"></div>
+    <div class="modal-preview">Coordenadas en <b id="edNuL">m</b> · fuerzas en <b id="edNuF">kN</b></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeEdNodo()">Cancelar</button>
+      <button class="mbtn" onclick="applyEdNodo()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR BARRA -->
+<div class="modal-ov" id="edBarraModal">
+  <div class="modal">
+    <h3>Editar barra <span id="edBarraNom"></span></h3>
+    <p class="sub">Al mover un extremo se reubica el nudo correspondiente, así que las demás barras que llegan a ese nudo también se ajustan.</p>
+    <div class="modal-field"><label>Extremo <b id="edBn1"></b> — x</label><input type="number" id="edBx1" step="any"></div>
+    <div class="modal-field"><label>Extremo <b id="edBn1b"></b> — y</label><input type="number" id="edBy1" step="any"></div>
+    <div class="modal-field"><label>Extremo <b id="edBn2"></b> — x</label><input type="number" id="edBx2" step="any"></div>
+    <div class="modal-field"><label>Extremo <b id="edBn2b"></b> — y</label><input type="number" id="edBy2" step="any"></div>
+    <div class="modal-preview">Longitud actual: <b id="edBlen"></b></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeEdBarra()">Cancelar</button>
+      <button class="mbtn" onclick="applyEdBarra()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REPLICAR -->
+<div class="modal-ov" id="repModal">
+  <div class="modal">
+    <h3>Replicar selección</h3>
+    <p class="sub" id="repSub">Se copiarán los elementos seleccionados desplazándolos la distancia indicada, tantas veces como pidas.</p>
+    <div class="modal-field"><label>Distancia en x</label><input type="number" id="repDx" value="5" step="any"></div>
+    <div class="modal-field"><label>Distancia en y</label><input type="number" id="repDy" value="0" step="any"></div>
+    <div class="modal-field"><label>Repeticiones</label><input type="number" id="repN" value="2" min="1" max="50" step="1"></div>
+    <div class="modal-preview" id="repPrev"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeReplicar()">Cancelar</button>
+      <button class="mbtn" onclick="applyReplicar()">Replicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TRANSFORMAR (mover/girar respecto a un nudo) -->
+<div class="modal-ov" id="transModal">
+  <div class="modal">
+    <h3>Transformar selección</h3>
+    <p class="sub" id="transSub">Mueve o gira los elementos seleccionados tomando un nudo como referencia.</p>
+    <div class="modal-field">
+      <label>Nudo de referencia</label>
+      <select id="transRef"></select>
+    </div>
+    <div style="display:flex;gap:8px;margin:10px 0 12px">
+      <button class="tpl-btn" id="transTabMover" style="flex:1;padding:9px 8px" onclick="setTransModo('mover')">Mover</button>
+      <button class="tpl-btn" id="transTabGirar" style="flex:1;padding:9px 8px" onclick="setTransModo('girar')">Girar</button>
+    </div>
+    <div id="transCampoMover">
+      <div class="modal-field"><label>Desplazamiento en x</label><input type="number" id="transDx" value="0" step="any"></div>
+      <div class="modal-field"><label>Desplazamiento en y</label><input type="number" id="transDy" value="0" step="any"></div>
+    </div>
+    <div id="transCampoGirar" style="display:none">
+      <div class="modal-field"><label>Ángulo (grados, antihorario)</label><input type="number" id="transAng" value="90" step="any"></div>
+    </div>
+    <div class="modal-preview" id="transPrev"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeTransformar()">Cancelar</button>
+      <button class="mbtn" onclick="applyTransformar()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL APOYO -->
+<div class="modal-ov" id="apoyoModal">
+  <div class="modal">
+    <h3>Apoyo en el nudo <span id="apNom"></span></h3>
+    <p class="sub">Elige el tipo de apoyo. El fijo aporta dos reacciones (horizontal y vertical); el móvil aporta una sola, en la dirección que elijas.</p>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="tpl-btn" style="flex:1;padding:12px 8px" onclick="setApoyo('fijo')">
+        <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="10" r="4" fill="#7c3a06"/><path d="M20 12 L11 26 L29 26 Z" fill="none" stroke="#b45309" stroke-width="2.5"/><line x1="8" y1="26" x2="32" y2="26" stroke="#7c3a06" stroke-width="2.5"/></svg>
+        Fijo
+      </button>
+      <button class="tpl-btn" style="flex:1;padding:12px 8px" onclick="setApoyo('movil')">
+        <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="8" r="4" fill="#7c3a06"/><path d="M20 10 L12 21 L28 21 Z" fill="none" stroke="#b45309" stroke-width="2.5"/><circle cx="15" cy="25" r="3" fill="none" stroke="#7c3a06" stroke-width="2"/><circle cx="25" cy="25" r="3" fill="none" stroke="#7c3a06" stroke-width="2"/></svg>
+        Móvil
+      </button>
+      <button class="tpl-btn" style="flex:1;padding:12px 8px;border-color:#e0b4b4" onclick="setApoyo(null)">
+        <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="17" r="5" fill="#c0392b"/><line x1="10" y1="27" x2="30" y2="7" stroke="#c0392b" stroke-width="2.5"/></svg>
+        Quitar
+      </button>
+    </div>
+    <div id="apDirBox" style="display:none;margin-bottom:12px">
+      <div class="cfg-lbl" style="margin-bottom:6px">Dirección de la reacción</div>
+      <div style="display:flex;gap:8px">
+        <button class="tpl-btn" id="apDirV" style="flex:1;padding:9px 8px" onclick="setApAng(90)">Vertical (restringe Y)</button>
+        <button class="tpl-btn" id="apDirH" style="flex:1;padding:9px 8px" onclick="setApAng(0)">Horizontal (restringe X)</button>
+      </div>
+      <div class="hint-sm" style="margin-top:6px">Vertical: el rodillo se apoya sobre una superficie horizontal (el caso más común). Horizontal: se apoya contra una superficie vertical, como un muro.</div>
+    </div>
+    <div class="modal-preview" id="apPrev"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="closeApoyoModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/katex.min.js"></script>
+<!-- ══ Nucleo comun a los cinco temas ══ -->
+<script src="core/comun.js"></script>
+<!-- ══ Codigo del tema: Armaduras y Marcos (ver armaduras-y-marcos/LEEME.md) ══ -->
+<script src="armaduras-y-marcos/js/00-estado-inicial.js"></script>
+<script src="armaduras-y-marcos/js/01-cabecera-y-estado.js"></script>
+<script src="armaduras-y-marcos/js/02-dibujo.js"></script>
+<script src="armaduras-y-marcos/js/03-interaccion.js"></script>
+<script src="armaduras-y-marcos/js/04-transformar-y-seleccion.js"></script>
+<script src="armaduras-y-marcos/js/05-plantillas.js"></script>
+<script src="armaduras-y-marcos/js/06-motor-de-equilibrio.js"></script>
+<script src="armaduras-y-marcos/js/07-resolver-render.js"></script>
+<script src="armaduras-y-marcos/js/08-analisis-parametrico.js"></script>
+<script src="armaduras-y-marcos/js/09-diagrama-svg-de-la-armadura.js"></script>
+<script src="armaduras-y-marcos/js/10-modales.js"></script>
+<script src="armaduras-y-marcos/js/11-pdf.js"></script>
+<script src="armaduras-y-marcos/js/12-latex.js"></script>
+<script src="armaduras-y-marcos/js/13-construirlatex.js"></script>
+<script src="armaduras-y-marcos/js/14-compilacion-con-texlive-net.js"></script>
+<script src="armaduras-y-marcos/js/15-metodo-de-secciones.js"></script>
+<script src="armaduras-y-marcos/js/16-resolutor-automatico-por-cortes.js"></script>
+<script src="armaduras-y-marcos/js/17-historial-y-portal.js"></script>
+<script src="armaduras-y-marcos/js/18-arranque.js"></script>
+</body>
+</html>
