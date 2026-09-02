@@ -226,19 +226,41 @@ function unidadMomento(){ return unitFor + '\u00b7' + unitLen; }
 //  pantalla y PDF acoten igual.
 //  Todo trabaja en las unidades del dibujo TikZ (cm).
 // ═══════════════════════════════════════════════════════════
-const TZ_ALTO_TXT = 0.20;      // alto aproximado de una línea \scriptsize
-const TZ_ANCHO_CAR = 0.105;    // ancho medio por carácter
+// ── Medidas aproximadas del texto en el dibujo ──
+// El colocador de rótulos necesita saber cuánto ocupa cada etiqueta. Las
+// medidas anteriores se quedaban cortas (un carácter \tiny mide unos 0.13 cm
+// a 11 pt, no 0.105), así que dos rótulos que el planificador daba por
+// separados salían pisados en el PDF. Van holgadas a propósito: es preferible
+// apartar de más que solapar.
+const TZ_CUERPO = {
+  tiny:       {w:0.138, h:0.26},
+  scriptsize: {w:0.170, h:0.31},
+  small:      {w:0.200, h:0.35},
+  normal:     {w:0.190, h:0.33}
+};
+const TZ_ALTO_TXT = TZ_CUERPO.tiny.h;
+const TZ_ANCHO_CAR = TZ_CUERPO.tiny.w;
 let _tzCajas = [];
 
 function tzReiniciar(){ _tzCajas = []; }
-// El ancho depende del cuerpo: \tiny ≈ 0.105 cm por carácter, \scriptsize ≈ 0.135,
-// \small ≈ 0.16. Los comandos de LaTeX ($, \, etc.) no ocupan sitio.
-function tzAncho(txt, opts){
+function tzMetrica(opts){
   const o = String(opts || '');
-  const car = o.indexOf('\\tiny') >= 0 ? TZ_ANCHO_CAR
-            : (o.indexOf('\\small') >= 0 && o.indexOf('\\scriptsize') < 0 ? 0.16 : 0.135);
+  if(o.indexOf('\\tiny') >= 0) return TZ_CUERPO.tiny;
+  if(o.indexOf('\\scriptsize') >= 0) return TZ_CUERPO.scriptsize;
+  if(o.indexOf('\\small') >= 0) return TZ_CUERPO.small;
+  return TZ_CUERPO.normal;
+}
+// Los comandos de LaTeX ($, \, \tfrac...) no ocupan sitio, pero una fracción
+// sí ensancha: se cuentan sus dos números.
+function tzAncho(txt, opts){
+  const m = tzMetrica(opts);
   const limpio = String(txt).replace(/\\[a-zA-Z]+/g, '').replace(/[$\\{}^_,]/g, '');
-  return Math.max(1, limpio.length) * car + 0.10;
+  return Math.max(1, limpio.length) * m.w + 0.14;
+}
+function tzAlto(txt, opts){
+  const m = tzMetrica(opts);
+  // Una fracción \tfrac ocupa dos pisos de alto.
+  return m.h * (/\\[dt]?frac/.test(String(txt)) ? 1.7 : 1);
 }
 function tzOcupar(x0, y0, x1, y1){
   _tzCajas.push({x0:Math.min(x0,x1), y0:Math.min(y0,y1),
@@ -256,34 +278,69 @@ function tzOcuparTrazo(x1, y1, x2, y2, w){
              x1+(x2-x1)*f1+g, y1+(y2-y1)*f1+g);
   }
 }
-// Rótulo que busca hueco. dirX/dirY marcan hacia dónde apartarse.
+// Reserva el interior del bloque de una carga repartida: (A,B) sobre el eje,
+// (ex,ey) la normal en la que se levanta y h1/h2 su altura en cada extremo.
+function tzOcuparBloque(A, B, ex, ey, h1, h2){
+  const L = Math.hypot(B.x-A.x, B.y-A.y);
+  const n = Math.max(3, Math.min(12, Math.round(L/0.35)));
+  for(let i=0;i<n;i++){
+    const f0=i/n, f1=(i+1)/n;
+    const xa=A.x+(B.x-A.x)*f0, ya=A.y+(B.y-A.y)*f0;
+    const xb=A.x+(B.x-A.x)*f1, yb=A.y+(B.y-A.y)*f1;
+    const ha=h1+(h2-h1)*f0, hb=h1+(h2-h1)*f1;
+    const hm=(Math.abs(ha) >= Math.abs(hb)) ? ha : hb;
+    const xs=[xa, xb, xa+ex*hm, xb+ex*hm], ys=[ya, yb, ya+ey*hm, yb+ey*hm];
+    tzOcupar(Math.min.apply(null,xs), Math.min.apply(null,ys),
+             Math.max.apply(null,xs), Math.max.apply(null,ys));
+  }
+}
+// ── Rótulo que busca hueco ──
+// dirX/dirY marcan hacia dónde apartarse. Se prueba primero el sitio pedido y
+// después escalones en esa dirección, con desplazamientos laterales. Si aun
+// así no cabe, el rótulo NO se omite: se lleva al último escalón y se une con
+// una guía fina al punto que rotula, porque un valor que falta es peor que uno
+// alejado (y sin la guía no se sabría a qué fuerza pertenece).
 function tzTexto(x, y, txt, opts, dirX, dirY){
-  const w = tzAncho(txt, opts), h = TZ_ALTO_TXT;
+  const w = tzAncho(txt, opts), h = tzAlto(txt, opts);
   const dx0 = (dirX === undefined) ? 0 : dirX;
   const dy0 = (dirY === undefined) ? 1 : dirY;
-  const paso = h + 0.06;
-  for(let k=0;k<8;k++){
-    for(const lado of (k===0 ? [0] : [0,-1,1])){
-      const ox = dx0*paso*k + lado*w*0.6, oy = dy0*paso*k;
+  const nn = Math.hypot(dx0, dy0) || 1;
+  const ex = dx0/nn, ey = dy0/nn;
+  const lx = -ey, ly = ex;                 // lateral, perpendicular a la fuga
+  const paso = h + 0.08;
+  const nodo = (ox, oy) => '\\node[' + (opts || 'font=\\scriptsize') + '] at ('
+      + (x+ox).toFixed(3) + ',' + (y+oy).toFixed(3) + ') {' + txt + '};\n';
+  const guia = (ox, oy) => {
+    const d = Math.hypot(ox, oy);
+    if(d < 0.62) return '';
+    // la guía llega al borde del rótulo, no a su centro
+    const fx = x + ox - (ox/d)*(w*0.32), fy = y + oy - (oy/d)*(h*0.55);
+    return '\\draw[gray!55, line width=.25pt] (' + x.toFixed(3) + ',' + y.toFixed(3)
+         + ') -- (' + fx.toFixed(3) + ',' + fy.toFixed(3) + ');\n';
+  };
+  for(let k=0;k<14;k++){
+    for(const lado of (k===0 ? [0] : [0,-1,1,-2,2])){
+      const ox = ex*paso*k + lx*lado*w*0.55, oy = ey*paso*k + ly*lado*w*0.55;
       const c = {x0:x+ox-w/2, y0:y+oy-h/2, x1:x+ox+w/2, y1:y+oy+h/2};
       if(!tzChoca(c)){
         _tzCajas.push(c);
-        return '\\node[' + (opts || 'font=\\scriptsize') + '] at ('
-             + (x+ox).toFixed(3) + ',' + (y+oy).toFixed(3) + ') {' + txt + '};\n';
+        return guia(ox, oy) + nodo(ox, oy);
       }
     }
   }
-  return '';    // sin hueco: mejor omitir que amontonar
+  const ox = ex*paso*14, oy = ey*paso*14;
+  _tzCajas.push({x0:x+ox-w/2, y0:y+oy-h/2, x1:x+ox+w/2, y1:y+oy+h/2});
+  return guia(ox, oy) + nodo(ox, oy);
 }
 
 // Cadena de cotas VERTICAL: misma lógica, pero los niveles se apilan hacia
 // la derecha y las etiquetas van giradas 90°, como en un plano.
 function tzCadenaCotasY(valores, Yn, xBase, color, opts){
-  const o = Object.assign({salto:0.34, tick:0.09, maxNiveles:3}, opts||{});
+  const o = Object.assign({salto:0.38, tick:0.09, maxNiveles:4}, opts||{});
   if(!valores || valores.length < 2) return {tikz:'', nMax:-1};
   const ESC = 100;
   const plan = planCotas(valores, v => Yn(v)*ESC, t => tzAncho(t)*ESC,
-                         {maxNiveles:o.maxNiveles, minSeg:18, fusion:8, holgura:10});
+                         {maxNiveles:o.maxNiveles, minSeg:18, fusion:8, holgura:15});
   if(!plan) return {tikz:'', nMax:-1};
   const col = color || 'bsaMuted';
   let out = '';
@@ -316,14 +373,14 @@ function tzCadenaCotasY(valores, Yn, xBase, color, opts){
 // Cadena de cotas horizontal con niveles, al estilo del panel de dibujo.
 // Devuelve {tikz, nMax} para que quien la use sepa cuánto bajó.
 function tzCadenaCotas(valores, Xn, yBase, color, opts){
-  const o = Object.assign({salto:0.30, tick:0.09, maxNiveles:4}, opts||{});
+  const o = Object.assign({salto:0.36, tick:0.09, maxNiveles:5}, opts||{});
   if(!valores || valores.length < 2) return {tikz:'', nMax:-1};
   // planCotas trabaja en píxeles; aquí la "posición" es la x del dibujo en
   // cm, y el "ancho" el del texto en cm. Se escala por 100 para reutilizarlo
   // con sus umbrales, pensados para píxeles.
   const ESC = 100;
   const plan = planCotas(valores, v => Xn(v)*ESC, t => tzAncho(t)*ESC,
-                         {maxNiveles:o.maxNiveles, minSeg:18, fusion:8, holgura:10});
+                         {maxNiveles:o.maxNiveles, minSeg:18, fusion:8, holgura:15});
   if(!plan) return {tikz:'', nMax:-1};
   const col = color || 'bsaMuted';
   let out = '';
@@ -701,12 +758,13 @@ function tikzDCLSub(R, gg, seg, sub, info){
       out += '\\draw[-{Latex[length=1.4mm]}, color=bsaDist, line width=.7pt] ('
            + F(xi+ex*hi) + ',' + F(yi+ey*hi) + ') -- (' + F(xi+ex*0.04*sg) + ',' + F(yi+ey*0.04*sg) + ');\n';
     }
-    tzOcuparTrazo(A.x+ex*h1, A.y+ey*h1, B.x+ex*h2, B.y+ey*h2, 0.06);
+    tzOcuparBloque(A, B, ex, ey, h1, h2);
     const sgR = (Math.abs(h1) >= Math.abs(h2) ? Math.sign(h1) : Math.sign(h2)) || 1;
-    out += tzTexto((A.x+B.x)/2+ex*sgR*(alt+0.24), (A.y+B.y)/2+ey*sgR*(alt+0.24),
-                   '$w=' + dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '\\to' + dec(Math.abs(w2),'fuerza') : '')
-                   + '$\\,' + escLatex(uDist()),
-                   'font=\\tiny, color=bsaDist!70!black', ex*sgR, ey*sgR);
+    const etiquetaW = () => tzTexto(
+      (A.x+B.x)/2+ex*sgR*(alt+0.24), (A.y+B.y)/2+ey*sgR*(alt+0.24),
+      '$w=' + dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '\\to' + dec(Math.abs(w2),'fuerza') : '')
+      + '$\\,' + escLatex(uDist()),
+      'font=\\tiny, color=bsaDist!70!black', ex*sgR, ey*sgR);
 
     // Resultantes, en trazo discontinuo y con su punto de aplicación.
     // Cada una se dibuja donde de verdad actúa, para que el brazo del
@@ -726,26 +784,29 @@ function tikzDCLSub(R, gg, seg, sub, info){
     if(!activa){
       // Terminó antes del intervalo: es una fuerza conocida en su centroide.
       const Ares = (w1+w2)/2*tr;
-      if(Math.abs(Ares) < 1e-9) return;
-      const dc = tr*(w1+2*w2)/(3*(w1+w2));
-      flecha(r1+dc, Ares, '$W=' + Fz(Ares) + '$', alt + 0.85);
-      marcasCota.push(g1 + dc);
-      return;
+      if(Math.abs(Ares) > 1e-9){
+        const dc = tr*(w1+2*w2)/(3*(w1+w2));
+        flecha(r1+dc, Ares, '$W=' + Fz(Ares) + '$', alt + 0.85);
+        marcasCota.push(g1 + dc);
+        // Su brazo hasta la sección también se acota: es el que entra en la
+        // ecuación de momentos y no se lee de la cadena de posiciones.
+        brazos.push({r: g1 + dc, tex: '$' + brazo(g1 + dc) + '$'});
+      }
+    } else {
+      // La sección cae dentro: rectángulo (intensidad inicial) y triángulo (lo
+      // que crece), cada uno con su resultante en función de la abscisa.
+      marcasCota.push(g1);
+      if(Math.abs(w1) > 1e-9){
+        flecha(r1 + tr/2, w1*tr, '$W_1=' + Fz(w1) + '\\,' + brazo(g1) + '$', alt + 0.85);
+        brazos.push({r: g1 + tr/2, tex: '$\\tfrac{1}{2}' + brazo(g1) + '$'});
+      }
+      if(Math.abs(kw) > 1e-9){
+        flecha(r1 + tr*2/3, kw*tr*tr/2,
+               '$W_2=\\tfrac{1}{2}\\,' + Fz(kw) + '\\,' + brazo(g1) + '^{2}$', alt + 1.35);
+        brazos.push({r: g1 + tr*2/3, tex: '$\\tfrac{1}{3}' + brazo(g1) + '$'});
+      }
     }
-    // La sección cae dentro: rectángulo (intensidad inicial) y triángulo (lo
-    // que crece), cada uno con su resultante en función de la abscisa.
-    marcasCota.push(g1);
-    const rect = w1*tr;
-    if(Math.abs(w1) > 1e-9){
-      flecha(r1 + tr/2, rect, '$W_1=' + Fz(w1) + '\\,' + brazo(g1) + '$', alt + 0.85);
-      brazos.push({r: g1 + tr/2, tex: '$\\tfrac{1}{2}' + brazo(g1) + '$'});
-    }
-    if(Math.abs(kw) > 1e-9){
-      const tri = kw*tr*tr/2;
-      flecha(r1 + tr*2/3, tri,
-             '$W_2=\\tfrac{1}{2}\\,' + Fz(kw) + '\\,' + brazo(g1) + '^{2}$', alt + 1.35);
-      brazos.push({r: g1 + tr*2/3, tex: '$\\tfrac{1}{3}' + brazo(g1) + '$'});
-    }
+    out += etiquetaW();
   });
 
   // ── Solicitaciones heredadas en el nudo de arranque (grupos 2.º en adelante) ──
@@ -826,21 +887,24 @@ function tikzDCLSub(R, gg, seg, sub, info){
   out += tzTexto(px-nx*0.92, py-ny*0.92, '$V$', 'font=\\scriptsize, color=bsaAcc', -nx, -ny);
   out += '\\draw[-{Latex[length=1.8mm]}, color=bsaAcc, line width=1pt] ('
        + F(px-ux*0.42+0.26) + ',' + F(py-uy*0.42) + ') arc (0:300:0.26);\n';
-  out += tzTexto(px-ux*0.42, py-uy*0.42+0.50, '$M$', 'font=\\scriptsize, color=bsaAcc', 0, 1);
+  // El rótulo del momento huye PERPENDICULAR al eje, no siempre hacia arriba:
+  // en un elemento vertical se metía justo debajo de la N.
+  out += tzTexto(px-ux*0.42+nx*0.42, py-uy*0.42+ny*0.42, '$M$',
+                 'font=\\scriptsize, color=bsaAcc', nx, ny);
 
   // ── Brazos de las resultantes repartidas, medidos hasta el corte ──
   // Se acotan aparte porque son los que entran en la ecuación de momentos y
   // no se pueden leer de la cadena de posiciones.
-  let SEP0 = 0.30;
-  brazos.slice(0, 2).forEach((bz, i)=>{
-    const sep = 0.30 + i*0.30;
+  let SEP0 = 0.32;
+  brazos.slice(0, 3).forEach((bz, i)=>{
+    const sep = 0.32 + i*0.38;
     const p1 = qEje(bz.r, sep), p2 = qEje(rCut, sep);
     out += '\\draw[bsaDist!70!black, line width=.45pt, {Latex[length=1.2mm]}-{Latex[length=1.2mm]}] ('
          + F(p1.x) + ',' + F(p1.y) + ') -- (' + F(p2.x) + ',' + F(p2.y) + ');\n';
     tzOcuparTrazo(p1.x, p1.y, p2.x, p2.y, 0.04);
     out += tzTexto((p1.x+p2.x)/2, (p1.y+p2.y)/2, bz.tex,
                    'font=\\tiny, color=bsaDist!70!black, fill=white, inner sep=.5pt', nxq, nyq);
-    SEP0 = sep + 0.30;
+    SEP0 = sep + 0.38;
   });
 
   // ── Cotas PARALELAS al eje: posiciones de las acciones, inicios y
@@ -854,11 +918,11 @@ function tikzDCLSub(R, gg, seg, sub, info){
   });
   marcasCota.forEach(cq=>{ if(cq > 1e-6 && cq < rCut - 1e-6) marcas.push(cq); });
   const uniq = [...new Set(marcas.map(v=>+v.toFixed(4)))].sort((a,b)=>a-b);
-  const BASE = Math.max(0.72, SEP0 + 0.20), SALTO = 0.30;
+  const BASE = Math.max(0.78, SEP0 + 0.24), SALTO = 0.36;
   let niv = -1;
   if(uniq.length > 2){
     const plan = planCotas(uniq, v => v*pxU*100, t => tzAncho(t)*100,
-                           {maxNiveles:2, minSeg:16, fusion:8, holgura:10});
+                           {maxNiveles:4, minSeg:16, fusion:8, holgura:15});
     if(plan){
       niv = plan.nMax;
       const e0=qEje(plan.coords[0],BASE), e1=qEje(plan.coords[plan.coords.length-1],BASE);

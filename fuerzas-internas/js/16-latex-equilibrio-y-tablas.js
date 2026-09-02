@@ -683,7 +683,7 @@ function tikzEsquemaGrupo(R, gg, W){
       out += '\\draw[-{Latex[length=1.4mm]}, color=bsaDist, line width=.7pt] (' + F(xi) + ',' + F(hi)
            + ') -- (' + F(xi) + ',' + F(0.04*sg) + ');\n';
     }
-    tzOcuparTrazo(x1, h1, x2, h2, 0.08);
+    tzOcuparBloque({x:x1, y:0}, {x:x2, y:0}, 0, 1, h1, h2);
     const lado = (Math.abs(h1) >= Math.abs(h2) ? Math.sign(h1) : Math.sign(h2)) || 1;
     const txt = (Math.abs(bq.wA - bq.wB) < 1e-9)
       ? '$w=' + dec(Math.abs(bq.w1),'fuerza') + '$\\,' + uW
@@ -845,7 +845,7 @@ function tikzDiagramaGrupo(R, gg, clave, color, W, HH, titulo){
     });
     const xs = [0, ...marcas.map(m=>m.x), L];
     const cc = tzCadenaCotas([...new Set(xs.map(v=>+v.toFixed(4)))], X, -HH-1.30,
-                             'black!60', {maxNiveles:2});
+                             'black!60', {maxNiveles:4});
     out += cc.tikz;
   }
   return out;

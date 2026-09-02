@@ -46,15 +46,29 @@ function tikzViga(conReacciones){
         // El informe dibujaba SIEMPRE en vertical (o en horizontal la axial),
         // así que una carga marcada perpendicular al tramo salía como si
         // fuese global. Ahora sigue la dirección real que devuelve dirCarga.
-        const _t = tramos.find(z=>z.id===c.tramo), _g2 = _t && geoTramo(_t);
+        const _g2 = geoDeCarga(c);
         const d = dirCarga(c, _g2);
         const sg = (c.mag < 0) ? -1 : 1;
         const vx = d.x*sg, vy = d.y*sg;      // en TikZ la y NO está invertida
-        const x1 = x - vx*0.75, y1 = y - vy*0.75;
-        const x2 = x - vx*0.12, y2 = y - vy*0.12;
+        // Una flecha casi paralela a la barra caía ENCIMA de ella y su valor
+        // se leía sobre el propio eje. En ese caso se aparta hacia el lado
+        // libre y se une al punto de aplicación con una guía de puntos.
+        let ox = 0, oy = 0;
+        if(_g2 && Math.abs(vx*_g2.ux + vy*_g2.uy) > 0.9){
+          const n2x = -_g2.uy, n2y = _g2.ux;
+          const s2 = (n2y < 0) ? -1 : 1;     // hacia arriba del dibujo
+          ox = n2x*s2*0.34; oy = n2y*s2*0.34;
+        }
+        const x1 = x + ox - vx*0.75, y1 = y + oy - vy*0.75;
+        const x2 = x + ox - vx*0.12, y2 = y + oy - vy*0.12;
         out += '\\draw[-{Latex[length=2.2mm]}, color=bsaCarga, line width=1.1pt] ('
              + F(x1) + ',' + F(y1) + ') -- (' + F(x2) + ',' + F(y2) + ');\n';
         tzOcuparTrazo(x1, y1, x2, y2, 0.07);
+        if(ox || oy){
+          out += '\\draw[bsaCarga!70, line width=.35pt, dotted] (' + F(x) + ',' + F(y)
+               + ') -- (' + F(x + ox - vx*0.12) + ',' + F(y + oy - vy*0.12) + ');\n';
+          out += '\\filldraw[color=bsaCarga] (' + F(x) + ',' + F(y) + ') circle (0.035);\n';
+        }
         out += tzTexto(x1 - vx*0.16, y1 - vy*0.16,
                        dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor),
                        'font=\\tiny, color=bsaCarga', -vx, -vy);
@@ -89,7 +103,7 @@ function tikzViga(conReacciones){
              + F(xi+ex*hi) + ',' + F(yi+ey*hi) + ') -- ('
              + F(xi+ex*0.05) + ',' + F(yi+ey*0.05) + ');\n';
       }
-      tzOcuparTrazo(ax+ex*h1, ay+ey*h1, bx+ex*h2, by+ey*h2, 0.06);
+      tzOcuparBloque({x:ax, y:ay}, {x:bx, y:by}, ex, ey, h1, h2);
       // Trapecial: los dos extremos llevan valor distinto y hay que verlos.
       if(Math.abs(w1-w2) > 1e-9){
         out += tzTexto(ax+ex*(h1+0.20), ay+ey*(h1+0.20), dec(Math.abs(w1),'f'),
@@ -415,17 +429,36 @@ function construirLatex(){
   tex += 'con ' + R.inc.length + ' incógnita(s) de reacción y ' + R.diag.eq + ' ecuación(es): la viga es '
     + 'isostática y las reacciones salen de la estática.\\\\[6pt]\n';
   tex += pasoAPasoReacciones(R);
-  tex += '\\resultado{\\begin{tabular}{ll r}\n'
-    + 'Apoyo & Reacción & Valor \\\\\n\\hline\n';
+  tex += '\\resultado{\\centering\\small\n'
+    + '\\begin{tabular}{@{}clrl@{}}\n\\hline\n'
+    + '\\textbf{Apoyo} & \\textbf{Componente} & \\textbf{Valor} & \\textbf{Sentido real} \\\\\n\\hline\n';
   R.inc.forEach((u,j)=>{
+    const esMom = (u.tipo === 'M' && u.ang === undefined);
     const nomR = u.ang !== undefined ? 'R' : (u.tipo==='Rx' ? 'R_x' : (u.tipo==='Ry' ? 'R_y' : 'M'));
-    const esMom = u.tipo === 'M';
-    tex += escLatex(u.n.nombre) + ' & $' + nomR + '$ & '
-      + dec(R.val[j], esMom?'momento':'fuerza') + '\\,' + escLatex(esMom?unidadMomento():unitFor) + ' \\\\\n';
+    const v = R.val[j];
+    let que, sentido;
+    if(esMom){
+      que = 'momento de empotramiento';
+      sentido = (v >= 0) ? 'antihorario' : 'horario';
+    } else if(u.ang !== undefined){
+      const gr = (u.ang*180/Math.PI).toFixed(0);
+      que = 'según el apoyo (' + gr + '$^\\circ$)';
+      sentido = (v >= 0) ? 'en el sentido dibujado' : 'contrario al dibujado';
+    } else if(u.tipo === 'Rx'){
+      que = 'horizontal';
+      sentido = (v >= 0) ? 'hacia la derecha' : 'hacia la izquierda';
+    } else {
+      que = 'vertical';
+      sentido = (v >= 0) ? 'hacia arriba' : 'hacia abajo';
+    }
+    tex += escLatex(u.n.nombre) + ' & $' + nomR + '$, ' + que + ' & $'
+      + dec(v, esMom?'momento':'fuerza') + '$\\,' + escLatex(esMom?unidadMomento():unitFor)
+      + ' & ' + sentido + ' \\\\\n';
   });
-  tex += '\\end{tabular}}\n';
-  tex += '\\noindent{\\footnotesize Un valor negativo indica que la reacción actúa en sentido contrario al '
-    + 'supuesto en el DCL. En los DCL de los cortes se dibuja ya con su sentido real.}\\\\[4pt]\n';
+  tex += '\\hline\n\\end{tabular}}\n';
+  tex += '\\noindent{\\footnotesize El signo se refiere al sentido positivo supuesto en el DCL: '
+    + 'un valor negativo significa que la reacción actúa al revés, y la columna «Sentido real» ya lo '
+    + 'traduce. En los DCL de los cortes cada reacción se dibuja directamente con ese sentido real.}\\\\[4pt]\n';
 
   // ══ 3. Paso 2: funciones por tramos ══
   tex += '\\seccion{3. Paso 2 --- Funciones $N(x)$, $V(x)$ y $M(x)$ por tramos}\n';
