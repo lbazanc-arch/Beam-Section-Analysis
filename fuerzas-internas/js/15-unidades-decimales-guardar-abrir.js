@@ -294,6 +294,17 @@ function tzOcuparBloque(A, B, ex, ey, h1, h2){
              Math.max.apply(null,xs), Math.max.apply(null,ys));
   }
 }
+// ── Rótulo fijo ──
+// Una etiqueta de cota debe quedarse SOBRE su propia línea: si se la deja
+// buscar hueco acaba lejos de la línea que mide y ya no se sabe qué acota.
+// Se dibuja con fondo blanco, para que la línea no la atraviese, y reserva
+// su caja para que los demás rótulos la esquiven.
+function tzTextoFijo(x, y, txt, opts){
+  const w = tzAncho(txt, opts), h = tzAlto(txt, opts);
+  tzOcupar(x-w/2, y-h/2, x+w/2, y+h/2);
+  return '\\node[' + (opts || 'font=\\scriptsize') + ', fill=white, inner sep=1pt] at ('
+       + x.toFixed(3) + ',' + y.toFixed(3) + ') {' + txt + '};\n';
+}
 // ── Rótulo que busca hueco ──
 // dirX/dirY marcan hacia dónde apartarse. Se prueba primero el sitio pedido y
 // después escalones en esa dirección, con desplazamientos laterales. Si aun
@@ -398,15 +409,15 @@ function tzCadenaCotas(valores, Xn, yBase, color, opts){
   plan.segs.forEach((sg, m)=>{
     if(!sg.visible) return;
     const xm = (Xn(plan.coords[m]) + Xn(plan.coords[m+1]))/2;
-    const yy = yBase - 0.16 - sg.nivel*o.salto;
+    const yy = yBase - 0.21 - sg.nivel*o.salto;
     if(sg.nivel > 0)
       out += '\\draw[' + (col.indexOf('!')>=0 ? col : col+'!45') + ', line width=.3pt] (' + xm.toFixed(3) + ','
            + (yBase-0.04).toFixed(3) + ') -- (' + xm.toFixed(3) + ',' + (yy+0.09).toFixed(3) + ');\n';
     // La unidad se pone solo en la ÚLTIMA cota de la fila: repetirla en
     // todas ensancharía cada etiqueta y obligaría a escalonar de más.
     const ult = (m === plan.segs.length - 1);
-    out += tzTexto(xm, yy, sg.txt + (ult ? '\\,' + escLatex(unitLen) : ''),
-                   'font=\\scriptsize, color=' + col, 0, -1);
+    out += tzTextoFijo(xm, yy, sg.txt + (ult ? '\\,' + escLatex(unitLen) : ''),
+                       'font=\\scriptsize, color=' + col);
   });
   return {tikz:out, nMax:plan.nMax};
 }
@@ -695,9 +706,11 @@ function tikzDCLSub(R, gg, seg, sub, info){
                              y: Y(O.y) + uy*(r*pxU) + nyq*sep});
 
   let out = '';
-  for(let i=0;i<todos.length-1;i++)
+  for(let i=0;i<todos.length-1;i++){
     out += '\\draw[line width=1.7pt, color=bsaAcc2] (' + F(X(todos[i].x)) + ',' + F(Y(todos[i].y))
          + ') -- (' + F(X(todos[i+1].x)) + ',' + F(Y(todos[i+1].y)) + ');\n';
+    tzOcuparTrazo(X(todos[i].x), Y(todos[i].y), X(todos[i+1].x), Y(todos[i+1].y), 0.09);
+  }
   pts.forEach((p,i)=>{
     out += '\\filldraw[color=bsaAcc2] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.055);\n';
     out += '\\node[below left, font=\\scriptsize\\bfseries, color=bsaAcc2] at ('
@@ -809,6 +822,28 @@ function tikzDCLSub(R, gg, seg, sub, info){
     out += etiquetaW();
   });
 
+  // ── Banda de cotas ──
+  // Debajo de la viga irán los brazos y la cadena de posiciones. Se reserva
+  // esa banda ANTES de rotular las fuerzas, para que ningún valor caiga sobre
+  // una línea de cota: los rótulos buscan sitio por encima o a los lados.
+  // Una reacción bajo un apoyo baja hasta 1.30 y lleva su valor al costado;
+  // la flecha V de la cara cortada, hasta 0.92: la banda empieza debajo.
+  const hayBajoApoyo = (R.internas.puntuales || []).some(o=>{
+    if(o.s === null) return false;
+    if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return false;
+    if(o.s >= sCut - EPS) return false;
+    const a = o.a, Fm = Math.hypot(a.fx, a.fy);
+    return Fm > 1e-12 && a.reac && a.nodo && a.nodo.apoyo && a.nodo.apoyo !== 'libre' && a.fy/Fm > 0.5;
+  });
+  const BRAZO0 = hayBajoApoyo ? 1.62 : 1.25, BRAZO_SALTO = 0.50;
+  const bandaIni = BRAZO0 - 0.14;
+  const bandaFin = BRAZO0 + brazos.length*BRAZO_SALTO + 0.30 + 4*0.36 + 0.9;
+  const iBanda = _tzCajas.length;
+  for(let m=0;m<8;m++){
+    const p1 = qEje(rCut*m/8, bandaIni), p2 = qEje(rCut*(m+1)/8, bandaFin);
+    tzOcupar(Math.min(p1.x,p2.x), Math.min(p1.y,p2.y), Math.max(p1.x,p2.x), Math.max(p1.y,p2.y));
+  }
+
   // ── Solicitaciones heredadas en el nudo de arranque (grupos 2.º en adelante) ──
   const t0 = gg.tramos[0], su0 = t0.subs[0];
   const ox = X(O.x), oy = Y(O.y);
@@ -857,12 +892,23 @@ function tikzDCLSub(R, gg, seg, sub, info){
       // La reacción sale del apoyo: si el nudo tiene apoyo dibujado, la flecha
       // arranca por debajo de él para no taparlo.
       const bajoApoyo = (a.reac && a.nodo && a.nodo.apoyo && a.nodo.apoyo !== 'libre' && ey > 0.5);
-      const larga = bajoApoyo ? 1.45 : 0.85, corta = bajoApoyo ? 0.62 : 0.10;
+      const larga = bajoApoyo ? 1.30 : 0.85, corta = bajoApoyo ? 0.62 : 0.10;
       out += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1pt] ('
            + F(x-ex*larga) + ',' + F(y-ey*larga) + ') -- (' + F(x-ex*corta) + ',' + F(y-ey*corta) + ');\n';
       tzOcuparTrazo(x-ex*larga, y-ey*larga, x-ex*corta, y-ey*corta, 0.07);
       const lab = a.reac ? '$' + nom.tex + '=' + Fz(Fm) + '$' : Fz(Fm) + '\\,' + uF;
-      out += tzTexto(x-ex*(larga+0.22), y-ey*(larga+0.22), lab, 'font=\\tiny, color=' + col, -ex, -ey);
+      if(ey > 0.5){
+        // Fuerza hacia arriba: su cola cae bajo la viga, en la banda de cotas,
+        // así que el valor va al costado de la flecha, hacia afuera del trozo.
+        const s = (x <= (X(minx)+X(maxx))/2) ? -1 : 1;
+        const yl = bajoApoyo ? (larga+corta)/2 : 0.30;
+        // el rótulo se centra ya fuera de la flecha: con un desplazamiento
+        // fijo su caja pisaba el propio trazo y salía disparado con guía
+        const wl = tzAncho(lab, 'font=\\tiny');
+        out += tzTexto(x + s*(wl/2 + 0.14), y - ey*yl, lab, 'font=\\tiny, color=' + col, s, 0);
+      } else {
+        out += tzTexto(x-ex*(larga+0.22), y-ey*(larga+0.22), lab, 'font=\\tiny, color=' + col, -ex, -ey);
+      }
     }
     if(Math.abs(a.m) > 1e-12){
       const colM = a.reac ? 'bsaReac' : 'bsaMomento';
@@ -892,19 +938,22 @@ function tikzDCLSub(R, gg, seg, sub, info){
   out += tzTexto(px-ux*0.42+nx*0.42, py-uy*0.42+ny*0.42, '$M$',
                  'font=\\scriptsize, color=bsaAcc', nx, ny);
 
+  // La banda ya cumplió su papel (los rótulos de fuerzas quedaron fuera de
+  // ella); se libera para que las cotas se repartan con su propio criterio.
+  _tzCajas.splice(iBanda, 8);
+
   // ── Brazos de las resultantes repartidas, medidos hasta el corte ──
   // Se acotan aparte porque son los que entran en la ecuación de momentos y
   // no se pueden leer de la cadena de posiciones.
-  let SEP0 = 0.32;
+  let SEP0 = BRAZO0;
   brazos.slice(0, 3).forEach((bz, i)=>{
-    const sep = 0.32 + i*0.38;
+    const sep = BRAZO0 + i*BRAZO_SALTO;
     const p1 = qEje(bz.r, sep), p2 = qEje(rCut, sep);
     out += '\\draw[bsaDist!70!black, line width=.45pt, {Latex[length=1.2mm]}-{Latex[length=1.2mm]}] ('
          + F(p1.x) + ',' + F(p1.y) + ') -- (' + F(p2.x) + ',' + F(p2.y) + ');\n';
     tzOcuparTrazo(p1.x, p1.y, p2.x, p2.y, 0.04);
-    out += tzTexto((p1.x+p2.x)/2, (p1.y+p2.y)/2, bz.tex,
-                   'font=\\tiny, color=bsaDist!70!black, fill=white, inner sep=.5pt', nxq, nyq);
-    SEP0 = sep + 0.38;
+    out += tzTextoFijo((p1.x+p2.x)/2, (p1.y+p2.y)/2, bz.tex, 'font=\\tiny, color=bsaDist!70!black');
+    SEP0 = sep + BRAZO_SALTO;
   });
 
   // ── Cotas PARALELAS al eje: posiciones de las acciones, inicios y
@@ -937,8 +986,8 @@ function tikzDCLSub(R, gg, seg, sub, info){
         const ult = (m === plan.segs.length-1);
         const txt = ult ? (Math.abs(d0)<1e-6 ? '$'+gg.simbolo+'$'
                           : '$'+gg.simbolo+' - '+dec(d0,'len')+'$') : sg.txt;
-        const pm = qEje((plan.coords[m]+plan.coords[m+1])/2, BASE+0.20+sg.nivel*SALTO);
-        out += tzTexto(pm.x, pm.y, txt, 'font=\\tiny, color=black!75', nxq, nyq);
+        const pm = qEje((plan.coords[m]+plan.coords[m+1])/2, BASE+0.22+sg.nivel*SALTO);
+        out += tzTextoFijo(pm.x, pm.y, txt, 'font=\\tiny, color=black!75');
       });
     }
   }
@@ -965,8 +1014,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
     out += '\\draw[bsaMuted, line width=.7pt] (' + F(p2.x-(ux-nxq)*0.09) + ',' + F(p2.y-(uy-nyq)*0.09)
          + ') -- (' + F(p2.x+(ux-nxq)*0.09) + ',' + F(p2.y+(uy-nyq)*0.09) + ');\n';
   });
-  out += tzTexto((a1.x+b1.x)/2, (a1.y+b1.y)/2, '$' + gg.simbolo + '$',
-                 'font=\\scriptsize, color=bsaMuted, fill=white, inner sep=1pt',
-                 nxq, nyq);
+  out += tzTextoFijo((a1.x+b1.x)/2, (a1.y+b1.y)/2, '$' + gg.simbolo + '$',
+                     'font=\\scriptsize, color=bsaMuted');
   return out;
 }

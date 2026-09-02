@@ -35,6 +35,14 @@ function tikzViga(conReacciones){
   });
   // Primero las repartidas y después el resto: el bloque relleno tapaba las
   // flechas y los momentos que caían en su mismo tramo.
+  if(conReacciones && R && !R.error){
+    cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
+      const a = accionesDeCarga(c)[0]; if(!a) return;
+      const Fm = Math.hypot(a.fx, a.fy); if(Fm < 1e-9) return;
+      const x = Xn(a.x), y = Yn(a.y), ex = a.fx/Fm, ey = a.fy/Fm;
+      tzOcuparTrazo(x-ex*1.35, y-ey*1.35, x-ex*0.08, y-ey*0.08, 0.10);
+    });
+  }
   const _ordenadas = cargas.filter(c=>c.tipo==='U'||c.tipo==='T')
     .concat(cargas.filter(c=>!(c.tipo==='U'||c.tipo==='T')));
   _ordenadas.forEach(c=>{
@@ -53,25 +61,35 @@ function tikzViga(conReacciones){
         // Una flecha casi paralela a la barra caía ENCIMA de ella y su valor
         // se leía sobre el propio eje. En ese caso se aparta hacia el lado
         // libre y se une al punto de aplicación con una guía de puntos.
-        let ox = 0, oy = 0;
-        if(_g2 && Math.abs(vx*_g2.ux + vy*_g2.uy) > 0.9){
-          const n2x = -_g2.uy, n2y = _g2.ux;
-          const s2 = (n2y < 0) ? -1 : 1;     // hacia arriba del dibujo
-          ox = n2x*s2*0.34; oy = n2y*s2*0.34;
-        }
-        const x1 = x + ox - vx*0.75, y1 = y + oy - vy*0.75;
-        const x2 = x + ox - vx*0.12, y2 = y + oy - vy*0.12;
+        // Una fuerza paralela a la barra va SOBRE la barra (ahí actúa), pero
+        // con un halo blanco que la recorta del eje para que se note, y con
+        // el valor al costado de la flecha en vez de en su cola.
+        const paralela = _g2 && Math.abs(vx*_g2.ux + vy*_g2.uy) > 0.9;
+        const x1 = x - vx*0.85, y1 = y - vy*0.85;
+        const x2 = x - vx*0.10, y2 = y - vy*0.10;
+        if(paralela)
+          out += '\\draw[white, line width=3.4pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(x2) + ',' + F(y2) + ');\n';
         out += '\\draw[-{Latex[length=2.2mm]}, color=bsaCarga, line width=1.1pt] ('
              + F(x1) + ',' + F(y1) + ') -- (' + F(x2) + ',' + F(y2) + ');\n';
         tzOcuparTrazo(x1, y1, x2, y2, 0.07);
-        if(ox || oy){
-          out += '\\draw[bsaCarga!70, line width=.35pt, dotted] (' + F(x) + ',' + F(y)
-               + ') -- (' + F(x + ox - vx*0.12) + ',' + F(y + oy - vy*0.12) + ');\n';
-          out += '\\filldraw[color=bsaCarga] (' + F(x) + ',' + F(y) + ') circle (0.035);\n';
+        if(paralela){
+          const n2x = -_g2.uy, n2y = _g2.ux;
+          const s2 = (n2y < 0) ? -1 : 1;
+          out += tzTexto((x1+x2)/2 + n2x*s2*0.24, (y1+y2)/2 + n2y*s2*0.24,
+                         dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor),
+                         'font=\\tiny, color=bsaCarga', n2x*s2, n2y*s2);
+        } else if(vy > 0.5){
+          // apunta hacia arriba: su cola queda bajo la viga, en la zona de
+          // las cotas, así que el valor se pone al costado de la flecha
+          const s = (x <= (Xn(minx)+Xn(maxx))/2) ? -1 : 1;
+          const lab2 = dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor);
+          out += tzTexto((x1+x2)/2 + s*(tzAncho(lab2, 'font=\\tiny')/2 + 0.14), (y1+y2)/2,
+                         lab2, 'font=\\tiny, color=bsaCarga', s, 0);
+        } else {
+          out += tzTexto(x1 - vx*0.16, y1 - vy*0.16,
+                         dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor),
+                         'font=\\tiny, color=bsaCarga', -vx, -vy);
         }
-        out += tzTexto(x1 - vx*0.16, y1 - vy*0.16,
-                       dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor),
-                       'font=\\tiny, color=bsaCarga', -vx, -vy);
       } else {
         out += '\\draw[-{Latex[length=2mm]}, color=bsaMomento, line width=1.1pt] (' + F(x+0.3) + ',' + F(y) + ') arc (0:300:0.3);\n';
         out += tzTexto(x+0.62, y+0.22, dec(Math.abs(c.mag),'mom')+'\\,'+escLatex(unidadMomento()),
@@ -134,20 +152,108 @@ function tikzViga(conReacciones){
         out += tzTexto(x+0.55, y-0.55, '$'+nom+'$', 'font=\\tiny, color=bsaReac', 1, -1);
         return;
       }
-      const L1 = 0.85;
+      const bajoApoyo = (u.n.apoyo && u.n.apoyo !== 'libre' && d.y > 0.5);
+      const L1 = bajoApoyo ? 1.30 : 0.85, L0 = bajoApoyo ? 0.62 : 0.10;
       out += '\\draw[-{Latex[length=2mm]}, color=bsaReac, line width=1.1pt] ('
-           + F(x-d.x*L1) + ',' + F(y-d.y*L1) + ') -- (' + F(x-d.x*0.10) + ',' + F(y-d.y*0.10) + ');\n';
-      tzOcuparTrazo(x-d.x*L1, y-d.y*L1, x-d.x*0.10, y-d.y*0.10, 0.07);
-      out += tzTexto(x-d.x*(L1+0.18), y-d.y*(L1+0.18), '$'+nom+'$',
-                     'font=\\tiny, color=bsaReac', -d.x, -d.y);
+           + F(x-d.x*L1) + ',' + F(y-d.y*L1) + ') -- (' + F(x-d.x*L0) + ',' + F(y-d.y*L0) + ');\n';
+      tzOcuparTrazo(x-d.x*L1, y-d.y*L1, x-d.x*L0, y-d.y*L0, 0.07);
+      if(Math.abs(d.y) > 0.5){
+        // vertical: el rótulo va al costado de la flecha, hacia afuera de la
+        // viga, y no debajo de su cola, donde se metía entre las cotas.
+        const s = (x <= (Xn(minx)+Xn(maxx))/2) ? -1 : 1;
+        const wl = tzAncho('$'+nom+'$', 'font=\\tiny');
+        out += tzTexto(x + s*(wl/2 + 0.14), y - d.y*(L1+L0)/2, '$'+nom+'$',
+                       'font=\\tiny, color=bsaReac', s, 0);
+      } else {
+        out += tzTexto(x-d.x*(L1+0.18), y-d.y*(L1+0.18), '$'+nom+'$',
+                       'font=\\tiny, color=bsaReac', -d.x, -d.y);
+      }
     });
   }
 
-  // ── Cotas: primero las posiciones de las cargas (niveles interiores),
-  //    después la cadena de nudos, y por último la luz total. Mismo orden
-  //    que en el panel, para que el alumno lea igual las dos.
+  // ── Cotas ──
   let minY = Infinity;
   nodos.forEach(n=>{ minY = Math.min(minY, Yn(n.y)); });
+
+  if(conReacciones && R && !R.error){
+    // ── DCL para las reacciones: resultantes de las repartidas y brazos
+    //    desde O, el punto respecto al que se toman los momentos ──
+    // Cada carga repartida se sustituye por su resultante (trazo discontinuo
+    // en el centroide) y todas las fuerzas se acotan desde O con cotas
+    // corridas, una por nivel: son exactamente los brazos que aparecen en
+    // la ecuación de momentos.
+    const brazosX = [], brazosY = [];
+    const anota = (ax, ay, fx, fy) => {
+      if(Math.abs(fy) > 1e-9 && Math.abs(ax) > 1e-6) brazosX.push(ax);
+      if(Math.abs(fx) > 1e-9 && Math.abs(ay) > 1e-6) brazosY.push(ay);
+    };
+    cargasConPeso().forEach(c=>{
+      const acs = accionesDeCarga(c);
+      if(!acs.length) return;
+      const a = acs[0];
+      if(c.tipo === 'U' || c.tipo === 'T'){
+        const Fm = Math.hypot(a.fx, a.fy);
+        if(Fm < 1e-9) return;
+        const x = Xn(a.x), y = Yn(a.y), ex = a.fx/Fm, ey = a.fy/Fm;
+        const L1 = 1.35;
+        out += '\\draw[-{Latex[length=2mm]}, color=bsaDist!60!black, dashed, line width=1pt] ('
+             + F(x-ex*L1) + ',' + F(y-ey*L1) + ') -- (' + F(x-ex*0.08) + ',' + F(y-ey*0.08) + ');\n';
+        tzOcuparTrazo(x-ex*L1, y-ey*L1, x-ex*0.08, y-ey*0.08, 0.06);
+        out += tzTexto(x-ex*(L1+0.22), y-ey*(L1+0.22), '$W=' + dec(Fm,'f') + '$\\,' + escLatex(unitFor),
+                       'font=\\tiny, color=bsaDist!60!black', -ex, -ey);
+      }
+      anota(a.x, a.y, a.fx, a.fy);
+    });
+    R.inc.forEach(u=>{
+      if(u.tipo === 'M' && u.ang === undefined) return;
+      const d = (u.ang !== undefined) ? {x:Math.cos(u.ang), y:Math.sin(u.ang)}
+              : (u.tipo==='Rx' ? {x:1,y:0} : {x:0,y:1});
+      anota(u.n.x, u.n.y, d.x, d.y);
+    });
+    // Punto O, si no coincide con un nudo
+    if(!nodos.some(n=>Math.abs(n.x) < 1e-6 && Math.abs(n.y) < 1e-6)){
+      out += '\\filldraw[black] (' + F(Xn(0)) + ',' + F(Yn(0)) + ') circle (0.05);\n';
+      out += tzTexto(Xn(0)-0.2, Yn(0)-0.2, '$O$', 'font=\\scriptsize\\bfseries', -1, -1);
+    }
+    // Cotas corridas horizontales desde O, ordenadas de menor a mayor: cada
+    // una en su nivel, con la etiqueta sobre su propia línea.
+    const xsB = [...new Set(brazosX.map(v=>+v.toFixed(4)))].sort((a,b)=>Math.abs(a)-Math.abs(b));
+    let base = minY - 1.75;
+    const x0 = Xn(0);
+    if(xsB.length){
+      out += '\\draw[black!45, line width=.35pt, dashed] (' + F(x0) + ',' + F(minY-0.15) + ') -- ('
+           + F(x0) + ',' + F(base - (xsB.length-1)*0.40 - 0.15) + ');\n';
+    }
+    xsB.forEach((xv, i)=>{
+      const yy = base - i*0.40, x1 = Xn(xv);
+      out += '\\draw[black!45, line width=.35pt, dashed] (' + F(x1) + ',' + F(minY-0.15) + ') -- ('
+           + F(x1) + ',' + F(yy-0.12) + ');\n';
+      out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] ('
+           + F(x0) + ',' + F(yy) + ') -- (' + F(x1) + ',' + F(yy) + ');\n';
+      tzOcuparTrazo(x0, yy, x1, yy, 0.05);
+      out += tzTextoFijo((x0+x1)/2, yy, dec(Math.abs(xv),'len') + (i === xsB.length-1 ? '\\,' + escLatex(unitLen) : ''),
+                         'font=\\scriptsize, color=black!75');
+    });
+    // Cotas corridas verticales desde O (brazos de las fuerzas horizontales)
+    const ysB = [...new Set(brazosY.map(v=>+v.toFixed(4)))].sort((a,b)=>Math.abs(a)-Math.abs(b));
+    let baseX = Math.max(...nodos.map(n=>Xn(n.x))) + 0.75;
+    const y0 = Yn(0);
+    ysB.forEach((yv, i)=>{
+      const xx = baseX + i*0.42, y1 = Yn(yv);
+      out += '\\draw[black!45, line width=.35pt, dashed] (' + F(Xn(0)) + ',' + F(y0) + ') -- (' + F(xx+0.12) + ',' + F(y0) + ');\n';
+      out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] ('
+           + F(xx) + ',' + F(y0) + ') -- (' + F(xx) + ',' + F(y1) + ');\n';
+      const w2 = tzAncho(dec(Math.abs(yv),'len'), 'font=\\scriptsize');
+      tzOcupar(xx-0.16, (y0+y1)/2 - w2/2, xx+0.16, (y0+y1)/2 + w2/2);
+      out += '\\node[rotate=90, font=\\scriptsize, color=black!75, fill=white, inner sep=1pt] at ('
+           + F(xx) + ',' + F((y0+y1)/2) + ') {' + dec(Math.abs(yv),'len') + '\\,' + escLatex(unitLen) + '};\n';
+    });
+    return out;
+  }
+
+  // ── Figura del modelo: primero las posiciones de las cargas (niveles
+  //    interiores), después la cadena de nudos, y por último la luz total.
+  //    Mismo orden que en el panel, para que el alumno lea igual las dos.
   let base = minY - 0.75;
 
   const xsCargas = [...new Set(xsDeCargas().map(v=>+v.toFixed(6)))];
@@ -156,20 +262,20 @@ function tikzViga(conReacciones){
   if(aporta){
     const todos = [...new Set(xsCargas.concat([Math.min(...xsNodos), Math.max(...xsNodos)])
                     .map(v=>+v.toFixed(6)))];
-    const cc = tzCadenaCotas(todos, Xn, base, 'bsaDist', {maxNiveles:2});
-    if(cc.nMax >= 0){ out += cc.tikz; base -= 0.30 + (cc.nMax+1)*0.30; }
+    const cc = tzCadenaCotas(todos, Xn, base, 'bsaDist', {maxNiveles:3});
+    if(cc.nMax >= 0){ out += cc.tikz; base -= 0.40 + (cc.nMax+1)*0.36; }
   }
-  const cn = tzCadenaCotas(xsNodos, Xn, base, 'bsaMuted', {maxNiveles:3});
+  const cn = tzCadenaCotas(xsNodos, Xn, base, 'bsaMuted', {maxNiveles:4});
   if(cn.nMax >= 0){
     out += cn.tikz;
-    base -= 0.34 + (cn.nMax+1)*0.30;
+    base -= 0.44 + (cn.nMax+1)*0.36;
     // Luz total, solo si hay más de un vano: con uno repetiría la cadena.
     if(cn.nMax >= 0 && xsNodos.length > 2){
       const xa = Xn(Math.min(...xsNodos)), xb = Xn(Math.max(...xsNodos));
       out += '\\draw[bsaAcc, line width=.6pt, {Latex[length=1.4mm]}-{Latex[length=1.4mm]}] ('
            + xa.toFixed(3) + ',' + base.toFixed(3) + ') -- (' + xb.toFixed(3) + ',' + base.toFixed(3) + ');\n';
-      out += tzTexto((xa+xb)/2, base, '\\colorbox{white}{' + dec(Math.max(...xsNodos)-Math.min(...xsNodos),'len')
-           + '\\,' + escLatex(unitLen) + '}', 'font=\\scriptsize, color=bsaAcc', 0, -1);
+      out += tzTextoFijo((xa+xb)/2, base, dec(Math.max(...xsNodos)-Math.min(...xsNodos),'len')
+           + '\\,' + escLatex(unitLen), 'font=\\scriptsize, color=bsaAcc');
     }
   }
 
@@ -183,20 +289,20 @@ function tikzViga(conReacciones){
     if(aportaY){
       const todosY = [...new Set(ysCargas.concat([Math.min(...ysNodos), Math.max(...ysNodos)])
                        .map(v=>+v.toFixed(6)))];
-      const cy = tzCadenaCotasY(todosY, Yn, baseX, 'bsaDist', {maxNiveles:2});
-      if(cy.nMax >= 0){ out += cy.tikz; baseX += 0.30 + (cy.nMax+1)*0.34; }
+      const cy = tzCadenaCotasY(todosY, Yn, baseX, 'bsaDist', {maxNiveles:3});
+      if(cy.nMax >= 0){ out += cy.tikz; baseX += 0.30 + (cy.nMax+1)*0.38; }
     }
-    const cyn = tzCadenaCotasY(ysNodos, Yn, baseX, 'bsaMuted', {maxNiveles:3});
+    const cyn = tzCadenaCotasY(ysNodos, Yn, baseX, 'bsaMuted', {maxNiveles:4});
     if(cyn.nMax >= 0){
       out += cyn.tikz;
-      baseX += 0.34 + (cyn.nMax+1)*0.34;
+      baseX += 0.38 + (cyn.nMax+1)*0.38;
       if(ysNodos.length > 2){
         const ya = Yn(Math.min(...ysNodos)), yb = Yn(Math.max(...ysNodos));
         out += '\\draw[bsaAcc, line width=.6pt, {Latex[length=1.4mm]}-{Latex[length=1.4mm]}] ('
              + baseX.toFixed(3) + ',' + ya.toFixed(3) + ') -- ('
              + baseX.toFixed(3) + ',' + yb.toFixed(3) + ');\n';
-        out += '\\node[rotate=90, font=\\scriptsize, color=bsaAcc] at ('
-             + (baseX+0.22).toFixed(3) + ',' + ((ya+yb)/2).toFixed(3) + ') {'
+        out += '\\node[rotate=90, font=\\scriptsize, color=bsaAcc, fill=white, inner sep=1pt] at ('
+             + baseX.toFixed(3) + ',' + ((ya+yb)/2).toFixed(3) + ') {'
              + dec(Math.max(...ysNodos)-Math.min(...ysNodos),'len') + '\\,'
              + escLatex(unitLen) + '};\n';
       }
@@ -204,6 +310,7 @@ function tikzViga(conReacciones){
   }
   return out;
 }
+
 // ═══════════════════════════════════════════════════════════
 //  INFORME: estructura del documento
 //  Sigue el orden en que se enseña el tema: planteamiento y convenio de

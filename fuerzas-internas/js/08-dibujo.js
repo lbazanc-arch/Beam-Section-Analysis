@@ -568,37 +568,36 @@ function dibujarCarga(c){
     const sg = (c.mag < 0) ? -1 : 1;
     // en pantalla el eje y crece hacia abajo, así que se invierte
     const vx = d.x*sg, vy = -d.y*sg;
-    // Una flecha casi paralela a la barra se dibujaba ENCIMA de ella y no
-    // había forma de leerla, sobre todo en un extremo. En ese caso se aparta
-    // perpendicularmente y se une al punto con una guía de puntos.
-    let ox = 0, oy = 0;
+    // Una fuerza paralela a la barra actúa SOBRE la barra y ahí se dibuja;
+    // para que no se pierda contra el eje lleva un halo blanco que la recorta
+    // y su valor va al costado de la flecha, no en la cola.
+    let paralela = false, nX = 0, nY = 0;
     if(g){
       const ux = g.ux, uy = -g.uy;                 // eje del tramo en pantalla
       if(Math.abs(vx*ux + vy*uy) > 0.9){           // menos de ~25° con la barra
-        const nx = -uy, ny = ux;                   // normal en pantalla
-        const s2 = (ny > 0) ? -1 : 1;              // hacia arriba de la pantalla
-        ox = nx*s2*13; oy = ny*s2*13;
+        paralela = true;
+        nX = -uy; nY = ux;                         // normal en pantalla
+        const s2 = (nY > 0) ? -1 : 1;              // hacia arriba de la pantalla
+        nX *= s2; nY *= s2;
       }
     }
-    const bx = px + ox, by = py + oy;
+    // cola a 50 px del punto, punta a 5 px; la flecha "llega" al punto
+    const qx = px - vx*50, qy = py - vy*50;
+    const ex = px - vx*5,  ey = py - vy*5;
+    if(paralela){
+      ctx.strokeStyle='#fff'; ctx.lineWidth=8; ctx.lineCap='butt';
+      ctx.beginPath(); ctx.moveTo(qx,qy); ctx.lineTo(px - vx*1, py - vy*1); ctx.stroke();
+    }
     ctx.strokeStyle='#d94f5c'; ctx.fillStyle='#d94f5c'; ctx.lineWidth=2.6;
-    // cola a 46 px del punto, punta a 5 px; la flecha "llega" a la barra
-    const qx = bx - vx*46, qy = by - vy*46;
-    const ex = bx - vx*5,  ey = by - vy*5;
     ctx.beginPath(); ctx.moveTo(qx,qy); ctx.lineTo(ex,ey); ctx.stroke();
     const ang = Math.atan2(vy, vx);
-    ctx.save(); ctx.translate(bx - vx*3, by - vy*3); ctx.rotate(ang);
+    ctx.save(); ctx.translate(px - vx*3, py - vy*3); ctx.rotate(ang);
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-11,-5); ctx.lineTo(-11,5);
     ctx.closePath(); ctx.fill(); ctx.restore();
-    if(ox || oy){
-      ctx.save();
-      ctx.setLineDash([2,3]); ctx.lineWidth=1; ctx.strokeStyle='rgba(217,79,92,.75)';
-      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(px, py); ctx.stroke();
-      ctx.restore();
-      ctx.beginPath(); ctx.arc(px, py, 2.4, 0, Math.PI*2); ctx.fill();
-    }
-    rotulo(dec(Math.abs(c.mag),'f')+' '+unitFor, qx - vx*10, qy - vy*10, '#d94f5c',
-           -vx, -vy);
+    if(paralela)
+      rotulo(dec(Math.abs(c.mag),'f')+' '+unitFor, (qx+ex)/2 + nX*11, (qy+ey)/2 + nY*11, '#d94f5c', nX, nY);
+    else
+      rotulo(dec(Math.abs(c.mag),'f')+' '+unitFor, qx - vx*10, qy - vy*10, '#d94f5c', -vx, -vy);
   } else if(c.tipo==='M'){
     // El sentido del arco sigue al signo del momento.
     // El sentido debe leerse de un vistazo: arco de 300° con una punta
