@@ -231,7 +231,15 @@ const TZ_ANCHO_CAR = 0.105;    // ancho medio por carácter
 let _tzCajas = [];
 
 function tzReiniciar(){ _tzCajas = []; }
-function tzAncho(txt){ return String(txt).length * TZ_ANCHO_CAR + 0.10; }
+// El ancho depende del cuerpo: \tiny ≈ 0.105 cm por carácter, \scriptsize ≈ 0.135,
+// \small ≈ 0.16. Los comandos de LaTeX ($, \, etc.) no ocupan sitio.
+function tzAncho(txt, opts){
+  const o = String(opts || '');
+  const car = o.indexOf('\\tiny') >= 0 ? TZ_ANCHO_CAR
+            : (o.indexOf('\\small') >= 0 && o.indexOf('\\scriptsize') < 0 ? 0.16 : 0.135);
+  const limpio = String(txt).replace(/\\[a-zA-Z]+/g, '').replace(/[$\\{}^_,]/g, '');
+  return Math.max(1, limpio.length) * car + 0.10;
+}
 function tzOcupar(x0, y0, x1, y1){
   _tzCajas.push({x0:Math.min(x0,x1), y0:Math.min(y0,y1),
                  x1:Math.max(x0,x1), y1:Math.max(y0,y1)});
@@ -250,7 +258,7 @@ function tzOcuparTrazo(x1, y1, x2, y2, w){
 }
 // Rótulo que busca hueco. dirX/dirY marcan hacia dónde apartarse.
 function tzTexto(x, y, txt, opts, dirX, dirY){
-  const w = tzAncho(txt), h = TZ_ALTO_TXT;
+  const w = tzAncho(txt, opts), h = TZ_ALTO_TXT;
   const dx0 = (dirX === undefined) ? 0 : dirX;
   const dy0 = (dirY === undefined) ? 1 : dirY;
   const paso = h + 0.06;
@@ -481,39 +489,74 @@ function pasoAPasoReacciones(R){
   return out;
 }
 
+// ── Símbolo de apoyo en TikZ ──
+// El mismo dibujo sirve para el modelo, los DCL y el esquema de los
+// diagramas, así el alumno reconoce el apoyo en las tres figuras.
+// lado: hacia dónde miran las rayas del empotramiento (−1 izquierda, +1 derecha).
+function tikzApoyo(x, y, tipo, k, lado){
+  const K = k || 1, F = n => n.toFixed(3), s = lado || -1;
+  let out = '';
+  if(tipo === 'simple'){
+    out += '\\draw[line width=1pt] (' + F(x) + ',' + F(y) + ') -- (' + F(x-0.28*K) + ',' + F(y-0.45*K)
+         + ') -- (' + F(x+0.28*K) + ',' + F(y-0.45*K) + ') -- cycle;\n';
+    out += '\\draw[line width=1pt] (' + F(x-0.4*K) + ',' + F(y-0.45*K) + ') -- (' + F(x+0.4*K) + ',' + F(y-0.45*K) + ');\n';
+    for(let i=-3;i<=3;i++){
+      const xi = x+i*0.11*K;
+      out += '\\draw[line width=.6pt] (' + F(xi) + ',' + F(y-0.45*K) + ') -- (' + F(xi-0.08*K) + ',' + F(y-0.58*K) + ');\n';
+    }
+  } else if(tipo === 'movil'){
+    out += '\\draw[line width=1pt] (' + F(x) + ',' + F(y) + ') -- (' + F(x-0.26*K) + ',' + F(y-0.38*K)
+         + ') -- (' + F(x+0.26*K) + ',' + F(y-0.38*K) + ') -- cycle;\n';
+    out += '\\draw[line width=1pt] (' + F(x-0.13*K) + ',' + F(y-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
+    out += '\\draw[line width=1pt] (' + F(x+0.13*K) + ',' + F(y-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
+    out += '\\draw[line width=1pt] (' + F(x-0.36*K) + ',' + F(y-0.54*K) + ') -- (' + F(x+0.36*K) + ',' + F(y-0.54*K) + ');\n';
+  } else if(tipo === 'empotrado'){
+    out += '\\draw[line width=1.4pt] (' + F(x) + ',' + F(y-0.42*K) + ') -- (' + F(x) + ',' + F(y+0.42*K) + ');\n';
+    for(let i=-3;i<=3;i++){
+      const yi = y + i*0.13*K;
+      out += '\\draw[line width=.6pt] (' + F(x) + ',' + F(yi) + ') -- (' + F(x+s*0.16*K) + ',' + F(yi-0.1*K) + ');\n';
+    }
+  }
+  return out;
+}
+
 // ── DCL del trozo cortado, en TikZ ──
-// Sustituye a la tabla de acciones: se ve la porción de viga que queda
-// antes del corte, con sus cargas, sus reacciones y las tres solicitaciones
-// en la cara cortada, todo acotado. Reutiliza el colocador de rótulos, así
-// que las etiquetas se apartan en vez de pisarse.
-function tikzDCLSub(R, gg, seg, sub){
+// Se ve la porción de viga que queda antes del corte con TODO lo que actúa
+// sobre ella: el apoyo y sus reacciones (con nombre y valor), las cargas
+// puntuales, los pares, las repartidas con su resultante en el centroide y,
+// en la cara cortada, N, V y M en sentido positivo. Reutiliza el colocador
+// de rótulos, así que las etiquetas se apartan en vez de pisarse.
+function tikzDCLSub(R, gg, seg, sub, info){
   // El DCL muestra SOLO el grupo que se está analizando, desde su nudo de
-  // arranque hasta el corte. Todo lo que hay antes se sustituye por las tres
-  // solicitaciones que llegan a ese nudo, que son justamente los valores
-  // extremos ya calculados. Dibujar los tramos anteriores era engañoso: en
-  // un tramo inclinado la abscisa r no corre sobre ellos.
+  // arranque hasta el corte. En los grupos posteriores al primero, todo lo
+  // que hay antes del quiebre se sustituye por las tres solicitaciones que
+  // llegan a ese nudo (N0, V0, M0).
+  const EPS = 1e-9;
+  const primero = (gg.idx === 0);
   const sIni = gg.s0;
   const sCut = seg.s0 + sub.sb;
   const O = gg.desde;
   const P = {x: seg.desde.x + seg.ux*sub.sb, y: seg.desde.y + seg.uy*sub.sb};
+  const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
+  const Fz = v => dec(Math.abs(v),'fuerza');
+  const Lz = v => dec(v,'len');
+  const sb = gg.simbolo;
+  const brazo = d => (Math.abs(d) < 1e-6 ? sb : '(' + sb + ' - ' + Lz(d) + ')');
 
   // nudos del grupo que quedan dentro del trozo
-  const pts = [{x:O.x, y:O.y, nom:O.nombre}];
+  const pts = [{x:O.x, y:O.y, nom:O.nombre, n:O}];
   let ac = sIni;
   gg.tramos.forEach(t2=>{
     ac += t2.L;
-    if(ac < sCut - 1e-9) pts.push({x:t2.hasta.x, y:t2.hasta.y, nom:t2.hasta.nombre});
+    if(ac < sCut - 1e-9) pts.push({x:t2.hasta.x, y:t2.hasta.y, nom:t2.hasta.nombre, n:t2.hasta});
   });
   const todos = pts.concat([P]);
 
   let minx=Infinity, maxx=-Infinity, miny=Infinity, maxy=-Infinity;
   todos.forEach(p=>{ minx=Math.min(minx,p.x); maxx=Math.max(maxx,p.x);
                      miny=Math.min(miny,p.y); maxy=Math.max(maxy,p.y); });
-  // El tramo se dibuja inclinado, tal cual está en la estructura. Para que
-  // no ocupe un cuadrado enorme, la escala se limita por separado en ancho y
-  // en alto: usando un solo "span" el diagonal mandaba y sobraba altura.
   const dxB = Math.max(maxx-minx, 1e-6), dyB = Math.max(maxy-miny, 1e-6);
-  const k = Math.min(2.4, 9.6/dxB, 4.4/dyB);
+  const k = Math.min(2.4, 10.0/dxB, 5.6/dyB);
   const X = x => (x-minx)*k, Y = y => (y-miny)*k;
   const F = n => n.toFixed(3);
   tzReiniciar();
@@ -522,85 +565,116 @@ function tikzDCLSub(R, gg, seg, sub){
   for(let i=0;i<todos.length-1;i++)
     out += '\\draw[line width=1.7pt, color=bsaAcc2] (' + F(X(todos[i].x)) + ',' + F(Y(todos[i].y))
          + ') -- (' + F(X(todos[i+1].x)) + ',' + F(Y(todos[i+1].y)) + ');\n';
-  pts.forEach(p=>{
+  pts.forEach((p,i)=>{
     out += '\\filldraw[color=bsaAcc2] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.055);\n';
     out += '\\node[below left, font=\\scriptsize\\bfseries, color=bsaAcc2] at ('
          + F(X(p.x)) + ',' + F(Y(p.y)) + ') {' + escLatex(p.nom) + '};\n';
     tzOcupar(X(p.x)-0.36, Y(p.y)-0.38, X(p.x)+0.06, Y(p.y)-0.02);
+    // El apoyo se dibuja tal cual: así el alumno ve de dónde salen las
+    // reacciones. En los grupos siguientes al primero, el nudo de arranque
+    // ya está representado por N0, V0 y M0 y no lleva apoyo.
+    const esArranque = (i === 0);
+    if(p.n && p.n.apoyo && p.n.apoyo !== 'libre' && (primero || !esArranque)){
+      out += tikzApoyo(X(p.x), Y(p.y), p.n.apoyo, 0.9, -1);
+      tzOcupar(X(p.x)-0.42, Y(p.y)-0.62, X(p.x)+0.42, Y(p.y)-0.02);
+    }
+    if(p.n && p.n.rotula && !esArranque)
+      out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.8pt] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.09);\n';
   });
 
   const ux = seg.ux, uy = seg.uy, nx = -uy, ny = ux;
 
-  // ── Solicitaciones heredadas en el nudo de arranque ──
+  // ── Solicitaciones heredadas en el nudo de arranque (grupos 2.º en adelante) ──
   const t0 = gg.tramos[0], su0 = t0.subs[0];
-  const N0 = polyVal(su0.cN, 0), V0 = polyVal(su0.cV, 0), M0 = polyVal(su0.cM, 0);
   const ox = X(O.x), oy = Y(O.y);
-  const u0x = t0.ux, u0y = t0.uy, n0x = -u0y, n0y = u0x;
-  if(Math.abs(N0) > 1e-9){
-    out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] ('
-         + F(ox-u0x*1.05) + ',' + F(oy-u0y*1.05) + ') -- (' + F(ox-u0x*0.12) + ',' + F(oy-u0y*0.12) + ');\n';
-    out += tzTexto(ox-u0x*1.30, oy-u0y*1.30, '$N_0=' + dec(N0,'fuerza') + '$',
-                   'font=\\tiny, color=bsaAcc', -u0x, -u0y);
-  }
-  if(Math.abs(V0) > 1e-9){
-    out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] ('
-         + F(ox+n0x*0.95) + ',' + F(oy+n0y*0.95) + ') -- (' + F(ox+n0x*0.10) + ',' + F(oy+n0y*0.10) + ');\n';
-    out += tzTexto(ox+n0x*1.20, oy+n0y*1.20, '$V_0=' + dec(V0,'fuerza') + '$',
-                   'font=\\tiny, color=bsaAcc', n0x, n0y);
-  }
-  if(Math.abs(M0) > 1e-9){
-    out += '\\draw[-{Latex[length=1.8mm]}, color=bsaMomento, line width=1pt] ('
-         + F(ox+0.30) + ',' + F(oy) + ') arc (0:300:0.30);\n';
-    tzOcupar(ox-0.36, oy-0.36, ox+0.36, oy+0.36);
-    out += tzTexto(ox-0.85, oy+0.62, '$M_0=' + dec(M0,'momento') + '$',
-                   'font=\\tiny, color=bsaMomento', -1, 1);
+  if(!primero){
+    const N0 = polyVal(su0.cN, 0), V0 = polyVal(su0.cV, 0), M0 = polyVal(su0.cM, 0);
+    const u0x = t0.ux, u0y = t0.uy, n0x = -u0y, n0y = u0x;
+    // N0 positivo = tracción: sobre esta cara tira hacia afuera (hacia atrás)
+    if(Math.abs(N0) > EPS){
+      const s = N0 > 0 ? -1 : 1;
+      out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] ('
+           + F(ox+s*u0x*0.12) + ',' + F(oy+s*u0y*0.12) + ') -- (' + F(ox+s*u0x*1.0) + ',' + F(oy+s*u0y*1.0) + ');\n';
+      tzOcuparTrazo(ox+s*u0x*0.12, oy+s*u0y*0.12, ox+s*u0x*1.0, oy+s*u0y*1.0, 0.07);
+      out += tzTexto(ox+s*u0x*1.25, oy+s*u0y*1.25, '$N_0=' + dec(N0,'fuerza') + '$',
+                     'font=\\tiny, color=bsaAcc', s*u0x, s*u0y);
+    }
+    // V0 positivo: sobre la cara de arranque actúa hacia arriba de la normal
+    if(Math.abs(V0) > EPS){
+      const s = V0 > 0 ? 1 : -1;
+      out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] ('
+           + F(ox-s*n0x*0.95) + ',' + F(oy-s*n0y*0.95) + ') -- (' + F(ox-s*n0x*0.10) + ',' + F(oy-s*n0y*0.10) + ');\n';
+      tzOcuparTrazo(ox-s*n0x*0.95, oy-s*n0y*0.95, ox-s*n0x*0.10, oy-s*n0y*0.10, 0.07);
+      out += tzTexto(ox-s*n0x*1.20, oy-s*n0y*1.20, '$V_0=' + dec(V0,'fuerza') + '$',
+                     'font=\\tiny, color=bsaAcc', -s*n0x, -s*n0y);
+    }
+    if(Math.abs(M0) > EPS){
+      const arc = M0 > 0 ? '(0:-300:0.30)' : '(0:300:0.30)';   // M0 positivo: horario sobre esta cara
+      out += '\\draw[-{Latex[length=1.8mm]}, color=bsaMomento, line width=1pt] ('
+           + F(ox+0.30) + ',' + F(oy) + ') arc ' + arc + ';\n';
+      tzOcupar(ox-0.36, oy-0.36, ox+0.36, oy+0.36);
+      out += tzTexto(ox-0.85, oy+0.62, '$M_0=' + dec(M0,'momento') + '$',
+                     'font=\\tiny, color=bsaMomento', -1, 1);
+    }
   }
 
-  // ── Cargas del grupo que caen antes del corte ──
+  // ── Acciones puntuales del trozo: reacciones (con nombre), cargas y pares ──
   (R.internas.puntuales || []).forEach(o=>{
-    if(o.s === null || o.s <= sIni + 1e-9 || o.s >= sCut - 1e-9) return;
+    if(o.s === null) return;
+    if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return;
+    if(o.s >= sCut - EPS) return;
     const a = o.a, x = X(a.x), y = Y(a.y);
     const Fm = Math.hypot(a.fx, a.fy);
     const col = a.reac ? 'bsaReac' : 'bsaCarga';
+    const nom = nombreAccion(a);
     if(Fm > 1e-12){
       const ex = a.fx/Fm, ey = a.fy/Fm;
+      // La reacción sale del apoyo: si el nudo tiene apoyo dibujado, la flecha
+      // arranca por debajo de él para no taparlo.
+      const bajoApoyo = (a.reac && a.nodo && a.nodo.apoyo && a.nodo.apoyo !== 'libre' && ey > 0.5);
+      const larga = bajoApoyo ? 1.45 : 0.85, corta = bajoApoyo ? 0.62 : 0.10;
       out += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1pt] ('
-           + F(x-ex*0.8) + ',' + F(y-ey*0.8) + ') -- (' + F(x-ex*0.10) + ',' + F(y-ey*0.10) + ');\n';
-      tzOcuparTrazo(x-ex*0.8, y-ey*0.8, x-ex*0.10, y-ey*0.10, 0.07);
-      out += tzTexto(x-ex*1.0, y-ey*1.0, dec(Fm,'fuerza'), 'font=\\tiny, color=' + col, -ex, -ey);
+           + F(x-ex*larga) + ',' + F(y-ey*larga) + ') -- (' + F(x-ex*corta) + ',' + F(y-ey*corta) + ');\n';
+      tzOcuparTrazo(x-ex*larga, y-ey*larga, x-ex*corta, y-ey*corta, 0.07);
+      const lab = a.reac ? '$' + nom.tex + '=' + Fz(Fm) + '$' : Fz(Fm) + '\\,' + uF;
+      out += tzTexto(x-ex*(larga+0.22), y-ey*(larga+0.22), lab, 'font=\\tiny, color=' + col, -ex, -ey);
     }
     if(Math.abs(a.m) > 1e-12){
-      out += '\\draw[-{Latex[length=1.8mm]}, color=bsaMomento, line width=1pt] ('
-           + F(x+0.28) + ',' + F(y) + ') arc (0:300:0.28);\n';
+      const colM = a.reac ? 'bsaReac' : 'bsaMomento';
+      const arc = a.m > 0 ? '(0:300:0.28)' : '(0:-300:0.28)';
+      out += '\\draw[-{Latex[length=1.8mm]}, color=' + colM + ', line width=1pt] ('
+           + F(x+0.28) + ',' + F(y) + ') arc ' + arc + ';\n';
       tzOcupar(x-0.34, y-0.34, x+0.34, y+0.34);
-      out += tzTexto(x+0.55, y+0.32, dec(Math.abs(a.m),'momento'), 'font=\\tiny, color=bsaMomento', 1, 1);
+      const lab = a.reac ? '$' + nom.tex + '=' + dec(Math.abs(a.m),'momento') + '$' : dec(Math.abs(a.m),'momento') + '\\,' + uM;
+      out += tzTexto(x+0.55, y+0.32, lab, 'font=\\tiny, color=' + colM, 1, 1);
     }
   });
 
+  // ── Cargas repartidas hasta el corte, con su resultante en el centroide ──
+  const centroides = [];
   cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
     const z = trozoCargado(c);
     if(!z || z.len <= 1e-12) return;
     const el = gg.tramos.find(t2=>t2.tramo && t2.tramo.id === c.tramo);
-    if(!el) return;                                   // carga de otro grupo
+    if(!el) return;
     const inv = (el.invert);
     let r1 = inv ? (z.g.L - z.s2) : z.s1;
     let r2 = inv ? (z.g.L - z.s1) : z.s2;
-    // Recorte en abscisa GLOBAL: el trozo aislado termina en sCut, así que de
-    // cada carga solo se dibuja lo que cae antes del corte. Comparar por
-    // elemento dejaba pasar enteras las cargas de tramos posteriores.
     const hasta = Math.min(el.L, sCut - el.s0);
-    if(hasta <= 1e-9) return;              // el elemento entero va tras el corte
+    if(hasta <= 1e-9) return;
+    const cortada = r2 > hasta + 1e-9;
     r2 = Math.min(r2, hasta);
     if(r2 <= r1 + 1e-9) return;
-    const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
+    const wFin = (c.tipo==='U') ? c.mag : (c.mag2||0);
+    const wA = inv ? wFin : c.mag, wBtot = inv ? c.mag : wFin;
+    const lenTot = (inv ? (z.g.L - z.s1) : z.s2) - r1;
+    const kw = (wBtot - wA)/lenTot;
+    const w1 = wA, w2 = wA + kw*(r2 - r1);            // intensidad en el corte si está cortada
     const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9);
     const A = {x:X(el.desde.x+el.ux*r1), y:Y(el.desde.y+el.uy*r1)};
     const B = {x:X(el.desde.x+el.ux*r2), y:Y(el.desde.y+el.uy*r2)};
     const d = dirCarga(c, geoTramo(el.tramo));
     const ex = -d.x, ey = -d.y, alt = 0.55;
-    // altura CON SIGNO: la intensidad negativa levanta el bloque al otro
-    // lado y las flechas empujan hacia arriba; si la ley cruza el cero, el
-    // trapecio cruza la barra en el punto de anulación
     const h1 = alt*w1/wm, h2 = alt*w2/wm;
     out += '\\draw[color=bsaDist, fill=bsaDist!12] (' + F(A.x) + ',' + F(A.y)
          + ') -- (' + F(A.x+ex*h1) + ',' + F(A.y+ey*h1)
@@ -609,22 +683,46 @@ function tikzDCLSub(R, gg, seg, sub){
     for(let i=0;i<=4;i++){
       const t3=i/4, xi=A.x+(B.x-A.x)*t3, yi=A.y+(B.y-A.y)*t3, hi=h1+(h2-h1)*t3;
       const sg = Math.sign(hi)||1;
-      if(Math.abs(hi) < 0.10) continue;      // flecha ilegible junto al cero
+      if(Math.abs(hi) < 0.10) continue;
       out += '\\draw[-{Latex[length=1.4mm]}, color=bsaDist, line width=.7pt] ('
            + F(xi+ex*hi) + ',' + F(yi+ey*hi) + ') -- (' + F(xi+ex*0.04*sg) + ',' + F(yi+ey*0.04*sg) + ');\n';
     }
     tzOcuparTrazo(A.x+ex*h1, A.y+ey*h1, B.x+ex*h2, B.y+ey*h2, 0.06);
-    // el rótulo se aparta por el lado del borde más alto del bloque
     const sgR = (Math.abs(h1) >= Math.abs(h2) ? Math.sign(h1) : Math.sign(h2)) || 1;
     out += tzTexto((A.x+B.x)/2+ex*sgR*(alt+0.24), (A.y+B.y)/2+ey*sgR*(alt+0.24),
-                   dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '--'+dec(Math.abs(w2),'fuerza') : ''),
-                   'font=\\tiny, color=black!75', ex*sgR, ey*sgR);
+                   '$w=' + dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '\\to' + dec(Math.abs(w2),'fuerza') : '')
+                   + '$\\,' + escLatex(uDist()),
+                   'font=\\tiny, color=bsaDist!70!black', ex*sgR, ey*sgR);
+    // Resultante de la parte dibujada, en su centroide (trazo discontinuo).
+    const tr = r2 - r1, Ares = (w1+w2)/2*tr;
+    if(Math.abs(Ares) < 1e-9) return;
+    const dc = tr*(w1+2*w2)/(3*(w1+w2));
+    const Cq = {x:X(el.desde.x+el.ux*(r1+dc)), y:Y(el.desde.y+el.uy*(r1+dc))};
+    const sA = Math.sign(Ares) || 1;                   // sentido real de la resultante
+    const dx = d.x*sA, dy = d.y*sA;
+    const largo = alt + 0.85;
+    out += '\\draw[-{Latex[length=2mm]}, color=bsaDist!60!black, dashed, line width=1pt] ('
+         + F(Cq.x-dx*largo) + ',' + F(Cq.y-dy*largo) + ') -- (' + F(Cq.x-dx*0.08) + ',' + F(Cq.y-dy*0.08) + ');\n';
+    tzOcuparTrazo(Cq.x-dx*largo, Cq.y-dy*largo, Cq.x-dx*0.08, Cq.y-dy*0.08, 0.06);
+    const g1 = (el.s0 - gg.s0) + r1;
+    let lab;
+    if(!cortada) lab = '$W=' + Fz(Ares) + '$';
+    else {
+      const partes = [];
+      if(Math.abs(w1) > 1e-9) partes.push({v:w1, tex:Fz(w1) + '\\,' + brazo(g1)});
+      if(Math.abs(kw) > 1e-9) partes.push({v:kw, tex:'\\tfrac{1}{2}\\,' + Fz(kw) + '\\,' + brazo(g1) + '^{2}'});
+      lab = '$W=' + _sumaTex(partes) + '$';
+    }
+    out += tzTexto(Cq.x-dx*(largo+0.22), Cq.y-dy*(largo+0.22), lab,
+                   'font=\\tiny, color=bsaDist!60!black', -dx, -dy);
+    if(!cortada) centroides.push(g1 + dc);
   });
 
-  // ── Cara del corte ──
+  // ── Cara del corte: N, V y M en sentido positivo ──
   const px = X(P.x), py = Y(P.y);
   out += '\\draw[color=bsaAcc, line width=1pt] (' + F(px+nx*0.24) + ',' + F(py+ny*0.24)
        + ') -- (' + F(px-nx*0.24) + ',' + F(py-ny*0.24) + ');\n';
+  out += tzTexto(px+nx*0.40, py+ny*0.40, '$S$', 'font=\\scriptsize\\itshape, color=bsaAcc', nx, ny);
   out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] (' + F(px+ux*0.12) + ',' + F(py+uy*0.12)
        + ') -- (' + F(px+ux*0.88) + ',' + F(py+uy*0.88) + ');\n';
   out += tzTexto(px+ux*1.08, py+uy*1.08, '$N$', 'font=\\scriptsize, color=bsaAcc', ux, uy);
@@ -635,9 +733,10 @@ function tikzDCLSub(R, gg, seg, sub){
        + F(px-ux*0.42+0.26) + ',' + F(py-uy*0.42) + ') arc (0:300:0.26);\n';
   out += tzTexto(px-ux*0.42, py-uy*0.42+0.50, '$M$', 'font=\\scriptsize, color=bsaAcc', 0, 1);
 
-  // ── Cotas PARALELAS al eje, en niveles y con r/x en el nivel exterior ──
+  // ── Cotas PARALELAS al eje: posiciones de las acciones, centroides y la
+  //    abscisa x completa en el nivel exterior ──
   let nxq = nx, nyq = ny;
-  if(nyq > 0){ nxq = -nxq; nyq = -nyq; }        // hacia el lado libre
+  if(nyq > 0){ nxq = -nxq; nyq = -nyq; }        // hacia el lado libre (abajo)
   const rCut = sCut - sIni;
   const pxU = Math.hypot(px-X(O.x), py-Y(O.y)) / (rCut || 1);
   const marcas = [0, rCut];
@@ -646,8 +745,9 @@ function tikzDCLSub(R, gg, seg, sub){
     const rr = o.s - sIni;
     if(rr > 1e-6 && rr < rCut - 1e-6) marcas.push(rr);
   });
+  centroides.forEach(cq=>{ if(cq > 1e-6 && cq < rCut - 1e-6) marcas.push(cq); });
   const uniq = [...new Set(marcas.map(v=>+v.toFixed(4)))].sort((a,b)=>a-b);
-  const BASE = 0.55, SALTO = 0.30;
+  const BASE = 0.72, SALTO = 0.30;
   let niv = -1;
   if(uniq.length > 2){
     const plan = planCotas(uniq, v => v*pxU*100, t => tzAncho(t)*100,
