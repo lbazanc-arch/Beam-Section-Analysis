@@ -124,12 +124,15 @@ function fuerzasInternas(res){
   const puntuales = res.acc.filter(a => a.carga.tipo !== 'U' && a.carga.tipo !== 'T');
   res.inc.forEach((u,j)=>{
     const v = res.val[j];
+    // Se adjunta la incógnita (inc:u) para que el informe pueda nombrar la
+    // reacción igual en todas partes: un apoyo móvil orientado es R_A, no
+    // R_{yA}, y sin este dato no hay forma de distinguirlo desde la acción.
     if(u.ang !== undefined)
       puntuales.push({x:u.n.x, y:u.n.y, fx:v*Math.cos(u.ang), fy:v*Math.sin(u.ang),
-                      m:0, reac:true, nodo:u.n});
-    else if(u.tipo==='Rx') puntuales.push({x:u.n.x, y:u.n.y, fx:v, fy:0, m:0, reac:true, nodo:u.n});
-    else if(u.tipo==='Ry') puntuales.push({x:u.n.x, y:u.n.y, fx:0, fy:v, m:0, reac:true, nodo:u.n});
-    else puntuales.push({x:u.n.x, y:u.n.y, fx:0, fy:0, m:v, reac:true, nodo:u.n});
+                      m:0, reac:true, nodo:u.n, inc:u});
+    else if(u.tipo==='Rx') puntuales.push({x:u.n.x, y:u.n.y, fx:v, fy:0, m:0, reac:true, nodo:u.n, inc:u});
+    else if(u.tipo==='Ry') puntuales.push({x:u.n.x, y:u.n.y, fx:0, fy:v, m:0, reac:true, nodo:u.n, inc:u});
+    else puntuales.push({x:u.n.x, y:u.n.y, fx:0, fy:0, m:v, reac:true, nodo:u.n, inc:u});
   });
   const posPuntual = puntuales.map(a=>({a, s:posicionEnCadena(a, res.cad)}));
   salida.puntuales = posPuntual;   // lo usa el DCL del método de ecuaciones
@@ -180,18 +183,26 @@ function fuerzasInternas(res){
         const wEn = u => wIni + (wFinT-wIni)*((u-r1)/largo);
         const wa = wEn(r1), wb = wEn(corte);
         const trozo = corte - r1;
-        const Fp = (wa+wb)/2*trozo;
-        const dc = (Math.abs(wa+wb)<1e-12) ? trozo/2 : trozo*(wa+2*wb)/(3*(wa+wb));
+        // Integrales exactas del trozo cargado que queda antes del corte, en
+        // la abscisa u del recorrido: I0 = ∫w du es la resultante e
+        // I1 = ∫u·w du su primer momento. Antes se pasaba por el centroide
+        // (I1/I0), que no existe cuando el área es nula (w cruza el cero de
+        // forma simétrica): allí la carga se reducía a una fuerza nula y se
+        // perdía el par que sí produce. Con las integrales el par sale solo.
+        const Fp = (wa+wb)/2*trozo;                        // I0
+        const I1 = r1*Fp + trozo*trozo*(wa+2*wb)/6;        // ∫u·w du
         const origen = res.cad[posTramo].desde;
         const dirx = inv ? -gc.ux : gc.ux, diry = inv ? -gc.uy : gc.uy;
-        const Q = {x:origen.x + dirx*(r1+dc), y:origen.y + diry*(r1+dc)};
         // La resultante actúa según la orientación de la carga; el momento
         // se toma en su forma general, porque con una carga perpendicular
         // sobre un tramo inclinado la componente horizontal ya no es nula.
         const dd = dirCarga(c, gc);
         const Fcx = Fp*dd.x, Fcy = Fp*dd.y;
         Fx += Fcx; Fy += Fcy;
-        Mo += (Q.x-P.x)*Fcy - (Q.y-P.y)*Fcx;
+        // Mo = ∫ [(X(u)−Px)·w·dy − (Y(u)−Py)·w·dx] du, con X(u) = origen + δ·u:
+        // la parte constante multiplica a I0 y la que crece con u, a I1.
+        Mo += ((origen.x-P.x)*dd.y - (origen.y-P.y)*dd.x)*Fp
+            + (dirx*dd.y - diry*dd.x)*I1;
       });
 
       // Convenio estándar de estática: V positiva gira el segmento en sentido horario,

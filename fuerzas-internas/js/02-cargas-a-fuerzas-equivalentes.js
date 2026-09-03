@@ -146,10 +146,25 @@ function accionesDeCarga(c){
     if(!z || z.len <= 1e-12) return [];
     const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
     const Ftot = (w1+w2)/2*z.len;
-    const dc = (Math.abs(w1+w2) < 1e-12) ? z.len/2 : z.len*(w1+2*w2)/(3*(w1+w2));
+    const d = dirCarga(c, z.g);
+    // ── Repartida de área nula (w1 = −w2: la triangular que cruza el cero) ──
+    // No hay fuerza resultante, pero SÍ hay par: el primer momento del
+    // diagrama de carga, ∫₀^L ξ·w(ξ)dξ = L²(w1+2w2)/6, medido desde el inicio
+    // del trozo, no se anula. Reducirla a una fuerza nula en el centro perdía
+    // ese par y dejaba la estructura aparentemente descargada.
+    if(Math.abs(w1+w2) < 1e-12){
+      const Q1 = z.len*z.len*(w1+2*w2)/6;
+      // Como el momento antihorario positivo es x·fy − y·fx, el primer momento
+      // medido sobre el eje pasa a esa convención multiplicando por û × d̂
+      // (producto cruz del unitario del eje por el de la dirección de carga).
+      const m = (z.g.ux*d.y - z.g.uy*d.x)*Q1;
+      const sc0 = z.s1 + z.len/2;   // un par no tiene punto de aplicación:
+      return [{x:z.g.a.x + z.g.ux*sc0,   // se sitúa en el centro del trozo
+               y:z.g.a.y + z.g.uy*sc0, fx:0, fy:0, m}];
+    }
+    const dc = z.len*(w1+2*w2)/(3*(w1+w2));
     const sc = z.s1 + dc;
     const Q = {x:z.g.a.x + z.g.ux*sc, y:z.g.a.y + z.g.uy*sc};
-    const d = dirCarga(c, z.g);
     return [{x:Q.x, y:Q.y, fx:Ftot*d.x, fy:Ftot*d.y, m:0}];
   }
   return [];

@@ -488,27 +488,44 @@ function terminosEquilibrio(R, e){
 // deja una sola incógnita, después las que se despejan sustituyendo lo ya
 // hallado. Cada reacción aparece con su valor en cuanto se obtiene; antes se
 // escribían tres líneas casi iguales y el valor solo salía en la tabla final.
+// ── Nombre de cada reacción ──
+// $R_{yD}$, $R_{xD}$, $R_A$, $M_D$: el mismo símbolo en el desarrollo, en el
+// resumen y en los DCL, para que el alumno siga una sola nomenclatura.
+function simbReaccion(u){
+  const b = escLatex(u.n.nombre);
+  if(u.ang !== undefined) return 'R_{' + b + '}';
+  return (u.tipo==='Rx' ? 'R_{x' : (u.tipo==='Ry' ? 'R_{y' : 'M_{')) + b + '}';
+}
+// ── Sentido real, con icono ──
+// Una flecha se lee de un vistazo; «hacia la izquierda» hay que leerlo. Un
+// apoyo móvil orientado puede apuntar en cualquier dirección, así que se
+// escoge la flecha más próxima de las ocho.
+const _FLECHAS = ['\\rightarrow', '\\nearrow', '\\uparrow', '\\nwarrow',
+                  '\\leftarrow', '\\swarrow', '\\downarrow', '\\searrow'];
+function iconoReaccion(u, v){
+  if(u.tipo === 'M' && u.ang === undefined)
+    return '$' + (v >= 0 ? '\\circlearrowleft' : '\\circlearrowright') + '$';
+  let ang;
+  if(u.ang !== undefined) ang = u.ang;
+  else ang = (u.tipo === 'Rx') ? 0 : Math.PI/2;
+  if(v < 0) ang += Math.PI;
+  const k = ((Math.round(ang/(Math.PI/4)) % 8) + 8) % 8;
+  return '$' + _FLECHAS[k] + '$';
+}
+
 function pasoAPasoReacciones(R){
   if(!R || R.error || !R.inc.length) return '';
-  const simb = (u) => {
-    const b = escLatex(u.n.nombre);
-    if(u.ang !== undefined) return 'R_{' + b + '}';
-    return (u.tipo==='Rx' ? 'R_{x' : (u.tipo==='Ry' ? 'R_{y' : 'M_{')) + b + '}';
-  };
+  const simb = simbReaccion;
   const uInc = (u) => escLatex((u.tipo === 'M' && u.ang === undefined) ? unidadMomento() : unitFor);
   const nEq = R.A.length, nInc = R.inc.length;
+  // El subíndice de la sumatoria ya dice respecto a qué punto se toman los
+  // momentos: la aclaración entre paréntesis sobraba. Si en el origen hay un
+  // nudo, se le llama por su nombre ($\sum M_A = 0$) en vez de $\sum M_O = 0$.
   const nomEq = [];
   nomEq.push('\\sum F_x = 0');
   nomEq.push('\\sum F_y = 0');
-  nomEq.push('\\sum M_O = 0');
+  nomEq.push('\\sum M_{' + nombreOrigen() + '} = 0');
   for(let e=3;e<nEq;e++) nomEq.push('\\sum M_{' + escLatex(R.rotulas[e-3].nombre) + '} = 0');
-  const notaEq = [];
-  notaEq.push('');
-  notaEq.push('');
-  notaEq.push('momentos respecto al origen');
-  for(let e=3;e<nEq;e++)
-    notaEq.push('momento nulo en la rótula ' + escLatex(R.rotulas[e-3].nombre)
-              + ', tomando solo lo que hay a un lado');
 
   let out = '\\noindent{\\bfseries\\color{bsaAcc2} Desarrollo}\\\\[3pt]\n';
   // Diagrama de cuerpo libre global: la viga con sus cargas Y con las
@@ -517,8 +534,29 @@ function pasoAPasoReacciones(R){
   out += '\\begin{center}\\begin{tikzpicture}\n' + tikzViga(true)
        + '\\end{tikzpicture}\n'
        + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre global: cargas '
-       + 'aplicadas y reacciones incógnita, en su sentido positivo supuesto.}\n'
-       + '\\end{center}\\vspace{4pt}\n';
+       + 'aplicadas y reacciones incógnita, en su sentido positivo supuesto. Los '
+       + 'brazos van acotados desde $' + nombreOrigen() + '$, el punto respecto al que '
+       + 'se toman los momentos.}\n\\end{center}\\vspace{4pt}\n';
+
+  // ── Un DCL por cada ecuación de equilibrio independiente ──
+  // Con una rótula no basta el DCL global: la ecuación de momento nulo aísla
+  // UN LADO, y ese trozo es otro cuerpo libre, con sus propias cargas, sus
+  // propias reacciones y sus brazos medidos desde la rótula. Sin la figura,
+  // «tomando solo lo que hay a un lado» es una frase sin apoyo visual.
+  const dclRotula = (rt) => {
+    const lado = ladoDeRotula(rt, R.cad);
+    if(!lado.tramos.length) return '';
+    const nr = escLatex(rt.nombre);
+    return '\\begin{center}\\begin{tikzpicture}\n'
+      + tikzViga(true, {tramos:lado.tramos, incNodos:lado.nodos, rotula:rt,
+                        origen:{x:rt.x, y:rt.y, nombre:rt.nombre}})
+      + '\\end{tikzpicture}\n\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre del '
+      + 'trozo que arranca en la rótula ' + nr + '. La rótula no transmite momento, '
+      + 'así que $\\sum M_{' + nr + '} = 0$ sobre este trozo. Las fuerzas que le pasa '
+      + 'la otra mitad ($' + nr + '_x$, $' + nr + '_y$, a trazos) actúan justo en '
+      + nr + ': su brazo es nulo y no aparecen en la ecuación. Los brazos se acotan '
+      + 'desde ' + nr + '.}\n\\end{center}\\vspace{4pt}\n';
+  };
 
   const dtEq = e => (e >= 2 ? 'momento' : 'fuerza');
   const unEq = e => escLatex(e >= 2 ? unidadMomento() : unitFor);
@@ -547,13 +585,43 @@ function pasoAPasoReacciones(R){
     return v;
   };
 
+  // ── Todo el desarrollo va alineado a la izquierda ──
+  // Con `$$…$$` cada ecuación quedaba centrada y el bloque se leía como una
+  // lista de fórmulas sueltas, sin poder seguir la columna del «=». `flalign*`
+  // con el `&&` final empuja la fila contra el margen izquierdo.
+  const _izq = (tex) => '\\begin{flalign*}\n' + tex + ' &&\n\\end{flalign*}\n';
   // Una ecuación con muchos términos (pórtico con rótula y varias cargas) se
   // salía del margen en una sola línea: a partir de seis términos se parte.
-  const _ecLarga = (t) => (t.length <= 5)
-    ? '$$' + _sumaTex(t) + ' = 0$$\n'
-    : _alineada([_fila('', t, ' = 0', 5, '&\\ ')]);
+  // Lista de referencias: «(1)», «(1) y (2)», «(1), (2) y (4)». Cada ecuación
+  // lleva número para poder citarla: sin él, un desarrollo encadenado obliga
+  // al lector a buscar hacia arriba de qué ecuación salió cada valor.
+  const _refs = ns => ns.length === 1 ? '(' + ns[0] + ')'
+    : '(' + ns.slice(0, -1).join('), (') + ') y (' + ns[ns.length-1] + ')';
   const carg = [];                 // términos de carga de cada ecuación
   for(let e=0;e<nEq;e++) carg.push(terminosEquilibrio(R, e));
+
+  // Cabecera de una ecuación: si es la de una rótula, delante va su DCL.
+  // Mismo formato que los cortes: icono del convenio, la sumatoria con dos
+  // puntos y la ecuación en la misma línea; el despeje alineado debajo.
+  const ico = e => (e === 0) ? '\\xrightarrow{+}\\ '
+                 : (e === 1 ? '+\\!\\uparrow\\ ' : '\\circlearrowleft\\!+\\ ');
+  const etiqueta = e => ico(e) + nomEq[e] + ':\\quad';
+  const _cabecera = (e) => (e >= 3 && R.rotulas[e-3] ? dclRotula(R.rotulas[e-3]) : '');
+
+  // Numeración de las ecuaciones y de dónde salió cada incógnita, para poder
+  // citarlas al sustituir.
+  const numEc = new Array(nEq).fill(0);
+  const deQuien = new Array(nInc).fill(0);
+  let nSig = 0;
+  // Ecuaciones ya resueltas cuyas incógnitas intervienen en ésta.
+  const refsDe = (e) => {
+    const ns = [];
+    R.inc.forEach((u,j)=>{
+      if(Math.abs(R.A[e][j]) < 1e-9 || !conocido[j] || !deQuien[j]) return;
+      if(ns.indexOf(deQuien[j]) < 0) ns.push(deQuien[j]);
+    });
+    return ns.sort((a,b)=>a-b);
+  };
 
   let restantes = nEq;
   while(restantes > 0){
@@ -566,43 +634,57 @@ function pasoAPasoReacciones(R){
     }
     if(el < 0){
       // Ninguna se despeja sola: las que quedan forman un sistema simultáneo.
-      const libres = [];
+      const libres = [], nums = [];
+      let filasS = [];
+      const flush = () => { if(filasS.length){ out += _alineada(filasS); filasS = []; } };
       for(let e=0;e<nEq;e++){
         if(usada[e]) continue;
         usada[e] = true; restantes--;
-        out += '$$' + nomEq[e] + (notaEq[e] ? '\\quad\\text{(' + notaEq[e] + ')}' : '') + '$$\n';
-        out += _ecLarga(izqTerms(e, true).concat(carg[e]));
+        numEc[e] = ++nSig; nums.push(numEc[e]);
+        const dcl = _cabecera(e);
+        if(dcl){ flush(); out += dcl; }      // el DCL de la rótula va antes de SU ecuación
+        const rf = refsDe(e);
+        filasS.push(_fila(etiqueta(e), izqTerms(e, true).concat(carg[e]),
+                          ' = 0\\qquad(' + numEc[e] + ')', 5, ' & '));
+        if(rf.length)
+          filasS.push('& {\\footnotesize\\text{con ' + _refs(rf) + ' ya sustituidas}}');
         pendientes(e).forEach(p=>{ if(libres.indexOf(p.j) < 0) libres.push(p.j); });
       }
+      flush();
       if(libres.length){
-        out += '\\noindent{\\footnotesize Estas ecuaciones no se despejan por separado: '
-          + 'forman un sistema simultáneo. Resolviéndolo:}\\\\[2pt]\n';
-        out += '$$' + libres.map(j=>simb(R.inc[j]) + ' = '
+        out += '\\noindent{\\footnotesize Las ecuaciones ' + _refs(nums) + ' no se despejan por '
+          + 'separado: forman un sistema simultáneo. Resolviéndolo:}\\\\[2pt]\n';
+        out += _izq(libres.map(j=>simb(R.inc[j]) + ' = '
           + dec(R.val[j], (R.inc[j].tipo === 'M' && R.inc[j].ang === undefined) ? 'momento' : 'fuerza')
-          + '\\ \\text{' + uInc(R.inc[j]) + '}').join('\\qquad ') + '$$\n';
-        libres.forEach(j=>{ conocido[j] = true; });
+          + '\\ \\text{' + uInc(R.inc[j]) + '}').join('\\qquad '));
+        libres.forEach(j=>{ conocido[j] = true; deQuien[j] = nums[nums.length-1]; });
       }
       break;
     }
 
     usada[el] = true; restantes--;
     const p = pendientes(el)[0];
+    const rf = refsDe(el);
     const hayPrevias = izqTerms(el, false).length > 1;
-    out += '$$' + nomEq[el] + (notaEq[el] ? '\\quad\\text{(' + notaEq[el] + ')}' : '') + '$$\n';
-    // 1 · La ecuación completa, con las incógnitas en símbolos. Se omite
-    //     cuando no aporta nada: una ecuación con una sola incógnita de
+    out += _cabecera(el);
+    // 1 · La ecuación completa, con las incógnitas en símbolos y numerada. Se
+    //     omite cuando no aporta nada: una ecuación con una sola incógnita de
     //     coeficiente unidad y sin cargas ya es el propio despeje, y
     //     escribirla repetía la misma línea dos veces.
     const trivial = !hayPrevias && !carg[el].length && Math.abs(Math.abs(p.a)-1) < 1e-9;
+    numEc[el] = ++nSig;      // toda ecuación lleva número, para poder citarla
+    const filas = [];
     if(!trivial)
-      out += _ecLarga(izqTerms(el, false).concat(carg[el]));
-    // 2 · Sustitución de lo ya hallado y suma de lo conocido
+      filas.push(_fila(etiqueta(el), izqTerms(el, false).concat(carg[el]),
+                       ' = 0\\qquad(' + numEc[el] + ')', 5, ' & '));
+    // 2 · Sustitución de lo ya hallado, citando de dónde sale cada valor
     const sust = izqTerms(el, true).concat(carg[el]);
     const cte = sust.filter(t=>t.tex.indexOf('R_') < 0 && t.tex.indexOf('M_') < 0)
                     .reduce((s,t)=>s + t.v, 0);
     const coefTxt = Math.abs(Math.abs(p.a)-1) < 1e-9 ? '' : dec(Math.abs(p.a),'len') + '\\,';
     if(hayPrevias)
-      out += _ecLarga(sust);
+      filas.push(_fila(rf.length ? '{\\footnotesize\\text{de } ' + _refs(rf) + ':}\\quad' : '',
+                       sust, ' = 0', 5, ' & '));
     // 3 · Despeje, con la división a la vista si el coeficiente no es 1
     const dtI = (p.u.tipo === 'M' && p.u.ang === undefined) ? 'momento' : 'fuerza';
     const izqDes = (p.a < 0 ? '-' : '') + coefTxt + simb(p.u);
@@ -614,8 +696,13 @@ function pasoAPasoReacciones(R){
     else if(p.a < 0)
       linea += ' \\quad\\Rightarrow\\quad ' + simb(p.u) + ' = ' + dec(R.val[p.j], dtI)
              + '\\ \\text{' + uInc(p.u) + '}';
-    out += '$$' + linea + '$$\n';
+    // Si la ecuación era trivial no se escribió arriba: el número va aquí,
+    // sobre el propio despeje, para que la cita apunte a algo visible.
+    filas.push((trivial ? etiqueta(el) : '') + ' & ' + linea
+               + (trivial ? '\\qquad(' + numEc[el] + ')' : ''));
+    out += _alineada(filas);
     conocido[p.j] = true;
+    deQuien[p.j] = numEc[el];
   }
 
   // Comprobación compacta: con todas las reacciones halladas, cada ecuación
@@ -742,6 +829,28 @@ function tikzDCLSub(R, gg, seg, sub, info){
     if(p.n && p.n.rotula && !esArranque)
       out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.8pt] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.09);\n';
   });
+
+  // ── Inclinación del tramo ──
+  // En un tramo inclinado, las ecuaciones del corte usan las componentes
+  // perpendicular y paralela de cada fuerza, y esas salen de θ. Sin el ángulo
+  // en la figura, los senos y cosenos del desarrollo no se sostienen en nada.
+  if(gg.inclinado){
+    const ox = X(O.x), oy = Y(O.y);
+    const gr = gg.ang.toFixed(1);
+    const a2 = gg.ang;                       // ángulo del eje con la horizontal
+    const rr = 0.95, sgx = (a2 > 90 || a2 < -90) ? -1 : 1;
+    // horizontal de referencia, a puntos, hacia el lado del tramo
+    out += '\\draw[dotted, color=bsaMuted] (' + F(ox) + ',' + F(oy) + ') -- ('
+         + F(ox + sgx*(rr + 0.35)) + ',' + F(oy) + ');\n';
+    out += '\\draw[-{Latex[length=1.5mm]}, color=bsaCarga, line width=.8pt] ('
+         + F(ox + sgx*rr) + ',' + F(oy) + ') arc (' + (sgx > 0 ? '0' : '180') + ':'
+         + F(a2) + ':' + F(rr) + ');\n';
+    const am = (((sgx > 0 ? 0 : 180) + a2)/2)*Math.PI/180;
+    tzOcupar(ox - rr, oy - rr, ox + rr, oy + rr);
+    out += tzTexto(ox + Math.cos(am)*(rr + 0.34), oy + Math.sin(am)*(rr + 0.34),
+                   '{\\scriptsize$\\theta = ' + gr + '^\\circ$}', 'color=bsaCarga',
+                   Math.cos(am), Math.sin(am));
+  }
 
   // ── Cargas repartidas hasta el corte ──
   // Van las PRIMERAS para que su bloque quede por debajo de las flechas y de
