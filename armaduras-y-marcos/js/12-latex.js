@@ -293,7 +293,10 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
   return {tikz:s, angulos};
 }
 
-function tikzDCLNudo(n, res){
+// `conocidas` (opcional): barraId → valor ya hallado. Esas barras llevan su
+// valor en el rótulo, además del sentido real que ya daba la flecha: es lo
+// que «llega» al nudo desde los nudos anteriores.
+function tikzDCLNudo(n, res, conocidas){
   const R = 2.10;
   let s = '';
   const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
@@ -333,7 +336,8 @@ function tikzDCLNudo(n, res){
     }
     // Etiqueta simple (solo la variable); si chocaría con otra, se aleja y
     // se conecta con una línea delgada hasta la punta de su propia barra.
-    s += etiquetaFuerza(ux, uy, col, '$F_{' + nombreBarra(b) + '}$', R+0.30);
+    const conVal = conocidas && conocidas[b.id] !== undefined;
+    s += etiquetaFuerza(ux, uy, col, '$F_{' + nombreBarra(b) + '}' + (conVal ? ' = ' + dec(Math.abs(val),'f') : '') + '$', R+0.30);
     // Arco con letra griega para el ángulo (agudo, 0-90°) respecto de la horizontal.
     const arco = arcoAngulo(ux, uy, col, gen, 0.65, 0, 0, colocadorLetras);
     if(arco.tikz){ s += arco.tikz; angulos.push({letra:arco.letra, valor:arco.valor, barra:nombreBarra(b)}); }
@@ -407,6 +411,20 @@ function tikzArmaduraCompleta(opts){
     }
     if(opts.cargas !== false){
       s += tikzFlechaCarga(n, tx, ty, factorCargas);
+    }
+    // Reacciones incógnita en su sentido positivo supuesto (+x, +y), para el
+    // DCL global con el que se plantean las ecuaciones de reacciones.
+    if(opts.reaccionesIncognita && reacciones[n.id]){
+      const rr = reacciones[n.id];
+      const px = parseFloat(tx(n.x)), py = parseFloat(ty(n.y));
+      if(rr.ry !== undefined){
+        s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + px.toFixed(3) + ',' + (py-1.45).toFixed(3) + ') -- (' + px.toFixed(3) + ',' + (py-0.62).toFixed(3) + ');\n';
+        s += '\\node[font=\\scriptsize, text=bsaVerde, right, xshift=2pt] at (' + px.toFixed(3) + ',' + (py-1.05).toFixed(3) + ') {$R_{y' + escLatex(n.nombre) + '}$};\n';
+      }
+      if(rr.rx !== undefined){
+        s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + (px-1.35).toFixed(3) + ',' + py.toFixed(3) + ') -- (' + (px-0.45).toFixed(3) + ',' + py.toFixed(3) + ');\n';
+        s += '\\node[font=\\scriptsize, text=bsaVerde, above] at (' + (px-0.90).toFixed(3) + ',' + py.toFixed(3) + ') {$R_{x' + escLatex(n.nombre) + '}$};\n';
+      }
     }
   });
   if(opts.cotas){
