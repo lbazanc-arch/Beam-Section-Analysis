@@ -812,7 +812,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
       <span class="chip"><span class="chip-dot"></span>Centroide</span>
       <span class="chip"><span class="chip-dot"></span>Presión de Fluidos</span>
       <span class="chip"><span class="chip-dot"></span>Momentos de Inercia</span>
-      <span class="chip"><span class="chip-dot"></span>Estática · Temas 6 a 10</span>
+      <span class="chip"><span class="chip-dot"></span>Estática · Temas 1 a 5</span>
     </div>
     
   </div>
@@ -850,7 +850,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
   </div>
   <div class="info-card">
     <h4>ℹ️ Acerca de BSA</h4>
-    <p>Panel docente para gestionar accesos, monitorear el uso y abrir los aplicativos de Estática. Cinco temas: armaduras, fuerzas internas, centroides, presión de fluidos y momento de inercia (temas 6 a 10 del curso).</p>
+    <p>Panel docente para gestionar accesos, monitorear el uso y abrir los aplicativos de Estática. Cinco temas: armaduras, fuerzas internas, centroides, presión de fluidos y momento de inercia (temas 1 a 5 del curso).</p>
     <div class="by">Creado por <span>Luis Alejandro Bazán Campos</span></div>
     <div class="tags"><span class="tag">Gestión de usuarios</span><span class="tag">Registro de ingresos</span></div>
   </div>
@@ -881,7 +881,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
   </div>
   <div class="info-card">
     <h4>ℹ️ Acerca de BSA</h4>
-    <p>Plataforma interactiva de Estática con cinco aplicativos (temas 6 a 10): armaduras, fuerzas internas, centroides, presión de fluidos y momento de inercia. Permite comprobar los resultados paso a paso.</p>
+    <p>Plataforma interactiva de Estática con cinco aplicativos (temas 1 a 5): armaduras, fuerzas internas, centroides, presión de fluidos y momento de inercia. Permite comprobar los resultados paso a paso.</p>
     <div class="by">Creado por <span>Luis Alejandro Bazán Campos</span></div>
     <div class="tags"><span class="tag">Fuerzas Internas</span><span class="tag">Momentos de Inercia</span></div>
   </div>
@@ -2655,17 +2655,20 @@ async function refreshPanel(){
 }
 
 // ═══ Catálogo de temas y bloqueo por tema (solo estudiantes) ═══
+// El número es el del TEMA dentro del curso (1 a 5), no el del capítulo del
+// libro. Sale de la columna `capitulo` de la tabla `temas`, que manda sobre
+// esta lista de respaldo: cambiar el orden exige cambiarlo en los dos sitios.
 let CAPS = [
-  {key:'arma',   cap:'6',  cls:'amber', nom:'Armaduras y Marcos',
-   desc:'Método de nudos y de secciones · fuerza cero · resistencia · Tema 6'},
-  {key:'diag',   cap:'7',  cls:'blue',  nom:'Fuerzas Internas',
-   desc:'DFN · DFC · DMF · Vigas Gerber · Tema 7.2'},
-  {key:'centro', cap:'9',  cls:'teal',  nom:'Centroide',
-   desc:'Secciones compuestas · cuerpos homogéneos y heterogéneos · Tema 9'},
-  {key:'presion', cap:'9',  cls:'teal',  nom:'Presión de Fluidos',
-   desc:'Placas sumergidas · centro de presión · Tema 9.5'},
-  {key:'iner',   cap:'10', cls:'green', nom:'Momentos de Inercia',
-   desc:'Secciones compuestas · Steiner · Ejes principales · Tema 10'}
+  {key:'arma',   cap:'1', cls:'amber', nom:'Armaduras y Marcos',
+   desc:'Método de nudos y de secciones · fuerza cero · resistencia'},
+  {key:'diag',   cap:'2', cls:'blue',  nom:'Fuerzas Internas',
+   desc:'DFN · DFC · DMF · Vigas Gerber'},
+  {key:'centro', cap:'3', cls:'teal',  nom:'Centroide',
+   desc:'Secciones compuestas · cuerpos homogéneos y heterogéneos'},
+  {key:'presion',cap:'4', cls:'teal',  nom:'Presión de Fluidos',
+   desc:'Placas sumergidas · centro de presión'},
+  {key:'iner',   cap:'5', cls:'green', nom:'Momentos de Inercia',
+   desc:'Secciones compuestas · Steiner · Ejes principales'}
 ];
 
 // Lista de temas bloqueados para los estudiantes
@@ -3205,15 +3208,6 @@ function exportExcel(){
   URL.revokeObjectURL(url);
 }
 function closeOvl(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'));}
-// Despliega un tema y pliega los demás
-function toggleCap(n){
-  const caja=document.querySelector('.cap[data-cap="'+n+'"]');
-  if(!caja) return;
-  const abierto=caja.classList.contains('open');
-  document.querySelectorAll('.cap').forEach(c=>c.classList.remove('open'));
-  if(!abierto) caja.classList.add('open');
-}
-
 function openApp(appKey){
   // Un tema bloqueado no se abre para estudiantes, ni siquiera llamando
   // directamente a esta función: el control no puede quedarse solo en la vista.
