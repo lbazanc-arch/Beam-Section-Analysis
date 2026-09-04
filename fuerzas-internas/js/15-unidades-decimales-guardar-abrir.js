@@ -533,10 +533,8 @@ function pasoAPasoReacciones(R){
   // positivo supuesto de cada una antes de plantear las ecuaciones.
   out += '\\begin{center}\\begin{tikzpicture}\n' + tikzViga(true)
        + '\\end{tikzpicture}\n'
-       + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre global: cargas '
-       + 'aplicadas y reacciones incógnita, en su sentido positivo supuesto. Los '
-       + 'brazos van acotados desde $' + nombreOrigen() + '$, el punto respecto al que '
-       + 'se toman los momentos.}\n\\end{center}\\vspace{4pt}\n';
+       + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre global: cargas y reacciones incógnita '
+       + 'en su sentido positivo; brazos acotados desde $' + nombreOrigen() + '$.}\n\\end{center}\\vspace{4pt}\n';
 
   // ── Un DCL por cada ecuación de equilibrio independiente ──
   // Con una rótula no basta el DCL global: la ecuación de momento nulo aísla
@@ -550,12 +548,8 @@ function pasoAPasoReacciones(R){
     return '\\begin{center}\\begin{tikzpicture}\n'
       + tikzViga(true, {tramos:lado.tramos, incNodos:lado.nodos, rotula:rt,
                         origen:{x:rt.x, y:rt.y, nombre:rt.nombre}})
-      + '\\end{tikzpicture}\n\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre del '
-      + 'trozo que arranca en la rótula ' + nr + '. La rótula no transmite momento, '
-      + 'así que $\\sum M_{' + nr + '} = 0$ sobre este trozo. Las fuerzas que le pasa '
-      + 'la otra mitad ($' + nr + '_x$, $' + nr + '_y$, a trazos) actúan justo en '
-      + nr + ': su brazo es nulo y no aparecen en la ecuación. Los brazos se acotan '
-      + 'desde ' + nr + '.}\n\\end{center}\\vspace{4pt}\n';
+      + '\\end{tikzpicture}\n\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre del trozo desde la rótula ' + nr
+      + ': $\\sum M_{' + nr + '} = 0$; $' + nr + '_x$ y $' + nr + '_y$ (a trazos) tienen brazo nulo.}\n\\end{center}\\vspace{4pt}\n';
   };
 
   const dtEq = e => (e >= 2 ? 'momento' : 'fuerza');

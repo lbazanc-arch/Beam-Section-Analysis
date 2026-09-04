@@ -197,7 +197,7 @@ function arcoAngulo(ux, uy, col, gen, radio, ox, oy, colocadorLetras){
     tikz += '\\draw[' + col + '!50, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + lx + ',' + ly + ');\n';
   }
   tikz += '\\node[font=\\tiny, text=' + col + '] at (' + lx + ',' + ly + ') {$' + letra + '$};\n';
-  return {tikz, letra, valor:acuteDeg};
+  return {tikz, letra, valor:acuteDeg, lx:parseFloat(lx), ly:parseFloat(ly)};
 }
 
 function anclaPara(ux, uy){
@@ -219,6 +219,87 @@ function inclinacionBarra(ux, uy){
   if(a < 0) a += 180;
   if(a >= 180) a -= 180;
   return a;
+}
+
+// Nombre del centro de momentos de cada ecuación de un corte: el del nudo si el
+// centro cae en uno (casi siempre: donde se cruzan las otras dos barras cortadas)
+// y, si no, una letra O, O', O'' que se rotula en la figura y se define en el pie.
+// Devuelve un arreglo alineado con `items` (null donde la ecuación no es de momentos).
+function etiquetasCentros(items){
+  const libres = ['O', "O'", "O''"];
+  let k = 0; const out = [];
+  items.forEach(it=>{
+    if(it.tipo !== 'momento' || !it.centro){ out.push(null); return; }
+    const nd = nodos.find(n=>Math.abs(n.x-it.centro.x) < 1e-6 && Math.abs(n.y-it.centro.y) < 1e-6);
+    if(nd){ out.push({tex:escLatex(nd.nombre), esNudo:true, x:it.centro.x, y:it.centro.y}); return; }
+    const previo = out.find(o=>o && !o.esNudo && Math.abs(o.x-it.centro.x) < 1e-6 && Math.abs(o.y-it.centro.y) < 1e-6);
+    if(previo){ out.push(previo); return; }
+    out.push({tex:libres[Math.min(k++, libres.length-1)], esNudo:false, x:it.centro.x, y:it.centro.y});
+  });
+  return out;
+}
+// ── Figura de brazos de una ecuación de momentos del corte ──
+// Repite la porción en gris y, para el centro C de esa ecuación, acota la
+// distancia perpendicular desde C a la línea de acción de cada fuerza que SÍ
+// produce momento (la incógnita de la ecuación y las conocidas del detalle),
+// con la línea de acción prolongada a trazos hasta el pie de la perpendicular.
+// Si C es un nudo de fuera de la porción, las barras cuyas líneas pasan por él
+// se prolongan a trazos hasta C. Revisión del PDF, 2026-09-04.
+function tikzBrazosCorte(lado, datosCorte, item, nombreCentro){
+  const enLado = id => lado.indexOf(id) >= 0;
+  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys);
+  const esc = 7.6/Math.max(maxX-minX, 1e-6);
+  const X = x => (x-minX)*esc, Y = y => (y-minY)*esc, F = v => v.toFixed(3);
+  const C = item.centro, Lf = 1.1;
+  let s = '';
+  barras.forEach(b=>{
+    if(!(enLado(b.a) && enLado(b.b))) return;
+    const na = nodos.find(x=>x.id===b.a), nb = nodos.find(x=>x.id===b.b);
+    s += '\\draw[black!45, line width=1.1pt] (' + F(X(na.x)) + ',' + F(Y(na.y)) + ') -- (' + F(X(nb.x)) + ',' + F(Y(nb.y)) + ');\n';
+  });
+  nodos.forEach(n=>{
+    if(!enLado(n.id)) return;
+    s += '\\fill[black!60] (' + F(X(n.x)) + ',' + F(Y(n.y)) + ') circle (1.3pt);\n';
+    s += '\\node[font=\\tiny, above right, xshift=1pt] at (' + F(X(n.x)) + ',' + F(Y(n.y)) + ') {' + escLatex(n.nombre) + '};\n';
+  });
+  // Centro de fuera de la porción: las barras que pasan por él, prolongadas a trazos.
+  const enPorcion = nodos.some(n=>enLado(n.id) && Math.abs(n.x-C.x) < 1e-6 && Math.abs(n.y-C.y) < 1e-6);
+  if(!enPorcion){
+    datosCorte.forEach(d=>{
+      if(item.otros.indexOf(d.nombre) < 0) return;
+      s += '\\draw[black!50, dashed, line width=0.5pt] (' + F(X(d.px)) + ',' + F(Y(d.py)) + ') -- (' + F(X(C.x)) + ',' + F(Y(C.y)) + ');\n';
+    });
+  }
+  s += '\\fill[bsaAcc] (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') circle (2pt);\n';
+  s += '\\draw[bsaAcc, line width=0.6pt] (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') circle (3.6pt);\n';
+  if(!enPorcion) s += '\\node[font=\\scriptsize\\bfseries, text=bsaAcc, below right, inner sep=2pt] at (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') {' + nombreCentro + '};\n';
+  // Fuerzas con momento: la incógnita de la ecuación y las del detalle.
+  const nombreDe = et => et.replace(/^F/, '').replace(/ .*$/, '');
+  const fz = [{x:item.d.px, y:item.d.py, ux:item.d.ux, uy:item.d.uy, tex:'$F_{' + escLatex(item.d.nombre) + '}$', col:'bsaAcc2'}];
+  item.detalle.forEach(t=>{
+    if(t.x === undefined) return;
+    const m = Math.hypot(t.fx, t.fy); if(m < 1e-9) return;
+    const esR = t.et.charAt(0) === 'R', esF = t.et.charAt(0) === 'F';
+    fz.push({x:t.x, y:t.y, ux:t.fx/m, uy:t.fy/m, col: esR ? 'bsaVerde' : (esF ? 'bsaAcc2' : 'bsaAcc'),
+             tex: esR ? '$R_{' + t.et.slice(-1) + escLatex(t.et.slice(1,-1)) + '}$' : (esF ? '$F_{' + escLatex(nombreDe(t.et)) + '}$' : dec(m,'f') + '\\,' + unitFor)});
+  });
+  fz.forEach(f=>{
+    const px = X(f.x), py = Y(f.y);
+    // Brazo: pie de la perpendicular desde C a la línea de acción.
+    const tproy = (C.x-f.x)*f.ux + (C.y-f.y)*f.uy;
+    const fx0 = f.x + tproy*f.ux, fy0 = f.y + tproy*f.uy;
+    const brazo = Math.abs((C.x-f.x)*f.uy - (C.y-f.y)*f.ux);
+    // flecha corta en su línea de acción, con su nombre
+    s += '\\draw[->, >=stealth, ' + f.col + ', line width=1pt] (' + F(px) + ',' + F(py) + ') -- (' + F(px+f.ux*Lf) + ',' + F(py+f.uy*Lf) + ');\n';
+    s += '\\node[font=\\tiny, text=' + f.col + ', inner sep=1pt] at (' + F(px+f.ux*(Lf+0.32)-f.uy*0.26) + ',' + F(py+f.uy*(Lf+0.32)+f.ux*0.26) + ') {' + f.tex + '};\n';
+    if(brazo < 1e-6) return;
+    // línea de acción prolongada a trazos hasta el pie, y cota del brazo
+    s += '\\draw[' + f.col + '!60, dashed, line width=0.45pt] (' + F(px) + ',' + F(py) + ') -- (' + F(X(fx0)) + ',' + F(Y(fy0)) + ');\n';
+    s += '\\draw[<->, >=stealth, bsaMuted, line width=0.5pt] (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') -- (' + F(X(fx0)) + ',' + F(Y(fy0)) + ')'
+       + ' node[midway, fill=white, font=\\tiny, text=bsaMuted, inner sep=1pt] {' + dec(brazo,'len') + '\\,' + escLatex(unitLen) + '};\n';
+  });
+  return {tikz:s, enPorcion};
 }
 
 // ── Porción aislada del método de secciones (auto o manual) ──
@@ -260,7 +341,10 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
     ocupados.push([parseFloat(tx(n.x)), parseFloat(ty(n.y))]);
     s += '\\fill (' + tx(n.x) + ',' + ty(n.y) + ') circle (1.5pt);\n';
     s += '\\node[font=\\tiny, above right, xshift=1pt] at (' + tx(n.x) + ',' + ty(n.y) + ') {' + escLatex(n.nombre) + '};\n';
-    if(n.apoyo === 'fijo' || n.apoyo === 'movil') s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y));
+    // En un DCL el apoyo se SUSTITUYE por su reacción: si la reacción va dibujada
+    // en este nudo, el símbolo del apoyo sobra (y se pisaba con el rótulo).
+    const conReaccion = externas.some(e=>e.et.charAt(0) === 'R' && Math.abs(e.x-n.x) < 1e-6 && Math.abs(e.y-n.y) < 1e-6);
+    if((n.apoyo === 'fijo' || n.apoyo === 'movil') && !conReaccion) s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y));
   });
 
   // fuerzas supuestas en las barras cortadas (tracción hacia afuera)
@@ -272,6 +356,7 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
     const col = (val!==null && isFinite(val)) ? tikzColorFuerza(val) : 'bsaAcc';
     const px = parseFloat(tx(d.px)), py = parseFloat(ty(d.py));
     const ex = (px+d.ux*Lf0).toFixed(3), ey = (py+d.uy*Lf0).toFixed(3);
+    ocupados.push([parseFloat(ex), parseFloat(ey)]);
     s += '\\draw[->, >=stealth, ' + col + ', line width=1.1pt] (' + px.toFixed(3) + ',' + py.toFixed(3) + ') -- (' + ex + ',' + ey + ');\n';
 
     // Etiqueta simple (solo la variable), separada según lo que ya haya en
@@ -291,13 +376,37 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
     // usando el mismo colocador de letras que las fuerzas de este nudo.
     const clcAng = colocadorDe('ang-'+nodoRef.id, 22, 0.40);
     const arco = arcoAngulo(d.ux, d.uy, col, gen, 0.55, px, py, clcAng);
-    if(arco.tikz){ s += arco.tikz; angulos.push({letra:arco.letra, valor:arco.valor}); }
+    if(arco.tikz){ s += arco.tikz; angulos.push({letra:arco.letra, valor:arco.valor}); ocupados.push([arco.lx, arco.ly]); }
   });
 
   // Cargas y reacciones externas sobre la porción. Las cargas llevan su valor
   // (dato); las reacciones, solo la variable (R21). Y ninguna se pisa con una
   // barra: ladoCarga decide si la flecha llega al nudo o sale de él.
   externas.forEach(e=>{
+    if(e.barra && e.conocida !== undefined){
+      // Barra cortada ya resuelta en un corte anterior: se dibuja SOBRE su barra,
+      // con su sentido real (tira si es tracción, empuja si es compresión) y con
+      // su nombre (R21), no como una carga externa apartada del nudo.
+      const v = e.conocida;
+      const nd = nodos.find(z=>Math.abs(z.x-e.x)<1e-6 && Math.abs(z.y-e.y)<1e-6);
+      const nf = nd ? nodos.find(z=>z.id === (e.barra.a===nd.id ? e.barra.b : e.barra.a)) : null;
+      if(nd && nf){
+        const px = parseFloat(tx(e.x)), py = parseFloat(ty(e.y));
+        const dx = nf.x-nd.x, dy = nf.y-nd.y, Lb = Math.hypot(dx,dy), bx = dx/Lb, by = dy/Lb;
+        const col = tikzColorFuerza(v);
+        ocupados.push([px+bx*Lf0, py+by*Lf0]);
+        if(v > 0) s += '\\draw[->, >=stealth, ' + col + ', line width=1.1pt] (' + px.toFixed(3) + ',' + py.toFixed(3) + ') -- (' + (px+bx*Lf0).toFixed(3) + ',' + (py+by*Lf0).toFixed(3) + ');\n';
+        else      s += '\\draw[->, >=stealth, ' + col + ', line width=1.1pt] (' + (px+bx*Lf0).toFixed(3) + ',' + (py+by*Lf0).toFixed(3) + ') -- (' + (px+bx*0.28).toFixed(3) + ',' + (py+by*0.28).toFixed(3) + ');\n';
+        const clcB = colocadorDe(nd.id, 24, 0.85);
+        const angB = Math.atan2(by,bx)*180/Math.PI;
+        const posB = clcB.ubicar(angB, Lf0+0.35);
+        const lx = (px + posB.radio*bx).toFixed(3), ly = (py + posB.radio*by).toFixed(3);
+        if(posB.desplazada) s += '\\draw[' + col + '!55, line width=0.3pt] (' + (px+(Lf0+0.10)*bx).toFixed(3) + ',' + (py+(Lf0+0.10)*by).toFixed(3) + ') -- (' + lx + ',' + ly + ');\n';
+        s += '\\node[font=\\small, text=' + col + ', inner sep=1.5pt] at (' + lx + ',' + ly + ') {$F_{' + escLatex(nombreBarra(e.barra)) + '}$};\n';
+        ocupados.push([parseFloat(lx), parseFloat(ly)]);
+        return;
+      }
+    }
     const mag = Math.hypot(e.fx, e.fy);
     if(mag < 1e-9) return;
     const ux = e.fx/mag, uy = e.fy/mag;
@@ -309,34 +418,51 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
     const k = lado.sentido;
     const clc = colocadorDe(nodoAqui ? nodoAqui.id : (e.x+','+e.y), 24, 0.85);
     const angDeg = Math.atan2(-k*uy,-k*ux)*180/Math.PI;   // hacia el extremo lejano de la flecha
-    const pos = clc.ubicar(angDeg, 1.15);
+    // La carga va más lejos que la reacción: su rótulo tiene que quedar POR ENCIMA de
+    // los rótulos de las barras (a 1.90 sobre la barra), no entre ellos.
+    const pos = clc.ubicar(angDeg, esR ? 1.15 : 2.05);
     const fx0 = px - k*ux*pos.radio + lado.ox, fy0 = py - k*uy*pos.radio + lado.oy;   // extremo lejano
     const nx0 = px - k*ux*0.28 + lado.ox, ny0 = py - k*uy*0.28 + lado.oy;             // junto al nudo
     const [x1, y1, x2, y2] = k > 0 ? [fx0, fy0, nx0, ny0] : [nx0, ny0, fx0, fy0];
     s += '\\draw[->, >=stealth, ' + col + ', line width=1.1pt] (' + x1.toFixed(3) + ',' + y1.toFixed(3) + ') -- (' + x2.toFixed(3) + ',' + y2.toFixed(3) + ');\n';
     // La etiqueta de una reacción es 'R' + nudo + eje ('RAy'): se rotula R_{yA}.
     const rot = esR ? '$R_{' + e.et.slice(-1) + escLatex(e.et.slice(1, -1)) + '}$' : dec(mag,'f') + '\\,' + unitFor;
-    s += '\\node[font=\\tiny, text=' + col + ', inner sep=1.5pt] at (' + fx0.toFixed(3) + ',' + fy0.toFixed(3) + ') {' + rot + '};\n';
+    s += '\\node[font=\\tiny, text=' + col + ', inner sep=1.5pt] at (' + (fx0 - k*ux*0.28).toFixed(3) + ',' + (fy0 - k*uy*0.28).toFixed(3) + ') {' + rot + '};\n';
     ocupados.push([fx0, fy0]);
   });
 
-  // centros de momento usados en este paso
-  itemsSol.forEach(it=>{
+  // Centros de momento usados en este paso. Si el centro no es un nudo, se
+  // rotula con la letra que usa la ecuación (O, O', …), definida en el pie.
+  const etqC = etiquetasCentros(itemsSol);
+  const rotulados = [];
+  itemsSol.forEach((it, k)=>{
     if(it.tipo !== 'momento' || !it.centro) return;
     const cx = tx(it.centro.x), cy = ty(it.centro.y);
     s += '\\draw[bsaAcc, line width=0.6pt, dashed] (' + cx + ',' + cy + ') circle (2.2pt);\n';
+    const c = etqC[k];
+    if(!c || rotulados.indexOf(c.tex) >= 0) return;
+    // Un nudo de la porción ya lleva su nombre; uno de fuera, o un punto O, no.
+    const dentro = c.esNudo && nodos.some(n=>enLado(n.id) && Math.abs(n.x-it.centro.x) < 1e-6 && Math.abs(n.y-it.centro.y) < 1e-6);
+    if(dentro) return;
+    rotulados.push(c.tex);
+    s += '\\node[font=\\scriptsize, text=' + (c.esNudo ? 'bsaMuted' : 'bsaAcc') + ', above right, inner sep=1pt] at (' + cx + ',' + cy + ') {' + (c.esNudo ? c.tex : '$' + c.tex + '$') + '};\n';
   });
 
   // Marco x,y (R21) en la esquina superior más despejada del recuadro de la
-  // porción; abajo van las cotas. Los sentidos positivos de las tres ecuaciones.
+  // porción (abajo van las cotas), medida contra lo que hay dibujado: rótulos,
+  // puntas de flecha y letras de ángulo. Cuatro candidatas, dos por lado.
   {
     const nl_ = nodos.filter(n=>enLado(n.id));
     if(nl_.length){
       const X0 = Math.min(...nl_.map(n=>parseFloat(tx(n.x)))) - 1.6, X1 = Math.max(...nl_.map(n=>parseFloat(tx(n.x)))) + 1.6;
       const Y1 = Math.max(...nl_.map(n=>parseFloat(ty(n.y)))) + 1.5;
-      const dist = c => ocupados.length ? Math.min(...ocupados.map(q=>Math.hypot(q[0]-c[0], q[1]-c[1]))) : 99;
-      const der = dist([X1, Y1]) >= dist([X0, Y1]);
-      s += tikzMarcoXY(der ? X1 - 0.9 : X0, Y1 - 0.9);
+      // Rejilla de candidatas alrededor de las dos esquinas superiores: con una
+      // porción de un solo nudo, las esquinas quedan todas igual de cerca de los
+      // rótulos y hace falta poder alejarse más.
+      const cands = [];
+      [X1-0.9, X0].forEach(bx=>{ [-1.0, 0, 0.9].forEach(dx=>{ [-0.9, 0.1, 1.1].forEach(dy=>{ cands.push([bx+dx, Y1+dy]); }); }); });
+      const esq = mejorEsquina(cands, ocupados, 0.95, 0.95);
+      s += tikzMarcoXY(esq[0], esq[1]);
     }
   }
 
@@ -361,6 +487,13 @@ function tikzMarcoXY(x, y){
   t += '\\fill[bsaMuted] (' + F(x) + ',' + F(y) + ') circle (0.8pt);\n';
   return t;
 }
+// Elige, entre varias posiciones posibles del marco, la que queda más lejos de
+// todo lo ya dibujado (rótulos, puntas de flecha, letras de ángulo): distancia
+// mínima de cada punto ocupado a la caja w×h del marco, y se toma la mayor.
+function mejorEsquina(cands, ocupados, w, h){
+  const dCaja = (q, c) => Math.hypot(Math.max(c[0]-q[0], 0, q[0]-(c[0]+w)), Math.max(c[1]-q[1], 0, q[1]-(c[1]+h)));
+  return cands.reduce((m, c) => { const s = ocupados.length ? Math.min(...ocupados.map(q=>dCaja(q, c))) : 99; return s > m.s ? {c, s} : m; }, {c:cands[0], s:-1}).c;
+}
 
 // El rotulo lleva SOLO la variable (R21). Lo que ya viene resuelto de los nudos
 // anteriores se reconoce por el SENTIDO REAL de la flecha y por el color, no por
@@ -368,7 +501,7 @@ function tikzMarcoXY(x, y){
 function tikzDCLNudo(n, res){
   const R = 2.10;
   let s = '';
-  const dirs = [];   // direcciones ya ocupadas (grados), para colocar el marco x,y
+  const ocup = [];   // puntos ya ocupados (rótulos, puntas, letras), para colocar el marco x,y
   const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
   const gen = letrasGriegas();
   const colocadorLetras = crearColocador(24, 0.42);
@@ -380,6 +513,7 @@ function tikzDCLNudo(n, res){
     const pos = colocadorFuerzas.ubicar(angDeg, radioBase);
     const lx = (pos.radio*Math.cos(angDeg*Math.PI/180)).toFixed(3), ly = (pos.radio*Math.sin(angDeg*Math.PI/180)).toFixed(3);
     let tikz = '';
+    ocup.push([parseFloat(lx), parseFloat(ly)]);
     if(pos.desplazada){
       const ax = ((radioBase-0.10)*Math.cos(angDeg*Math.PI/180)).toFixed(3), ay = ((radioBase-0.10)*Math.sin(angDeg*Math.PI/180)).toFixed(3);
       tikz += '\\draw[' + col + '!55, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + lx + ',' + ly + ');\n';
@@ -392,7 +526,7 @@ function tikzDCLNudo(n, res){
     const o = nodos.find(z=>z.id === (b.a===n.id?b.b:b.a));
     const dx=o.x-n.x, dy=o.y-n.y, L=Math.hypot(dx,dy);
     const ux=dx/L, uy=dy/L;
-    dirs.push(Math.atan2(uy,ux)*180/Math.PI);
+    ocup.push([ux*R, uy*R]);
     const val = res.fuerzas[b.id] || 0;
     const cero = esCero(val);
     const col = cero ? 'black!40' : (val>0 ? 'bsaAcc2' : 'bsaRoj');
@@ -410,7 +544,7 @@ function tikzDCLNudo(n, res){
     s += etiquetaFuerza(ux, uy, col, '$F_{' + nombreBarra(b) + '}$', R+0.30);
     // Arco con letra griega para el ángulo (agudo, 0-90°) respecto de la horizontal.
     const arco = arcoAngulo(ux, uy, col, gen, 0.65, 0, 0, colocadorLetras);
-    if(arco.tikz){ s += arco.tikz; angulos.push({letra:arco.letra, valor:arco.valor, barra:nombreBarra(b)}); }
+    if(arco.tikz){ s += arco.tikz; angulos.push({letra:arco.letra, valor:arco.valor, barra:nombreBarra(b)}); ocup.push([arco.lx, arco.ly]); }
   });
 
   // Fuerzas aplicadas en el nudo (carga y reacciones). Por defecto LLEGAN al
@@ -425,10 +559,11 @@ function tikzDCLNudo(n, res){
     if(lado.ox || lado.oy){
       const lx = -k*ux*2.55 + lado.ox, ly = -k*uy*2.55 + lado.oy;
       s += '\\node[font=\\small, text=' + col + ', inner sep=1.5pt] at (' + lx.toFixed(3) + ',' + ly.toFixed(3) + ') {' + etiqueta + '};\n';
+      ocup.push([lx, ly]);
     } else {
       s += etiquetaFuerza(-k*ux, -k*uy, col, etiqueta, 2.55);
     }
-    dirs.push(Math.atan2(-k*uy, -k*ux)*180/Math.PI);
+    ocup.push([ax, ay]);
   };
   if(!esCero(n.fx) || !esCero(n.fy)){
     const mag = Math.hypot(n.fx, n.fy);
@@ -442,16 +577,12 @@ function tikzDCLNudo(n, res){
     if(rr.rx !== undefined && !esCero(rr.rx)) flechaExterna(rr.rx>0?1:-1, 0, 'bsaVerde', '$R_{x' + escLatex(n.nombre) + '}$');
   }
 
-  // Marco x,y en la esquina más despejada: la que queda angularmente más lejos
-  // de todo lo dibujado. El origen se mete un poco para que las flechas quepan.
-  const sep = (p, q) => Math.abs(((p - q) % 360 + 540) % 360 - 180);
-  const esquina = [45, 135, 225, 315].reduce((m, e) => {
-    const hueco = dirs.length ? Math.min(...dirs.map(d => sep(e, d))) : 180;
-    return hueco > m.hueco ? {e, hueco} : m;
-  }, {e:315, hueco:-1}).e;
-  const mx = Math.cos(esquina*Math.PI/180) > 0 ? 2.90 : -3.60;
-  const my = Math.sin(esquina*Math.PI/180) > 0 ? 2.90 : -3.60;
-  s += tikzMarcoXY(mx, my);
+  // Marco x,y en la esquina más despejada, medida contra lo que de verdad hay
+  // dibujado (rótulos, puntas y letras), entre cuatro esquinas cercanas y cuatro
+  // lejanas del recuadro del DCL.
+  const cands = [[2.90,2.90],[-3.60,2.90],[-3.60,-3.60],[2.90,-3.60],[3.75,3.45],[-4.65,3.45],[-4.65,-4.35],[3.75,-4.35]];
+  const esq = mejorEsquina(cands, ocup, 0.95, 0.95);
+  s += tikzMarcoXY(esq[0], esq[1]);
 
   s += '\\fill[bsaAcc] (0,0) circle (2pt);\n';
   s += '\\node[font=\\small\\bfseries, above right, xshift=2pt, yshift=2pt] at (0,0) {' + escLatex(n.nombre) + '};\n';

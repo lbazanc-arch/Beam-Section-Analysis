@@ -664,10 +664,8 @@ function construirLatex(){
   grupos.forEach(gg=>{
     tex += '\\begin{center}\\begin{tikzpicture}\n' + tikzDiagramasGrupo(R, gg)
          + '\\end{tikzpicture}\\end{center}\n';
-    tex += figCaption('Tramo ' + escLatex(gg.recorrido) + (gg.inclinado ? ' (desarrollado sobre su eje; las cargas se muestran por sus componentes perpendicular y paralela)' : '')
-      + ': esquema de cargas y reacciones y, debajo, los diagramas '
-      + (gg.tramos.some(t2=>t2.subs.some(su=>su.cN.some(v=>Math.abs(v)>5e-9))) ? 'DFN, ' : '')
-      + 'DFC y DMF alineados con él.');
+    tex += figCaption('Tramo ' + escLatex(gg.recorrido) + (gg.inclinado ? ' (desarrollado sobre su eje)' : '')
+      + ': esquema y diagramas ' + (gg.tramos.some(t2=>t2.subs.some(su=>su.cN.some(v=>Math.abs(v)>5e-9))) ? 'DFN, ' : '') + 'DFC y DMF.');
   });
 
   // ══ 5. Paso 4: comprobaciones ══

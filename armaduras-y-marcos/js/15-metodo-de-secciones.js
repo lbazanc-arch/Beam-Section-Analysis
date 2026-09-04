@@ -81,6 +81,59 @@ function corteRectas(r1, r2){
   return {x:r1.px + r1.ux*t, y:r1.py + r1.uy*t};
 }
 
+// ── Ecuaciones de un corte, una por incógnita ──
+// Solo se usan ΣM respecto de un NUDO y ΣF_x o ΣF_y (revisión del PDF, 2026-09-04):
+// nada de sumas en un eje inclinado. Se resuelve primero por momentos: para cada
+// incógnita se busca un nudo por cuya posición pasen las líneas de TODAS las demás
+// incógnitas todavía pendientes (así desaparecen) y que no esté en la línea de la
+// propia barra. Cuando ya no queda otra pendiente, ΣF en el eje donde la barra
+// tiene más componente. Las barras halladas antes en este mismo corte entran como
+// términos conocidos (con `ref`, para citarlas). Solo si dos incógnitas pendientes
+// no se cruzan en ningún nudo se toma el punto O de su cruce, que la figura rotula
+// y el pie define. Lo comparten el corte manual y el resolutor automático.
+function ecuacionesDeCorte(datos, externas, fallbackVal){
+  const EPS = 1e-9;
+  const enRecta = (n, r) => Math.abs((n.x-r.px)*r.uy - (n.y-r.py)*r.ux) < 1e-6;
+  const rectaDe = d => lineaBarra(d.barra);
+  const pendientes = datos.slice(), resueltos = [], items = [];
+  const fuerzas = () => externas.concat(resueltos.map(r=>({x:r.d.px, y:r.d.py, fx:r.val*r.d.ux, fy:r.val*r.d.uy, et:'F'+r.d.nombre, ref:r.d.barra.id})));
+  const armar = (d, otros, tipo, centro, eje) => {
+    const dirN = tipo === 'fuerza' ? (eje === 'y' ? {x:0,y:1} : {x:1,y:0}) : null;
+    let coef = 0, indep = 0; const detalle = [], citas = [];
+    fuerzas().forEach(e=>{
+      const t = tipo === 'momento' ? (e.x-centro.x)*e.fy - (e.y-centro.y)*e.fx : e.fx*dirN.x + e.fy*dirN.y;
+      if(Math.abs(t) > EPS){ indep += t; detalle.push({et:e.et, val:t, ref:e.ref, x:e.x, y:e.y, fx:e.fx, fy:e.fy}); if(e.ref && citas.indexOf(e.ref) < 0) citas.push(e.ref); }
+    });
+    coef = tipo === 'momento' ? (d.px-centro.x)*d.uy - (d.py-centro.y)*d.ux : d.ux*dirN.x + d.uy*dirN.y;
+    const val = Math.abs(coef) > EPS ? -indep/coef : (fallbackVal ? fallbackVal(d.barra.id) : NaN);
+    return {d, tipo, centro, dirN, eje, coef, indep, detalle, val, citas, otros:otros.map(o=>o.nombre)};
+  };
+  let guardia = 0;
+  while(pendientes.length && guardia++ < 20){
+    let hecho = null;
+    for(const d of pendientes){
+      const otros = pendientes.filter(o=>o!==d);
+      if(!otros.length){
+        hecho = armar(d, otros, 'fuerza', null, Math.abs(d.uy) >= Math.abs(d.ux) ? 'y' : 'x'); break;
+      }
+      const rd = rectaDe(d), rs = otros.map(rectaDe);
+      const cand = nodos.filter(n => !enRecta(n, rd) && rs.every(r=>enRecta(n, r)));
+      if(!cand.length) continue;    // esta todavía no: que otra se resuelva antes
+      const c = cand.reduce((m,n)=>Math.hypot(n.x-d.px,n.y-d.py) < Math.hypot(m.x-d.px,m.y-d.py) ? n : m, cand[0]);
+      hecho = armar(d, otros, 'momento', {x:c.x, y:c.y, nombre:c.nombre}, null); break;
+    }
+    if(!hecho){
+      // Ninguna pendiente tiene nudo: punto O en el cruce de las líneas de las otras.
+      const d = pendientes[0], otros = pendientes.filter(o=>o!==d), rs = otros.map(rectaDe);
+      const centro = otros.length === 2 ? corteRectas(rs[0], rs[1]) : null;
+      if(centro) hecho = armar(d, otros, 'momento', centro, null);
+      else { console.warn('Corte: sin ecuación válida para ' + d.nombre); hecho = armar(d, otros, 'fuerza', null, Math.abs(d.uy) >= Math.abs(d.ux) ? 'y' : 'x'); }
+    }
+    items.push(hecho); resueltos.push(hecho); pendientes.splice(pendientes.indexOf(hecho.d), 1);
+  }
+  return items;
+}
+
 function resolverSeccion(info){
   const lado = info.lado;
   const enLado = id => lado.indexOf(id) >= 0;
@@ -112,44 +165,7 @@ function resolverSeccion(info){
             nodoDentro:nd, nodoFuera:nf};
   });
 
-  const pasos = [];
-  datos.forEach((d, i)=>{
-    const otros = datos.filter((_,k)=>k!==i);
-    let tipo = null, centro = null, dirN = null;
-    if(otros.length === 2){
-      centro = corteRectas(lineaBarra(otros[0].barra), lineaBarra(otros[1].barra));
-      if(centro) tipo = 'momento';
-      else {
-        // paralelas: proyectar en la perpendicular común
-        dirN = {x:-otros[0].uy, y:otros[0].ux};
-        tipo = 'fuerza';
-      }
-    } else if(otros.length === 1){
-      centro = {x:otros[0].px, y:otros[0].py};   // basta un punto de su línea
-      tipo = 'momento';
-    } else {
-      tipo = 'fuerza';
-      dirN = {x:1, y:0};
-    }
-
-    let coef = 0, indep = 0, detalle = [];
-    if(tipo === 'momento'){
-      coef = (d.px-centro.x)*d.uy - (d.py-centro.y)*d.ux;
-      externas.forEach(e=>{
-        const m = (e.x-centro.x)*e.fy - (e.y-centro.y)*e.fx;
-        if(Math.abs(m) > 1e-9){ indep += m; detalle.push({et:e.et, val:m}); }
-      });
-    } else {
-      coef = d.ux*dirN.x + d.uy*dirN.y;
-      externas.forEach(e=>{
-        const pr = e.fx*dirN.x + e.fy*dirN.y;
-        if(Math.abs(pr) > 1e-9){ indep += pr; detalle.push({et:e.et, val:pr}); }
-      });
-    }
-    const val = Math.abs(coef) > 1e-9 ? -indep/coef : NaN;
-    pasos.push({d, tipo, centro, dirN, coef, indep, detalle, val,
-                otros:otros.map(o=>o.nombre)});
-  });
+  const pasos = ecuacionesDeCorte(datos, externas, null);
   return {pasos, externas, datos};
 }
 
@@ -286,18 +302,18 @@ function renderSeccionCorte(){
       + 'Barra <b>' + d.nombre + '</b></div>';
     if(p.tipo === 'momento'){
       const cx = dec(p.centro.x,'len'), cy = dec(p.centro.y,'len');
-      h += '<div class="hint-sm" style="margin-bottom:6px">Se toman momentos en el punto donde se cruzan '
-        + '<b>' + p.otros.join('</b> y <b>') + '</b> (' + cx + ' ; ' + cy + ') ' + uL
-        + ': al pasar sus líneas de acción por ese punto, no producen momento y desaparecen de la ecuación.</div>';
+      const nomC = p.centro.nombre || 'O';
+      h += '<div class="hint-sm" style="margin-bottom:6px">Se toman momentos respecto de <b>' + nomC + '</b> (' + cx + ' ; ' + cy + ') ' + uL
+        + (p.otros.length ? ', por donde pasan <b>' + p.otros.join('</b> y <b>') + '</b>: al pasar sus líneas de acción por ese punto, no producen momento y desaparecen de la ecuación.' : '.') + '</div>';
       h += '<div class="eq-row"><div class="eq-body">'
-        + kx('\\sum M_{O} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
+        + kx('\\sum M_{' + nomC + '} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
              + p.detalle.map(x=>(x.val>=0?' + ':' - ')+fmtNum2(Math.abs(x.val))).join('') + ' = 0')
         + '</div></div>';
     } else {
-      h += '<div class="hint-sm" style="margin-bottom:6px">Las otras barras cortadas son paralelas, '
-        + 'así que se proyecta el equilibrio en la dirección perpendicular a ellas y también desaparecen.</div>';
+      h += '<div class="hint-sm" style="margin-bottom:6px">Suma de fuerzas en <b>' + p.eje + '</b>'
+        + (p.citas && p.citas.length ? ', con las barras ya halladas en este corte sustituidas por su valor' : '') + ':</div>';
       h += '<div class="eq-row"><div class="eq-body">'
-        + kx('\\sum F_{\\perp} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
+        + kx('\\sum F_' + p.eje + ' = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
              + p.detalle.map(x=>(x.val>=0?' + ':' - ')+fmtNum2(Math.abs(x.val))).join('') + ' = 0')
         + '</div></div>';
     }

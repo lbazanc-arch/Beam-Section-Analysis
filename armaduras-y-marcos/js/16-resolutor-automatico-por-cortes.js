@@ -245,7 +245,7 @@ function estrategiaPaso(paso, conocidasPrevias){
     const nd = nodos.find(z=>z.id===dentro);
     const nf = nodos.find(z=>z.id === (dentro===b.a ? b.b : b.a));
     const dx = nf.x-nd.x, dy = nf.y-nd.y, L = Math.hypot(dx,dy);
-    externas.push({x:nd.x, y:nd.y, fx:v*dx/L, fy:v*dy/L, et:'F'+nombreBarra(b)+' (ya conocida)'});
+    externas.push({x:nd.x, y:nd.y, fx:v*dx/L, fy:v*dy/L, et:'F'+nombreBarra(b)+' (ya conocida)', barra:b, conocida:v});
   });
 
   const datos = paso.sol.geo.map(g=>({
@@ -253,39 +253,7 @@ function estrategiaPaso(paso, conocidasPrevias){
     ux:g.ux, uy:g.uy, nd:g.nd
   }));
 
-  const items = [];
-  datos.forEach((d,i)=>{
-    const otros = datos.filter((_,k)=>k!==i);
-    let tipo, centro = null, dirN = null;
-    if(otros.length === 2){
-      centro = corteRectas(lineaBarra(otros[0].barra), lineaBarra(otros[1].barra));
-      if(centro) tipo = 'momento';
-      else { dirN = {x:-otros[0].uy, y:otros[0].ux}; tipo = 'fuerza'; }
-    } else if(otros.length === 1){
-      centro = {x:otros[0].px, y:otros[0].py}; tipo = 'momento';
-    } else {
-      tipo = 'fuerza';
-      dirN = Math.abs(d.uy) > Math.abs(d.ux) ? {x:0,y:1} : {x:1,y:0};
-    }
-    let coef = 0, indep = 0;
-    const detalle = [];
-    if(tipo === 'momento'){
-      coef = (d.px-centro.x)*d.uy - (d.py-centro.y)*d.ux;
-      externas.forEach(e=>{
-        const m = (e.x-centro.x)*e.fy - (e.y-centro.y)*e.fx;
-        if(Math.abs(m) > 1e-9){ indep += m; detalle.push({et:e.et, val:m}); }
-      });
-    } else {
-      coef = d.ux*dirN.x + d.uy*dirN.y;
-      externas.forEach(e=>{
-        const pr = e.fx*dirN.x + e.fy*dirN.y;
-        if(Math.abs(pr) > 1e-9){ indep += pr; detalle.push({et:e.et, val:pr}); }
-      });
-    }
-    const val = Math.abs(coef) > 1e-9 ? -indep/coef : paso.sol.valores[d.barra.id];
-    items.push({d, tipo, centro, dirN, coef, indep, detalle, val,
-                otros:otros.map(o=>o.nombre)});
-  });
+  const items = ecuacionesDeCorte(datos, externas, id=>paso.sol.valores[id]);
   return {items, externas, datos};
 }
 
@@ -328,17 +296,19 @@ function renderAutoCortes(){
     est.items.forEach(p=>{
       const d = p.d;
       if(p.tipo === 'momento'){
-        h += '<div class="hint-sm" style="margin:6px 0 2px">Momentos en (' + dec(p.centro.x,'len')
+        const nomC = p.centro.nombre || 'O';
+        h += '<div class="hint-sm" style="margin:6px 0 2px">Momentos respecto de ' + nomC + ' (' + dec(p.centro.x,'len')
           + ' ; ' + dec(p.centro.y,'len') + ') ' + unitLen
-          + (p.otros.length ? ', donde se cruzan ' + p.otros.join(' y ') + ', que así desaparecen' : '') + ':</div>'
+          + (p.otros.length ? ', por donde pasan ' + p.otros.join(' y ') + ', que así desaparecen' : '') + ':</div>'
           + '<div class="eq-row"><div class="eq-body">'
-          + kx('\\sum M_{O} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
+          + kx('\\sum M_{' + nomC + '} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
                + p.detalle.map(x=>(x.val>=0?' + ':' - ')+fmtNum2(Math.abs(x.val))).join('') + ' = 0')
           + '</div></div>';
       } else {
-        h += '<div class="hint-sm" style="margin:6px 0 2px">Proyección perpendicular a las otras barras cortadas:</div>'
+        h += '<div class="hint-sm" style="margin:6px 0 2px">Suma de fuerzas en ' + p.eje
+          + (p.citas && p.citas.length ? ', con las barras ya halladas en este corte sustituidas por su valor' : '') + ':</div>'
           + '<div class="eq-row"><div class="eq-body">'
-          + kx('\\sum F_{\\perp} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
+          + kx('\\sum F_' + p.eje + ' = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
                + p.detalle.map(x=>(x.val>=0?' + ':' - ')+fmtNum2(Math.abs(x.val))).join('') + ' = 0')
           + '</div></div>';
       }

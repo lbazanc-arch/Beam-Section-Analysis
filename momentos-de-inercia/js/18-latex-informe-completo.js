@@ -312,8 +312,7 @@ function construirLatex(){
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += lamina(tikzSeccionCompuesta({cotas:true, numerar:true}),
-    'Sección compuesta con sus partes numeradas y las cotas generales, medidas entre los '
-    + 'bordes de las figuras. Las partes rayadas son huecos.');
+    'Sección compuesta: partes numeradas y cotas generales; las rayadas son huecos.');
   tex += '\\begin{center}\n\\begin{tabular}{@{}ll@{\\hspace{18pt}}ll@{}}\n'
     + '\\tikz{\\filldraw[fill=bsaAcc2, fill opacity=0.30, draw=bsaAcc2] (0,0) rectangle (0.35,0.22);} & '
     + '{\\footnotesize Área que suma} & '
@@ -756,8 +755,7 @@ function construirLatex(){
   // La lámina repite la sección SIN la cadena de cotas: lo único acotado es el
   // centroide, y como variables.
   tex += lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, ejesPrincipales:true}),
-    'Sección con los ejes centroidales $x$-$y$ y los ejes principales $u$-$v$, girados $\\theta_p$. '
-    + 'Sobre $u$ la inercia es máxima; sobre $v$, mínima; el producto de inercia se anula en ambos.');
+    'Ejes centroidales $x$-$y$ y ejes principales $u$-$v$, girados $\\theta_p$.');
   tex += '\\resultado{\\centering $\\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ$ \\quad $I_{\\max} = '
     + ftex(results.Imax) + U4 + '$ \\quad $I_{\\min} = ' + ftex(results.Imin) + U4 + '$}\n';
   const yaPrinc = Math.abs(results.thetaP) < 0.005;
@@ -795,8 +793,7 @@ function construirLatex(){
   const laminaMohr = (typeof tikzMohr === 'function') ? tikzMohr(results, u4) : '';
   if(laminaMohr){
     tex += lamina(laminaMohr,
-      'Círculo de Mohr de inercia. El giro $2\\theta_p$ desde $A$ hasta el eje horizontal, medido '
-      + 'sobre el círculo en el mismo sentido que en la sección, corresponde al giro $\\theta_p$ de los ejes.');
+      'Círculo de Mohr de inercia: el giro $2\\theta_p$ sobre el círculo es el $\\theta_p$ de los ejes.');
     tex += '\\veredicto{' + (yaPrinc
       ? '$A$ y $B$ caen sobre el eje horizontal, que es donde el producto de inercia se anula: los ejes $x$-$y$ ya '
         + 'son los principales ($\\theta_p = 0^\\circ$).'
@@ -863,17 +860,15 @@ function construirLatex(){
       ? tikzMohr({Ix: epLat.IxP, Iy: epLat.IyP, Ixy: epLat.IxyP}, u4, rotLat ? {sub:'P', rot:rotLat} : {sub:'P'}) : '';
     if(laminaP){
       tex += lamina(laminaP, rotLat
-        ? 'Círculo de Mohr en el punto $P$. $A$ y $B$ son los ejes $x$-$y$; $U$ y $V$, los mismos ejes girados '
-          + '$\\theta = ' + decP(rotLat.ang,'ang') + '^\\circ$, que sobre el círculo se mide duplicado.'
+        ? 'Círculo de Mohr en $P$: $U$ y $V$ son los ejes girados $\\theta = ' + decP(rotLat.ang,'ang') + '^\\circ$ (doble sobre el círculo).'
         : 'Círculo de Mohr de inercia en el punto $P$.');
     } else {
       tex += '\\noindent En $P$ el círculo se reduce a un punto: $I_{xP} = I_{yP}$ y $P_{xyP} = 0$, así que cualquier '
         + 'eje por $P$ es principal.\n';
     }
     tex += lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:false, puntoP:true}),
-      'Sección con el punto $P$ acotado y sus ejes principales $u_P$-$v_P$, girados $\\theta_{pP} = '
-      + decP(epLat.thetaP,'ang') + '^\\circ$'
-      + (rotLat ? '; en azul, los ejes girados $\\theta = ' + decP(rotLat.ang,'ang') + '^\\circ$ por el usuario' : '') + '.');
+      'Sección con el punto $P$ y sus ejes principales $u_P$-$v_P$, girados $\\theta_{pP} = ' + decP(epLat.thetaP,'ang') + '^\\circ$'
+      + (rotLat ? '; en azul, los ejes girados $\\theta = ' + decP(rotLat.ang,'ang') + '^\\circ$' : '') + '.');
   }
 
   // ══ 8. Comprobaciones ══

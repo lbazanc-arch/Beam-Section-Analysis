@@ -405,6 +405,9 @@ function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
     // Una solicitación nula no es una fuerza sobre el cuerpo libre: no se
     // dibuja. Un arco con «M = 0.00» al lado confunde más de lo que explica.
     const NULO = 5e-4;
+    // El hueco del arco de M se reserva ANTES de rotular V y N: si no, el rótulo
+    // de N (que busca sitio hacia el extremo de la barra) acaba dentro del arco.
+    if(Math.abs(vM) > NULO) tzOcupar(ex*2.95-0.36, ey*2.95-0.36, ex*2.95+0.36, ey*2.95+0.36);
     // V: perpendicular a la barra, desde el eje hacia el lado que marque el sentido
     if(Math.abs(vV) > NULO){
       const kV = dV*sg(vV);
@@ -464,11 +467,18 @@ function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
     const dirs = [Math.atan2(-u1.y,-u1.x), Math.atan2(u2.y,u2.x)].map(v=>v*180/Math.PI);
     (enNudo || []).forEach(e=>{ const Fm = Math.hypot(e.fx || 0, e.fy || 0); if(Fm > 1e-9) dirs.push(Math.atan2(-e.fy,-e.fx)*180/Math.PI); });
     const sep = (p, q) => Math.abs(((p - q) % 360 + 540) % 360 - 180);
-    const esquina = [45, 135, 225, 315].reduce((m, e) => {
-      const hueco = Math.min(...dirs.map(d => sep(e, d)));
-      return hueco > m.hueco ? {e, hueco} : m;
-    }, {e:315, hueco:-1}).e;
-    const ox = 4.1*Math.cos(esquina*Math.PI/180), oy = 4.1*Math.sin(esquina*Math.PI/180);
+    // Esquinas ordenadas por hueco angular; se toma la primera cuya caja no choca
+    // con nada ya reservado (rótulos, flechas, arcos), probando dos radios.
+    const orden = [45, 135, 225, 315].map(e=>({e, hueco:Math.min(...dirs.map(d => sep(e, d)))})).sort((p, q)=>q.hueco - p.hueco);
+    let ox = null, oy = null;
+    for(const r of [4.1, 4.9]){
+      for(const c of orden){
+        const x = r*Math.cos(c.e*Math.PI/180), y = r*Math.sin(c.e*Math.PI/180);
+        if(!tzChoca({x0:x-0.95, y0:y-0.95, x1:x+0.95, y1:y+0.95})){ ox = x; oy = y; break; }
+      }
+      if(ox !== null) break;
+    }
+    if(ox === null){ ox = 4.9*Math.cos(orden[0].e*Math.PI/180); oy = 4.9*Math.sin(orden[0].e*Math.PI/180); }
     o += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (' + F(ox) + ',' + F(oy) + ') -- (' + F(ox+u2.x*0.7) + ',' + F(oy+u2.y*0.7) + ');\n';
     o += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (' + F(ox) + ',' + F(oy) + ') -- (' + F(ox+n2.x*0.7) + ',' + F(oy+n2.y*0.7) + ');\n';
     o += '\\fill[bsaAcc] (' + F(ox) + ',' + F(oy) + ') circle (0.8pt);\n';
@@ -530,22 +540,18 @@ function bloqueQuiebre(R, grupos, gg, info){
       + 'referidas a SUS ejes: el tramo nuevo cambia de dirección, así que hay que '
       + 'proyectarlas sobre el eje y la normal nuevos —con el ángulo que la barra nueva '
       + 'forma con la horizontal o con la vertical, el que sea menor— y sumar las acciones '
-      + 'aplicadas justo en el nudo.}\n';
+      + 'aplicadas justo en el nudo. En el DCL del nudo las flechas van en el sentido real y el nombre '
+      + 'conserva el convenio: $N^-$, $V^-$, $M^-$ lo que llega; $N_0$, $V_0$, $M_0$ lo que sale.}\n';
   const fraseAng = ang.modo === 'eje'
-    ? 'El ángulo $\\theta$ de la barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ', medido desde la ' + ejeTxt(ang.desdeV) + ', es el que da el seno y el coseno de la proyección.'
+    ? '$\\theta$: barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ', desde la ' + ejeTxt(ang.desdeV) + '.'
     : ang.modo === 'recto'
-    ? 'Las barras son ' + (recto90 ? 'perpendiculares' : 'paralelas') + ': no hay ángulo que medir, y proyectar es solo cambiar el papel de normal y cortante.'
-    : 'Las dos barras son inclinadas: $\\theta_1$ y $\\theta_2$ se miden desde su eje más cercano, y el giro entre ellas, $\\theta$, es el que entra en la proyección.';
+    ? 'Barras ' + (recto90 ? 'perpendiculares' : 'paralelas') + ': sin ángulo.'
+    : '$\\theta_1$, $\\theta_2$ desde su eje más cercano; $\\theta$ es el giro entre barras.';
   out += '\\begin{center}\\begin{tikzpicture}\n'
        + tikzNudoQuiebre(u1, u2, nn, ang, Nm, Vm, Mm, N0, V0, M0, enNudo)
        + '\\end{tikzpicture}\\\\[2pt]\n{\\footnotesize\\color{bsaMuted} DCL del nudo ' + nn
-       + ' (cuerpo libre del pasador). En gris, lo que \\textbf{llega} por ' + np
-       + ' referido a los ejes de ese tramo; en verde, lo que \\textbf{sale} hacia el tramo '
-       + 'nuevo sobre sus ejes $\\hat{u}$ y $\\hat{n}$ (el marco de la esquina da sus sentidos positivos)'
-       + (enNudo.length ? '; en rojo y violeta, las cargas aplicadas en el propio nudo' : '')
-       + '. Las flechas van en el \\textbf{sentido real}; el rótulo es solo el \\textbf{nombre} de la '
-       + 'solicitación, y su superíndice o subíndice es el del \\textbf{convenio de signos}, no un '
-       + 'sentido. Los valores están justo debajo. ' + fraseAng + '}\\end{center}\\vspace{2pt}\n';
+       + ': en gris lo que llega por ' + np + ', en verde lo que sale al tramo nuevo'
+       + (enNudo.length ? ', en rojo y violeta las cargas del nudo' : '') + '. ' + fraseAng + '}\\end{center}\\vspace{2pt}\n';
   let proy;
   if(ang.modo === 'eje')
     proy = 'Proyectando con $\\theta = ' + ang.phi.toFixed(1) + '^\\circ$ (ángulo de la barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ' con la ' + ejeTxt(ang.desdeV) + '):';
@@ -599,9 +605,7 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
   out += '\\noindent{\\bfseries Corte en $' + Lz(a) + ' \\le ' + sb + ' \\le ' + Lz(b) + '$\\,' + uL + '}\\\\[2pt]\n';
   out += '\\begin{center}\\begin{tikzpicture}\n' + tikzDCLSub(R, gg, seg, sub, info)
        + '\\end{tikzpicture}\\end{center}\n';
-  out += figCaption('DCL del trozo situado antes de la sección $S$ (abscisa $' + sb
-       + '$ desde ' + escLatex(gg.desde.nombre) + '). En la cara cortada se dibujan $N$, $V$ y $M$ '
-       + 'en su sentido positivo; las cargas repartidas se muestran con su resultante $W$ (línea de trazos).');
+  out += figCaption('DCL del trozo antes de la sección $S$ (abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + ').');
 
   // El quiebre se explica UNA vez por nudo, en el primer corte del grupo.
   // Repetirlo en cada corte era lo que sobraba: los números son los mismos.

@@ -201,8 +201,7 @@ function construirLatex(){
     + 'la armadura completa: en \\textbf{ese} cuerpo libre las fuerzas de las barras son internas y no aparecen.');
   tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
     + tikzArmaduraCompleta({cotas:true, valores:false, reaccionesIncognita:true}) + '\\end{tikzpicture}\n\\end{center}\n';
-  tex += figCaption('DCL de la armadura completa: cargas aplicadas y reacciones inc\\\'ognita en su sentido positivo supuesto. '
-    + 'Los brazos de las cargas se leen en las cotas.');
+  tex += figCaption('DCL global: cargas y reacciones inc\\\'ognita en su sentido positivo.');
 
   const pines = nodos.filter(n=>n.apoyo==='fijo');
   const rodillos = nodos.filter(n=>n.apoyo==='movil');
@@ -338,9 +337,7 @@ function construirLatex(){
         + (nuevas.length ? nuevas.length + ' inc\\\'ognita(s)' : 'comprobaci\\\'on') + '}}\n';
       const dclA = tikzDCLNudo(n, resultado);
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.72]\n' + dclA.tikz + '\\end{tikzpicture}\\end{center}\n';
-      tex += figCaption('DCL del nudo ' + nomN(n) + ': cargas, reacciones y fuerzas de barra. Las barras ya conocidas llevan '
-        + 'su sentido real; las inc\\\'ognitas se suponen en tracci\\\'on. Los valores van en las ecuaciones; el marco $x$, $y$ de la esquina da los sentidos positivos de las sumas.'
-        + _angulosArm(dclA.angulos));
+      tex += figCaption('DCL del nudo ' + nomN(n) + '.' + _angulosArm(dclA.angulos));
       const nx = ++eqN, ny = ++eqN;
       const citaTxt = citas.filter(q=>q !== 'fuerza cero');
       const filas = [];
@@ -388,22 +385,43 @@ function construirLatex(){
       tex += '\\subpaso{' + titulo + '\\quad{\\normalfont\\footnotesize\\color{bsaMuted}porci\\\'on: ' + nomLado + '}}\n';
       const dcl = tikzSeccionPorcion(lado, datos, externas, items);
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.78]\n' + dcl.tikz + '\\end{tikzpicture}\\end{center}\n';
-      tex += figCaption('Porci\\\'on aislada por el corte, con las fuerzas de las barras cortadas supuestas en tracci\\\'on y los centros de momento usados. El marco $x$, $y$ da los sentidos positivos de las sumas.'
-        + _angulosArm(dcl.angulos));
-      const filas = [];
-      items.forEach(p=>{
+      // Ecuaciones del corte: ΣM respecto del NUDO por el que pasan las otras
+      // incógnitas (o de un punto O rotulado en la figura si no hay nudo) y, para
+      // la última, ΣF_x o ΣF_y con las ya halladas en este corte sustituidas y
+      // citadas. Nunca una suma en un eje inclinado (revisión del PDF).
+      const etqC = etiquetasCentros(items);
+      let filas = [];
+      const vaciar = () => { if(filas.length){ tex += _alineadaArm(filas); filas = []; } };
+      let pie = 'Porci\\\'on aislada por el corte.';
+      const defsO = [];
+      etqC.forEach(c=>{ if(c && !c.esNudo && !defsO.some(d=>d.tex === c.tex)) defsO.push(c); });
+      defsO.forEach(c=>{ pie += ' $' + c.tex + ' = (' + dec(c.x,'len') + ';\\ ' + dec(c.y,'len') + ')$ ' + escLatex(unitLen) + '.'; });
+      tex += figCaption(pie + _angulosArm(dcl.angulos));
+      items.forEach((p, i)=>{
         const nk = ++eqN;
         const terms = [{v:p.coef, tex:_coefAbs(p.coef) + 'F_{' + nomB(p.d.barra) + '}'}]
           .concat(p.detalle.map(x=>({v:x.val, tex:dec(Math.abs(x.val),'f')})));
-        const etq = (p.tipo === 'momento')
-          ? '\\circlearrowleft\\!+\\ \\sum M_{' + (p.centro && p.centro.nombre ? escLatex(p.centro.nombre) : 'O') + '} = 0:\\quad'
-          : '+\\!\\nearrow\\ \\sum F_{\\perp} = 0:\\quad';
+        let etq;
+        if(p.tipo === 'momento'){
+          const c = etqC[i], nomC = c ? c.tex : 'O';
+          // Antes de la ecuación, la figura de brazos de ESTE centro (R10: las
+          // cotas de los brazos, siempre desde el punto de momentos).
+          vaciar();
+          const br = tikzBrazosCorte(lado, datos, p, nomC);
+          tex += '\\begin{center}\\begin{tikzpicture}[scale=0.8]\n' + br.tikz + '\\end{tikzpicture}\\end{center}\n';
+          tex += figCaption('Brazos de $\\sum M_{' + nomC + '}$' + (br.enPorcion ? '' : ' ($' + nomC + '$ fuera de la porci\\\'on)') + '.');
+          etq = '\\circlearrowleft\\!+\\ \\sum M_{' + nomC + '} = 0:\\quad';
+        } else {
+          etq = (p.eje === 'x') ? '\\xrightarrow{+}\\ \\sum F_x = 0:\\quad' : '+\\!\\uparrow\\ \\sum F_y = 0:\\quad';
+        }
         filas.push(_filaArm(etq, terms, ' = 0\\qquad(' + nk + ')'));
         const tipo = esCero(p.val) ? '\\ \\text{(fuerza cero)}' : (p.val > 0 ? '\\ \\text{(T)}' : '\\ \\text{(C)}');
-        filas.push('& F_{' + nomB(p.d.barra) + '} = ' + dec(p.val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo);
+        const citas = (p.citas || []).filter(id=>deQuien[id]).map(id=>'F_{' + nomB(barras.find(b=>b.id===id)) + '}\\text{ de }(' + deQuien[id][0] + ')');
+        filas.push('& F_{' + nomB(p.d.barra) + '} = ' + dec(p.val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo
+          + (citas.length ? '\\quad{\\footnotesize\\text{con } ' + citas.join(',\\ ') + '}' : ''));
         deQuien[p.d.barra.id] = [nk];
       });
-      tex += _alineadaArm(filas);
+      vaciar();
     };
     if(modoCorte === 'auto'){
       const pasosAuto = buscarCortes();
@@ -525,8 +543,7 @@ function construirLatex(){
       bloquesF += '\\begin{center}\\begin{tikzpicture}[scale=0.9]\n'
         + tikzArmaduraCompleta({fuerzas:fF, reacciones:(rF.error ? resultado.reacciones : rF.reacciones), cotas:false, valores:true, factorCargas:(mejorP/mag0), resaltar:mejorB.id})
         + '\\end{tikzpicture}\\end{center}\n'
-        + figCaption('DCL en la carga de falla del nudo ' + nomN(n) + ' ($P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + '): la barra '
-          + '$F_{' + nomB(mejorB) + '}$, resaltada, alcanza justo su capacidad admisible en ' + (enT ? 'tracci\\\'on' : 'compresi\\\'on') + '.');
+        + figCaption('Carga de falla $P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ': $F_{' + nomB(mejorB) + '}$, resaltada, alcanza su capacidad en ' + (enT ? 'tracci\\\'on' : 'compresi\\\'on') + '.');
       bloquesF += '\\noindent{\\footnotesize\\textbf{Por qu\\\'e falla esa barra.} Con una sola carga variable $P$, la fuerza en cada barra es '
         + 'af\\\'in: $F = a + k\\,P$, con $a$ la fuerza debida a las dem\\\'as cargas y $k$ su sensibilidad. Cada barra tiene un '
         + 'l\\\'imite ($+' + dec(capT,'f') + '$ en tracci\\\'on, $-' + dec(capC,'f') + '$ en compresi\\\'on) y alcanza el suyo a una carga '
