@@ -293,10 +293,10 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
   return {tikz:s, angulos};
 }
 
-// `conocidas` (opcional): barraId → valor ya hallado. Esas barras llevan su
-// valor en el rótulo, además del sentido real que ya daba la flecha: es lo
-// que «llega» al nudo desde los nudos anteriores.
-function tikzDCLNudo(n, res, conocidas){
+// El rotulo lleva SOLO la variable (R21). Lo que ya viene resuelto de los nudos
+// anteriores se reconoce por el SENTIDO REAL de la flecha y por el color, no por
+// un numero: los valores van en las ecuaciones y en la tabla resumen.
+function tikzDCLNudo(n, res){
   const R = 2.10;
   let s = '';
   const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
@@ -336,8 +336,7 @@ function tikzDCLNudo(n, res, conocidas){
     }
     // Etiqueta simple (solo la variable); si chocaría con otra, se aleja y
     // se conecta con una línea delgada hasta la punta de su propia barra.
-    const conVal = conocidas && conocidas[b.id] !== undefined;
-    s += etiquetaFuerza(ux, uy, col, '$F_{' + nombreBarra(b) + '}' + (conVal ? ' = ' + dec(Math.abs(val),'f') : '') + '$', R+0.30);
+    s += etiquetaFuerza(ux, uy, col, '$F_{' + nombreBarra(b) + '}$', R+0.30);
     // Arco con letra griega para el ángulo (agudo, 0-90°) respecto de la horizontal.
     const arco = arcoAngulo(ux, uy, col, gen, 0.65, 0, 0, colocadorLetras);
     if(arco.tikz){ s += arco.tikz; angulos.push({letra:arco.letra, valor:arco.valor, barra:nombreBarra(b)}); }

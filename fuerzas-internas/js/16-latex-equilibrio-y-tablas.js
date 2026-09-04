@@ -283,8 +283,9 @@ function terminosCorte(R, gg, seg, sub){
 // al lado. A la izquierda, lo que LLEGA referido a los ejes del tramo anterior;
 // a la derecha, lo que SALE, ya proyectado sobre los ejes nuevos. Entre las dos,
 // el ángulo θ que las relaciona, que es de donde salen el seno y el coseno.
-// Cada flecha se dibuja sobre SU barra, apuntando hacia afuera del nudo, y el
-// valor va con signo: el signo dice el sentido real.
+// Cada flecha se dibuja sobre SU barra, en el SENTIDO REAL cuando ya se conoce.
+// El rotulo lleva SOLO el nombre de la solicitacion (R21), nunca su valor: el
+// superindice es del convenio de signos, no un sentido. Los valores van debajo.
 // ── Sentidos reales sobre el nudo (cuerpo libre del pasador) ──
 // Se deducen del convenio del curso y la tercera ley. Con N > 0 (tracción) la
 // barra TIRA del nudo hacia ella: −û en la barra que llega, +û en la que sale.
@@ -325,7 +326,7 @@ function tikzNudoQuiebre(u1, u2, nom, gr, Nm, Vm, Mm, N0, V0, M0, enNudo){
 
   // Una terna de solicitaciones sobre una barra. s = +1 la que sale, s = −1 la
   // que llega. dN, dV, dM son los sentidos con valor POSITIVO (ver cabecera);
-  // el signo del valor los invierte. El rótulo lleva la magnitud.
+  // el signo del valor los invierte. El rótulo lleva solo el nombre (R21).
   const terna = (u, n, s, col, sN, sV, sM, vN, vV, vM, dN, dV, dM) => {
     let q = '';
     const ex = u.x*s, ey = u.y*s;
@@ -343,13 +344,13 @@ function tikzNudoQuiebre(u1, u2, nom, gr, Nm, Vm, Mm, N0, V0, M0, enNudo){
     if(Math.abs(vV) > NULO){
       const kV = dV*sg(vV);
       flecha(ex*0.95, ey*0.95, ex*0.95 + n.x*0.80*kV, ey*0.95 + n.y*0.80*kV,
-             '$' + sV + ' = ' + dec(Math.abs(vV),'fuerza') + '$');
+             '$' + sV + '$');
     }
     // N: sobre el eje, entre 1.70 y 2.50; la punta va donde diga el sentido
     if(Math.abs(vN) > NULO){
       const kN = dN*sg(vN);             // +1 hacia afuera del nudo, −1 hacia él
-      if(kN > 0) flecha(ex*1.70, ey*1.70, ex*2.50, ey*2.50, '$' + sN + ' = ' + dec(Math.abs(vN),'fuerza') + '$');
-      else       flecha(ex*2.50, ey*2.50, ex*1.70, ey*1.70, '$' + sN + ' = ' + dec(Math.abs(vN),'fuerza') + '$');
+      if(kN > 0) flecha(ex*1.70, ey*1.70, ex*2.50, ey*2.50, '$' + sN + '$');
+      else       flecha(ex*2.50, ey*2.50, ex*1.70, ey*1.70, '$' + sN + '$');
     }
     // M: arco sobre la barra; antihorario si dM·signo > 0, horario si no
     if(Math.abs(vM) > NULO){
@@ -358,7 +359,7 @@ function tikzNudoQuiebre(u1, u2, nom, gr, Nm, Vm, Mm, N0, V0, M0, enNudo){
          + F(cx+0.30) + ',' + F(cy) + ') arc (0:' + (kM > 0 ? '300' : '-300') + ':0.30);\n';
       tzOcupar(cx-0.36, cy-0.36, cx+0.36, cy+0.36);
       q += tzTexto(cx - n.x*0.64, cy - n.y*0.64,
-                   '{\\scriptsize$' + sM + ' = ' + dec(Math.abs(vM),'momento') + '$}', 'color=' + col, -n.x, -n.y);
+                   '{\\scriptsize$' + sM + '$}', 'color=' + col, -n.x, -n.y);
     }
     return q;
   };
@@ -453,8 +454,9 @@ function bloqueQuiebre(R, grupos, gg, info){
        + ' referido a los ejes de ese tramo; en verde, lo que \\textbf{sale} hacia el tramo '
        + 'nuevo sobre sus ejes $\\hat{u}$ y $\\hat{n}$'
        + (enNudo.length ? '; en rojo y violeta, las cargas aplicadas en el propio nudo' : '')
-       + '. Las flechas indican el \\textbf{sentido real} y los rótulos la magnitud; el signo del '
-       + 'convenio va en las ecuaciones. El ángulo $\\theta$ entre las dos barras es el que da el '
+       + '. Las flechas van en el \\textbf{sentido real}; el rótulo es solo el \\textbf{nombre} de la '
+       + 'solicitación, y su superíndice o subíndice es el del \\textbf{convenio de signos}, no un '
+       + 'sentido. Los valores están justo debajo. El ángulo $\\theta$ entre las dos barras es el que da el '
        + 'seno y el coseno de la proyección.}\\end{center}\\vspace{2pt}\n';
   out += '\\noindent{\\footnotesize Al final del tramo ' + np + ': $N^- = ' + dec(Nm,'fuerza')
     + '$, $V^- = ' + dec(Vm,'fuerza') + '$ ' + uF + ', $M^- = ' + dec(Mm,'momento') + '$ ' + uM

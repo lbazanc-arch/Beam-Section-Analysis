@@ -11,6 +11,15 @@
 
 // ── Ayudantes de formato (locales: no se comparten con otros temas) ──
 let _yaDichoArm = {};
+// Lista de angulos de un DCL. Una letra compartida por dos angulos iguales se
+// enuncia UNA sola vez (R21): "beta = 36.9" no se repite por cada barra.
+function _angulosArm(angulos){
+  if(!angulos || !angulos.length) return '';
+  const vistas = [];
+  angulos.forEach(a=>{ if(a.letra && !vistas.some(v=>v.letra === a.letra)) vistas.push(a); });
+  return ' \\\'Angulos: ' + vistas.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '.';
+}
+
 function _primeraVezArm(clave){
   if(_yaDichoArm[clave]) return false;
   _yaDichoArm[clave] = true;
@@ -326,11 +335,11 @@ function construirLatex(){
 
       tex += '\\subpaso{Nudo ' + nomN(n) + '\\quad{\\normalfont\\footnotesize\\color{bsaMuted}' + conec.length + ' barra(s) \\textperiodcentered\\ '
         + (nuevas.length ? nuevas.length + ' inc\\\'ognita(s)' : 'comprobaci\\\'on') + '}}\n';
-      const dclA = tikzDCLNudo(n, resultado, conocidas);
+      const dclA = tikzDCLNudo(n, resultado);
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.72]\n' + dclA.tikz + '\\end{tikzpicture}\\end{center}\n';
-      tex += figCaption('DCL del nudo ' + nomN(n) + ': cargas, reacciones y fuerzas de barra. Las barras ya conocidas llevan su valor '
-        + 'y su sentido real; las inc\\\'ognitas se suponen en tracci\\\'on.'
-        + (dclA.angulos.length ? ' \\\'Angulos: ' + dclA.angulos.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '.' : ''));
+      tex += figCaption('DCL del nudo ' + nomN(n) + ': cargas, reacciones y fuerzas de barra. Las barras ya conocidas llevan '
+        + 'su sentido real; las inc\\\'ognitas se suponen en tracci\\\'on. Los valores van en las ecuaciones.'
+        + _angulosArm(dclA.angulos));
       const nx = ++eqN, ny = ++eqN;
       const citaTxt = citas.filter(q=>q !== 'fuerza cero');
       const filas = [];
@@ -379,7 +388,7 @@ function construirLatex(){
       const dcl = tikzSeccionPorcion(lado, datos, externas, items);
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.78]\n' + dcl.tikz + '\\end{tikzpicture}\\end{center}\n';
       tex += figCaption('Porci\\\'on aislada por el corte, con las fuerzas de las barras cortadas supuestas en tracci\\\'on y los centros de momento usados.'
-        + (dcl.angulos.length ? ' \\\'Angulos: ' + dcl.angulos.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '.' : ''));
+        + _angulosArm(dcl.angulos));
       const filas = [];
       items.forEach(p=>{
         const nk = ++eqN;
