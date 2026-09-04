@@ -94,7 +94,9 @@ function ladoCarga(n, ux, uy, lateral){
 }
 
 // ── Flecha de carga refinada (estilo libro, no exagerada) ──
-function tikzFlechaCarga(n, tx, ty, factor, longBase){
+// `ang` (opcional): {gen, coloc, angulos} para acotar el ángulo de una carga
+// inclinada, igual que se hace con las barras.
+function tikzFlechaCarga(n, tx, ty, factor, longBase, ang){
   factor = factor || 1;
   const fx = n.fx*factor, fy = n.fy*factor;
   if(esCero(fx) && esCero(fy)) return '';
@@ -112,6 +114,13 @@ function tikzFlechaCarga(n, tx, ty, factor, longBase){
   let s = '\\draw[->, >=stealth, line width=0.85pt, bsaAcc] (' + x1.toFixed(3) + ',' + y1.toFixed(3) + ') -- (' + x2.toFixed(3) + ',' + y2.toFixed(3) + ');\n';
   const lx = (fx0 - k*ux*0.32).toFixed(3), ly = (fy0 - k*uy*0.32).toFixed(3);
   s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt] at (' + lx + ',' + ly + ') {' + dec(mag,'f') + '\\,' + unitFor + '};\n';
+  // Una carga con componentes en x e y no se puede descomponer sin su ángulo, y
+  // era lo único del dibujo que no se veía. Se acota como el de las barras:
+  // agudo, desde el eje más cercano, en el arranque del vástago.
+  if(ang && ang.gen){
+    const arco = arcoAngulo(-k*ux, -k*uy, 'bsaAcc', ang.gen, 0.45, nx0, ny0, ang.coloc);
+    if(arco.tikz){ s += arco.tikz; if(ang.angulos) ang.angulos.push({letra:arco.letra, valor:arco.valor}); }
+  }
   return s;
 }
 
@@ -252,6 +261,7 @@ function tikzBrazosCorte(lado, datosCorte, item, nombreCentro){
   const esc = 7.6/Math.max(maxX-minX, 1e-6);
   const X = x => (x-minX)*esc, Y = y => (y-minY)*esc, F = v => v.toFixed(3);
   const C = item.centro, Lf = 1.1;
+  const genB = letrasGriegas(), colocB = crearColocador(22, 0.40), angulos = [];
   let s = '';
   barras.forEach(b=>{
     if(!(enLado(b.a) && enLado(b.b))) return;
@@ -276,12 +286,12 @@ function tikzBrazosCorte(lado, datosCorte, item, nombreCentro){
   if(!enPorcion) s += '\\node[font=\\scriptsize\\bfseries, text=bsaAcc, below right, inner sep=2pt] at (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') {' + nombreCentro + '};\n';
   // Fuerzas con momento: la incógnita de la ecuación y las del detalle.
   const nombreDe = et => et.replace(/^F/, '').replace(/ .*$/, '');
-  const fz = [{x:item.d.px, y:item.d.py, ux:item.d.ux, uy:item.d.uy, tex:'$F_{' + escLatex(item.d.nombre) + '}$', col:'bsaAcc2'}];
+  const fz = [{x:item.d.px, y:item.d.py, ux:item.d.ux, uy:item.d.uy, tex:'$F_{' + escLatex(item.d.nombre) + '}$', col:'bsaAcc2', esCarga:false}];
   item.detalle.forEach(t=>{
     if(t.x === undefined) return;
     const m = Math.hypot(t.fx, t.fy); if(m < 1e-9) return;
     const esR = t.et.charAt(0) === 'R', esF = t.et.charAt(0) === 'F';
-    fz.push({x:t.x, y:t.y, ux:t.fx/m, uy:t.fy/m, col: esR ? 'bsaVerde' : (esF ? 'bsaAcc2' : 'bsaAcc'),
+    fz.push({x:t.x, y:t.y, ux:t.fx/m, uy:t.fy/m, esCarga: !esR && !esF, col: esR ? 'bsaVerde' : (esF ? 'bsaAcc2' : 'bsaAcc'),
              tex: esR ? '$R_{' + t.et.slice(-1) + escLatex(t.et.slice(1,-1)) + '}$' : (esF ? '$F_{' + escLatex(nombreDe(t.et)) + '}$' : dec(m,'f') + '\\,' + unitFor)});
   });
   fz.forEach(f=>{
@@ -293,13 +303,18 @@ function tikzBrazosCorte(lado, datosCorte, item, nombreCentro){
     // flecha corta en su línea de acción, con su nombre
     s += '\\draw[->, >=stealth, ' + f.col + ', line width=1pt] (' + F(px) + ',' + F(py) + ') -- (' + F(px+f.ux*Lf) + ',' + F(py+f.uy*Lf) + ');\n';
     s += '\\node[font=\\tiny, text=' + f.col + ', inner sep=1pt] at (' + F(px+f.ux*(Lf+0.32)-f.uy*0.26) + ',' + F(py+f.uy*(Lf+0.32)+f.ux*0.26) + ') {' + f.tex + '};\n';
+    // Carga inclinada: su ángulo, como en los demás DCL.
+    if(f.esCarga){
+      const arcoC = arcoAngulo(f.ux, f.uy, f.col, genB, 0.5, px, py, colocB);
+      if(arcoC.tikz){ s += arcoC.tikz; angulos.push({letra:arcoC.letra, valor:arcoC.valor}); }
+    }
     if(brazo < 1e-6) return;
     // línea de acción prolongada a trazos hasta el pie, y cota del brazo
     s += '\\draw[' + f.col + '!60, dashed, line width=0.45pt] (' + F(px) + ',' + F(py) + ') -- (' + F(X(fx0)) + ',' + F(Y(fy0)) + ');\n';
     s += '\\draw[<->, >=stealth, bsaMuted, line width=0.5pt] (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') -- (' + F(X(fx0)) + ',' + F(Y(fy0)) + ')'
        + ' node[midway, fill=white, font=\\tiny, text=bsaMuted, inner sep=1pt] {' + dec(brazo,'len') + '\\,' + escLatex(unitLen) + '};\n';
   });
-  return {tikz:s, enPorcion};
+  return {tikz:s, enPorcion, angulos};
 }
 
 // ── Porción aislada del método de secciones (auto o manual) ──
@@ -428,6 +443,11 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
     // La etiqueta de una reacción es 'R' + nudo + eje ('RAy'): se rotula R_{yA}.
     const rot = esR ? '$R_{' + e.et.slice(-1) + escLatex(e.et.slice(1, -1)) + '}$' : dec(mag,'f') + '\\,' + unitFor;
     s += '\\node[font=\\tiny, text=' + col + ', inner sep=1.5pt] at (' + (fx0 - k*ux*0.28).toFixed(3) + ',' + (fy0 - k*uy*0.28).toFixed(3) + ') {' + rot + '};\n';
+    if(!esR){
+      const clcA = colocadorDe('ang-' + (nodoAqui ? nodoAqui.id : (e.x+','+e.y)), 22, 0.40);
+      const arcoC = arcoAngulo(-k*ux, -k*uy, col, gen, 0.55, px + lado.ox, py + lado.oy, clcA);
+      if(arcoC.tikz){ s += arcoC.tikz; angulos.push({letra:arcoC.letra, valor:arcoC.valor}); ocupados.push([arcoC.lx, arcoC.ly]); }
+    }
     ocupados.push([fx0, fy0]);
   });
 
@@ -564,6 +584,10 @@ function tikzDCLNudo(n, res){
       s += etiquetaFuerza(-k*ux, -k*uy, col, etiqueta, 2.55);
     }
     ocup.push([ax, ay]);
+    // Si la fuerza es inclinada (componentes en x e y), su ángulo. Las
+    // reacciones se dibujan por componentes, así que esto solo afecta a cargas.
+    const arcoF = arcoAngulo(-k*ux, -k*uy, col, gen, 0.95, lado.ox, lado.oy, colocadorLetras);
+    if(arcoF.tikz){ s += arcoF.tikz; angulos.push({letra:arcoF.letra, valor:arcoF.valor}); ocup.push([arcoF.lx, arcoF.ly]); }
   };
   if(!esCero(n.fx) || !esCero(n.fy)){
     const mag = Math.hypot(n.fx, n.fy);
@@ -591,7 +615,11 @@ function tikzDCLNudo(n, res){
 }
 
 // ── Armadura completa reutilizable: geometría base + variantes ──
-// opts: {fuerzas, reacciones, cotas, valores, factorCargas, resaltar}
+// opts: {fuerzas, reacciones, cotas, valores, factorCargas, resaltar, neutra}
+// Los ángulos de las cargas inclinadas quedan en `_angulosFigura`: la función
+// devuelve un string (los llamadores lo concatenan), así que el pie los lee de
+// aquí justo después de llamarla.
+let _angulosFigura = [];
 function tikzArmaduraCompleta(opts){
   opts = opts || {};
   const fuerzas = opts.fuerzas || resultado.fuerzas;
@@ -606,6 +634,8 @@ function tikzArmaduraCompleta(opts){
   const tx = (x)=> ((x-minX)*esc).toFixed(3);
   const ty = (y)=> ((y-minY)*esc).toFixed(3);
   const maxF = Math.max(1e-9, ...barras.map(b=>Math.abs(fuerzas[b.id]||0)));
+  _angulosFigura = [];
+  const genCargas = letrasGriegas();
 
   let s = '';
   barras.forEach(b=>{
@@ -632,7 +662,8 @@ function tikzArmaduraCompleta(opts){
       s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y));
     }
     if(opts.cargas !== false){
-      s += tikzFlechaCarga(n, tx, ty, factorCargas);
+      s += tikzFlechaCarga(n, tx, ty, factorCargas, null,
+                           {gen:genCargas, coloc:crearColocador(24, 0.40), angulos:_angulosFigura});
     }
     // Reacciones incógnita en su sentido positivo supuesto (+x, +y), para el
     // DCL global con el que se plantean las ecuaciones de reacciones.

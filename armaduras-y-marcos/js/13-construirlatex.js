@@ -143,7 +143,7 @@ function construirLatex(){
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
     + tikzArmaduraCompleta({cotas:true, valores:false, neutra:true}) + '\\end{tikzpicture}\n\\end{center}\n';
-  tex += figCaption('Modelo de la armadura: nudos, barras, apoyos, cargas aplicadas y cotas.');
+  tex += figCaption('Modelo de la armadura: nudos, barras, apoyos, cargas aplicadas y cotas.' + _angulosArm(_angulosFigura));
   tex += '\\subpaso{Objetivo}\n'
     + 'Hallar las reacciones en los apoyos y la fuerza axial en cada barra, indicando si trabaja a '
     + '\\textbf{tracci\\\'on} (T) o a \\textbf{compresi\\\'on} (C).\n';
@@ -201,7 +201,7 @@ function construirLatex(){
     + 'la armadura completa: en \\textbf{ese} cuerpo libre las fuerzas de las barras son internas y no aparecen.');
   tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
     + tikzArmaduraCompleta({cotas:true, valores:false, reaccionesIncognita:true}) + '\\end{tikzpicture}\n\\end{center}\n';
-  tex += figCaption('DCL global: cargas y reacciones inc\\\'ognita en su sentido positivo.');
+  tex += figCaption('DCL global: cargas y reacciones inc\\\'ognita en su sentido positivo.' + _angulosArm(_angulosFigura));
 
   const pines = nodos.filter(n=>n.apoyo==='fijo');
   const rodillos = nodos.filter(n=>n.apoyo==='movil');
@@ -409,7 +409,7 @@ function construirLatex(){
           vaciar();
           const br = tikzBrazosCorte(lado, datos, p, nomC);
           tex += '\\begin{center}\\begin{tikzpicture}[scale=0.8]\n' + br.tikz + '\\end{tikzpicture}\\end{center}\n';
-          tex += figCaption('Brazos de $\\sum M_{' + nomC + '}$' + (br.enPorcion ? '' : ' ($' + nomC + '$ fuera de la porci\\\'on)') + '.');
+          tex += figCaption('Brazos de $\\sum M_{' + nomC + '}$' + (br.enPorcion ? '' : ' ($' + nomC + '$ fuera de la porci\\\'on)') + '.' + _angulosArm(br.angulos));
           etq = '\\circlearrowleft\\!+\\ \\sum M_{' + nomC + '} = 0:\\quad';
         } else {
           etq = (p.eje === 'x') ? '\\xrightarrow{+}\\ \\sum F_x = 0:\\quad' : '+\\!\\uparrow\\ \\sum F_y = 0:\\quad';
@@ -544,18 +544,15 @@ function construirLatex(){
         + tikzArmaduraCompleta({fuerzas:fF, reacciones:(rF.error ? resultado.reacciones : rF.reacciones), cotas:false, valores:true, factorCargas:(mejorP/mag0), resaltar:mejorB.id})
         + '\\end{tikzpicture}\\end{center}\n'
         + figCaption('Carga de falla $P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ': $F_{' + nomB(mejorB) + '}$, resaltada, alcanza su capacidad en ' + (enT ? 'tracci\\\'on' : 'compresi\\\'on') + '.');
-      bloquesF += '\\noindent{\\footnotesize\\textbf{Por qu\\\'e falla esa barra.} Con una sola carga variable $P$, la fuerza en cada barra es '
-        + 'af\\\'in: $F = a + k\\,P$, con $a$ la fuerza debida a las dem\\\'as cargas y $k$ su sensibilidad. Cada barra tiene un '
-        + 'l\\\'imite ($+' + dec(capT,'f') + '$ en tracci\\\'on, $-' + dec(capC,'f') + '$ en compresi\\\'on) y alcanza el suyo a una carga '
-        + '$P^* = (F_{\\text{adm}} - a)/k$. La primera en llegar es $F_{' + nomB(mejorB) + '}$: no es necesariamente la de mayor '
-        + 'fuerza hoy, sino la de mayor \\emph{aprovechamiento} y mayor crecimiento por unidad de carga.}\\\\[3pt]\n'
-        + '\\noindent{\\footnotesize\\textbf{Por qu\\\'e no se puede seguir subiendo la carga.} La est\\\'atica solo dice cu\\\'anta fuerza lleva '
-        + 'cada barra; \\textbf{no} dice si la barra la resiste. Eso lo fija la capacidad admisible, que viene del material y de la '
-        + 'secci\\\'on: por encima de ella la barra en tracci\\\'on fluye o se rompe, y la barra en compresi\\\'on, adem\\\'as, puede '
-        + '\\emph{pandear} (fallar por inestabilidad lateral bastante antes de agotar el material, tanto m\\\'as cuanto m\\\'as esbelta sea). '
-        + 'Estudiar ese comportamiento \\textemdash esfuerzos, deformaciones, pandeo de Euler, factores de seguridad\\textemdash{} es '
-        + 'materia de \\emph{Resistencia de Materiales} y de \\emph{Dise\\~no}, que vienen despu\\\'es de la Est\\\'atica. Aqu\\\'i basta '
-        + 'con saber que la carga $P^* = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ' es un techo: a partir de ah\\\'i la estructura ya no cumple.}\\\\[4pt]\n';
+      bloquesF += '\\noindent{\\footnotesize\\textbf{Por qu\\\'e falla esa barra.} Al subir la carga del nudo ' + nomN(n) + ', '
+        + 'la fuerza de todas las barras crece, pero no al mismo ritmo: la geometr\\\'ia manda m\\\'as carga a unas que a otras. '
+        + 'La primera en llegar a su l\\\'imite es $F_{' + nomB(mejorB) + '}$, que no es la que hoy lleva m\\\'as fuerza, sino la '
+        + 'que est\\\'a m\\\'as cerca de su tope y m\\\'as deprisa se acerca a \\\'el.}\\\\[3pt]\n'
+        + '\\noindent{\\footnotesize\\textbf{Por qu\\\'e no se puede subir m\\\'as.} La est\\\'atica dice cu\\\'anta fuerza lleva cada '
+        + 'barra, pero no si la aguanta: eso depende del material y del grosor de la barra. Pasada su capacidad, una barra '
+        + 'estirada se rompe, y una comprimida puede doblarse de golpe (\\emph{pandeo}) incluso antes. Por eso '
+        + '$P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ' es un techo: m\\\'as all\\\'a la estructura ya no sirve. Calcular '
+        + 'ese l\\\'imite ya es cosa de \\emph{Resistencia de Materiales}.}\\\\[4pt]\n';
     });
     if(filasF){
       tex += '\\seccion{8. \\textquestiondown Qu\\\'e barra falla primero?}\n';
