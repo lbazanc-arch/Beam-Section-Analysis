@@ -195,7 +195,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   border:1px dashed var(--border2);border-radius:12px;}
 
 
-/* ── Selección por capítulo ── */
+/* ── Selección por tema ── */
 .cap-list{display:flex;flex-direction:column;gap:11px;}
 .cap{background:var(--bg3);border:1px solid var(--border);border-radius:14px;overflow:hidden;
   transition:border-color .18s;}
@@ -406,6 +406,14 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .dlitem input[type=checkbox]{width:14px;height:14px;accent-color:var(--red2);cursor:pointer;flex-shrink:0;}
 .dlitem label{font-size:12px;color:var(--text);cursor:pointer;flex:1;}
 .dlitem label small{display:block;font-size:9px;color:var(--muted);}
+.dlitem input[type=radio]{width:14px;height:14px;accent-color:var(--red2);cursor:pointer;flex-shrink:0;}
+.dl-txt{flex:1;font-size:12px;color:var(--text);}
+.dl-txt b{display:block;font-weight:700;}
+.dl-txt small{display:block;font-size:9.5px;color:var(--muted);margin-top:2px;line-height:1.45;}
+.dl-nota{font-size:10px;color:var(--muted);line-height:1.5;margin:8px 0 2px;}
+.ld-fecha{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;
+  color:var(--text);padding:8px 11px;font-size:12px;outline:none;font-family:inherit;margin-bottom:6px;}
+.ld-fecha:focus{border-color:var(--blue2);}
 
 @media(max-width:820px){
   #s-plogin,#s-elogin{flex-direction:column;align-items:center;}
@@ -804,7 +812,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
       <span class="chip"><span class="chip-dot"></span>Centroide</span>
       <span class="chip"><span class="chip-dot"></span>Presión de Fluidos</span>
       <span class="chip"><span class="chip-dot"></span>Momentos de Inercia</span>
-      <span class="chip"><span class="chip-dot"></span>Estática Cap. 6 a 10</span>
+      <span class="chip"><span class="chip-dot"></span>Estática · Temas 6 a 10</span>
     </div>
     
   </div>
@@ -842,7 +850,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
   </div>
   <div class="info-card">
     <h4>ℹ️ Acerca de BSA</h4>
-    <p>Panel docente para gestionar accesos, monitorear el uso y abrir los aplicativos de Estática. Cinco capítulos: armaduras, fuerzas internas, centroides, presión de fluidos y momento de inercia (Cap. 6 a 10).</p>
+    <p>Panel docente para gestionar accesos, monitorear el uso y abrir los aplicativos de Estática. Cinco temas: armaduras, fuerzas internas, centroides, presión de fluidos y momento de inercia (temas 6 a 10 del curso).</p>
     <div class="by">Creado por <span>Luis Alejandro Bazán Campos</span></div>
     <div class="tags"><span class="tag">Gestión de usuarios</span><span class="tag">Registro de ingresos</span></div>
   </div>
@@ -873,7 +881,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
   </div>
   <div class="info-card">
     <h4>ℹ️ Acerca de BSA</h4>
-    <p>Plataforma interactiva de Estática con cinco aplicativos (Cap. 6 a 10): armaduras, fuerzas internas, centroides, presión de fluidos y momento de inercia. Permite comprobar los resultados paso a paso.</p>
+    <p>Plataforma interactiva de Estática con cinco aplicativos (temas 6 a 10): armaduras, fuerzas internas, centroides, presión de fluidos y momento de inercia. Permite comprobar los resultados paso a paso.</p>
     <div class="by">Creado por <span>Luis Alejandro Bazán Campos</span></div>
     <div class="tags"><span class="tag">Fuerzas Internas</span><span class="tag">Momentos de Inercia</span></div>
   </div>
@@ -888,12 +896,12 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
     <div class="stats">
       <div class="sbox"><div class="snum" id="st-s">0</div><div class="slbl">Estudiantes</div></div>
       <div class="sbox"><div class="snum" id="st-a">0</div><div class="slbl">Ingresos totales</div></div>
-      <div class="sbox"><div class="snum" id="st-t">0</div><div class="slbl">Hoy</div></div>
+      <div class="sbox"><div class="snum" id="st-t">0</div><div class="slbl">Alumnos hoy</div></div>
     </div>
     <div class="apps-section">
       <div class="apps-title">Aplicativos</div>
       <div class="apps-grid" id="appsGrid"></div>
-      <div class="apps-note">El interruptor controla el acceso <b>de los estudiantes</b> a cada capítulo.
+      <div class="apps-note">El interruptor controla el acceso <b>de los estudiantes</b> a cada tema.
         Tú puedes abrirlos siempre desde aquí.</div>
     </div>
     <div class="statusbar">
@@ -909,7 +917,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
       <div class="sbtns" style="gap:8px;align-items:center;">
         <button onclick="abrirHorarios()" style="background:var(--blue2);color:#fff;border:none;padding:7px 15px;
   border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🕗 Gestionar horarios</button>
-        <button onclick="openClavesModal()" style="display:none" style="background:var(--blue2);color:#fff;border:none;padding:7px 15px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🔑 Contraseñas individuales</button>
+        <button onclick="openClavesModal()" style="display:none;background:var(--blue2);color:#fff;border:none;padding:7px 15px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🔑 Contraseñas individuales</button>
       </div>
     </div>
     <div class="pgrid">
@@ -997,7 +1005,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
           <div class="pctitle" style="margin-bottom:0">Registro de ingresos</div>
           <div class="pc-acts">
             <button onclick="exportExcel()" class="pc-xls" style="border:1px solid #3ecf8e;color:#3ecf8e;padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;background:none;">📥 Excel</button>
-            <button onclick="clearLogs()" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;">🗑 Limpiar</button>
+            <button onclick="openLogDelModal()" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;">🗑 Eliminar</button>
             <button onclick="refreshPanel()" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 9px;border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">↻</button>
           </div>
         </div>
@@ -1050,7 +1058,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
       Tu contraseña no la vemos: se guarda cifrada y ni el administrador ni tu docente
       pueden leerla.</p>
     <p><b>Los que se generan al usar la herramienta:</b> la fecha y hora de cada ingreso,
-      cuánto tiempo permaneces conectado y cuánto dedicas a cada capítulo.</p>
+      cuánto tiempo permaneces conectado y cuánto dedicas a cada tema.</p>
     <p><b>Lo que NO recogemos:</b> no guardamos los ejercicios que resuelves. Se quedan
       en tu equipo, y los archivos que descargas son tuyos. No usamos cookies
       publicitarias, no hacemos seguimiento fuera de este sitio y no vendemos ni
@@ -1059,7 +1067,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
     <div class="priv-sec">3 · Para qué los usamos</div>
     <p>Para darte acceso a tu cuenta y que puedas retomar tu trabajo; para que tu
       docente sepa quién está usando la herramienta y cuánto, cuando formas parte de
-      un curso; y para saber qué capítulos cuestan más y mejorar la enseñanza a partir
+      un curso; y para saber qué temas cuestan más y mejorar la enseñanza a partir
       de ahí. No tomamos decisiones automatizadas sobre ti ni el tiempo de uso influye
       por sí mismo en ninguna calificación.</p>
 
@@ -1067,7 +1075,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
     <p><b>Tú</b> ves tus propios datos y tu propia actividad, siempre.</p>
     <p><b>El docente de tu institución</b> ve el listado de sus estudiantes con nombre,
       correo, código y horario, y su actividad: número de ingresos, tiempo de uso y qué
-      capítulos abren. <b>No</b> ve tus ejercicios ni puede entrar en tu cuenta.</p>
+      temas abren. <b>No</b> ve tus ejercicios ni puede entrar en tu cuenta.</p>
     <p><b>Nadie más.</b> Los estudiantes no se ven entre sí, y un docente no ve a los
       estudiantes de otra institución.</p>
     <p>Si usas BSA por tu cuenta, sin pertenecer a un curso, tu actividad no se muestra
@@ -1135,12 +1143,12 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
 <!-- Columna del alumno. Solo se muestra dentro de su área; en el panel
      docente y en la portada estorbaría. -->
 <aside class="sidebar" id="sidebar">
-  <div class="sb-logo" onclick="irSeccion('capitulos')" title="BSA">BSA</div>
+  <div class="sb-logo" onclick="irSeccion('temas')" title="BSA">BSA</div>
   <button class="sb-b" data-sec="perfil" onclick="irSeccion('perfil')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
     <span>Mi perfil</span>
   </button>
-  <button class="sb-b" data-sec="capitulos" onclick="irSeccion('capitulos')">
+  <button class="sb-b" data-sec="temas" onclick="irSeccion('temas')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h7v14H4z"/><path d="M13 5h7v14h-7z"/><path d="M6.5 9h2M15.5 9h2"/></svg>
     <span>Mis temas</span>
   </button>
@@ -1214,7 +1222,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
     <div class="cta-card" id="act-ingresos" style="display:none">
       <div class="cta-tit">Tus ingresos a la plataforma</div>
       <p class="cta-sub">Vienen del servidor, así que aparecen entres desde
-        donde entres. Son los mismos que ve tu profesor.</p>
+        donde entres: son los mismos que ve tu profesor.</p>
       <table class="act-tabla" id="act-ingresos-tabla"></table>
     </div>
   </div>
@@ -1529,10 +1537,76 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
 <div class="ovl" id="ovl-del">
   <div class="modal">
     <h3>Eliminar usuarios</h3>
-    <p>Selecciona los usuarios que deseas eliminar.</p>
-    <div class="dlcount" id="dlcount">Ninguno seleccionado</div>
-    <div class="dlscroll"><ul id="dllist" style="list-style:none"></ul></div>
-    <div class="mbtns"><button class="bcn" onclick="closeOvl()">Cancelar</button><button class="bcr" id="bdelconfirm" onclick="confirmDel()">Eliminar seleccionados</button></div>
+
+    <div id="udel-p1">
+      <p>Selecciona los usuarios que deseas eliminar.</p>
+      <div class="dlcount" id="dlcount">Ninguno seleccionado</div>
+      <div class="dlscroll"><ul id="dllist" style="list-style:none"></ul></div>
+      <div class="mbtns"><button class="bcn" onclick="closeOvl()">Cancelar</button><button class="bcr" id="bdelconfirm" onclick="confirmDel()">Eliminar seleccionados</button></div>
+    </div>
+
+    <div id="udel-p2" style="display:none">
+      <p id="udel-resumen"></p>
+      <label class="dlitem" for="ud-con">
+        <input type="radio" name="ud-modo" id="ud-con" value="con" checked>
+        <span class="dl-txt"><b>Eliminar la cuenta y sus ingresos</b>
+          <small>Se borran el usuario, su matrícula y todo su historial de uso.</small></span>
+      </label>
+      <label class="dlitem" for="ud-solo">
+        <input type="radio" name="ud-modo" id="ud-solo" value="solo">
+        <span class="dl-txt"><b>Eliminar solo sus ingresos</b>
+          <small>El usuario y su matrícula se conservan; se vacía su historial.</small></span>
+      </label>
+      <div class="dl-nota">El registro de ingresos cuelga de la cuenta: si borras la
+        cuenta, sus ingresos se van con ella. Por eso no existe la opción de borrar al
+        usuario conservando su historial.</div>
+      <div class="mbtns"><button class="bcn" onclick="udelPaso(1)">Volver</button><button class="bcr" onclick="udelRevisar()">Continuar</button></div>
+    </div>
+
+    <div id="udel-p3" style="display:none">
+      <p id="udel-final"></p>
+      <div class="dlcount">Esta acción no se puede deshacer.</div>
+      <div class="mbtns"><button class="bcn" onclick="udelPaso(2)">Volver</button><button class="bcr" id="udel-btn" onclick="udelEjecutar()">Eliminar definitivamente</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ELIMINAR REGISTRO DE INGRESOS -->
+<div class="ovl" id="ovl-logdel">
+  <div class="modal">
+    <h3>Eliminar registro de ingresos</h3>
+
+    <div id="ld-p1">
+      <p>Elige qué se borra. Se pedirá una segunda confirmación antes de tocar el servidor.</p>
+      <label class="dlitem" for="ld-r-alumno">
+        <input type="radio" name="ld-alcance" id="ld-r-alumno" value="alumno" checked onchange="logDelAlcance()">
+        <span class="dl-txt"><b>Los ingresos de un alumno</b>
+          <small>Su cuenta se conserva; solo se vacía su historial.</small></span>
+      </label>
+      <select id="ld-correo" style="margin-bottom:6px"></select>
+      <label class="dlitem" for="ld-r-fecha">
+        <input type="radio" name="ld-alcance" id="ld-r-fecha" value="fecha" onchange="logDelAlcance()">
+        <span class="dl-txt"><b>Los ingresos anteriores a una fecha</b>
+          <small>Para cerrar un ciclo sin perder el que está en curso.</small></span>
+      </label>
+      <input type="date" id="ld-fecha" class="ld-fecha" style="display:none">
+      <label class="dlitem" for="ld-r-todo">
+        <input type="radio" name="ld-alcance" id="ld-r-todo" value="todo" onchange="logDelAlcance()">
+        <span class="dl-txt"><b>Todo el registro del curso</b>
+          <small>Los ingresos de todos los alumnos. Las cuentas se conservan.</small></span>
+      </label>
+      <div class="mbtns"><button class="bcn" onclick="closeOvl()">Cancelar</button><button class="bcr" onclick="logDelRevisar()">Continuar</button></div>
+    </div>
+
+    <div id="ld-p2" style="display:none">
+      <p id="ld-resumen"></p>
+      <div class="dlcount" id="ld-aviso"></div>
+      <div id="ld-palabra-box" style="display:none">
+        <div class="dl-nota" style="margin-bottom:6px">Escribe <b>ELIMINAR</b> para confirmar el borrado completo.</div>
+        <input type="text" id="ld-palabra" class="ld-fecha" placeholder="ELIMINAR" autocomplete="off">
+      </div>
+      <div class="mbtns"><button class="bcn" onclick="logDelPaso(1)">Volver</button><button class="bcr" id="ld-btn" onclick="logDelEjecutar()">Eliminar definitivamente</button></div>
+    </div>
   </div>
 </div>
 
@@ -1584,7 +1658,7 @@ try{ SB = window.supabase.createClient(SB_URL, SB_KEY); }catch(e){ console.error
 
 let _perfil = null;      // fila de la tabla alumnos del usuario actual
 let _ingresoId = null;   // id de la fila de ingreso de esta sesión
-// Los capítulos ya NO van incrustados en base64: se cargan como archivos
+// Los temas ya NO van incrustados en base64: se cargan como archivos
 // sueltos (fuerzas-internas.html, centroide.html, momentos-de-inercia.html) desde openApp().
 
 
@@ -1957,10 +2031,14 @@ async function api(action, body={}, timeoutMs=12000){
       }
 
       case 'deleteStudents': {
+        // `sesiones.alumno` tiene ON DELETE CASCADE, así que al borrar la
+        // cuenta se van con ella sus ingresos: no hay forma de conservar el
+        // historial de un alumno cuya cuenta se elimina. El panel lo dice.
         const correos=(body.emails||[]).map(e=>String(e).toLowerCase());
         await SB.from('matriculados').delete().in('correo',correos);
-        await SB.from('alumnos').delete().in('correo',correos);
-        return {ok:true, deleted:correos.length};
+        const { error } = await SB.from('alumnos').delete().in('correo',correos);
+        return error ? {ok:false, error:error.message}
+                     : {ok:true, deleted:correos.length};
       }
 
       case 'addLog': {
@@ -1981,14 +2059,31 @@ async function api(action, body={}, timeoutMs=12000){
       }
 
       case 'clearLogs': {
-        // Antes borraba TODOS los registros del curso de un clic. Ahora
-        // solo retira los anteriores a la fecha que se indique; sin fecha,
-        // los de más de un año. El histórico del ciclo en curso se queda.
-        const corte = body.antesDe
-          ? new Date(body.antesDe).toISOString()
-          : new Date(Date.now() - 365*24*3600*1000).toISOString();
-        const { error } = await SB.from('sesiones').delete().lt('inicio', corte);
-        return {ok: !error, corte};
+        // Tres alcances, los tres amparados por la política «profesor limpia
+        // sesiones». Quien pide el borrado dice SIEMPRE qué borra: sin alcance
+        // no se toca nada. Antes, un clic sin fecha retiraba solo lo anterior
+        // a un año, así que el registro reaparecía entero al recargar y
+        // parecía que el botón no hacía nada.
+        let q = SB.from('sesiones').delete();
+        if(Array.isArray(body.correos) && body.correos.length){
+          const correos = body.correos.map(e=>String(e||'').trim().toLowerCase());
+          const { data:al, error:eAl } = await SB.from('alumnos').select('id').in('correo', correos);
+          if(eAl) return {ok:false, error:eAl.message};
+          const ids = (al||[]).map(a=>a.id);
+          if(!ids.length) return {ok:true, borradas:0};
+          q = q.in('alumno', ids);
+        } else if(body.antesDe){
+          q = q.lt('inicio', new Date(body.antesDe).toISOString());
+        } else if(body.todo){
+          q = q.gt('id', 0);                 // Supabase exige un filtro en DELETE
+        } else {
+          return {ok:false, error:'No se indicó qué registros borrar.'};
+        }
+        // .select() devuelve las filas borradas: así se informa de cuántas
+        // fueron de verdad, en vez de suponer que salió bien.
+        const { data, error } = await q.select('id');
+        return error ? {ok:false, error:error.message}
+                     : {ok:true, borradas:(data||[]).length};
       }
 
       // ── Ya no aplican: Supabase gestiona las contraseñas ──
@@ -2032,7 +2127,7 @@ function iniciarVigilanciaInactividad(){
   _ultimaActividad = Date.now();
   ['pointerdown','keydown','wheel','touchstart'].forEach(ev=>
     document.addEventListener(ev, marcarActividad, {passive:true}));
-  // Los capítulos van en un iframe: sus eventos no llegan al documento
+  // Los temas van en un iframe: sus eventos no llegan al documento
   // padre, así que envían un latido propio (bsa:'activo').
   window.addEventListener('message', e=>{
     if(e && e.data && e.data.bsa) marcarActividad();
@@ -2215,7 +2310,7 @@ async function loginEst(){
     if(cfg&&cfg.config){
       const v=cfg.config.app_disabled_until?Number(cfg.config.app_disabled_until):0;
       dis=(v&&v>Date.now())?v:null; ls.set('app_disabled_until',dis);
-      // capítulos bloqueados por el profesor
+      // temas bloqueados por el profesor
       const co=cfg.config.caps_off;
       if(co!==undefined) ls.set('caps_off', typeof co==='string' ? (co?co.split(','):[]) : (co||[]));
     }
@@ -2389,7 +2484,10 @@ function renderUsers(){
 }
 function renderLogs(){
   const tbody=document.getElementById('llog'),empty=document.getElementById('llog-empty');
-  const logs=ls.get('access_logs')||[];
+  // `resumen_alumnos` devuelve una fila por alumno aunque no haya entrado
+  // nunca (LEFT JOIN sobre `sesiones`). En un registro de INGRESOS esas filas
+  // sobran y, además, hacían creer que un borrado no había surtido efecto.
+  const logs=(ls.get('access_logs')||[]).filter(x=>(x.ingresos||0)>0 || (x.tiempo||0)>0);
   if(!logs.length){tbody.innerHTML='';if(empty)empty.style.display='block';return;}
   if(empty)empty.style.display='none';
   // Los totales ya vienen calculados del servidor: aquí solo se filtra,
@@ -2473,7 +2571,7 @@ function pintarUsoCifras(t){
   c.innerHTML = cif(t.ingresos||0, 'Ingresos')
               + cif(t.alumnos||0,  'Alumnos activos')
               + cif(fmtDur(t.segundos||0),      'En el portal')
-              + cif(fmtDur(t.segundos_tema||0), 'En capítulos');
+              + cif(fmtDur(t.segundos_tema||0), 'En temas');
 }
 
 function pintarUsoTemas(filas){
@@ -2535,7 +2633,16 @@ function cablearUso(){
 }
 
 function fmtDur(sec){sec=Math.round(sec||0);if(sec<=0)return'—';const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;if(h)return h+'h '+m+'m';if(m)return m+'m '+s+'s';return s+'s';}
-function renderStats(){const s=ls.get('students')||[],l=ls.get('access_logs')||[],t=new Date().toDateString();document.getElementById('st-s').textContent=s.length;document.getElementById('st-a').textContent=l.length;document.getElementById('st-t').textContent=l.filter(x=>new Date(x.time).toDateString()===t).length;}
+// `access_logs` trae UNA fila por alumno con sus totales, así que contar
+// filas daba el número de alumnos donde el rótulo prometía ingresos.
+function renderStats(){
+  const s=ls.get('students')||[], l=ls.get('access_logs')||[], t=new Date().toDateString();
+  const ingresos = l.reduce((a,x)=>a+(Number(x.ingresos)||0), 0);
+  const hoy = l.filter(x=>x.time && new Date(x.time).toDateString()===t).length;
+  document.getElementById('st-s').textContent = s.length;
+  document.getElementById('st-a').textContent = ingresos;
+  document.getElementById('st-t').textContent = hoy;
+}
 function fmt(ts){if(!ts)return'—';const d=new Date(ts);return d.toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});}
 async function refreshPanel(){
   document.querySelectorAll('[onclick="refreshPanel()"]').forEach(b=>{b.textContent='⟳';b.style.color='var(--blue)';});
@@ -2547,21 +2654,21 @@ async function refreshPanel(){
   setTimeout(()=>document.querySelectorAll('[onclick="refreshPanel()"]').forEach(b=>{b.textContent='↻';b.style.color='var(--muted)';}),500);
 }
 
-// ═══ Catálogo de capítulos y bloqueo por capítulo (solo estudiantes) ═══
+// ═══ Catálogo de temas y bloqueo por tema (solo estudiantes) ═══
 let CAPS = [
   {key:'arma',   cap:'6',  cls:'amber', nom:'Armaduras y Marcos',
-   desc:'Método de nudos y de secciones · fuerza cero · resistencia · Cap. 6'},
+   desc:'Método de nudos y de secciones · fuerza cero · resistencia · Tema 6'},
   {key:'diag',   cap:'7',  cls:'blue',  nom:'Fuerzas Internas',
-   desc:'DFN · DFC · DMF · Vigas Gerber · Cap. 7.2'},
+   desc:'DFN · DFC · DMF · Vigas Gerber · Tema 7.2'},
   {key:'centro', cap:'9',  cls:'teal',  nom:'Centroide',
-   desc:'Secciones compuestas · cuerpos homogéneos y heterogéneos · Cap. 9'},
+   desc:'Secciones compuestas · cuerpos homogéneos y heterogéneos · Tema 9'},
   {key:'presion', cap:'9',  cls:'teal',  nom:'Presión de Fluidos',
-   desc:'Placas sumergidas · centro de presión · Cap. 9.5'},
+   desc:'Placas sumergidas · centro de presión · Tema 9.5'},
   {key:'iner',   cap:'10', cls:'green', nom:'Momentos de Inercia',
-   desc:'Secciones compuestas · Steiner · Ejes principales · Cap. 10'}
+   desc:'Secciones compuestas · Steiner · Ejes principales · Tema 10'}
 ];
 
-// Lista de capítulos bloqueados para los estudiantes
+// Lista de temas bloqueados para los estudiantes
 function capsOff(){
   const v = ls.get('caps_off');
   return Array.isArray(v) ? v : (typeof v === 'string' && v ? v.split(',') : []);
@@ -2585,7 +2692,7 @@ function renderAppCards(){
     const off = capBloqueado(c.key);
     return '<div class="app-card '+c.cls+(off?' off':'')+'">'
       + '<div class="app-card-top">'
-      + '<div class="app-card-name" onclick="openApp(\''+c.key+'\')" style="cursor:pointer">Cap. '+c.cap+' — '+c.nom+'</div>'
+      + '<div class="app-card-name" onclick="openApp(\''+c.key+'\')" style="cursor:pointer">Tema '+c.cap+' — '+c.nom+'</div>'
       + '<button class="app-sw'+(off?'':' on')+'" title="Acceso de estudiantes" '
       + 'onclick="event.stopPropagation();toggleAcceso(\''+c.key+'\')"></button>'
       + '</div>'
@@ -2596,40 +2703,20 @@ function renderAppCards(){
   }).join('');
 }
 
-// En la vista del estudiante se atenúan y desactivan los capítulos bloqueados
+// En la vista del estudiante se atenúan y desactivan los temas bloqueados.
+// Cada tema es un `button.tema[data-appkey]` con su `.tema-lock`. Antes esta
+// función buscaba la estructura anterior ([data-cap] + button.sub), que ya no
+// existe en el HTML: el bloqueo seguía aplicándose al abrir (openApp), pero la
+// tarjeta no se atenuaba ni avisaba, así que parecía que el interruptor del
+// profesor no hacía nada.
 function aplicarBloqueoEstudiante(){
   if(role === 'prof') return;
   const off = capsOff();
-  // Un mismo contenedor [data-cap] puede alojar más de un tema (p.ej. Cap. 9:
-  // centro y presión), así que el bloqueo se aplica por botón individual
-  // (data-appkey), nunca a todos los button.sub del contenedor a la vez.
-  const byCap = {};
-  CAPS.forEach(c=>{ (byCap[c.cap] = byCap[c.cap] || []).push(c); });
-  Object.keys(byCap).forEach(capNum=>{
-    const cont = document.querySelector('[data-cap="'+capNum+'"]');
-    if(!cont) return;
-    const temas = byCap[capNum];
-    let todosBloqueados = true;
-    temas.forEach(c=>{
-      const bt = cont.querySelector('button.sub[data-appkey="'+c.key+'"]');
-      if(!bt) return;
-      const bloq = off.indexOf(c.key) >= 0;
-      if(!bloq) todosBloqueados = false;
-      if(bloq){
-        bt.onclick = ()=>alert('Tu profesor ha deshabilitado el acceso a este capítulo.');
-        const go = bt.querySelector('.sub-go'); if(go) go.textContent = 'Bloqueado';
-      } else {
-        bt.onclick = ()=>openApp(c.key);
-        const go = bt.querySelector('.sub-go'); if(go) go.textContent = 'Abrir';
-      }
-    });
-    cont.classList.toggle('capoff', todosBloqueados);
-    const bd = cont.querySelector('.cap-badge');
-    if(bd && !bd.classList.contains('proximo')){
-      bd.classList.toggle('blocked', todosBloqueados);
-      if(todosBloqueados) bd.textContent = 'Bloqueado';
-      else if(bd.textContent === 'Bloqueado') bd.textContent = temas.length+(temas.length>1?' temas':' tema');
-    }
+  document.querySelectorAll('.tema[data-appkey]').forEach(bt=>{
+    const bloq = off.indexOf(bt.dataset.appkey) >= 0;
+    bt.classList.toggle('bloq', bloq);
+    bt.disabled = bloq;
+    bt.title = bloq ? 'Tu profesor ha deshabilitado este tema' : '';
   });
 }
 
@@ -2918,11 +3005,158 @@ async function confirmAddUsers(){
 function openDelModal(){const s=ls.get('students')||[];if(!s.length){alert('No hay usuarios.');return;}const ul=document.getElementById('dllist');ul.innerHTML=s.map((x,i)=>`<li class="dlitem" data-i="${i}"><input type="checkbox" id="dc-${i}" value="${esc(x.email)}"><label for="dc-${i}">${esc(x.email)}<small>${esc(x.nombre||'')} ${esc(x.codigo||'')}</small></label></li>`).join('');
   ul.querySelectorAll('.dlitem').forEach(li=>li.addEventListener('click', ()=>togDel(Number(li.dataset.i))));
   ul.querySelectorAll('input[type=checkbox]').forEach(c=>c.addEventListener('change', updDelCnt));
-  updDelCnt();document.getElementById('ovl-del').classList.add('on');}
+  updDelCnt();udelPaso(1);document.getElementById('ovl-del').classList.add('on');}
 function togDel(i){const c=document.getElementById('dc-'+i);c.checked=!c.checked;updDelCnt();}
 function updDelCnt(){const n=document.querySelectorAll('#dllist input:checked').length,t=document.querySelectorAll('#dllist input').length;document.getElementById('dlcount').textContent=n>0?n+' de '+t+' seleccionados':'Ninguno seleccionado';document.getElementById('bdelconfirm').style.opacity=n>0?'1':'0.5';}
-async function confirmDel(){const rem=[...document.querySelectorAll('#dllist input:checked')].map(c=>c.value);if(!rem.length){alert('Selecciona al menos uno.');return;}if(!confirm('¿Eliminar '+rem.length+' usuario(s)?'))return;if(USE_SHEETS){const res=await api('deleteStudents',{emails:rem});if(res&&res.ok){let s=ls.get('students')||[];s=s.filter(x=>!rem.includes(x.email));ls.set('students',s);closeOvl();renderUsers();renderStats();}else alert('Error al eliminar.');}else{let s=ls.get('students')||[];s=s.filter(x=>!rem.includes(x.email));ls.set('students',s);closeOvl();renderUsers();renderStats();}}
-async function clearLogs(){if(!confirm('¿Limpiar historial?'))return;if(USE_SHEETS)await api('clearLogs',{ok:1});ls.del('access_logs');renderLogs();renderStats();}
+// ── Eliminar usuarios ──────────────────────────────────────────────────────
+// Tres pasos: elegir a quién, decidir qué pasa con su registro de ingresos y
+// confirmar. Borrar la cuenta arrastra sus ingresos (ON DELETE CASCADE en
+// `sesiones`), así que la alternativa que se ofrece es vaciar solo el
+// historial dejando la cuenta en pie.
+let _udelSel = [];
+function udelPaso(n){
+  ['udel-p1','udel-p2','udel-p3'].forEach((id,i)=>{
+    const e = document.getElementById(id); if(e) e.style.display = (i === n-1) ? '' : 'none';
+  });
+}
+function confirmDel(){
+  const rem=[...document.querySelectorAll('#dllist input:checked')].map(c=>c.value);
+  if(!rem.length){ alert('Selecciona al menos uno.'); return; }
+  _udelSel = rem;
+  const s = ls.get('students')||[], logs = ls.get('access_logs')||[];
+  const ing = rem.reduce((a,c)=>{ const f = logs.find(x=>x.email===c); return a + ((f&&f.ingresos)||0); }, 0);
+  const quien = rem.length === 1
+    ? '<b>' + esc((s.find(x=>x.email===rem[0])||{}).nombre || rem[0]) + '</b>'
+    : '<b>' + rem.length + ' usuarios</b>';
+  document.getElementById('udel-resumen').innerHTML =
+    'Has seleccionado ' + quien + ', con <b>' + ing + '</b> ingreso(s) registrados. '
+    + '¿Qué hago con su registro de ingresos?';
+  const con = document.getElementById('ud-con'); if(con) con.checked = true;
+  udelPaso(2);
+}
+function udelModo(){
+  const r = document.querySelector('input[name="ud-modo"]:checked');
+  return r ? r.value : 'con';
+}
+function udelRevisar(){
+  const n = _udelSel.length;
+  document.getElementById('udel-final').innerHTML = (udelModo() === 'solo')
+    ? 'Se vaciará el registro de ingresos de <b>' + n + '</b> usuario(s). Sus cuentas se conservan.'
+    : 'Se eliminarán <b>' + n + '</b> usuario(s): su cuenta, su matrícula y su registro de ingresos.';
+  udelPaso(3);
+}
+async function udelEjecutar(){
+  if(!_udelSel.length) return;
+  const modo = udelModo(), btn = document.getElementById('udel-btn');
+  const rem = _udelSel.slice();
+  btn.disabled = true; btn.textContent = 'Eliminando…';
+  let res = null;
+  try{
+    res = (modo === 'solo')
+      ? await api('clearLogs', {correos:rem})
+      : await api('deleteStudents', {emails:rem});
+  }catch(e){}
+  btn.disabled = false; btn.textContent = 'Eliminar definitivamente';
+  if(!res || !res.ok){
+    alert('No se pudo completar: ' + ((res && res.error) || 'sin respuesta del servidor.'));
+    return;
+  }
+  if(modo !== 'solo'){
+    let s = ls.get('students')||[];
+    ls.set('students', s.filter(x=>!rem.includes(x.email)));
+  }
+  closeOvl(); _udelSel = [];
+  // Se relee del servidor: el panel muestra lo que quedó de verdad.
+  await refreshPanel();
+  alert(modo === 'solo'
+    ? 'Listo: se eliminaron ' + (res.borradas||0) + ' ingreso(s).'
+    : 'Listo: se eliminaron ' + (res.deleted||rem.length) + ' usuario(s) con su registro.');
+}
+
+// ── Eliminar registro de ingresos ──────────────────────────────────────────
+// Dos confirmaciones en los tres alcances; el borrado completo pide además
+// escribir la palabra. El servidor devuelve cuántas filas cayeron y el panel
+// se recarga desde la base, que es lo que antes faltaba: se limpiaba solo la
+// copia local y al recargar volvía a aparecer todo.
+let _ldPlan = null;
+function logDelPaso(n){
+  ['ld-p1','ld-p2'].forEach((id,i)=>{
+    const e = document.getElementById(id); if(e) e.style.display = (i === n-1) ? '' : 'none';
+  });
+}
+function logDelAlcance(){
+  const r = document.querySelector('input[name="ld-alcance"]:checked');
+  const v = r ? r.value : 'alumno';
+  document.getElementById('ld-correo').style.display = (v === 'alumno') ? '' : 'none';
+  document.getElementById('ld-fecha').style.display  = (v === 'fecha')  ? '' : 'none';
+}
+function openLogDelModal(){
+  const conIngresos = (ls.get('access_logs')||[]).filter(x=>(x.ingresos||0) > 0 || (x.tiempo||0) > 0);
+  if(!conIngresos.length){ alert('No hay ingresos registrados que eliminar.'); return; }
+  document.getElementById('ld-correo').innerHTML = conIngresos.slice()
+    .sort((a,b)=>String(a.nombre||'').localeCompare(String(b.nombre||''),'es'))
+    .map(x=>'<option value="'+esc(x.email)+'">'+esc(x.nombre||x.email)+' — '+(x.ingresos||0)+' ingreso(s)</option>').join('');
+  const r = document.getElementById('ld-r-alumno'); if(r) r.checked = true;
+  document.getElementById('ld-palabra').value = '';
+  logDelAlcance(); logDelPaso(1);
+  document.getElementById('ovl-logdel').classList.add('on');
+}
+function logDelRevisar(){
+  const r = document.querySelector('input[name="ld-alcance"]:checked');
+  const v = r ? r.value : 'alumno';
+  const logs = ls.get('access_logs')||[];
+  if(v === 'alumno'){
+    const correo = document.getElementById('ld-correo').value;
+    const f = logs.find(x=>x.email===correo) || {};
+    _ldPlan = {body:{correos:[correo]}, palabra:false,
+      resumen:'Se borrarán los <b>' + (f.ingresos||0) + '</b> ingreso(s) de <b>'
+        + esc(f.nombre||correo) + '</b> y su tiempo acumulado. Su cuenta y su matrícula no se tocan.',
+      aviso:'Esta acción no se puede deshacer.'};
+  } else if(v === 'fecha'){
+    const d = document.getElementById('ld-fecha').value;
+    if(!d){ alert('Elige una fecha.'); return; }
+    _ldPlan = {body:{antesDe:d}, palabra:false,
+      resumen:'Se borrarán los ingresos anteriores al <b>' + esc(fmtFecha(d)) + '</b> de todos los alumnos. '
+        + 'Los posteriores se conservan.',
+      aviso:'Esta acción no se puede deshacer.'};
+  } else {
+    const tot = logs.reduce((a,x)=>a+(x.ingresos||0), 0);
+    const n = logs.filter(x=>(x.ingresos||0) > 0).length;
+    _ldPlan = {body:{todo:true}, palabra:true,
+      resumen:'Se borrará <b>todo el registro de ingresos del curso</b>: ' + tot
+        + ' ingreso(s) de ' + n + ' alumno(s), con su tiempo acumulado.',
+      aviso:'Las cuentas se conservan, pero el historial no se puede recuperar.'};
+  }
+  document.getElementById('ld-resumen').innerHTML = _ldPlan.resumen;
+  document.getElementById('ld-aviso').textContent = _ldPlan.aviso;
+  document.getElementById('ld-palabra-box').style.display = _ldPlan.palabra ? '' : 'none';
+  document.getElementById('ld-palabra').value = '';
+  logDelPaso(2);
+}
+async function logDelEjecutar(){
+  if(!_ldPlan) return;
+  if(_ldPlan.palabra && String(document.getElementById('ld-palabra').value||'').trim().toUpperCase() !== 'ELIMINAR'){
+    alert('Escribe ELIMINAR para confirmar el borrado completo.'); return;
+  }
+  const btn = document.getElementById('ld-btn');
+  btn.disabled = true; btn.textContent = 'Eliminando…';
+  let res = null;
+  try{ res = await api('clearLogs', _ldPlan.body); }catch(e){}
+  btn.disabled = false; btn.textContent = 'Eliminar definitivamente';
+  if(!res || !res.ok){
+    alert('No se pudo eliminar: ' + ((res && res.error) || 'sin respuesta del servidor.'));
+    return;
+  }
+  closeOvl(); _ldPlan = null;
+  await refreshPanel();
+  alert('Listo: se eliminaron ' + (res.borradas||0) + ' ingreso(s).');
+}
+// Fecha corta para los avisos (el input date entrega AAAA-MM-DD).
+function fmtFecha(iso){
+  const p = String(iso||'').split('-');
+  if(p.length !== 3) return iso || '';
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
 // Escapa un valor para CSV: dobla comillas y entrecomilla si hace falta.
 // No se usa esc(), que sirve para HTML y metía entidades (&quot;) en el archivo.
 function csvCampo(v){
@@ -2946,9 +3180,32 @@ function exportUsuarios(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-function exportExcel(){const logs=ls.get('access_logs')||[];const students=ls.get('students')||[];if(!logs.length){alert('No hay registros.');return;}const sum={};for(const l of logs){if(!sum[l.email]){const st=students.find(s=>s.email===l.email)||{};sum[l.email]={email:l.email,codigo:l.codigo||st.codigo||'',nombre:l.nombre||st.nombre||'',lastTime:l.time,count:0};}sum[l.email].count++;if(l.time>sum[l.email].lastTime)sum[l.email].lastTime=l.time;}const rows=Object.values(sum).sort((a,b)=>b.lastTime-a.lastTime);const BOM='\uFEFF';const header='CODIGO,APELLIDO Y NOMBRE,CORREO,ULTIMO INGRESO,TOTAL INGRESOS\n';const body=rows.map(r=>[csvCampo(r.codigo),csvCampo(r.nombre),csvCampo(r.email),csvCampo(fmt(r.lastTime)),r.count].join(',')).join('\n');const blob=new Blob([BOM+header+body],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='BSA_Registros_'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+// Cada fila de `access_logs` ya viene agregada por alumno: contar filas daba
+// «1 ingreso» para todo el mundo. Se exportan los totales tal cual, más el
+// tiempo acumulado y el horario, que es lo que se ve en pantalla.
+function exportExcel(){
+  const logs=(ls.get('access_logs')||[]).filter(x=>(x.ingresos||0)>0 || (x.tiempo||0)>0);
+  const students=ls.get('students')||[];
+  if(!logs.length){ alert('No hay ingresos registrados.'); return; }
+  const rows=logs.slice().sort((a,b)=>new Date(b.time||0)-new Date(a.time||0)).map(l=>{
+    const st=students.find(s=>s.email===l.email)||{};
+    return {codigo:l.codigo||st.codigo||'', nombre:l.nombre||st.nombre||'',
+            email:l.email||'', horario:l.horario||st.horario||'',
+            ultima:l.time, ingresos:Number(l.ingresos)||0, seg:Number(l.tiempo)||0};
+  });
+  const BOM='\uFEFF';
+  const header='CODIGO,APELLIDO Y NOMBRE,CORREO,HORARIO,ULTIMO INGRESO,TOTAL INGRESOS,TIEMPO ACUMULADO\n';
+  const body=rows.map(r=>[csvCampo(r.codigo),csvCampo(r.nombre),csvCampo(r.email),
+    csvCampo(r.horario),csvCampo(fmt(r.ultima)),r.ingresos,csvCampo(fmtDur(r.seg))].join(',')).join('\n');
+  const blob=new Blob([BOM+header+body],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='BSA_Registros_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 function closeOvl(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'));}
-// Despliega un capítulo y pliega los demás
+// Despliega un tema y pliega los demás
 function toggleCap(n){
   const caja=document.querySelector('.cap[data-cap="'+n+'"]');
   if(!caja) return;
@@ -2958,13 +3215,13 @@ function toggleCap(n){
 }
 
 function openApp(appKey){
-  // Un capítulo bloqueado no se abre para estudiantes, ni siquiera llamando
+  // Un tema bloqueado no se abre para estudiantes, ni siquiera llamando
   // directamente a esta función: el control no puede quedarse solo en la vista.
   if(role !== 'prof' && capBloqueado(appKey)){
-    alert('Tu profesor ha deshabilitado el acceso a este capítulo.');
+    alert('Tu profesor ha deshabilitado el acceso a este tema.');
     return;
   }
-  // La ruta del capítulo sale del catálogo único (TEMAS_CAT).
+  // La ruta del tema sale del catálogo único (TEMAS_CAT).
   const ruta = archivoCap(appKey);
   if(!ruta){ console.warn('Tema desconocido:', appKey); return; }
   document.getElementById('appf').src = ruta;
@@ -2981,11 +3238,11 @@ function openApp(appKey){
   topbar.className = 'atbar ' + barra;
   closeBtn.className = 'bclose ' + cierre;
   titleEl.textContent = t.titulo
-    || ('BSA — ' + (t.nombre || appKey) + (t.capitulo ? ' · Cap. ' + t.capitulo : ''));
+    || ('BSA — ' + (t.nombre || appKey) + (t.capitulo ? ' · Tema ' + t.capitulo : ''));
   if(user&&role==='est'){const s=ls.get('students')||[];const me=s.find(x=>x.email===user);const nm=me&&me.nombre?me.nombre:(me&&me.codigo?me.codigo:user);titleEl.textContent+=' · Bienvenido, '+nm;}
   startSession();
   _capPendiente = appKey;
-  usoIniciar(appKey);           // empieza a contar el tiempo de ESTE capítulo
+  usoIniciar(appKey);           // empieza a contar el tiempo de ESTE tema
 }
 // ── Menú de usuario de la barra superior ──
 function toggleMenuUsuario(ev){
@@ -3022,7 +3279,7 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape') cerrarMenuUsu
 // ═══════════════════════════════════════════════════════════
 const SECCIONES = {
   perfil:    's-perfil',
-  capitulos: 's-student',
+  temas:     's-student',
   actividad: 's-actividad',
   cuenta:    's-cuenta'
 };
@@ -3036,7 +3293,7 @@ function irSeccion(sec){
     if(role === 'prof') showScreen('s-panel');
     return;
   }
-  if(sec === 'capitulos') pintarCabecera();
+  if(sec === 'temas')     pintarCabecera();
   if(sec === 'perfil')    pintarPerfil();
   if(sec === 'actividad') pintarActividad();   // vuelve a dibujar y a animar
   if(sec === 'cuenta')    { abrirCuenta(); marcarSeccion(sec); return; }
@@ -3210,7 +3467,7 @@ function dibujarUso(r, delServidor){
     : '<tr><td>Sin sesiones registradas todavía.</td></tr>';
 }
 
-// El nombre del capítulo y el del alumno vienen de datos que edita el
+// El nombre del tema y el del alumno vienen de datos que edita el
 // profesor: se escapan antes de inyectarlos como HTML.
 function escHtml(t){
   return String(t == null ? '' : t).replace(/[&<>"]/g,
@@ -3387,10 +3644,10 @@ async function ejecutarBaja(){
 
 // ═══════════════════════════════════════════════════════════
 //  TIEMPO DE USO POR CAPÍTULO
-//  Se anota cuándo entra y cuándo sale de cada capítulo, y se acumula por
+//  Se anota cuándo entra y cuándo sale de cada tema, y se acumula por
 //  alumno. Guardar por sesión (y no solo un total) permite después dibujar
 //  la evolución en el tiempo, no únicamente un número.
-//  Clave: bsa_uso::<correo>  ->  { capitulo: {seg, veces, ultima} }
+//  Clave: bsa_uso::<correo>  ->  { tema: {seg, veces, ultima} }
 //  Y un registro de sesiones: bsa_sesiones::<correo> -> [{cap, ini, seg}]
 // ═══════════════════════════════════════════════════════════
 const USO_MAX_SESIONES = 400;   // se recortan las más antiguas
@@ -3401,19 +3658,19 @@ function sesionesKey(){ return 'bsa_sesiones::' + (user||'anon'); }
 function usoGet(){    const v = ls.get(usoKey());      return (v && typeof v === 'object') ? v : {}; }
 function sesionesGet(){ const v = ls.get(sesionesKey()); return Array.isArray(v) ? v : []; }
 
-// Nombre legible del capítulo, para las tablas del alumno.
+// Nombre legible del tema, para las tablas del alumno.
 // ═══════════════════════════════════════════════════════════
 //  CATÁLOGO DE TEMAS — fuente única
 //  Para añadir un tema nuevo basta con:
 //    1. una entrada aquí,
 //    2. su tarjeta en la rejilla de "Mis temas" (con su miniatura),
-//    3. subir el archivo del capítulo.
+//    3. subir el archivo del tema.
 //  Nada más: las listas de borrado, de poda y de nombres salen de aquí.
 //  La tabla `uso_temas` de Supabase no hay que tocarla: la columna `tema`
 //  es texto libre y admite cualquier clave nueva.
 // ═══════════════════════════════════════════════════════════
 // Valor de respaldo: es lo que se usa si la tabla `temas` no responde,
-// para que el portal siga abriendo capítulos sin conexión a la base.
+// para que el portal siga abriendo temas sin conexión a la base.
 let TEMAS_CAT = {
   arma:    {archivo:'armaduras-y-marcos.html',  nombre:'Armaduras y Marcos'},
   diag:    {archivo:'fuerzas-internas.html',    nombre:'Fuerzas Internas'},
@@ -3426,7 +3683,7 @@ function nombreCap(k){ return (TEMAS_CAT[k] && TEMAS_CAT[k].nombre) || k; }
 function archivoCap(k){ return TEMAS_CAT[k] && TEMAS_CAT[k].archivo; }
 
 // Rellena TEMAS_CAT y CAPS desde la tabla `temas`. Con esto, dar de alta
-// un capítulo es insertar una fila: el seguimiento de uso, los nombres de
+// un tema es insertar una fila: el seguimiento de uso, los nombres de
 // las tablas, la tarjeta del profesor y el título de la barra salen solos.
 // Lo único que sigue siendo manual es la tarjeta de la portada del alumno,
 // que vive en el HTML.
@@ -3453,9 +3710,9 @@ async function cargarTemas(){
 }
 
 function usoIniciar(cap){
-  usoCerrar();                 // por si se salta de un capítulo a otro
+  usoCerrar();                 // por si se salta de un tema a otro
   if(!user) return;            // sin sesión no se atribuye a nadie
-  // El profesor abre capítulos para revisarlos: sus visitas no son uso del
+  // El profesor abre temas para revisarlos: sus visitas no son uso del
   // curso y falsearían las medias por tema. Se excluye igual que ya se
   // excluye su ingreso al portal y su tiempo de sesión.
   if(role === 'prof') return;
@@ -3490,7 +3747,7 @@ function usoCerrar(){
   }
 }
 
-// Si el alumno cierra la pestaña sin salir del capítulo, el tiempo se
+// Si el alumno cierra la pestaña sin salir del tema, el tiempo se
 // perdería: se cierra también al ocultarse la página.
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'hidden') usoCerrar();
@@ -3499,7 +3756,7 @@ document.addEventListener('visibilitychange', ()=>{
 window.addEventListener('pagehide', usoCerrar);
 let _capPendiente = null;
 
-// Resumen listo para pintar: total, por capítulo y capítulo más usado.
+// Resumen listo para pintar: total, por tema y tema más usado.
 function usoResumen(){
   const uso = usoGet();
   const filas = Object.keys(uso).map(k => ({
@@ -3540,7 +3797,7 @@ window.addEventListener('beforeunload',()=>endSession(true));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)endSession(true);else startSession();});
 function closeApp(){
   usoCerrar(); _capPendiente=null; endSession(false);
-  // Se devuelve a cada rol a su pantalla: el profesor abre capítulos desde
+  // Se devuelve a cada rol a su pantalla: el profesor abre temas desde
   // su panel y debe volver allí, no a la vista del alumno.
   const actual = document.querySelector('.scr.on');
   if(role === 'prof' && (!actual || actual.id !== 's-panel')) showScreen('s-panel');
