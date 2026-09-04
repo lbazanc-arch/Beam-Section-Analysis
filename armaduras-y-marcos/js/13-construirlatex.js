@@ -109,6 +109,7 @@ function construirLatex(){
     + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
     + '\\definecolor{bsaAlerta}{HTML}{DB2777}\n'
     + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
+    + '\\definecolor{bsaBarra}{HTML}{7C3A06}\n'   // barras como en el panel de dibujo
     + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
     + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
     + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
@@ -141,7 +142,7 @@ function construirLatex(){
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
-    + tikzArmaduraCompleta({cotas:true, valores:false}) + '\\end{tikzpicture}\n\\end{center}\n';
+    + tikzArmaduraCompleta({cotas:true, valores:false, neutra:true}) + '\\end{tikzpicture}\n\\end{center}\n';
   tex += figCaption('Modelo de la armadura: nudos, barras, apoyos, cargas aplicadas y cotas.');
   tex += '\\subpaso{Objetivo}\n'
     + 'Hallar las reacciones en los apoyos y la fuerza axial en cada barra, indicando si trabaja a '
@@ -338,7 +339,7 @@ function construirLatex(){
       const dclA = tikzDCLNudo(n, resultado);
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.72]\n' + dclA.tikz + '\\end{tikzpicture}\\end{center}\n';
       tex += figCaption('DCL del nudo ' + nomN(n) + ': cargas, reacciones y fuerzas de barra. Las barras ya conocidas llevan '
-        + 'su sentido real; las inc\\\'ognitas se suponen en tracci\\\'on. Los valores van en las ecuaciones.'
+        + 'su sentido real; las inc\\\'ognitas se suponen en tracci\\\'on. Los valores van en las ecuaciones; el marco $x$, $y$ de la esquina da los sentidos positivos de las sumas.'
         + _angulosArm(dclA.angulos));
       const nx = ++eqN, ny = ++eqN;
       const citaTxt = citas.filter(q=>q !== 'fuerza cero');
@@ -387,7 +388,7 @@ function construirLatex(){
       tex += '\\subpaso{' + titulo + '\\quad{\\normalfont\\footnotesize\\color{bsaMuted}porci\\\'on: ' + nomLado + '}}\n';
       const dcl = tikzSeccionPorcion(lado, datos, externas, items);
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.78]\n' + dcl.tikz + '\\end{tikzpicture}\\end{center}\n';
-      tex += figCaption('Porci\\\'on aislada por el corte, con las fuerzas de las barras cortadas supuestas en tracci\\\'on y los centros de momento usados.'
+      tex += figCaption('Porci\\\'on aislada por el corte, con las fuerzas de las barras cortadas supuestas en tracci\\\'on y los centros de momento usados. El marco $x$, $y$ da los sentidos positivos de las sumas.'
         + _angulosArm(dcl.angulos));
       const filas = [];
       items.forEach(p=>{

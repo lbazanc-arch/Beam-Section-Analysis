@@ -53,10 +53,13 @@ function dibujarEjes(){
   ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox,H); ctx.stroke();
 }
 
+// Sin colores de tracción/compresión: la barra se ve igual antes y después de
+// calcular; el signo está en el panel de resultados y en el informe. Solo las
+// de fuerza cero se distinguen (gris y a trazos), que no es un color de T/C.
 function colorBarra(f){
   if(f === undefined || f === null) return '#7c3a06';
   if(esCero(f)) return '#9aa3ad';
-  return f > 0 ? '#1d4ed8' : '#c0392b';
+  return '#7c3a06';
 }
 
 function dibujarApoyo(n){

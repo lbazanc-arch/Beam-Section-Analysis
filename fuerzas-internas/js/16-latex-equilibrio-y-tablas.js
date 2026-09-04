@@ -277,12 +277,64 @@ function terminosCorte(R, gg, seg, sub){
   return {sb, a, b, tN, tV, tM, acc, ctes, wAct, wRes, gN, gV, gM, ok};
 }
 
+// ── Cómo se acota el ángulo del quiebre (R21: desde el eje más cercano) ──
+// El alumno mide el ángulo de la barra nueva con la horizontal o con la
+// vertical —el que sea menor— y con ESE ángulo escribe la proyección. Modos:
+//   'recto': la barra nueva es paralela o perpendicular a la que llega; no hay
+//            ángulo que dibujar y proyectar es solo un cambio de signo.
+//   'eje':   solo una de las dos barras es inclinada (deLlega dice cuál); un
+//            solo θ, agudo, de esa barra con su eje más cercano. cos D y sin D se
+//            escriben como ±cos θ o ±sin θ (cN, sN = {tex, val}).
+//   'dos':   las dos barras inclinadas (cumbrera): θ₁ y θ₂ con sus ejes y el
+//            giro θ = f(θ₁, θ₂), que es el que entra en la fórmula de siempre.
+function anguloQuiebre(u1, u2, D){
+  const EPS = 1e-9;
+  const agudo = u => { const conH = Math.acos(Math.min(1, Math.abs(u.x)))*180/Math.PI; const desdeV = conH > 45; return {phi: desdeV ? 90 - conH : conH, desdeV}; };
+  const a2 = agudo(u2);
+  const cD = Math.cos(D), sD = Math.sin(D);
+  const ejeLlega = Math.abs(u1.x) < EPS || Math.abs(u1.y) < EPS;
+  const ejeSale = a2.phi < 1e-6;
+  if(ejeLlega && ejeSale){
+    const cf = v => Math.abs(v) < EPS ? {tex:'', val:0} : (v > 0 ? {tex:'1', val:1} : {tex:'-1', val:-1});
+    return {modo:'recto', cN:cf(cD), sN:cf(sD), grados:Math.abs(D*180/Math.PI)};
+  }
+  if(ejeLlega !== ejeSale){   // exactamente una barra inclinada: su ángulo basta
+    const inc = ejeLlega ? a2 : agudo(u1);
+    const r = inc.phi*Math.PI/180, c = Math.cos(r), s = Math.sin(r);
+    const cands = [[c,'\\cos\\theta'],[-c,'-\\cos\\theta'],[s,'\\sin\\theta'],[-s,'-\\sin\\theta']];
+    const busca = v => { const m = cands.find(k => Math.abs(k[0]-v) < 1e-7); return m ? {tex:m[1], val:m[0]} : null; };
+    const cN = busca(cD), sN = busca(sD);
+    if(cN && sN) return {modo:'eje', phi:inc.phi, desdeV:inc.desdeV, deLlega:!ejeLlega, cN, sN};
+    console.warn('Informe LaTeX: el ángulo del quiebre no reproduce la proyección', {phi:inc.phi, D});
+  }
+  const a1 = agudo(u1), gD = Math.abs(D*180/Math.PI);
+  const rel = [['\\theta_1 + \\theta_2', a1.phi + a2.phi], ['\\theta_2 - \\theta_1', a2.phi - a1.phi], ['\\theta_1 - \\theta_2', a1.phi - a2.phi],
+               ['90^\\circ - \\theta_1 - \\theta_2', 90 - a1.phi - a2.phi], ['90^\\circ + \\theta_1 - \\theta_2', 90 + a1.phi - a2.phi],
+               ['90^\\circ - \\theta_1 + \\theta_2', 90 - a1.phi + a2.phi], ['90^\\circ + \\theta_1 + \\theta_2', 90 + a1.phi + a2.phi],
+               ['180^\\circ - \\theta_1 - \\theta_2', 180 - a1.phi - a2.phi]].find(k => Math.abs(k[1] - gD) < 1e-6);
+  return {modo:'dos', phi1:a1.phi, desdeV1:a1.desdeV, phi2:a2.phi, desdeV2:a2.desdeV, rel: rel ? rel[0] : null};
+}
+// Escribe «a·N⁻ ± b·V⁻» a partir de coeficientes {tex, val}: '' es cero (el
+// término no se escribe), '1'/'-1' dejan el símbolo solo, y '±cosθ'/'±sinθ' van
+// pegados al símbolo. Si todo es cero, escribe 0.
+function _terminosProy(pares){
+  const partes = [];
+  pares.forEach(([k, sym])=>{
+    if(!k || k.tex === '') return;
+    let neg = false, cuerpo = k.tex;
+    if(cuerpo.charAt(0) === '-'){ neg = true; cuerpo = cuerpo.slice(1); }
+    partes.push({neg, t: (cuerpo === '1') ? sym : sym + cuerpo});
+  });
+  if(!partes.length) return '0';
+  return partes.map((q, i) => (i === 0 ? (q.neg ? '-' : '') : (q.neg ? ' - ' : ' + ')) + q.t).join('');
+}
+
 // ── DCL del nudo de quiebre ──
 // Es un cuerpo libre de verdad: en cada barra, las TRES solicitaciones con su
 // flecha —N por el eje, V perpendicular y M como arco—, no una lista de valores
 // al lado. A la izquierda, lo que LLEGA referido a los ejes del tramo anterior;
 // a la derecha, lo que SALE, ya proyectado sobre los ejes nuevos. Entre las dos,
-// el ángulo θ que las relaciona, que es de donde salen el seno y el coseno.
+// el ángulo θ de la barra nueva con su eje más cercano (R21), de donde salen el seno y el coseno.
 // Cada flecha se dibuja sobre SU barra, en el SENTIDO REAL cuando ya se conoce.
 // El rotulo lleva SOLO el nombre de la solicitacion (R21), nunca su valor: el
 // superindice es del convenio de signos, no un sentido. Los valores van debajo.
@@ -296,10 +348,8 @@ function terminosCorte(R, gg, seg, sub){
 // antihorario desde la que sale. Valor negativo ⇒ sentido contrario. Con eso
 // el nudo cierra: Σ(barra que llega) + Σ(barra que sale) + cargas del nudo = 0,
 // y `bloqueQuiebre` lo comprueba numéricamente.
-function tikzNudoQuiebre(u1, u2, nom, gr, Nm, Vm, Mm, N0, V0, M0, enNudo){
+function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
   const F = n => n.toFixed(3);
-  const a1 = Math.atan2(u1.y, u1.x)*180/Math.PI;
-  const a2 = Math.atan2(u2.y, u2.x)*180/Math.PI;
   const n1 = {x:-u1.y, y:u1.x}, n2 = {x:-u2.y, y:u2.x};
   const sg = v => (v >= 0 ? 1 : -1);
   // La barra tiene que dar para las tres solicitaciones seguidas sin que se
@@ -315,14 +365,29 @@ function tikzNudoQuiebre(u1, u2, nom, gr, Nm, Vm, Mm, N0, V0, M0, enNudo){
   tzOcupar(-0.13, -0.13, 0.13, 0.13);
   o += tzTexto(-n2.x*0.34, -n2.y*0.34, '\\textbf{' + nom + '}',
                'font=\\small, color=bsaAcc2', -n2.x, -n2.y);
-  // Ángulo entre la prolongación de la barra que llega y la que sale.
-  o += '\\draw[dotted, color=bsaMuted] (0,0) -- (' + F(u1.x*1.05) + ',' + F(u1.y*1.05) + ');\n';
-  o += '\\draw[-{Latex[length=1.5mm]}, color=bsaCarga, line width=.8pt] ('
-     + F(u1.x*0.78) + ',' + F(u1.y*0.78) + ') arc (' + F(a1) + ':' + F(a2) + ':0.78);\n';
-  const am = (a1 + a2)/2*Math.PI/180;
-  tzOcupar(-0.85, -0.85, 0.85, 0.85);
-  o += tzTexto(Math.cos(am)*1.30, Math.sin(am)*1.30, '$\\theta = ' + gr + '^\\circ$',
-               'font=\\small, color=bsaCarga', Math.cos(am), Math.sin(am));
+  // Ángulo del quiebre acotado desde el eje más cercano (R21). En modo 'eje' hay
+  // un solo θ, el de la barra nueva; en modo 'dos' (cumbrera) también θ₁, el de
+  // la barra que llega; en modo 'recto' no hay ángulo que dibujar.
+  const arcoEje = (u, etiqueta) => {
+    const conH = Math.acos(Math.min(1, Math.abs(u.x)))*180/Math.PI, desdeV = conH > 45;
+    const rayDeg = desdeV ? (u.y >= 0 ? 90 : -90) : (u.x >= 0 ? 0 : 180);
+    let endDeg = Math.atan2(u.y, u.x)*180/Math.PI;
+    while(endDeg - rayDeg > 180) endDeg -= 360;
+    while(endDeg - rayDeg < -180) endDeg += 360;
+    const cr = Math.cos(rayDeg*Math.PI/180), sr = Math.sin(rayDeg*Math.PI/180);
+    let q = '\\draw[dotted, color=bsaMuted] (0,0) -- (' + F(cr*1.05) + ',' + F(sr*1.05) + ');\n';
+    q += '\\draw[-{Latex[length=1.5mm]}, color=bsaCarga, line width=.8pt] (' + F(cr*0.78) + ',' + F(sr*0.78)
+       + ') arc (' + F(rayDeg) + ':' + F(endDeg) + ':0.78);\n';
+    const am = (rayDeg + endDeg)/2*Math.PI/180;
+    tzOcupar(-0.85, -0.85, 0.85, 0.85);
+    q += tzTexto(Math.cos(am)*1.30, Math.sin(am)*1.30, etiqueta, 'font=\\small, color=bsaCarga', Math.cos(am), Math.sin(am));
+    return q;
+  };
+  if(ang.modo === 'eje') o += arcoEje(ang.deLlega ? {x:-u1.x, y:-u1.y} : u2, '$\\theta = ' + ang.phi.toFixed(1) + '^\\circ$');
+  if(ang.modo === 'dos'){
+    o += arcoEje({x:-u1.x, y:-u1.y}, '$\\theta_1 = ' + ang.phi1.toFixed(1) + '^\\circ$');
+    o += arcoEje(u2, '$\\theta_2 = ' + ang.phi2.toFixed(1) + '^\\circ$');
+  }
 
   // Una terna de solicitaciones sobre una barra. s = +1 la que sale, s = −1 la
   // que llega. dN, dV, dM son los sentidos con valor POSITIVO (ver cabecera);
@@ -391,13 +456,28 @@ function tikzNudoQuiebre(u1, u2, nom, gr, Nm, Vm, Mm, N0, V0, M0, enNudo){
                    'color=bsaMomento', -n1.x, -n1.y);
     }
   });
-  // Ejes locales del tramo nuevo, junto al nudo.
-  o += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (0,0) -- ('
-     + F(u2.x*0.55) + ',' + F(u2.y*0.55) + ');\n';
-  o += tzTexto(u2.x*0.72, u2.y*0.72, '{\\scriptsize$\\hat{u}$}', 'color=bsaAcc', u2.x, u2.y);
-  o += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (0,0) -- ('
-     + F(n2.x*0.55) + ',' + F(n2.y*0.55) + ');\n';
-  o += tzTexto(n2.x*0.72, n2.y*0.72, '{\\scriptsize$\\hat{n}$}', 'color=bsaAcc', n2.x, n2.y);
+  // Marco de referencia (û, n̂) del tramo nuevo, en la esquina más despejada y
+  // NO sobre el nudo: dice cuál es el sentido positivo de N₀ y V₀ sin que se
+  // confunda con una fuerza (R21). La esquina es la que queda angularmente más
+  // lejos de las dos barras y de las cargas del nudo.
+  {
+    const dirs = [Math.atan2(-u1.y,-u1.x), Math.atan2(u2.y,u2.x)].map(v=>v*180/Math.PI);
+    (enNudo || []).forEach(e=>{ const Fm = Math.hypot(e.fx || 0, e.fy || 0); if(Fm > 1e-9) dirs.push(Math.atan2(-e.fy,-e.fx)*180/Math.PI); });
+    const sep = (p, q) => Math.abs(((p - q) % 360 + 540) % 360 - 180);
+    const esquina = [45, 135, 225, 315].reduce((m, e) => {
+      const hueco = Math.min(...dirs.map(d => sep(e, d)));
+      return hueco > m.hueco ? {e, hueco} : m;
+    }, {e:315, hueco:-1}).e;
+    const ox = 4.1*Math.cos(esquina*Math.PI/180), oy = 4.1*Math.sin(esquina*Math.PI/180);
+    o += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (' + F(ox) + ',' + F(oy) + ') -- (' + F(ox+u2.x*0.7) + ',' + F(oy+u2.y*0.7) + ');\n';
+    o += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (' + F(ox) + ',' + F(oy) + ') -- (' + F(ox+n2.x*0.7) + ',' + F(oy+n2.y*0.7) + ');\n';
+    o += '\\fill[bsaAcc] (' + F(ox) + ',' + F(oy) + ') circle (0.8pt);\n';
+    tzOcupar(ox-0.15, oy-0.15, ox+0.15, oy+0.15);
+    tzOcuparTrazo(ox, oy, ox+u2.x*0.7, oy+u2.y*0.7, 0.05);
+    tzOcuparTrazo(ox, oy, ox+n2.x*0.7, oy+n2.y*0.7, 0.05);
+    o += tzTexto(ox+u2.x*0.92, oy+u2.y*0.92, '{\\scriptsize$\\hat{u}$}', 'color=bsaAcc', u2.x, u2.y);
+    o += tzTexto(ox+n2.x*0.92, oy+n2.y*0.92, '{\\scriptsize$\\hat{n}$}', 'color=bsaAcc', n2.x, n2.y);
+  }
   return o;
 }
 
@@ -440,34 +520,65 @@ function bloqueQuiebre(R, grupos, gg, info){
   const nn = escLatex(gg.desde.nombre), np = escLatex(prev.recorrido);
   const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
   const g = (D*180/Math.PI).toFixed(1);
+  const ang = anguloQuiebre(u1, u2, D);
+  const ejeTxt = v => (v ? 'vertical' : 'horizontal');
+  const recto90 = ang.modo === 'recto' && Math.abs(ang.grados - 90) < 1;
   let out = '';
   if(_primeraVez('quiebre'))
     out += '\\porque{En un quiebre, todo lo que hay antes del nudo se sustituye por las tres '
       + 'solicitaciones que ese nudo transmite. Se conocen del tramo anterior, pero están '
-      + 'referidas a SUS ejes: el tramo nuevo gira un ángulo $\\theta$, así que hay que '
-      + 'proyectarlas sobre el eje y la normal nuevos, y sumar las acciones aplicadas justo '
-      + 'en el nudo.}\n';
+      + 'referidas a SUS ejes: el tramo nuevo cambia de dirección, así que hay que '
+      + 'proyectarlas sobre el eje y la normal nuevos —con el ángulo que la barra nueva '
+      + 'forma con la horizontal o con la vertical, el que sea menor— y sumar las acciones '
+      + 'aplicadas justo en el nudo.}\n';
+  const fraseAng = ang.modo === 'eje'
+    ? 'El ángulo $\\theta$ de la barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ', medido desde la ' + ejeTxt(ang.desdeV) + ', es el que da el seno y el coseno de la proyección.'
+    : ang.modo === 'recto'
+    ? 'Las barras son ' + (recto90 ? 'perpendiculares' : 'paralelas') + ': no hay ángulo que medir, y proyectar es solo cambiar el papel de normal y cortante.'
+    : 'Las dos barras son inclinadas: $\\theta_1$ y $\\theta_2$ se miden desde su eje más cercano, y el giro entre ellas, $\\theta$, es el que entra en la proyección.';
   out += '\\begin{center}\\begin{tikzpicture}\n'
-       + tikzNudoQuiebre(u1, u2, nn, g, Nm, Vm, Mm, N0, V0, M0, enNudo)
+       + tikzNudoQuiebre(u1, u2, nn, ang, Nm, Vm, Mm, N0, V0, M0, enNudo)
        + '\\end{tikzpicture}\\\\[2pt]\n{\\footnotesize\\color{bsaMuted} DCL del nudo ' + nn
        + ' (cuerpo libre del pasador). En gris, lo que \\textbf{llega} por ' + np
        + ' referido a los ejes de ese tramo; en verde, lo que \\textbf{sale} hacia el tramo '
-       + 'nuevo sobre sus ejes $\\hat{u}$ y $\\hat{n}$'
+       + 'nuevo sobre sus ejes $\\hat{u}$ y $\\hat{n}$ (el marco de la esquina da sus sentidos positivos)'
        + (enNudo.length ? '; en rojo y violeta, las cargas aplicadas en el propio nudo' : '')
        + '. Las flechas van en el \\textbf{sentido real}; el rótulo es solo el \\textbf{nombre} de la '
        + 'solicitación, y su superíndice o subíndice es el del \\textbf{convenio de signos}, no un '
-       + 'sentido. Los valores están justo debajo. El ángulo $\\theta$ entre las dos barras es el que da el '
-       + 'seno y el coseno de la proyección.}\\end{center}\\vspace{2pt}\n';
+       + 'sentido. Los valores están justo debajo. ' + fraseAng + '}\\end{center}\\vspace{2pt}\n';
+  let proy;
+  if(ang.modo === 'eje')
+    proy = 'Proyectando con $\\theta = ' + ang.phi.toFixed(1) + '^\\circ$ (ángulo de la barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ' con la ' + ejeTxt(ang.desdeV) + '):';
+  else if(ang.modo === 'recto')
+    proy = 'La barra nueva es ' + (recto90 ? 'perpendicular' : 'paralela') + ' a la anterior ($\\theta = ' + ang.grados.toFixed(0) + '^\\circ$), así que:';
+  else
+    proy = 'Con $\\theta_1 = ' + ang.phi1.toFixed(1) + '^\\circ$ (' + ejeTxt(ang.desdeV1) + ') y $\\theta_2 = ' + ang.phi2.toFixed(1) + '^\\circ$ (' + ejeTxt(ang.desdeV2)
+         + '), el giro entre barras es $\\theta = ' + (D < 0 ? '-' : '') + (ang.rel ? '(' + ang.rel + ') = ' : '') + g + '^\\circ$'
+         + (D < 0 ? ' (negativo: horario)' : '') + '. Proyectando:';
   out += '\\noindent{\\footnotesize Al final del tramo ' + np + ': $N^- = ' + dec(Nm,'fuerza')
     + '$, $V^- = ' + dec(Vm,'fuerza') + '$ ' + uF + ', $M^- = ' + dec(Mm,'momento') + '$ ' + uM
-    + '. Proyectando con $\\theta = ' + g + '^\\circ$:}\n';
+    + '. ' + proy + '}\n';
   const extraN = enNudo.filter(e=>Math.abs(e.Fpar) > EPS).map(e=>(e.Fpar > 0 ? ' - ' : ' + ') + dec(Math.abs(e.Fpar),'fuerza')).join('');
   const extraV = enNudo.filter(e=>Math.abs(e.Fper) > EPS).map(e=>(e.Fper < 0 ? ' - ' : ' + ') + dec(Math.abs(e.Fper),'fuerza')).join('');
   const extraM = enNudo.filter(e=>Math.abs(e.m) > EPS).map(e=>(e.m > 0 ? ' - ' : ' + ') + dec(Math.abs(e.m),'momento')).join('');
+  // La proyección exacta es N₀ = N⁻cos D − V⁻sin D y V₀ = N⁻sin D + V⁻cos D. Se
+  // escribe con el ángulo DIBUJADO: cos D y sin D pasan a ±cosθ, ±sinθ, ±1 o 0.
+  let fN, fV;
+  if(ang.modo === 'dos'){
+    fN = 'N^-\\cos\\theta - V^-\\sin\\theta'; fV = 'N^-\\sin\\theta + V^-\\cos\\theta';
+  } else {
+    const neg = k => ({tex: k.tex === '' ? '' : (k.tex.charAt(0) === '-' ? k.tex.slice(1) : '-' + k.tex), val: -k.val});
+    fN = _terminosProy([[ang.cN, 'N^-'], [neg(ang.sN), 'V^-']]);
+    fV = _terminosProy([[ang.sN, 'N^-'], [ang.cN, 'V^-']]);
+    // Autocontrol: la fórmula escrita debe dar lo mismo que el giro exacto.
+    const eN = Nm*ang.cN.val - Vm*ang.sN.val, eV = Nm*ang.sN.val + Vm*ang.cN.val;
+    if(Math.max(Math.abs(eN - Nr), Math.abs(eV - Vr)) > 1e-6)
+      console.warn('Informe LaTeX: el ángulo del quiebre no reproduce la proyección', {nudo:gg.desde.nombre, eN, Nr, eV, Vr});
+  }
   out += _alineada([
-    'N_0 &= N^-\\cos\\theta - V^-\\sin\\theta' + (extraN ? ' \\underbrace{' + extraN + '}_{\\text{en } ' + nn + '}' : '')
+    'N_0 &= ' + fN + (extraN ? ' \\underbrace{' + extraN + '}_{\\text{en } ' + nn + '}' : '')
       + ' = ' + dec(N0,'fuerza') + '\\ \\text{' + uF + '}',
-    'V_0 &= N^-\\sin\\theta + V^-\\cos\\theta' + (extraV ? ' \\underbrace{' + extraV + '}_{\\text{en } ' + nn + '}' : '')
+    'V_0 &= ' + fV + (extraV ? ' \\underbrace{' + extraV + '}_{\\text{en } ' + nn + '}' : '')
       + ' = ' + dec(V0,'fuerza') + '\\ \\text{' + uF + '}',
     'M_0 &= M^-' + (extraM ? ' \\underbrace{' + extraM + '}_{\\text{par en } ' + nn + '}' : '')
       + ' = ' + dec(M0,'momento') + '\\ \\text{' + uM + '}'
