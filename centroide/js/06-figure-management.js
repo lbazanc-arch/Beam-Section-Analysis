@@ -152,6 +152,7 @@ function getDefaultDims(type){
 }
 
 function placeFigure(type, cx, cy){
+  if(modoEspacio === '3d') return placeSolid(type);     // 21-vistas-3d.js
   registrarCambio();
   const def = FIG_DEFS[type];
   const id = ++figIdCounter;

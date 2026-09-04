@@ -19,7 +19,8 @@ function cerrarPanelSiMovil(){
 // horizontal, donde no había ninguna pista de que hubiera más figuras.
 const PAL_VISIBLES = 6;
 function alternarVerMas(){
-  const grid = document.getElementById('palGrid');
+  // En 3D la paleta es #palGrid3d y no tiene «Ver más» (seis sólidos caben).
+  const grid = document.getElementById(modoEspacio === '3d' ? 'palGrid3d' : 'palGrid');
   const btn  = document.getElementById('palMas');
   const txt  = document.getElementById('palMasTxt');
   if(!grid || !btn) return;
@@ -151,6 +152,7 @@ function convertUnits(newU){
     for(const fig of figures){
       if(fig.cx!==undefined) fig.cx = +(fig.cx*k).toFixed(9);
       if(fig.cy!==undefined) fig.cy = +(fig.cy*k).toFixed(9);
+      if(fig.cz!==undefined) fig.cz = +(fig.cz*k).toFixed(9);   // sólidos 3D
       if(fig.dims){
         for(const key in fig.dims){
           if(ANGLE_DIMS[key]) continue;                 // los ángulos no se convierten
@@ -287,6 +289,7 @@ function figuresBBox(){
 
 // Encuadra y CENTRA la sección compuesta dentro del área visible
 function fitView(){
+  if(modoEspacio === '3d') return fitView3d();          // 21-vistas-3d.js
   const cvEl = document.getElementById('mainCanvas');
   const area = document.getElementById('canvasArea');
   const W = (cvEl && cvEl.clientWidth)  || (area && area.clientWidth)  || 800;
@@ -328,6 +331,7 @@ function resetAll(){
 // La tabla del enunciado da el ángulo TOTAL (2θ), así que se divide entre dos
 // y se deja angleMode:'total' para que el panel lo muestre como se pidió.
 function loadExampleSection(){
+  if(modoEspacio === '3d') return loadExample3d();      // 21-vistas-3d.js
   resetAll();
   const DATOS = [
     // tipo,          dims,               cx,       cy,      rot,   signo

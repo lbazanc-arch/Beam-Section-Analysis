@@ -21,13 +21,14 @@ function abrirTransformar(){
     const f = figures.find(z=>z.id===id);
     if(f) opciones.push('<option value="fig:'+f.id+'">Centro de '+esc(f.name)
       + (f.etiqueta ? ' ' + esc(f.etiqueta) : '')
-      + '  ('+decP(f.cx,'len')+' ; '+decP(f.cy,'len')+')</option>');
+      + '  ('+decP(f.cx,'len')+' ; '+decP(f.cy,'len')+(f.es3d ? ' ; '+decP(f.cz,'len') : '')+')</option>');
   });
   opciones.push('<option value="libre">Coordenada a elegir…</option>');
   sel.innerHTML = opciones.join('');
   document.getElementById('transSub').textContent =
     'Se transformarán ' + selFiguras.length + ' figura(s). Al girar, la referencia '
-    + 'queda fija y es el centro de rotación; al mover, toda la selección se desplaza por igual.';
+    + 'queda fija y es el centro de rotación' + (modoEspacio === '3d' ? ' (el giro es alrededor del eje vertical que pasa por ella)' : '')
+    + '; al mover, toda la selección se desplaza por igual.';
   cambiarRefTrans();
   setTransModo('mover');
   document.getElementById('transModal').classList.add('show');
@@ -68,15 +69,18 @@ function calcularTransformacion(){
   if(!ref) return null;
   const num = id => { const e=document.getElementById(id); const n=parseFloat(e && e.value); return isFinite(n)?n:0; };
   const destinos = [];
+  // En 3D hay un desplazamiento más, dz; el giro es alrededor del eje
+  // vertical que pasa por la referencia, así que cz no cambia.
+  const es3 = (modoEspacio === '3d');
   if(transModo === 'mover'){
-    const dx = num('transDx'), dy = num('transDy');
+    const dx = num('transDx'), dy = num('transDy'), dz = es3 ? num('transDz') : 0;
     selFiguras.forEach(id=>{
       const f = figures.find(z=>z.id===id); if(!f) return;
       // En un desplazamiento se mueve TODA la selección por igual: la
       // referencia solo queda fija cuando se gira.
-      destinos.push({id, cx:f.cx+dx, cy:f.cy+dy, rotation:f.rotation});
+      destinos.push({id, cx:f.cx+dx, cy:f.cy+dy, cz:(f.cz||0)+dz, rotation:f.rotation});
     });
-    return {ref, destinos, dx, dy};
+    return {ref, destinos, dx, dy, dz};
   }
   const grados = num('transAng');
   const ang = grados*Math.PI/180;
@@ -90,6 +94,7 @@ function calcularTransformacion(){
     destinos.push({id,
       cx: ref.x + ux*cs - uy*sn,
       cy: ref.y + ux*sn + uy*cs,
+      cz: f.cz,
       rotation: f.rotation + grados});
   });
   return {ref, destinos, ang:grados};
@@ -102,7 +107,7 @@ function actualizarPrevTrans(){
   if(!t){ p.textContent = 'Elige una referencia válida.'; return; }
   if(transModo === 'mover'){
     p.textContent = 'Las ' + t.destinos.length + ' figura(s) se desplazan ('
-      + decP(t.dx,'len') + ' ; ' + decP(t.dy,'len') + ') ' + unit
+      + decP(t.dx,'len') + ' ; ' + decP(t.dy,'len') + (modoEspacio === '3d' ? ' ; ' + decP(t.dz,'len') : '') + ') ' + unit
       + ', midiendo desde ' + t.ref.nombre + '.';
   } else {
     p.textContent = 'Las ' + t.destinos.length + ' figura(s) giran ' + t.ang
@@ -114,8 +119,8 @@ function actualizarPrevTrans(){
 function applyTransformar(){
   const t = calcularTransformacion();
   if(!t){ aviso('Elige una referencia válida.', 'error'); return; }
-  if(transModo === 'mover' && t.dx === 0 && t.dy === 0){
-    aviso('Indica un desplazamiento en x o en y.'); return;
+  if(transModo === 'mover' && t.dx === 0 && t.dy === 0 && !(t.dz)){
+    aviso(modoEspacio === '3d' ? 'Indica un desplazamiento en x, y o z.' : 'Indica un desplazamiento en x o en y.'); return;
   }
   if(transModo === 'girar' && t.ang === 0){
     aviso('Indica un ángulo de giro distinto de cero.'); return;
@@ -128,6 +133,7 @@ function applyTransformar(){
     const f = figures.find(z=>z.id===d.id);
     if(!f) return;
     f.cx = d.cx; f.cy = d.cy; f.rotation = d.rotation;
+    if(f.es3d && typeof d.cz === 'number') f.cz = d.cz;
   });
   results = null;
   closeTransformar();
@@ -148,22 +154,25 @@ function abrirReplicar(){
 function closeReplicar(){ document.getElementById('repModal').classList.remove('show'); }
 function actualizarPrevRep(){
   const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const dx = g('repDx'), dy = g('repDy');
+  const es3 = (modoEspacio === '3d');
+  const dx = g('repDx'), dy = g('repDy'), dz = es3 ? g('repDz') : 0;
   const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
   const base = figures.find(f=>f.id===selFiguras[0]);
   const el = document.getElementById('repPrev');
   if(!el || !base) return;
-  let t = 'Desde (' + decP(base.cx,'len') + ' ; ' + decP(base.cy,'len') + ') ' + unit + ' → ';
+  const z = v => es3 ? ' ; ' + decP(v,'len') : '';
+  let t = 'Desde (' + decP(base.cx,'len') + ' ; ' + decP(base.cy,'len') + z(base.cz||0) + ') ' + unit + ' → ';
   const p = [];
   for(let i=1;i<=Math.min(nrep,3);i++)
-    p.push('(' + decP(base.cx+dx*i,'len') + ' ; ' + decP(base.cy+dy*i,'len') + ')');
+    p.push('(' + decP(base.cx+dx*i,'len') + ' ; ' + decP(base.cy+dy*i,'len') + z((base.cz||0)+dz*i) + ')');
   el.innerHTML = t + p.join(', ') + (nrep>3 ? ' …' : '');
 }
 function applyReplicar(){
   const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const dx = g('repDx'), dy = g('repDy');
+  const es3 = (modoEspacio === '3d');
+  const dx = g('repDx'), dy = g('repDy'), dz = es3 ? g('repDz') : 0;
   const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
-  if(dx === 0 && dy === 0){ aviso('Indica un desplazamiento en x o en y.'); return; }
+  if(dx === 0 && dy === 0 && dz === 0){ aviso(es3 ? 'Indica un desplazamiento en x, y o z.' : 'Indica un desplazamiento en x o en y.'); return; }
   registrarCambio();
   const orig = selFiguras.slice();
   const nuevas = [];
@@ -175,6 +184,7 @@ function applyReplicar(){
       nf.id = ++figIdCounter;
       nf.cx = o.cx + dx*i;
       nf.cy = o.cy + dy*i;
+      if(es3) nf.cz = (o.cz||0) + dz*i;
       figures.push(nf);
       nuevas.push(nf.id);
     });
@@ -190,6 +200,7 @@ function applyReplicar(){
 function togglePanTool(){ setHerramienta('pan'); }
 
 function calculate(){
+  if(modoEspacio === '3d') return calculate3d();        // 21-vistas-3d.js
   if(!figures.length){ aviso('Agrega al menos una figura.'); return; }
 
   const u2 = unit+'²';

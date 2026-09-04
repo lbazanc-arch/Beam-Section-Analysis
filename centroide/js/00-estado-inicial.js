@@ -11,4 +11,7 @@
 let herramienta = 'pan';
 let selFiguras = [];          // ids de figuras marcadas
 let DEC = {len:2, area:2};
+// Modo del espacio de trabajo: sección plana ('2d') o cuerpo sólido ('3d').
+// Se adelanta aquí porque render() lo consulta desde el primer repintado.
+let modoEspacio = '2d';
 const CANVAS_BG = '#ffffff';

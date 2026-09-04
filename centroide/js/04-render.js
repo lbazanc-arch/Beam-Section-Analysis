@@ -3,13 +3,15 @@
 // ═══════════════════════════════════════════════════════════
 // ── Visibilidad de capas del dibujo ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, cotas:true, ejes:true, centroide:true};
+const VIS = {grilla:true, cotas:true, ejes:true, centroide:true, iso:false};   // iso: recuadro isométrico, solo en 3D
 function setVis(cual, valor){
   VIS[cual] = !!valor;
   render();
 }
 
 function render(){
+  // Modo 3D: dos vistas ortogonales, dibujadas en 21-vistas-3d.js.
+  if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d' && typeof render3d === 'function'){ render3d(); return; }
   const W = canvas.clientWidth, H = canvas.clientHeight;
   ctx.clearRect(0,0,W,H);
   // Fondo OPACO: sin esto el canvas queda transparente y al exportarlo a PDF

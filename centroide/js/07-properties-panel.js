@@ -2,6 +2,7 @@
 //  PROPERTIES PANEL
 // ═══════════════════════════════════════════════════════════
 function buildPropPanel(fig){
+  if(fig && fig.es3d) return buildPropPanel3d(fig);     // 21-vistas-3d.js
   const def = FIG_DEFS[fig.type];
   document.getElementById('propTitle').textContent = fig.name;
 
@@ -145,6 +146,7 @@ function setSectorAngleMode(mode){
 function updateFigFromProp(){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  if(fig.es3d) return updateFigFromProp3d();            // 21-vistas-3d.js
   registrarCambio();
   const newX = parseFloat(document.getElementById('posX').value)||0;
   const newY = parseFloat(document.getElementById('posY').value)||0;
@@ -164,6 +166,7 @@ function updateFigFromProp(){
 function updatePropPanel(){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  if(fig.es3d) return updatePropPanel3d();              // 21-vistas-3d.js
   const aa = fig.activeAnchor||'C';
   if(aa==='C'){
     document.getElementById('posX').value=r2(fig.cx);

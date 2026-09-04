@@ -7,10 +7,11 @@ const MAX_HISTORIAL = 60;
 function instantanea(){
   return JSON.stringify({
     figures: figures.map(f=>({id:f.id, type:f.type, dims:Object.assign({},f.dims),
-      cx:f.cx, cy:f.cy, rotation:f.rotation, sign:f.sign, color:f.color,
+      cx:f.cx, cy:f.cy, cz:f.cz, es3d:f.es3d, volteado:f.volteado, perfil:f.perfil,
+      rotation:f.rotation, sign:f.sign, color:f.color,
       anchor:f.anchor, activeAnchor:f.activeAnchor, name:f.name, etiqueta:f.etiqueta,
       matId:f.matId, thickness:f.thickness, angleMode:f.angleMode})),
-    figIdCounter, colorIdx,
+    figIdCounter, colorIdx, modoEspacio,
     modoCuerpo, MATS: MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad})), matSeq
   });
 }
@@ -25,6 +26,8 @@ function registrarCambio(){
 
 function restaurarInstantanea(txt){
   const e = JSON.parse(txt);
+  // El modo (2D/3D) se restaura ANTES que las figuras, sin vaciar el panel.
+  if(e.modoEspacio && e.modoEspacio !== modoEspacio) setModoEspacio(e.modoEspacio, {sinLimpiar:true, sinAjustar:true});
   figures = e.figures.map(f=>Object.assign({}, f, {dims:Object.assign({},f.dims)}));
   figIdCounter = e.figIdCounter; colorIdx = e.colorIdx;
   modoCuerpo = e.modoCuerpo; MATS = e.MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad})); matSeq = e.matSeq;

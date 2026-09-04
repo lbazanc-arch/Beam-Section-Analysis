@@ -104,6 +104,7 @@ function getCanvasPos(e){
 }
 
 function onMouseMove(e){
+  if(modoEspacio === '3d') return onMouseMove3d(e);     // 21-vistas-3d.js
   const sp = getCanvasPos(e);
   const wp = screenToWorld(sp.x,sp.y);
 
@@ -203,6 +204,7 @@ function onMouseMove(e){
 }
 
 function onMouseDown(e){
+  if(modoEspacio === '3d') return onMouseDown3d(e);     // 21-vistas-3d.js
   const sp = getCanvasPos(e);
   const wp = screenToWorld(sp.x,sp.y);
 
@@ -321,6 +323,7 @@ function figurasEnRecuadro(x0,y0,x1,y1){
 }
 
 function onMouseUp(){
+  if(modoEspacio === '3d') return onMouseUp3d();        // 21-vistas-3d.js
   if(isDraggingFig && dragFigId !== null){
     updatePropPanel(); render();
   }
@@ -382,6 +385,7 @@ function onMouseUp(){
 }
 
 function onDblClick(e){
+  if(modoEspacio === '3d') return onDblClick3d(e);      // 21-vistas-3d.js
   const sp = getCanvasPos(e);
   const hit = hitTest(sp.x,sp.y);
   if(hit) abrirEdicionFigura(hit.id);
@@ -454,6 +458,7 @@ function edicionAlPanel(){
 }
 
 function onWheel(e){
+  if(modoEspacio === '3d') return onWheel3d(e);         // 21-vistas-3d.js
   e.preventDefault();
   const sp = getCanvasPos(e);
   const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
@@ -467,6 +472,7 @@ function onWheel(e){
 }
 
 function hitTest(sx,sy){
+  if(modoEspacio === '3d') return hitTest3d(sx,sy);     // 21-vistas-3d.js
   for(const fig of [...figures].reverse()){
     const sp = worldToScreen(fig.cx,fig.cy);
     // Centroid dot hit

@@ -36,11 +36,17 @@
   </button>
   <div class="tb-sep"></div>
   <div class="tb-zona" id="tbZona1">
+    <!-- Espacio de trabajo: el botón muestra el modo al que se PASA («3D»
+         mientras se trabaja en 2D, «2D» mientras se trabaja en 3D). -->
+    <button class="tool-btn" id="btnEspacio" onclick="alternarEspacio()" title="Pasar a cuerpo sólido (3D)">
+      <svg viewBox="0 0 40 34"><path d="M13 12 l7 -4 l8 4 v10 l-8 4 l-7 -4 Z M20 8 v18 M13 12 l7 4 l8 -4" fill="none" stroke="#0f5c56" stroke-width="2.2" stroke-linejoin="round"/></svg>
+      <span>3D</span>
+    </button>
     <button class="tool-btn" id="btnFiguras" onclick="menuFiguras(event)" title="Insertar una figura">
       <svg viewBox="0 0 40 34"><rect x="8" y="9" width="11" height="11" fill="none" stroke="#0f5c56" stroke-width="2.2"/><circle cx="27" cy="20" r="6" fill="none" stroke="#0f5c56" stroke-width="2.2"/></svg>
       <span>Figuras</span>
     </button>
-    <button class="tool-btn" onclick="abrirCatalogo()" title="Perfiles de acero">
+    <button class="tool-btn" id="btnPerfiles" onclick="abrirCatalogo()" title="Perfiles de acero">
       <svg viewBox="0 0 40 34"><path d="M12 8 h16 M20 8 v18 M12 26 h16" fill="none" stroke="#0f5c56" stroke-width="2.4"/></svg>
       <span>Perfiles</span>
     </button>
@@ -142,6 +148,46 @@
             <span>Semicírculo</span>
             </button>
           </div>
+          <!-- Paleta del modo 3D (cuerpo sólido): se muestra en lugar de
+               #palGrid cuando modoEspacio === '3d'. Seis sólidos, sin «Ver más». -->
+          <div class="pal-grid" id="palGrid3d" style="display:none">
+            <button class="fig-btn" onclick="selectFigType('s_prisma')" id="figbtn-s_prisma">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M10 16 l12 -6 l12 6 v16 l-12 6 l-12 -6 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M10 16 l12 6 l12 -6 M22 22 v16" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="25" r="2.5" fill="#f0c040"/></svg>
+            <span>Prisma</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_cilindro')" id="figbtn-s_cilindro">
+            <svg viewBox="0 0 44 44" fill="none"><ellipse cx="22" cy="12" rx="12" ry="4" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M10 12 v20 a12 4 0 0 0 24 0 v-20" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><circle cx="22" cy="24" r="2.5" fill="#f0c040"/></svg>
+            <span>Cilindro</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_cono')" id="figbtn-s_cono">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M10 32 a12 4 0 0 0 24 0 L22 6 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M10 32 a12 4 0 0 1 24 0" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="28" r="2.5" fill="#f0c040"/></svg>
+            <span>Cono</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_esfera')" id="figbtn-s_esfera">
+            <svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="15" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><ellipse cx="22" cy="22" rx="15" ry="5" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
+            <span>Esfera</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_semiesfera')" id="figbtn-s_semiesfera">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M7 28 a15 15 0 0 1 30 0 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><ellipse cx="22" cy="28" rx="15" ry="4" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="23" r="2.5" fill="#f0c040"/></svg>
+            <span>Semiesfera</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_piramide')" id="figbtn-s_piramide">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8 30 l14 -24 l14 24 l-8 5 l-6 -2 l-6 2 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M22 6 l-6 27 M22 6 l6 27" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="27" r="2.5" fill="#f0c040"/></svg>
+            <span>Pirámide</span>
+            </button>
+            <button class="fig-btn oculta" onclick="selectFigType('s_conotrunc')" id="figbtn-s_conotrunc">
+            <svg viewBox="0 0 44 44" fill="none"><ellipse cx="22" cy="11" rx="7" ry="2.5" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M15 11 L8 32 a14 4.5 0 0 0 28 0 L29 11" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M8 32 a14 4.5 0 0 1 28 0" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="25" r="2.5" fill="#f0c040"/></svg>
+            <span>Cono trunc.</span>
+            </button>
+            <button class="fig-btn oculta" onclick="selectFigType('s_paraboloide')" id="figbtn-s_paraboloide">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8 32 Q22 -18 36 32 a14 4.5 0 0 1 -28 0 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M8 32 a14 4.5 0 0 0 28 0" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="26" r="2.5" fill="#f0c040"/></svg>
+            <span>Paraboloide</span>
+            </button>
+            <button class="fig-btn oculta" onclick="selectFigType('s_cuna')" id="figbtn-s_cuna">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8 34 L34 34 L8 12 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M8 12 l8 -5 l26 22 l-8 5 M34 34 l8 -5" stroke="currentColor" stroke-width="1.4" fill="rgba(168,232,216,.10)"/><circle cx="17" cy="27" r="2.5" fill="#f0c040"/></svg>
+            <span>Cuña</span>
+            </button>
+          </div>
           <button class="pal-mas" id="palMas" onclick="alternarVerMas()">
             <span id="palMasTxt">Ver más</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -216,6 +262,7 @@
             <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas</span></label>
             <label class="vis-item"><input type="checkbox" id="visEjes" checked onchange="setVis('ejes',this.checked)"><span>Ejes</span></label>
             <label class="vis-item"><input type="checkbox" id="visCentroide" checked onchange="setVis('centroide',this.checked)"><span>Centroide</span></label>
+            <label class="vis-item" id="visIsoItem" style="display:none"><input type="checkbox" id="visIso" onchange="setVis('iso',this.checked)"><span>Isométrica</span></label>
           </div>
           <div class="cfg-hint">Oculta lo que no necesites ver en el panel de dibujo. No afecta al cálculo.</div>
           </div>
@@ -253,8 +300,9 @@
             <div class="field-row">
               <div class="field"><label>X</label><input type="number" id="posX" value="0" step="any" onchange="updateFigFromProp()"></div>
               <div class="field"><label>Y</label><input type="number" id="posY" value="0" step="any" onchange="updateFigFromProp()"></div>
+              <div class="field" id="posZField" style="display:none"><label>Z</label><input type="number" id="posZ" value="0" step="any" onchange="updateFigFromProp()"></div>
             </div>
-            <div class="field">
+            <div class="field" id="rotField">
               <label>Rotación α (°)</label>
               <input type="number" id="rotation" value="0" step="1" onchange="updateFigFromProp()">
             </div>
@@ -322,6 +370,11 @@
 <script src="centroide/js/17-latex-desarrollo-y-tablas.js"></script>
 <script src="centroide/js/18-acotacion.js"></script>
 <script src="centroide/js/19-catalogo-de-perfiles.js"></script>
+<!-- Modo 3D (cuerpo sólido): catálogo de sólidos, vistas planta/alzado e informe -->
+<script src="centroide/js/20-solidos-definiciones.js"></script>
+<script src="centroide/js/21-vistas-3d.js"></script>
+<script src="centroide/js/22-latex-3d.js"></script>
+<script src="centroide/js/23-vista-isometrica.js"></script>
 
 <!-- ── MODAL DE UNIDADES ── -->
 <!-- MODAL REPLICAR -->
@@ -361,6 +414,7 @@
     <div id="transCampoMover">
       <div class="modal-field"><label>Desplazamiento en x</label><input type="number" id="transDx" value="0" step="any" oninput="actualizarPrevTrans()"></div>
       <div class="modal-field"><label>Desplazamiento en y</label><input type="number" id="transDy" value="0" step="any" oninput="actualizarPrevTrans()"></div>
+      <div class="modal-field" id="transCampoDz" style="display:none"><label>Desplazamiento en z</label><input type="number" id="transDz" value="0" step="any" oninput="actualizarPrevTrans()"></div>
     </div>
     <div id="transCampoGirar" style="display:none">
       <div class="modal-field"><label>Ángulo (°, antihorario)</label><input type="number" id="transAng" value="90" step="any" oninput="actualizarPrevTrans()"></div>
@@ -379,6 +433,7 @@
     <p class="modal-note" id="repSub">Se copiarán las figuras seleccionadas desplazándolas la distancia indicada, tantas veces como pidas.</p>
     <div class="modal-field"><label>Distancia en x</label><input type="number" id="repDx" value="5" step="any" oninput="actualizarPrevRep()"></div>
     <div class="modal-field"><label>Distancia en y</label><input type="number" id="repDy" value="0" step="any" oninput="actualizarPrevRep()"></div>
+    <div class="modal-field" id="repCampoDz" style="display:none"><label>Distancia en z</label><input type="number" id="repDz" value="0" step="any" oninput="actualizarPrevRep()"></div>
     <div class="modal-field"><label>Repeticiones</label><input type="number" id="repN" value="2" min="1" max="50" step="1" oninput="actualizarPrevRep()"></div>
     <div class="modal-preview" id="repPrev"></div>
     <div class="modal-actions">

@@ -334,7 +334,63 @@ function _tikzFichaPerfil(tipo){
   return s;
 }
 
+// Preámbulo del informe (colores, cabecera corrida, macros \seccion, \subpaso,
+// \porque, \resultado, \veredicto y el entorno tablacentrada). Lo comparten el
+// informe 2D y el 3D (22-latex-3d.js); solo cambia el texto de la cabecera.
+function _preambuloLatexCen(subcabecera){
+  return '\\documentclass[11pt]{article}\n'
+    + '\\usepackage[utf8]{inputenc}\n'
+    + '\\usepackage[T1]{fontenc}\n'
+    + '\\usepackage[a4paper,margin=2.0cm]{geometry}\n'
+    + '\\usepackage{amsmath,amssymb}\n'
+    + '\\usepackage{tikz}\n'
+    + '\\usetikzlibrary{patterns,arrows.meta,calc}\n'
+    + '\\usepackage{xcolor}\n\n'
+    + '\\definecolor{bsaAcc}{HTML}{B45309}\n'
+    + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
+    + '\\definecolor{bsaAlerta}{HTML}{B8860C}\n'
+    + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
+    + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
+    + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
+    + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
+    + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
+    + '\\setlength{\\parskip}{2pt}\n'
+    + '\\makeatletter\n'
+    + '\\def\\ps@bsa{%\n'
+    + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Centroide}\\hfill'
+    + '\\footnotesize\\color{bsaMuted}' + subcabecera + '}%\n'
+    + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\ \\ \\textperiodcentered\\ \\ pág.\\ \\thepage\\hfill}%\n'
+    + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n'
+    + '\\makeatother\n'
+    + '\\newcommand{\\sen}{\\operatorname{sen}}\n'
+    + '\\pagestyle{bsa}\n\n'
+    // \penalty y \nopagebreak: el título de una sección no se queda solo al
+    // pie de una página con su contenido en la siguiente.
+    + '\\newcommand{\\seccion}[1]{%\n'
+    + '  \\par\\addvspace{10pt}\\penalty-250\n'
+    + '  \\noindent{\\large\\bfseries\\color{bsaAcc}#1}\\par\\nopagebreak\n'
+    + '  \\vspace{3pt}\\nopagebreak\\hrule\\nopagebreak\\vspace{7pt}\\nopagebreak}\n'
+    + '\\newcommand{\\subpaso}[1]{\\vspace{6pt}\\noindent{\\bfseries\\color{bsaAcc2}#1}\\par\\vspace{3pt}}\n'
+    + '\\newcommand{\\porque}[1]{\\par\\vspace{3pt}\\noindent\\fcolorbox{bsaAcc2!40}{bsaAcc2!5}{%\n'
+    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\footnotesize{\\bfseries\\color{bsaAcc2}¿Por qué?}\\ #1}}\\par\\vspace{4pt}}\n'
+    + '\\newcommand{\\resultado}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaVerde!50}{bsaVerde!6}{%\n'
+    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
+    + '\\newcommand{\\veredicto}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaAcc}{bsaAcc!7}{%\n'
+    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
+    // Un «center» que no admite salto de página delante: así el rótulo
+    // «Tabla N.» nunca se queda solo al pie de la página con la tabla en la
+    // siguiente.
+    + '\\makeatletter\n'
+    + '\\newenvironment{tablacentrada}{\\par\\nopagebreak\\begingroup\\@beginparpenalty=10000\\relax\\begin{center}}{\\end{center}\\endgroup}\n'
+    + '\\makeatother\n'
+    // Los huecos sobrantes se acumulan al pie de la página en vez de repartirse
+    // entre los párrafos: es lo que evita las separaciones grandes a media hoja.
+    + '\\raggedbottom\n\n'
+    + '\\begin{document}\n\n';
+}
+
 function construirLatex(){
+  if(results && results.es3d) return construirLatex3d();   // modo 3D (22-latex-3d.js)
   if(!results){ aviso('Primero calcula el centroide.'); return null; }
   _yaDichoCen = {};
   const het = results.hetero;
@@ -390,55 +446,7 @@ function construirLatex(){
 
   const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
 
-  const preambulo = '\\documentclass[11pt]{article}\n'
-    + '\\usepackage[utf8]{inputenc}\n'
-    + '\\usepackage[T1]{fontenc}\n'
-    + '\\usepackage[a4paper,margin=2.0cm]{geometry}\n'
-    + '\\usepackage{amsmath,amssymb}\n'
-    + '\\usepackage{tikz}\n'
-    + '\\usetikzlibrary{patterns,arrows.meta,calc}\n'
-    + '\\usepackage{xcolor}\n\n'
-    + '\\definecolor{bsaAcc}{HTML}{B45309}\n'
-    + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
-    + '\\definecolor{bsaAlerta}{HTML}{B8860C}\n'
-    + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
-    + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
-    + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
-    + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
-    + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
-    + '\\setlength{\\parskip}{2pt}\n'
-    + '\\makeatletter\n'
-    + '\\def\\ps@bsa{%\n'
-    + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Centroide}\\hfill'
-    + '\\footnotesize\\color{bsaMuted}Cuerpos compuestos}%\n'
-    + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\ \\ \\textperiodcentered\\ \\ pág.\\ \\thepage\\hfill}%\n'
-    + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n'
-    + '\\makeatother\n'
-    + '\\newcommand{\\sen}{\\operatorname{sen}}\n'
-    + '\\pagestyle{bsa}\n\n'
-    // \penalty y \nopagebreak: el título de una sección no se queda solo al
-    // pie de una página con su contenido en la siguiente.
-    + '\\newcommand{\\seccion}[1]{%\n'
-    + '  \\par\\addvspace{10pt}\\penalty-250\n'
-    + '  \\noindent{\\large\\bfseries\\color{bsaAcc}#1}\\par\\nopagebreak\n'
-    + '  \\vspace{3pt}\\nopagebreak\\hrule\\nopagebreak\\vspace{7pt}\\nopagebreak}\n'
-    + '\\newcommand{\\subpaso}[1]{\\vspace{6pt}\\noindent{\\bfseries\\color{bsaAcc2}#1}\\par\\vspace{3pt}}\n'
-    + '\\newcommand{\\porque}[1]{\\par\\vspace{3pt}\\noindent\\fcolorbox{bsaAcc2!40}{bsaAcc2!5}{%\n'
-    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\footnotesize{\\bfseries\\color{bsaAcc2}¿Por qué?}\\ #1}}\\par\\vspace{4pt}}\n'
-    + '\\newcommand{\\resultado}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaVerde!50}{bsaVerde!6}{%\n'
-    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
-    + '\\newcommand{\\veredicto}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaAcc}{bsaAcc!7}{%\n'
-    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
-    // Un «center» que no admite salto de página delante: así el rótulo
-    // «Tabla N.» nunca se queda solo al pie de la página con la tabla en la
-    // siguiente.
-    + '\\makeatletter\n'
-    + '\\newenvironment{tablacentrada}{\\par\\nopagebreak\\begingroup\\@beginparpenalty=10000\\relax\\begin{center}}{\\end{center}\\endgroup}\n'
-    + '\\makeatother\n'
-    // Los huecos sobrantes se acumulan al pie de la página en vez de repartirse
-    // entre los párrafos: es lo que evita las separaciones grandes a media hoja.
-    + '\\raggedbottom\n\n'
-    + '\\begin{document}\n\n';
+  const preambulo = _preambuloLatexCen('Cuerpos compuestos');
 
   let tex = preambulo;
   tex += '\\begin{center}\n'
