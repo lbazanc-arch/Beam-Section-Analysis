@@ -204,7 +204,8 @@ function calculate(){
   const steps=[];
 
   for(const fig of figures){
-    const a = FIG_DEFS[fig.type].area(fig.dims)*fig.sign;
+    // figArea: el área tabulada si la figura es un perfil del catálogo.
+    const a = figArea(fig)*fig.sign;
     const mat = hetero ? matPorId(fig.matId) : null;
     const g = mat ? Number(mat.val) : 1;            // peso específico o densidad
     const gLabel = mat ? (matSimbolo()+mat.id) : '—';

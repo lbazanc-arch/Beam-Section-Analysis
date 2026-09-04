@@ -190,6 +190,117 @@ const FIG_DEFS = {
       ctx.arc(0,-yc,R,Math.PI/2+t,Math.PI/2-t,true);
       ctx.closePath();
     }
+  },
+
+  // ── Perfiles laminados de acero (llegan solo desde el catálogo) ──────
+  // Mismas definiciones que en momentos-de-inercia: la geometría idealizada
+  // sirve para dibujar y colocar el perfil; el área y la posición del
+  // centroide que entran en el cálculo son los TABULADOS (figArea, dims.xb/yb).
+  wshape: {
+    name:'Perfil W / S',
+    dims:[{id:'d',label:'Peralte (d)',def:300},{id:'bf',label:'Ancho de ala (bf)',def:150},
+          {id:'tf',label:'Espesor de ala (tf)',def:12},{id:'tw',label:'Espesor de alma (tw)',def:8}],
+    area: d => 2*d.bf*d.tf + (d.d-2*d.tf)*d.tw,
+    Ix_c: d => (d.bf*Math.pow(d.d,3) - (d.bf-d.tw)*Math.pow(d.d-2*d.tf,3))/12,
+    Iy_c: d => (2*d.tf*Math.pow(d.bf,3) + (d.d-2*d.tf)*Math.pow(d.tw,3))/12,
+    Ixy_c: d => 0,
+    bounds: d => ({left:-d.bf/2,right:d.bf/2,bottom:-d.d/2,top:d.d/2}),
+    anchors: ['C','TL','TR','BL','BR'],
+    anchorOffset: (d,a) => {
+      if(a==='TL') return {dx:-d.bf/2, dy:d.d/2};
+      if(a==='TR') return {dx:d.bf/2,  dy:d.d/2};
+      if(a==='BL') return {dx:-d.bf/2, dy:-d.d/2};
+      if(a==='BR') return {dx:d.bf/2,  dy:-d.d/2};
+      return {dx:0,dy:0};
+    },
+    draw: (ctx,d) => {
+      const B=d.bf/2, H=d.d/2, w=d.tw/2, hi=d.d/2-d.tf;
+      ctx.moveTo(-B,H); ctx.lineTo(B,H); ctx.lineTo(B,hi); ctx.lineTo(w,hi);
+      ctx.lineTo(w,-hi); ctx.lineTo(B,-hi); ctx.lineTo(B,-H); ctx.lineTo(-B,-H);
+      ctx.lineTo(-B,-hi); ctx.lineTo(-w,-hi); ctx.lineTo(-w,hi); ctx.lineTo(-B,hi);
+      ctx.closePath();
+    }
+  },
+  channel: {
+    name:'Canal C',
+    dims:[{id:'d',label:'Peralte (d)',def:300},{id:'bf',label:'Ancho de ala (bf)',def:80},
+          {id:'tf',label:'Espesor de ala (tf)',def:12},{id:'tw',label:'Espesor de alma (tw)',def:8}],
+    area: d => d.d*d.tw + 2*(d.bf-d.tw)*d.tf,
+    // x̄ desde el respaldo del alma: el tabulado si viene del catálogo.
+    _xbar: d => {
+      if(isFinite(d.xb)) return d.xb;
+      const a1=d.d*d.tw, a2=(d.bf-d.tw)*d.tf;
+      return (a1*(d.tw/2) + 2*a2*(d.tw+(d.bf-d.tw)/2)) / (a1+2*a2);
+    },
+    Ix_c: d => {
+      const alma=d.tw*Math.pow(d.d,3)/12;
+      const af=(d.bf-d.tw)*d.tf, yf=(d.d-d.tf)/2;
+      return alma + 2*((d.bf-d.tw)*Math.pow(d.tf,3)/12 + af*yf*yf);
+    },
+    Iy_c: d => {
+      const xb=FIG_DEFS.channel._xbar(d);
+      const a1=d.d*d.tw, d1=d.tw/2-xb;
+      const a2=(d.bf-d.tw)*d.tf, d2=d.tw+(d.bf-d.tw)/2-xb;
+      return (d.d*Math.pow(d.tw,3)/12 + a1*d1*d1)
+           + 2*(d.tf*Math.pow(d.bf-d.tw,3)/12 + a2*d2*d2);
+    },
+    Ixy_c: d => 0,
+    bounds: d => { const xb=FIG_DEFS.channel._xbar(d);
+      return {left:-xb, right:d.bf-xb, bottom:-d.d/2, top:d.d/2}; },
+    anchors: ['C','TL','TR','BL','BR'],
+    anchorOffset: (d,a) => { const b=FIG_DEFS.channel.bounds(d);
+      if(a==='TL') return {dx:b.left, dy:b.top};
+      if(a==='TR') return {dx:b.right,dy:b.top};
+      if(a==='BL') return {dx:b.left, dy:b.bottom};
+      if(a==='BR') return {dx:b.right,dy:b.bottom};
+      return {dx:0,dy:0};
+    },
+    draw: (ctx,d) => {
+      const xb=FIG_DEFS.channel._xbar(d), H=d.d/2;
+      const x0=-xb, x1=d.bf-xb, w=x0+d.tw, hi=H-d.tf;
+      ctx.moveTo(x0,H); ctx.lineTo(x1,H); ctx.lineTo(x1,hi); ctx.lineTo(w,hi);
+      ctx.lineTo(w,-hi); ctx.lineTo(x1,-hi); ctx.lineTo(x1,-H); ctx.lineTo(x0,-H);
+      ctx.closePath();
+    }
+  },
+  angleL: {
+    name:'Ángulo L',
+    dims:[{id:'b1',label:'Lado horizontal (b₁)',def:100},{id:'b2',label:'Lado vertical (b₂)',def:100},
+          {id:'t',label:'Espesor (t)',def:10}],
+    // Centroide medido desde el vértice: el tabulado (d.xb, d.yb) si viene del
+    // catálogo; si no, el de las dos alas rectangulares.
+    _c: d => {
+      const a1=d.t*d.b2,            x1=d.t/2,            y1=d.b2/2;
+      const a2=(d.b1-d.t)*d.t,      x2=d.t+(d.b1-d.t)/2, y2=d.t/2;
+      const A=a1+a2;
+      return {a1,x1,y1,a2,x2,y2,A,
+              xb: isFinite(d.xb) ? d.xb : (a1*x1+a2*x2)/A,
+              yb: isFinite(d.yb) ? d.yb : (a1*y1+a2*y2)/A};
+    },
+    area: d => d.t*d.b2 + (d.b1-d.t)*d.t,
+    Ix_c: d => { const c=FIG_DEFS.angleL._c(d);
+      return (d.t*Math.pow(d.b2,3)/12 + c.a1*Math.pow(c.y1-c.yb,2))
+           + ((d.b1-d.t)*Math.pow(d.t,3)/12 + c.a2*Math.pow(c.y2-c.yb,2)); },
+    Iy_c: d => { const c=FIG_DEFS.angleL._c(d);
+      return (d.b2*Math.pow(d.t,3)/12 + c.a1*Math.pow(c.x1-c.xb,2))
+           + (d.t*Math.pow(d.b1-d.t,3)/12 + c.a2*Math.pow(c.x2-c.xb,2)); },
+    Ixy_c: d => { const c=FIG_DEFS.angleL._c(d);
+      return c.a1*(c.x1-c.xb)*(c.y1-c.yb) + c.a2*(c.x2-c.xb)*(c.y2-c.yb); },
+    bounds: d => { const c=FIG_DEFS.angleL._c(d);
+      return {left:-c.xb, right:d.b1-c.xb, bottom:-c.yb, top:d.b2-c.yb}; },
+    anchors: ['C','BL','BR','TL'],
+    anchorOffset: (d,a) => { const b=FIG_DEFS.angleL.bounds(d);
+      if(a==='BL') return {dx:b.left, dy:b.bottom};
+      if(a==='BR') return {dx:b.right,dy:b.bottom};
+      if(a==='TL') return {dx:b.left, dy:b.top};
+      return {dx:0,dy:0};
+    },
+    draw: (ctx,d) => { const c=FIG_DEFS.angleL._c(d);
+      const x0=-c.xb, y0=-c.yb;
+      ctx.moveTo(x0,y0); ctx.lineTo(x0+d.b1,y0); ctx.lineTo(x0+d.b1,y0+d.t);
+      ctx.lineTo(x0+d.t,y0+d.t); ctx.lineTo(x0+d.t,y0+d.b2); ctx.lineTo(x0,y0+d.b2);
+      ctx.closePath();
+    }
   }
 };
 

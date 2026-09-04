@@ -181,16 +181,11 @@ function abrirFamilia(id){
   document.getElementById('cat-buscar').value='';
   // aviso de precisión según la familia
   const av=document.getElementById('cat-aviso');
-  if(id.startsWith('S_')||id.startsWith('C_')){
-    av.style.color='#b45309';
-    av.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><path d="M12 9v5M12 17.5v.5"/><path d="M10.3 3.9 2.4 18a1.9 1.9 0 0 0 1.7 2.9h15.8a1.9 1.9 0 0 0 1.7-2.9L13.7 3.9a1.9 1.9 0 0 0-3.4 0z"/></svg>En los perfiles S y los canales C las alas son <b>cónicas</b>. La sección se dibuja '+
-      'con alas rectangulares, así que I<sub>x</sub> sale muy próximo al tabulado pero I<sub>y</sub> resulta '+
-      'sobreestimado (~20%). Compara siempre con los valores de la tabla.';
-  } else {
-    av.style.color='var(--muted)';
-    av.innerHTML='La sección se dibuja idealizada, sin radios de acuerdo, por lo que los valores calculados '+
-      'difieren del tabulado en torno al 3%.';
-  }
+  av.style.color='var(--muted)';
+  av.innerHTML='Cada perfil es <b>una sola figura</b>: su área, sus inercias y la posición de su centroide '+
+    'se toman de la tabla. El dibujo es idealizado (sin radios de acuerdo'+
+    ((id.startsWith('S_')||id.startsWith('C_')) ? ' ni la conicidad de las alas' : '')+
+    ') y solo sirve para colocar el perfil en la sección.';
   pintarPerfiles();
 }
 
@@ -302,9 +297,17 @@ function insertarPerfil(i){
   let dims;
   if(p.tipo==='angleL') dims={b1:_aUnidad(fila[1],u), b2:_aUnidad(fila[2],u), t:_aUnidad(fila[3],u)};
   else dims={d:_aUnidad(fila[1],u), bf:_aUnidad(fila[2],u), tf:_aUnidad(fila[3],u), tw:_aUnidad(fila[4],u)};
-  // Perfiles S y canales C: alas cónicas → se usan las propiedades de la tabla.
-  const porTabla = p.fam.startsWith('S_') || p.fam.startsWith('C_');
+  // Un perfil es UNA figura con propiedades tabuladas (Beer & Johnston, Ap. C):
+  // el dibujo idealizado sirve para colocarlo, pero A, Ix, Iy y la posición de
+  // su centroide salen de la tabla, no de descomponerlo en rectángulos. Antes
+  // solo S y C iban por tabla (alas cónicas); ahora todas las familias.
+  const porTabla = true;
   if(p.tipo==='channel') dims.xb = _aUnidad(fila[12], u);   // x̄ tabulado
+  if(p.tipo==='angleL'){
+    const igual = p.fam.startsWith('LI');
+    dims.yb = _aUnidad(fila[8], u);                            // ȳ tabulado
+    dims.xb = _aUnidad(igual ? fila[8] : fila[12], u);         // x̄ tabulado
+  }
   const fig={
     id: ++figIdCounter,
     type:p.tipo, cx:0, cy:0, rotation:0, sign:1,
@@ -348,9 +351,11 @@ function perfilTab(fig){
   return o;
 }
 // ¿Este perfil debe usar los valores de la tabla en vez de la geometría?
-// Se aplica a perfiles S y canales C, cuyas alas reales son cónicas.
+// Todo perfil del catálogo: es una sola figura y sus propiedades son las
+// tabuladas. Los archivos guardados cuando solo S y C iban por tabla
+// (perfil.tab = false) pasan también a la tabla al abrirse.
 function usaTabla(fig){
-  return !!(fig && fig.perfil && fig.perfil.tab);
+  return !!(fig && fig.perfil);
 }
 function figArea(fig){
   const t=usaTabla(fig)&&perfilTab(fig); if(t) return t.A;
@@ -365,8 +370,24 @@ function figIy(fig){
   return FIG_DEFS[fig.type].Iy_c(fig.dims);
 }
 function figIxy(fig){
-  if(usaTabla(fig)) return 0;      // S y C son simétricos respecto al eje x
+  if(usaTabla(fig)){
+    const t = perfilTab(fig);
+    if(!t) return FIG_DEFS[fig.type].Ixy_c(fig.dims);
+    if(fig.type !== 'angleL') return 0;   // W, S y C tienen al menos un eje de simetría
+    return perfilIxyAngulo(t);
+  }
   return FIG_DEFS[fig.type].Ixy_c(fig.dims);
+}
+// Producto de inercia de un ángulo L a partir de la tabla. No viene tabulado,
+// pero sí el radio de giro mínimo r_z: I_min = A·r_z². En el círculo de Mohr
+// el radio es R = (Ix+Iy)/2 − I_min y |Pxy| = √(R² − ((Ix−Iy)/2)²). El signo
+// es negativo para el ángulo tal como se dibuja (alas hacia +x y +y): el
+// material queda en el 2.º y el 4.º cuadrante de sus ejes centroidales.
+function perfilIxyAngulo(t){
+  const Imin = t.A*t.rz*t.rz;
+  const R = (t.Ix + t.Iy)/2 - Imin;
+  const h = (t.Ix - t.Iy)/2;
+  return -Math.sqrt(Math.max(0, R*R - h*h));
 }
 
 function setUnit(u){

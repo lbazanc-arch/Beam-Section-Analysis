@@ -40,6 +40,10 @@
       <svg viewBox="0 0 40 34"><rect x="8" y="9" width="11" height="11" fill="none" stroke="#0f5c56" stroke-width="2.2"/><circle cx="27" cy="20" r="6" fill="none" stroke="#0f5c56" stroke-width="2.2"/></svg>
       <span>Figuras</span>
     </button>
+    <button class="tool-btn" onclick="abrirCatalogo()" title="Perfiles de acero">
+      <svg viewBox="0 0 40 34"><path d="M12 8 h16 M20 8 v18 M12 26 h16" fill="none" stroke="#0f5c56" stroke-width="2.4"/></svg>
+      <span>Perfiles</span>
+    </button>
     <button class="tool-btn" id="btnTipoCuerpo" onclick="menuTipoCuerpo(event)" title="Cuerpo homogéneo o heterogéneo">
       <svg viewBox="0 0 40 34"><rect x="7" y="10" width="12" height="14" fill="none" stroke="#0f5c56" stroke-width="2.2"/><rect x="21" y="10" width="12" height="14" fill="#0f5c56" opacity=".35" stroke="#0f5c56" stroke-width="2.2"/></svg>
       <span>Tipo de cuerpo</span>
@@ -142,6 +146,9 @@
             <span id="palMasTxt">Ver más</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
           </button>
+          <!-- Perfiles añadidos desde el catálogo. Se rellena por JS en
+               pintarMisPerfiles(); vacío queda oculto. -->
+          <div class="pal-perf" id="palPerfiles" style="display:none"></div>
         </div><!-- end .pal -->
       </div><!-- end .tb-menu-body -->
 </div><!-- end #menuFiguras -->
@@ -293,6 +300,7 @@
 
 <!-- ══ Nucleo comun a los cinco temas ══ -->
 <script src="core/comun.js"></script>
+<script src="core/datos/perfiles-acero.js"></script>
 <!-- ══ Codigo del tema: Centroide (ver centroide/LEEME.md) ══ -->
 <script src="centroide/js/00-estado-inicial.js"></script>
 <script src="centroide/js/01-cabecera-y-estado.js"></script>
@@ -313,6 +321,7 @@
 <script src="centroide/js/16-latex-piezas-del-informe.js"></script>
 <script src="centroide/js/17-latex-desarrollo-y-tablas.js"></script>
 <script src="centroide/js/18-acotacion.js"></script>
+<script src="centroide/js/19-catalogo-de-perfiles.js"></script>
 
 <!-- ── MODAL DE UNIDADES ── -->
 <!-- MODAL REPLICAR -->
@@ -469,5 +478,38 @@
   </div>
 </div>
 
+<!-- ── CATÁLOGO DE PERFILES LAMINADOS DE ACERO (mismo que momentos-de-inercia) ── -->
+<div class="modal-ov" id="catModal">
+  <div class="modal-box" style="max-width:820px;">
+    <div class="modal-h" id="cat-titulo">Perfiles laminados de acero</div>
+    <p class="modal-note" id="cat-sub">Elige una familia de perfiles. Fuente: Beer &amp; Johnston, Apéndice C.</p>
+
+    <!-- paso 1: familias -->
+    <div id="cat-familias"></div>
+
+    <!-- paso 2: listado -->
+    <div id="cat-listado" style="display:none;">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <button class="mbtn ghost" onclick="volverFamilias()">← Familias</button>
+        <input type="text" id="cat-buscar" placeholder="Buscar designación…" oninput="pintarPerfiles()"
+          style="flex:1;background:var(--bg);border:1px solid var(--border2);color:var(--text);
+                 padding:7px 10px;border-radius:8px;font-size:12px;font-family:inherit;">
+        <span id="cat-cuenta" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
+      </div>
+      <div id="cat-aviso" style="font-size:10.5px;line-height:1.5;margin-bottom:8px;"></div>
+      <div style="max-height:330px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead id="cat-thead" style="position:sticky;top:0;background:var(--card2);"></thead>
+          <tbody id="cat-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="mbtn ghost" onclick="cerrarCatalogo()">Cerrar</button>
+      <button class="mbtn ok" id="cat-add" style="display:none;" onclick="agregarSeleccionados()">Añadir seleccionados</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

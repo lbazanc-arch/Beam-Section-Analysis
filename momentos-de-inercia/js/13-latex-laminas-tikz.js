@@ -73,7 +73,7 @@ function figuraPathLocal(tipo, d){
 }
 
 // ── Dibuja una figura ya colocada (posición y rotación reales) ──
-function tikzFigura(fig, tx, ty, esc){
+function tikzFigura(fig, tx, ty, esc, numero){
   const cxS = tx(fig.cx), cyS = ty(fig.cy);
   const pathLocal = figuraPathLocal(fig.type, fig.dims);
   const col = hexRgbSpec(fig.color);
@@ -87,6 +87,12 @@ function tikzFigura(fig, tx, ty, esc){
   s += '\\filldraw[' + relleno + '] ' + pathLocal + ';\n';
   s += '\\end{scope}\n';
   s += '\\fill[black!55] (' + cxS + ',' + cyS + ') circle (1.1pt);\n';
+  // Número de la parte, junto a su centroide: el informe cita las partes por
+  // número («Parte 2», «Tabla 1»), y sin él el lector no sabe cuál es cuál.
+  if(numero){
+    s += '\\node[font=\\tiny\\bfseries, circle, draw={' + col + '}, fill=white, inner sep=0.9pt, '
+       + 'above right=2pt] at (' + cxS + ',' + cyS + ') {' + numero + '};\n';
+  }
   return s;
 }
 
@@ -246,12 +252,18 @@ function tikzSeccionCompuesta(opts){
     minY = Math.min(minY, extraPoint.y); maxY = Math.max(maxY, extraPoint.y);
   }
   const anchoReal = Math.max(maxX-minX, 1e-6);
-  const esc = 10.5/anchoReal;                 // el dibujo se ajusta al ancho útil
+  const altoReal  = Math.max(maxY-minY, 1e-6);
+  // El dibujo se ajusta al ancho útil, pero sin pasar de 14 cm de alto: una
+  // sección alta (una I de 300 x 150) salía de 21 cm y no cabía tras el título
+  // de la sección, que se quedaba solo en la página anterior.
+  const esc = Math.min(10.5/anchoReal, 14/altoReal);
   const tx = (x)=> ((x-minX)*esc).toFixed(3);
   const ty = (y)=> ((y-minY)*esc).toFixed(3);
 
   let s = '';
-  figures.forEach(fig=>{ s += tikzFigura(fig, tx, ty, esc); });
+  // Con numerar:true cada figura lleva su número de parte (el mismo orden que
+  // results.steps y que las tablas del informe).
+  figures.forEach((fig,i)=>{ s += tikzFigura(fig, tx, ty, esc, opts.numerar ? (i+1) : 0); });
 
   if(opts.marcarC && results){
     const cx = tx(results.xbar), cy = ty(results.ybar);

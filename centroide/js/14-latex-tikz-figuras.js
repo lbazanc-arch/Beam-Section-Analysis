@@ -55,6 +55,26 @@ function figuraPathLocal(tipo, d){
     const t = d.alpha, tr = t*Math.PI/180, R = d.r, yc = 2*R*Math.sin(tr)/(3*tr);
     return '(0,' + (-yc) + ') -- (' + (-R*Math.sin(tr)) + ',' + (R*Math.cos(tr)-yc) + ') arc (' + (90+t) + ':' + (90-t) + ':' + R + ') -- cycle';
   }
+  // ── Perfiles laminados: los mismos vértices que draw() de FIG_DEFS ──
+  if(tipo === 'wshape'){
+    const B=d.bf/2, H=d.d/2, w=d.tw/2, hi=d.d/2-d.tf;
+    const P=[[-B,H],[B,H],[B,hi],[w,hi],[w,-hi],[B,-hi],[B,-H],[-B,-H],
+             [-B,-hi],[-w,-hi],[-w,hi],[-B,hi]];
+    return P.map(q=>'('+q[0]+','+q[1]+')').join(' -- ') + ' -- cycle';
+  }
+  if(tipo === 'channel'){
+    const xb=FIG_DEFS.channel._xbar(d), H=d.d/2;
+    const x0=-xb, x1=d.bf-xb, w=x0+d.tw, hi=H-d.tf;
+    const P=[[x0,H],[x1,H],[x1,hi],[w,hi],[w,-hi],[x1,-hi],[x1,-H],[x0,-H]];
+    return P.map(q=>'('+q[0]+','+q[1]+')').join(' -- ') + ' -- cycle';
+  }
+  if(tipo === 'angleL'){
+    const c=FIG_DEFS.angleL._c(d);
+    const x0=-c.xb, y0=-c.yb;
+    const P=[[x0,y0],[x0+d.b1,y0],[x0+d.b1,y0+d.t],[x0+d.t,y0+d.t],
+             [x0+d.t,y0+d.b2],[x0,y0+d.b2]];
+    return P.map(q=>'('+q[0]+','+q[1]+')').join(' -- ') + ' -- cycle';
+  }
   return '(0,0) circle (1)';
 }
 
@@ -75,7 +95,7 @@ function figuraBoundsMundo(fig){
 }
 
 // ── Dibuja una figura ya colocada (posición + rotación reales) ──
-function tikzFigura(fig, tx, ty, esc){
+function tikzFigura(fig, tx, ty, esc, numero){
   const def = FIG_DEFS[fig.type];
   const cxS = tx(fig.cx), cyS = ty(fig.cy);
   const pathLocal = figuraPathLocal(fig.type, fig.dims);
@@ -89,6 +109,12 @@ function tikzFigura(fig, tx, ty, esc){
   s += '\\end{scope}\n';
   // Punto y etiqueta del centroide local de la figura (fig.cx,fig.cy YA es su centroide)
   s += '\\fill[black!55] (' + cxS + ',' + cyS + ') circle (1.1pt);\n';
+  // Número de la parte, junto a su centroide: el informe cita las partes por
+  // número («Parte 2», «Tabla 1»), y sin él el lector no sabe cuál es cuál.
+  if(numero){
+    s += '\\node[font=\\tiny\\bfseries, circle, draw={' + col + '}, fill=white, inner sep=0.9pt, '
+       + 'above right=2pt] at (' + cxS + ',' + cyS + ') {' + numero + '};\n';
+  }
   return s;
 }
 
@@ -292,12 +318,18 @@ function tikzSeccionCompuesta(opts){
   const minX = Math.min(...cajas.map(c=>c.left)), maxX = Math.max(...cajas.map(c=>c.right));
   const minY = Math.min(...cajas.map(c=>c.bottom)), maxY = Math.max(...cajas.map(c=>c.top));
   const anchoReal = Math.max(maxX-minX, 1e-6);
-  const esc = 10.5/anchoReal;
+  const altoReal  = Math.max(maxY-minY, 1e-6);
+  // El dibujo se ajusta al ancho útil, pero sin pasar de 14 cm de alto: una
+  // sección alta salía de 21 cm y no cabía tras el título de la sección, que se
+  // quedaba solo en la página anterior.
+  const esc = Math.min(10.5/anchoReal, 14/altoReal);
   const tx = (x)=> ((x-minX)*esc).toFixed(3);
   const ty = (y)=> ((y-minY)*esc).toFixed(3);
 
   let s = '';
-  figures.forEach(fig=>{ s += tikzFigura(fig, tx, ty, esc); });
+  // Con numerar:true cada figura lleva su número de parte (el mismo orden que
+  // results.steps y que las tablas del informe).
+  figures.forEach((fig,i)=>{ s += tikzFigura(fig, tx, ty, esc, opts.numerar ? (i+1) : 0); });
 
   if(opts.marcarC){
     const cx = tx(results.xbar), cy = ty(results.ybar);

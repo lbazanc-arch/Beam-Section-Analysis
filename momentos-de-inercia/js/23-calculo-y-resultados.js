@@ -334,8 +334,9 @@ function renderResults(res, u4, u2, u1){
     html += `<div class="res-section">
       <div class="res-section-title"><div class="num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M5 4h14M12 4v16M5 20h14"/></svg></div>Perfiles laminados de acero</div>
       <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px;">
-        Comparación entre lo que calcula el aplicativo a partir de la sección dibujada y los
-        valores del Apéndice C de Beer &amp; Johnston.
+        Cada perfil es <b>una sola figura</b>: el cálculo usa su área, sus inercias y su centroide
+        <b>tabulados</b> (Beer &amp; Johnston, Apéndice C). A título de comparación se muestra lo que
+        daría la sección idealizada que se dibuja.
       </div>`;
     conPerfil.forEach(fig=>{
       const tb = perfilTab(fig); if(!tb) return;
@@ -371,7 +372,7 @@ function renderResults(res, u4, u2, u1){
         </table>
         <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;">
           ${usa
-            ? 'En perfiles S y canales C las alas son cónicas; el dibujo las representa rectangulares, por lo que I<sub>y</sub> saldría sobreestimado. El cálculo de la sección compuesta usa por eso los valores de la tabla.'
+            ? 'La diferencia proviene de los radios de acuerdo' + ((fig.perfil.fam||'').match(/^(S|C)_/) ? ' y de la conicidad de las alas' : '') + ', que la sección idealizada no reproduce. El cálculo de la sección compuesta usa los valores de la tabla.'
             : 'La diferencia proviene de los radios de acuerdo, que la sección idealizada no reproduce.'}
         </div>
       </div>`;

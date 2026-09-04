@@ -151,7 +151,11 @@ function construirLatex(){
     + '\\definecolor{bsaAgua}{HTML}{2F7FB5}\n'
     + '\\definecolor{bsaPres}{HTML}{C0392B}\n'
     + '\\definecolor{bsaTope}{HTML}{B45309}\n'
-    + '\\definecolor{bsaVerde}{HTML}{15803D}\n\n'
+    + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
+    // Colores del logo, los que pide colofonLatexBSA() (core/comun.js).
+    + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
+    + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
+    + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
     + '\\makeatletter\n'
     + '\\def\\ps@bsa{%\n'
     + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Presi\\\'on de Fluidos}\\hfill}%\n'
@@ -265,6 +269,9 @@ function construirLatex(){
     + (cierra ? 'Las tres sumas son nulas: la compuerta queda en equilibrio con estas reacciones.'
               : 'El equilibrio no cierra; revisa los apoyos y las caras mojadas.')
     + '}\\end{center}\n';
+
+  // Colofón: el mismo bloque en los cinco temas, desde core/comun.js.
+  tex += colofonLatexBSA();
 
   tex += '\n\\end{document}\n';
   return tex;

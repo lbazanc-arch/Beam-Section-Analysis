@@ -85,7 +85,11 @@ const FIG_DEFS = {
       const a1=d.t*d.b2,            x1=d.t/2,            y1=d.b2/2;
       const a2=(d.b1-d.t)*d.t,      x2=d.t+(d.b1-d.t)/2, y2=d.t/2;
       const A=a1+a2;
-      return {a1,x1,y1,a2,x2,y2,A, xb:(a1*x1+a2*x2)/A, yb:(a1*y1+a2*y2)/A};
+      // Si el perfil viene del catálogo, el centroide es el tabulado (d.xb, d.yb,
+      // medidos desde el vértice del ángulo); si no, el de los dos rectángulos.
+      return {a1,x1,y1,a2,x2,y2,A,
+              xb: isFinite(d.xb) ? d.xb : (a1*x1+a2*x2)/A,
+              yb: isFinite(d.yb) ? d.yb : (a1*y1+a2*y2)/A};
     },
     area: d => d.t*d.b2 + (d.b1-d.t)*d.t,
     Ix_c: d => { const c=FIG_DEFS.angleL._c(d);

@@ -3,6 +3,23 @@
 // ═══════════════════════════════════════════════════════════
 
 const REF_FIGS = {
+  // ── Perfiles laminados (del catálogo). Las láminas son las de momentos-de-
+  //    inercia, referidas desde la raíz, que es donde vive centroide.html.
+  wshape: {
+    title: 'Perfil W / S (doble T)',
+    svg: `<img src="momentos-de-inercia/datos/img/perfil-w.png" alt="Perfil W / S (doble T)" style="width:100%;max-width:230px;height:auto;display:block;margin:0 auto;">`,
+    formulas: `A = valor <b>tabulado</b> (Beer &amp; Johnston, Ap. C)<br><span style="color:#b45309">Centroide en el centro de la sección (doble simetría).</span>`
+  },
+  channel: {
+    title: 'Canal C',
+    svg: `<img src="momentos-de-inercia/datos/img/canal-c.png" alt="Canal C" style="width:100%;max-width:230px;height:auto;display:block;margin:0 auto;">`,
+    formulas: `A y x̄ <b>tabulados</b> (Beer &amp; Johnston, Ap. C)<br><span style="color:#b45309">x̄ se mide desde el respaldo del alma; ȳ en el eje de simetría.</span>`
+  },
+  angleL: {
+    title: 'Ángulo L',
+    svg: `<img src="momentos-de-inercia/datos/img/angulo-l.png" alt="Ángulo L" style="width:100%;max-width:230px;height:auto;display:block;margin:0 auto;">`,
+    formulas: `A, x̄ e ȳ <b>tabulados</b> (Beer &amp; Johnston, Ap. C)<br><span style="color:#b45309">x̄ e ȳ se miden desde el vértice del ángulo.</span>`
+  },
   rect: {
     title: 'Rectángulo',
     svg: `<svg viewBox="0 0 160 100" fill="none" xmlns="http://www.w3.org/2000/svg">

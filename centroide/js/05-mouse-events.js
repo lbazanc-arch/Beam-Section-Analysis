@@ -475,14 +475,22 @@ function hitTest(sx,sy){
     const def = FIG_DEFS[fig.type];
     if(!def) continue;
     const d = fig.dims;
+    const dx=(sx-sp.x)/viewScale, dy=(sy-sp.y)/viewScale;
+    const tolPx = 6/viewScale;   // 6px de tolerancia, convertidos a unidades del mundo
+    // La caja real de la figura respecto de su centroide (bounds), que en un
+    // canal, un ángulo o un triángulo no es simétrica. Antes se adivinaba a
+    // partir de los nombres de las dimensiones y un perfil (d, bf, tf, tw)
+    // caía en la caja por defecto de 50 unidades.
+    let bx = null;
+    try{ bx = def.bounds ? def.bounds(d) : null; }catch(e){}
+    if(bx){
+      const wx = dx, wy = -dy;                       // el eje y del mundo apunta hacia arriba
+      if(wx >= bx.left-tolPx && wx <= bx.right+tolPx && wy >= bx.bottom-tolPx && wy <= bx.top+tolPx) return fig;
+      continue;
+    }
     let hw=50, hh=50;
     if(d.b !== undefined && d.h !== undefined){ hw=d.b/2; hh=d.h/2; }
     else if(d.r !== undefined){ hw=hh=d.r; }
-    else if(d.R !== undefined){ hw=hh=d.R; }
-    else if(d.a !== undefined && d.b !== undefined){ hw=d.a; hh=d.b; }
-    else if(d.B !== undefined && d.H !== undefined){ hw=d.B/2; hh=d.H/2; }
-    const dx=(sx-sp.x)/viewScale, dy=(sy-sp.y)/viewScale;
-    const tolPx = 6/viewScale;   // 6px de tolerancia, convertidos a unidades del mundo
     if(Math.abs(dx)<=hw+tolPx && Math.abs(dy)<=hh+tolPx) return fig;
   }
   return null;

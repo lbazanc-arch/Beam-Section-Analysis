@@ -544,17 +544,8 @@ function construirLatex(){
   tex += '\\vspace{10pt}\\noindent{\\footnotesize\\color{bsaMuted}\\textbf{Referencias.} '
     + 'R.~C. Hibbeler, \\emph{Ingenier\\\'ia Mec\\\'anica: Est\\\'atica}, 12.\\textsuperscript{a} ed., cap.~6 \\textquotedblleft An\\\'alisis estructural\\textquotedblright. '
     + 'F.~P. Beer y E.~R. Johnston, \\emph{Mec\\\'anica vectorial para ingenieros: Est\\\'atica}, cap.~6.}\n';
-  tex += '\\vfill\\vspace{18pt}\\hrule\\vspace{14pt}\n'
-    + '\\begin{center}\n'
-    + '{\\normalsize\\bfseries\\color{bsaAcc2} Beam \\& Section Analysis}\\\\[8pt]\n'
-    + '\\begin{tikzpicture}[baseline]\n'
-    + '  \\node[font=\\fontsize{30}{30}\\selectfont\\bfseries\\sffamily, color=bsaLogoB] at (0,0) {B};\n'
-    + '  \\node[font=\\fontsize{30}{30}\\selectfont\\bfseries\\sffamily, color=bsaLogoS] at (0.55,0) {S};\n'
-    + '  \\node[font=\\fontsize{30}{30}\\selectfont\\bfseries\\sffamily, color=bsaLogoA] at (1.10,0) {A};\n'
-    + '\\end{tikzpicture}\\\\[7pt]\n'
-    + '{\\footnotesize\\color{bsaMuted}Creado por \\textbf{Luis Alejandro Baz\\\'an Campos}}\\\\[2pt]\n'
-    + '{\\scriptsize\\color{bsaMuted}beamsectionanalysis.com}\n'
-    + '\\end{center}\n\n';
+  // Colofón (R20): el mismo bloque en los cinco temas, desde core/comun.js.
+  tex += colofonLatexBSA();
   tex += '\\end{document}\n';
   return tex;
 }

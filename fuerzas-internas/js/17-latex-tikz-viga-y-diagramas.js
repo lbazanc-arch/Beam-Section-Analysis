@@ -673,20 +673,14 @@ function construirLatex(){
   // ══ 5. Paso 4: comprobaciones ══
   tex += '\\seccion{5. Paso 4 --- Comprobaciones}\n';
   tex += '\\porque{Un diagrama que no cierra delata un error de signo o de brazo. Las comprobaciones más útiles '
-    + 'son las condiciones de borde (en un extremo libre o tras el último apoyo ya no queda viga, luego '
-    + '$V$ y $M$ deben anularse; un apoyo articulado o una rótula no transmiten momento) y el método de las áreas, '
-    + 'que reconstruye cada diagrama a partir del anterior por integración.}\n';
+    + 'son las condiciones de borde: en un extremo libre o tras el último apoyo ya no queda viga, luego '
+    + '$V$ y $M$ deben anularse; un apoyo articulado o una rótula no transmiten momento.}\n';
   tex += '\\subpaso{Condiciones de borde}\n';
   tex += comprobacionesFinales(R, grupos);
-  // El método de las áreas solo aparece cuando NO es el método elegido: ahí es
-  // una comprobación independiente. Si el alumno resolvió por áreas ya está
-  // todo el paso 2 hecho así, y repetirlo no comprueba nada.
-  if(!porAreas){
-    tex += '\\subpaso{Método de las áreas}\n';
-    tex += '\\noindent{\\footnotesize Reconstruyendo cada diagrama por integración, debe salir lo '
-      + 'mismo que por las ecuaciones:}\\\\[2pt]\n';
-    grupos.forEach(gg=>{ tex += tablaAreasGrupo(R, gg); });
-  }
+  // El informe sigue SOLO el método elegido en la columna de control (R13):
+  // con «ecuaciones» no aparece el método de las áreas, ni siquiera como
+  // comprobación; con «áreas» no aparecen los cortes. Antes el método de las
+  // áreas se añadía aquí como comprobación cuando no era el elegido.
 
   tex += '\\subpaso{Resumen de valores extremos}\n';
   tex += tablaCaption('Valores extremos de $N$, $V$ y $M$ en cada tramo.');
@@ -708,20 +702,8 @@ function construirLatex(){
     + 'H.~J. Rodríguez, \\emph{Cap.~8 Fuerzas internas}, Sección de Ingeniería Mecánica, PUCP. '
     + 'F.~P. Beer y E.~R. Johnston, \\emph{Mecánica vectorial para ingenieros: Estática}, cap.~7.}\n';
 
-  // ── Colofón: la página, las letras del logo con sus colores y el autor ──
-  // Los mismos colores que usa el informe de armaduras (bsaLogoB/S/A). El
-  // \vfill lo ancla al pie de la última página, donde se espera un colofón.
-  tex += '\\vfill\\vspace{18pt}\\hrule\\vspace{14pt}\n'
-    + '\\begin{center}\n'
-    + '{\\normalsize\\bfseries\\color{bsaAcc2} Beam \\& Section Analysis}\\\\[8pt]\n'
-    + '\\begin{tikzpicture}[baseline]\n'
-    + '  \\node[font=\\fontsize{30}{30}\\selectfont\\bfseries\\sffamily, color=bsaLogoB] at (0,0) {B};\n'
-    + '  \\node[font=\\fontsize{30}{30}\\selectfont\\bfseries\\sffamily, color=bsaLogoS] at (0.55,0) {S};\n'
-    + '  \\node[font=\\fontsize{30}{30}\\selectfont\\bfseries\\sffamily, color=bsaLogoA] at (1.10,0) {A};\n'
-    + '\\end{tikzpicture}\\\\[7pt]\n'
-    + '{\\footnotesize\\color{bsaMuted}Creado por \\textbf{Luis Alejandro Bazán Campos}}\\\\[2pt]\n'
-    + '{\\scriptsize\\color{bsaMuted}beamsectionanalysis.com}\n'
-    + '\\end{center}\n';
+  // ── Colofón (R20): el mismo bloque en los cinco temas, desde core/comun.js ──
+  tex += colofonLatexBSA();
 
   tex += '\n\\end{document}\n';
   return tex;

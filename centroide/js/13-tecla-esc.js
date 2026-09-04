@@ -4,7 +4,7 @@
 // Orden de prioridad: primero cierra lo más "encima" que haya abierto y se
 // detiene ahí. Así una sola pulsación nunca deshace dos cosas a la vez.
 const MODALES_ESC = ['edFigModal','transModal','repModal','guardarModal',
-                     'unitsModal','decModal','histModal'];
+                     'unitsModal','decModal','histModal','catModal'];
 function manejarEsc(){
   // 0) La ventana del informe PDF, que se superpone a todo
   const pl = document.getElementById('panelLatexPDF');
