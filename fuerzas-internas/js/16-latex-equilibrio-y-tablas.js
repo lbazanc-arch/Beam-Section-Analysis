@@ -786,7 +786,9 @@ function tablaNudosGrupo(R, gg){
   let out = tablaCaption('Valores en las secciones notables del tramo '
           + escLatex(gg.recorrido) + '. $N$ y $V$ en ' + escLatex(unitFor) + ', $M$ en '
           + escLatex(unidadMomento())
-          + (haySalto ? '. Donde la magnitud salta se escribe el valor justo antes '
+          // La aclaracion del salto se da una sola vez (R1): con varios tramos
+          // se repetia en cada tabla.
+          + (haySalto && _primeraVez('tabla-salto') ? '. Donde la magnitud salta se escribe el valor justo antes '
              + '$\\rightarrow$ justo después del punto' : '') + '.');
   out += '{\\footnotesize\\begin{center}\\begin{tabular}{c' + (hayN?'c':'') + 'cc}\n\\hline\n'
        + '$' + gg.simbolo + '$ [' + escLatex(unitLen) + '] '

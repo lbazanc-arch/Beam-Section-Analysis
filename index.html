@@ -3096,8 +3096,8 @@ async function generarClaves(soloNuevos){
 function copiarClaves(){
   const ta=document.getElementById('claves-txt');
   ta.select();
-  try{ document.execCommand('copy'); alert('Contraseñas copiadas al portapapeles.'); }
-  catch(e){ alert('Selecciona el texto y cópialo manualmente.'); }
+  try{ document.execCommand('copy'); aviso('Contraseñas copiadas al portapapeles.'); }
+  catch(e){ aviso('Selecciona el texto y cópialo manualmente.'); }
 }
 function descargarClaves(){
   const filas=[['codigo','nombre','correo','contrasena']]
@@ -3112,8 +3112,8 @@ async function restablecerClave(email){
   if(!confirm('¿Enviar a '+email+' un enlace para restablecer su contraseña?')) return;
   let r=null;
   try{ r=await api('restablecerClave',{email}); }catch(_){}
-  if(r&&r.ok) alert('Enlace enviado a '+email+'.\n\nEl alumno podrá crear una contraseña nueva desde su correo.');
-  else alert('No se pudo enviar. '+((r&&r.error)||''));
+  if(r&&r.ok) aviso('Enlace enviado a '+email+'. El alumno podrá crear una contraseña nueva desde su correo.');
+  else aviso('No se pudo enviar. '+((r&&r.error)||''));
 }
 
 function openDisModal(){document.getElementById('ovl-dis').classList.add('on');}async function confirmDis(){const h=parseInt(document.getElementById('dis-hrs').value);const u=Date.now()+h*3600000;if(USE_SHEETS)await api('setConfig',{key:'app_disabled_until',value:u});ls.set('app_disabled_until',u);closeOvl();refreshStatus();}
@@ -3129,7 +3129,7 @@ async function confirmAddUsers(){
   if(USE_SHEETS){showAddMsg('Guardando...');const res=await api('addStudents',{students:toAdd});if(res&&res.ok){ls.set('students',students);const n=res.added||added;let msg='✓ '+n+' usuario'+(n>1?'s':'')+' agregado'+(n>1?'s':'')+'.';if((res.skipped||skipped)>0)msg+=' '+(res.skipped||skipped)+' ya existían.';if(errors.length>0)msg+=' '+errors.length+' con error.';showAddMsg(msg,false);['add-codigo','add-nombre','add-correo','add-horario'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderUsers();renderStats();document.getElementById('add-codigo').focus();}else showAddMsg('⚠ Error al guardar'+(res&&res.error?': '+res.error:(res===null?' (sin respuesta del servidor)':'')),true);}
   else{ls.set('students',students);const n=added;let msg='✓ '+n+' usuario'+(n>1?'s':'')+' agregado'+(n>1?'s':'')+'.';if(skipped>0)msg+=' '+skipped+' ya existían.';if(errors.length>0)msg+=' '+errors.length+' con error.';showAddMsg(msg,false);['add-codigo','add-nombre','add-correo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderUsers();renderStats();document.getElementById('add-codigo').focus();}
 }
-function openDelModal(){const s=ls.get('students')||[];if(!s.length){alert('No hay usuarios.');return;}const ul=document.getElementById('dllist');ul.innerHTML=s.map((x,i)=>`<li class="dlitem" data-i="${i}"><input type="checkbox" id="dc-${i}" value="${esc(x.email)}"><label for="dc-${i}">${esc(x.email)}<small>${esc(x.nombre||'')} ${esc(x.codigo||'')}</small></label></li>`).join('');
+function openDelModal(){const s=ls.get('students')||[];if(!s.length){aviso('No hay usuarios.');return;}const ul=document.getElementById('dllist');ul.innerHTML=s.map((x,i)=>`<li class="dlitem" data-i="${i}"><input type="checkbox" id="dc-${i}" value="${esc(x.email)}"><label for="dc-${i}">${esc(x.email)}<small>${esc(x.nombre||'')} ${esc(x.codigo||'')}</small></label></li>`).join('');
   ul.querySelectorAll('.dlitem').forEach(li=>li.addEventListener('click', ()=>togDel(Number(li.dataset.i))));
   ul.querySelectorAll('input[type=checkbox]').forEach(c=>c.addEventListener('change', updDelCnt));
   updDelCnt();udelPaso(1);document.getElementById('ovl-del').classList.add('on');}
@@ -3148,7 +3148,7 @@ function udelPaso(n){
 }
 function confirmDel(){
   const rem=[...document.querySelectorAll('#dllist input:checked')].map(c=>c.value);
-  if(!rem.length){ alert('Selecciona al menos uno.'); return; }
+  if(!rem.length){ aviso('Selecciona al menos uno.'); return; }
   _udelSel = rem;
   const s = ls.get('students')||[], logs = ls.get('access_logs')||[];
   const ing = rem.reduce((a,c)=>{ const f = logs.find(x=>x.email===c); return a + ((f&&f.ingresos)||0); }, 0);
@@ -3185,7 +3185,7 @@ async function udelEjecutar(){
   }catch(e){}
   btn.disabled = false; btn.textContent = 'Eliminar definitivamente';
   if(!res || !res.ok){
-    alert('No se pudo completar: ' + ((res && res.error) || 'sin respuesta del servidor.'));
+    aviso('No se pudo completar: ' + ((res && res.error) || 'sin respuesta del servidor.'));
     return;
   }
   if(modo !== 'solo'){
@@ -3195,7 +3195,7 @@ async function udelEjecutar(){
   closeOvl(); _udelSel = [];
   // Se relee del servidor: el panel muestra lo que quedó de verdad.
   await refreshPanel();
-  alert(modo === 'solo'
+  aviso(modo === 'solo'
     ? 'Listo: se eliminaron ' + (res.borradas||0) + ' ingreso(s).'
     : 'Listo: se eliminaron ' + (res.deleted||rem.length) + ' usuario(s) con su registro.');
 }
@@ -3219,7 +3219,7 @@ function logDelAlcance(){
 }
 function openLogDelModal(){
   const conIngresos = (ls.get('access_logs')||[]).filter(x=>(x.ingresos||0) > 0 || (x.tiempo||0) > 0);
-  if(!conIngresos.length){ alert('No hay ingresos registrados que eliminar.'); return; }
+  if(!conIngresos.length){ aviso('No hay ingresos registrados que eliminar.'); return; }
   document.getElementById('ld-correo').innerHTML = conIngresos.slice()
     .sort((a,b)=>String(a.nombre||'').localeCompare(String(b.nombre||''),'es'))
     .map(x=>'<option value="'+esc(x.email)+'">'+esc(x.nombre||x.email)+' — '+(x.ingresos||0)+' ingreso(s)</option>').join('');
@@ -3241,7 +3241,7 @@ function logDelRevisar(){
       aviso:'Esta acción no se puede deshacer.'};
   } else if(v === 'fecha'){
     const d = document.getElementById('ld-fecha').value;
-    if(!d){ alert('Elige una fecha.'); return; }
+    if(!d){ aviso('Elige una fecha.'); return; }
     _ldPlan = {body:{antesDe:d}, palabra:false,
       resumen:'Se borrarán los ingresos anteriores al <b>' + esc(fmtFecha(d)) + '</b> de todos los alumnos. '
         + 'Los posteriores se conservan.',
@@ -3263,7 +3263,7 @@ function logDelRevisar(){
 async function logDelEjecutar(){
   if(!_ldPlan) return;
   if(_ldPlan.palabra && String(document.getElementById('ld-palabra').value||'').trim().toUpperCase() !== 'ELIMINAR'){
-    alert('Escribe ELIMINAR para confirmar el borrado completo.'); return;
+    aviso('Escribe ELIMINAR para confirmar el borrado completo.'); return;
   }
   const btn = document.getElementById('ld-btn');
   btn.disabled = true; btn.textContent = 'Eliminando…';
@@ -3271,12 +3271,12 @@ async function logDelEjecutar(){
   try{ res = await api('clearLogs', _ldPlan.body); }catch(e){}
   btn.disabled = false; btn.textContent = 'Eliminar definitivamente';
   if(!res || !res.ok){
-    alert('No se pudo eliminar: ' + ((res && res.error) || 'sin respuesta del servidor.'));
+    aviso('No se pudo eliminar: ' + ((res && res.error) || 'sin respuesta del servidor.'));
     return;
   }
   closeOvl(); _ldPlan = null;
   await refreshPanel();
-  alert('Listo: se eliminaron ' + (res.borradas||0) + ' ingreso(s).');
+  aviso('Listo: se eliminaron ' + (res.borradas||0) + ' ingreso(s).');
 }
 // Fecha corta para los avisos (el input date entrega AAAA-MM-DD).
 function fmtFecha(iso){
@@ -3292,7 +3292,7 @@ function csvCampo(v){
 }
 function exportUsuarios(){
   const s=ls.get('students')||[];
-  if(!s.length){ alert('Todavía no hay alumnos registrados.'); return; }
+  if(!s.length){ aviso('Todavía no hay alumnos registrados.'); return; }
   const BOM='\uFEFF';
   const header='N,CODIGO,APELLIDO Y NOMBRE,CORREO,HORARIO,CLAVE PROPIA\n';
   const body=s.map((x,i)=>{
@@ -3313,7 +3313,7 @@ function exportUsuarios(){
 function exportExcel(){
   const logs=(ls.get('access_logs')||[]).filter(x=>(x.ingresos||0)>0 || (x.tiempo||0)>0);
   const students=ls.get('students')||[];
-  if(!logs.length){ alert('No hay ingresos registrados.'); return; }
+  if(!logs.length){ aviso('No hay ingresos registrados.'); return; }
   const rows=logs.slice().sort((a,b)=>new Date(b.time||0)-new Date(a.time||0)).map(l=>{
     const st=students.find(s=>s.email===l.email)||{};
     return {codigo:l.codigo||st.codigo||'', nombre:l.nombre||st.nombre||'',
@@ -3336,7 +3336,7 @@ function openApp(appKey){
   // Un tema bloqueado no se abre para estudiantes, ni siquiera llamando
   // directamente a esta función: el control no puede quedarse solo en la vista.
   if(role !== 'prof' && capBloqueado(appKey)){
-    alert('Tu profesor ha deshabilitado el acceso a este tema.');
+    aviso('Tu profesor ha deshabilitado el acceso a este tema.');
     return;
   }
   // La ruta del tema sale del catálogo único (TEMAS_CAT).

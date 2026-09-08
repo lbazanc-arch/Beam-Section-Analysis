@@ -71,7 +71,9 @@ function applyDecModal(){
 //  haber iniciado sesión.
 // ═══════════════════════════════════════════════════════════
 const BSA_FORMATO = 'bsa7';
-const BSA_EXT     = '.bsa7.json';     // marca de formato: evita abrir un archivo de otro capítulo
+const BSA_EXT     = '.json';          // un solo .json: la doble extensión .bsa7.json
+                                      // dejaba los archivos en gris en el selector de Android
+const BSA_PREFIJO = 'fuerzas-internas-';    // el tema va en el nombre, y el formato dentro (bsaApp)
 const BSA_VERSION = 1;
 
 function nombreArchivoSeguro(nombre){
@@ -98,7 +100,7 @@ async function guardarProyecto(){
     estado: estadoActual()
   };
   const texto = JSON.stringify(paquete, null, 2);
-  const archivo = nombreArchivoSeguro(nombre) + BSA_EXT;
+  const archivo = BSA_PREFIJO + nombreArchivoSeguro(nombre) + BSA_EXT;
 
   // ── Camino preferido: el diálogo "Guardar como" del sistema ──
   // Deja elegir carpeta y nombre, como cualquier programa de escritorio.
@@ -125,23 +127,14 @@ async function guardarProyecto(){
   }
 
   // ── Reserva: descarga normal a la carpeta de descargas ──
-  descargarComoArchivo(texto, archivo);
+  const como = await bsaGuardarArchivo(texto, archivo);
   cerrarGuardar();
-  aviso('Descargando "'+archivo+'". Búscalo en tu carpeta de descargas.');
+  if(como === 'compartido') aviso('Guardado "' + archivo + '" donde elegiste.');
+  else if(como === 'descargado') aviso('Descargando "' + archivo + '". Búscalo en tu carpeta de descargas.');
 }
 
 // Descarga clásica por enlace. Es lo único disponible en móvil, en Firefox y
 // en Safari, donde el navegador decide la carpeta.
-function descargarComoArchivo(texto, nombreArchivo){
-  const blob = new Blob([texto], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = nombreArchivo;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  // Se revoca con retraso: algunos navegadores necesitan que la URL siga
-  // viva mientras arranca la descarga.
-  setTimeout(()=>URL.revokeObjectURL(url), 4000);
-}
 
 function abrirHistorial(){
   const el = document.getElementById('histLista');

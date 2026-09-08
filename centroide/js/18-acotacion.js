@@ -384,7 +384,9 @@ function dibujarCotasGenerales(ctx2, W2, H2){
 // ═══════════════════════════════════════════════════════════
 const BSA_FORMATO = 'bsa9';
 const BSA_VERSION = 1;
-const BSA_EXT     = '.bsa9.json';
+const BSA_EXT     = '.json';          // un solo .json: la doble extensión .bsa9.json
+                                      // dejaba los archivos en gris en el selector de Android
+const BSA_PREFIJO = 'centroide-';    // el tema va en el nombre, y el formato dentro (bsaApp)
 
 function nombreArchivoSeguro(nombre){
   // Sin caracteres que rompan el nombre de archivo en Windows/macOS/Android.
@@ -414,7 +416,7 @@ async function guardarProyecto(){
   const paquete = { bsaApp: BSA_FORMATO, version: BSA_VERSION,
                     titulo: nombre, fecha: new Date().toISOString(), estado: estado };
   const texto   = JSON.stringify(paquete, null, 2);
-  const archivo = nombreArchivoSeguro(nombre) + BSA_EXT;
+  const archivo = BSA_PREFIJO + nombreArchivoSeguro(nombre) + BSA_EXT;
 
   // Camino preferido: el diálogo del sistema, que deja elegir carpeta.
   if(window.showSaveFilePicker){
@@ -434,21 +436,12 @@ async function guardarProyecto(){
       if(err && err.name === 'AbortError') return;
     }
   }
-  descargarComoArchivo(texto, archivo);
+  const como = await bsaGuardarArchivo(texto, archivo);
   cerrarGuardar();
-  aviso('Descargando "' + archivo + '". Búscalo en tu carpeta de descargas.');
+  if(como === 'compartido') aviso('Guardado "' + archivo + '" donde elegiste.');
+  else if(como === 'descargado') aviso('Descargando "' + archivo + '". Búscalo en tu carpeta de descargas.');
 }
 
-function descargarComoArchivo(texto, nombreArchivo){
-  const blob = new Blob([texto], {type:'application/json'});
-  const url  = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = nombreArchivo;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  // Se revoca con retraso: algunos navegadores necesitan la URL viva
-  // mientras arranca la descarga.
-  setTimeout(()=>URL.revokeObjectURL(url), 4000);
-}
 
 function cerrarHistorial(){
   const m = document.getElementById('histModal'); if(m) m.classList.remove('show');

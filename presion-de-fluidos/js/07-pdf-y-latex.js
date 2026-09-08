@@ -263,8 +263,11 @@ function construirLatex(){
   });
   const cierra = Math.abs(cx) < 1e-6*Math.max(1,Math.abs(SX)) && Math.abs(cy) < 1e-6*Math.max(1,Math.abs(SY));
   tex += '\\seccion{4. Comprobaci\\\'on}\n';
-  tex += '$$\\sum F_x = ' + cx.toExponential(2) + ' \\qquad \\sum F_y = ' + cy.toExponential(2)
-    + ' \\qquad \\sum M_O = ' + cm.toExponential(2) + '$$\n';
+  // Un residuo de 1e-14 es cero: se escribe 0, no notacion cientifica.
+  const tolC = 1e-6*Math.max(1, Math.abs(SX), Math.abs(SY), Math.abs(cm));
+  const cero = v => (Math.abs(v) < tolC) ? '0' : dec(v,'f');
+  tex += '$$\\sum F_x = ' + cero(cx) + ' \\qquad \\sum F_y = ' + cero(cy)
+    + ' \\qquad \\sum M_O = ' + cero(cm) + '$$\n';
   tex += '\\begin{center}{\\small\\color{' + (cierra ? 'bsaVerde' : 'bsaPres') + '}'
     + (cierra ? 'Las tres sumas son nulas: la compuerta queda en equilibrio con estas reacciones.'
               : 'El equilibrio no cierra; revisa los apoyos y las caras mojadas.')

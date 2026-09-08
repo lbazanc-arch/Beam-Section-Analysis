@@ -39,6 +39,53 @@ function cerrarPanelLatex(){
 //  navegadores el formulario se envia a una PESTANA NUEVA y el PDF lo muestra
 //  el visor del propio sistema. En el ordenador no cambia nada.
 // ==========================================================================
+// ==========================================================================
+//  ARCHIVOS DE EJERCICIO EN CUALQUIER EQUIPO
+//  Los ejercicios se guardan como .json con el tema en el nombre
+//  (centroide-ejercicio-1.json). Antes llevaban doble extension
+//  (.bsa9.json): en Android el selector de archivos no la reconocia y los
+//  dejaba en gris, y en iPhone la descarga por enlace es poco fiable. Ahora,
+//  en el movil, guardar abre la HOJA DE COMPARTIR del sistema (Archivos,
+//  Drive, WhatsApp...) y abrir no filtra por extension: el contenido se
+//  valida por su campo bsaApp, no por el nombre.
+// ==========================================================================
+function bsaEsMovil(){ return !bsaPdfEnIframe(); }
+
+async function bsaGuardarArchivo(texto, nombreArchivo, tipo){
+  tipo = tipo || 'application/json';
+  if(bsaEsMovil() && navigator.share && navigator.canShare){
+    try{
+      const archivo = new File([texto], nombreArchivo, {type: tipo});
+      if(navigator.canShare({files:[archivo]})){
+        await navigator.share({files:[archivo], title: nombreArchivo});
+        return 'compartido';
+      }
+    }catch(err){
+      // Cancelar la hoja no es un error; cualquier otro fallo cae a la descarga.
+      if(err && err.name === 'AbortError') return 'cancelado';
+    }
+  }
+  const blob = new Blob([texto], {type: tipo});
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombreArchivo;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  // Se revoca con retraso: algunos navegadores necesitan la URL viva
+  // mientras arranca la descarga.
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  return 'descargado';
+}
+
+// En el movil el filtro por extension esconde los archivos en vez de
+// ayudar: se quita y se deja que el contenido diga si sirve.
+function bsaRelajarSelectorArchivo(id){
+  const inp = document.getElementById(id || 'archivoAbrir');
+  if(inp && bsaEsMovil()) inp.removeAttribute('accept');
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('input[type=file][data-bsa-relajar]').forEach(i=>bsaRelajarSelectorArchivo(i.id));
+});
+
 function bsaPdfEnIframe(){
   const ua = navigator.userAgent || '';
   // El iPad se presenta como Macintosh desde iPadOS 13: se reconoce por el

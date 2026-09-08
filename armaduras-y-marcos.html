@@ -235,11 +235,11 @@
 <div class="modal-ov" id="histModal">
   <div class="modal">
     <h3>Abrir ejercicio</h3>
-    <p class="sub">Elige un archivo <code>.bsa6.json</code> que hayas guardado
+    <p class="sub">Elige un archivo <code>.json</code> que hayas guardado
       antes. No se guarda nada en este navegador ni en el portal: el archivo
       es tuyo y se abre desde donde lo tengas.</p>
     <div id="histLista"></div>
-    <input type="file" id="archivoAbrir" accept=".json,application/json"
+    <input type="file" id="archivoAbrir" accept=".json,application/json" data-bsa-relajar="1"
            style="display:none" onchange="onArchivoElegido(event)">
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="cerrarHistorial()">Cancelar</button>
@@ -252,7 +252,7 @@
 <div class="modal-ov" id="guardarModal">
   <div class="modal">
     <h3>Guardar ejercicio</h3>
-    <p class="sub">Se guarda un archivo <code>.bsa6.json</code>. En el ordenador
+    <p class="sub">Se guarda un archivo <code>.json</code>. En el ordenador
       podrás <b>elegir la carpeta</b>; en el móvil irá a tus descargas. Para
       retomarlo, usa <b>Historial → Abrir archivo</b>.</p>
     <div class="modal-field"><label>Nombre</label>
