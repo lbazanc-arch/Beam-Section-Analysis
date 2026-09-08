@@ -25,8 +25,94 @@ function cerrarPanelLatex(){
   panel.style.display = 'none';
   const frame = document.getElementById('latexFrame');
   if(frame) frame.setAttribute('src', 'about:blank');
+  const mov = document.getElementById('latexMovil');
+  if(mov) mov.style.display = 'none';
   const btn = document.getElementById('btnLatex');
   if(btn) btn.dataset.ocupado = '0';
+}
+
+// ==========================================================================
+//  EL INFORME PDF EN TELEFONO Y TABLETA
+//  Ni Safari de iOS ni Chrome de Android pintan un PDF dentro de un iframe:
+//  lo descargan y ofrecen "Abrir con...", que es lo que veia el alumno en el
+//  movil mientras en el ordenador salia el informe en pantalla. En esos
+//  navegadores el formulario se envia a una PESTANA NUEVA y el PDF lo muestra
+//  el visor del propio sistema. En el ordenador no cambia nada.
+// ==========================================================================
+function bsaPdfEnIframe(){
+  const ua = navigator.userAgent || '';
+  // El iPad se presenta como Macintosh desde iPadOS 13: se reconoce por el
+  // numero de puntos tactiles.
+  const iPad = /Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+  return !(/Android|iPhone|iPad|iPod|Windows Phone|Opera Mini|IEMobile/i.test(ua) || iPad);
+}
+
+let _bsaUltimoTex = null;
+function bsaEnviarTex(tex, url){
+  _bsaUltimoTex = {tex: tex, url: url};
+  const viejo = document.getElementById('formLatexNet');
+  if(viejo) viejo.remove();
+  const enIframe = bsaPdfEnIframe();
+  const form = document.createElement('form');
+  form.id = 'formLatexNet';
+  form.action = url;
+  form.method = 'post';
+  form.enctype = 'multipart/form-data';
+  form.target = enIframe ? 'latexFrame' : '_blank';
+  form.style.display = 'none';
+  const campo = (nombre, valor)=>{
+    const inp = document.createElement('textarea');
+    inp.name = nombre; inp.value = valor;
+    form.appendChild(inp);
+  };
+  campo('filename[]', 'document.tex');
+  campo('filecontents[]', tex);
+  campo('engine', 'pdflatex');
+  campo('return', 'pdf');
+  document.body.appendChild(form);
+  form.submit();
+  return enIframe;
+}
+
+// Reintento manual: va dentro de un clic del alumno, asi que el navegador no
+// lo bloquea aunque haya bloqueado la ventana automatica.
+function bsaReabrirInforme(){
+  if(_bsaUltimoTex) bsaEnviarTex(_bsaUltimoTex.tex, _bsaUltimoTex.url);
+}
+
+function bsaPanelMovil(){
+  const cg = document.getElementById('latexCargando');
+  if(cg) cg.style.display = 'none';
+  const frame = document.getElementById('latexFrame');
+  if(frame) frame.style.display = 'none';
+  const pie = document.getElementById('latexPie');
+  if(pie) pie.style.display = 'none';
+  let caja = document.getElementById('latexMovil');
+  if(!caja){
+    caja = document.createElement('div');
+    caja.id = 'latexMovil';
+    caja.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;'
+      + 'justify-content:center;gap:15px;padding:24px 20px;text-align:center;';
+    caja.innerHTML =
+        '<div style="font-size:34px;line-height:1">\uD83D\uDCC4</div>'
+      + '<div style="font-size:13.5px;color:#374151;line-height:1.6;">'
+      +   'Tu informe se abre en una <b>pesta\u00f1a nueva</b> del navegador.<br>'
+      +   'Desde ah\u00ed puedes leerlo, guardarlo o compartirlo.'
+      + '</div>'
+      + '<button type="button" onclick="bsaReabrirInforme()" '
+      +   'style="background:#0d3a8f;color:#fff;border:none;padding:11px 20px;border-radius:9px;'
+      +   'font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Abrir el informe</button>'
+      + '<div style="font-size:11px;color:#9aa3ad;line-height:1.5;max-width:280px;">'
+      +   'Si no se abri\u00f3, tu navegador bloque\u00f3 la ventana: pulsa el bot\u00f3n.'
+      + '</div>';
+    if(frame && frame.parentNode) frame.parentNode.insertBefore(caja, frame);
+  }
+  caja.style.display = 'flex';
+  const estado = document.getElementById('latexEstado');
+  if(estado){
+    estado.textContent = 'Informe enviado a otra pesta\u00f1a.';
+    estado.style.color = '#15803D';
+  }
 }
 
 // Colofon con el que cierra el informe LaTeX de los cinco temas, justo

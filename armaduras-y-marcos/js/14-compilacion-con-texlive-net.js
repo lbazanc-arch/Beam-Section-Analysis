@@ -79,29 +79,11 @@ function generarPDFLatex(){
 
     // 2. Formulario oculto, exactamente con los campos que documenta
     //    texlive.net (filename[]/filecontents[] como pareja, engine, return).
-    const viejo = document.getElementById('formLatexNet');
-    if(viejo) viejo.remove();
-    const form = document.createElement('form');
-    form.id = 'formLatexNet';
-    form.action = TEXLIVE_NET_URL;
-    form.method = 'post';
-    form.enctype = 'multipart/form-data';
-    form.target = 'latexFrame';
-    form.style.display = 'none';
-
-    const campo = (nombre, valor)=>{
-      const inp = document.createElement('textarea');
-      inp.name = nombre;
-      inp.value = valor;
-      form.appendChild(inp);
-    };
-    campo('filename[]', 'document.tex');
-    campo('filecontents[]', tex);
-    campo('engine', 'pdflatex');
-    campo('return', 'pdf');   // PDF directo: el navegador lo renderiza nativo en el iframe
-
-    document.body.appendChild(form);
-    form.submit();
+    // El envio vive en core/comun.js porque es identico en los cinco temas.
+    // En telefono y tableta el PDF va a una pestana nueva: el navegador no lo
+    // pinta dentro de un iframe.
+    const enIframe = bsaEnviarTex(tex, TEXLIVE_NET_URL);
+    if(!enIframe) bsaPanelMovil();
 
     // 3. Cuando el iframe termina de navegar (haya PDF o log de error), ya
     //    no hay nada más que esperar. Por CORS no podemos leer el contenido

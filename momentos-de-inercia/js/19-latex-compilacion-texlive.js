@@ -59,26 +59,11 @@ function generarPDFLatex(){
     if(cargando) cargando.style.display = 'flex';
     panel.style.display = 'flex';
 
-    const viejo = document.getElementById('formLatexNet');
-    if(viejo) viejo.remove();
-    const form = document.createElement('form');
-    form.id = 'formLatexNet';
-    form.action = TEXLIVE_NET_URL;
-    form.method = 'post';
-    form.enctype = 'multipart/form-data';
-    form.target = 'latexFrame';
-    form.style.display = 'none';
-    const campo = (nombre, valor)=>{
-      const inp = document.createElement('textarea');
-      inp.name = nombre; inp.value = valor;
-      form.appendChild(inp);
-    };
-    campo('filename[]', 'document.tex');
-    campo('filecontents[]', tex);
-    campo('engine', 'pdflatex');
-    campo('return', 'pdf');
-    document.body.appendChild(form);
-    form.submit();
+    // El envio vive en core/comun.js porque es identico en los cinco temas.
+    // En telefono y tableta el PDF va a una pestana nueva: el navegador no lo
+    // pinta dentro de un iframe.
+    const enIframe = bsaEnviarTex(tex, TEXLIVE_NET_URL);
+    if(!enIframe) bsaPanelMovil();
 
     // Por CORS no se puede leer la respuesta para saber si es PDF o registro
     // de errores; el alumno lo ve directamente. Por eso el mensaje es neutro.

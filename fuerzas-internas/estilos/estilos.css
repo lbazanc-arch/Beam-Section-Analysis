@@ -398,7 +398,7 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
   /* El lienzo debe ocupar toda la altura visible: con una altura fija (62vh)
      quedaba una franja muerta bajo él. Se usa dvh donde exista, porque en el
      navegador móvil la barra de direcciones cambia la altura útil. */
-  .top-row{grid-template-columns:1fr; height:calc(100dvh - 108px); min-height:0; position:relative;}
+  .top-row{grid-template-columns:1fr; height:calc(100vh - 108px); height:calc(100dvh - 108px); min-height:0; position:relative;}
   /* En móvil el panel mantiene el esquema de dos niveles: la barra de
      botones conserva su ancho y el desplegable se ajusta al espacio libre. */
   .left-panel{width:88px; z-index:34; box-shadow:4px 0 22px rgba(0,0,0,.16);}

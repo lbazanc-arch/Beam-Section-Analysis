@@ -19,7 +19,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 /* ── HEADER ── */
 .topbar{
   flex-shrink:0;height:48px;display:flex;align-items:center;gap:12px;padding:0 16px;
-  background:rgba(255,255,255,.85);backdrop-filter:blur(12px);
+  background:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);z-index:60;position:sticky;top:0;
 }
 .topbar .tb-title{font-size:14px;font-weight:700;color:var(--grn2);}
@@ -101,7 +101,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 .unit-btn.active{background:var(--grn);border-color:var(--grn);color:#fff;}
 .divider{height:1px;background:var(--border);margin:4px 8px;}
 /* ── Modales (unidades / decimales) ── */
-.modal-ov{position:fixed;inset:0;background:rgba(15,20,35,.45);backdrop-filter:blur(3px);z-index:400;
+.modal-ov{position:fixed;inset:0;background:rgba(15,20,35,.45);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);z-index:400;
   display:none;align-items:center;justify-content:center;padding:20px;}
 .modal-ov.show{display:flex;}
 /* ── Avisos no bloqueantes ──

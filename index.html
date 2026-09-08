@@ -30,7 +30,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(4,29,86,.04),transparent);}
 
 /* NAV */
-.nav{position:fixed;top:0;left:0;right:0;z-index:500;min-height:52px;display:flex;align-items:center;padding:8px 24px;gap:14px;background:rgba(255,255,255,.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);}
+.nav{position:fixed;top:0;left:0;right:0;z-index:500;min-height:52px;display:flex;align-items:center;padding:8px 24px;gap:14px;background:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);}
 .nlogo{display:flex;align-items:center;gap:10px;cursor:pointer;flex-shrink:1;min-width:0;}
 .nmark{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;background:transparent;}
 .nmark img{width:100%;height:100%;object-fit:contain;}
@@ -388,7 +388,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 #appf{flex:1;border:none;width:100%;height:100%;}
 
 /* MODALS */
-.ovl{display:none;position:fixed;inset:0;z-index:800;background:rgba(255,255,255,.9);backdrop-filter:blur(5px);align-items:center;justify-content:center;}
+.ovl{display:none;position:fixed;inset:0;z-index:800;background:rgba(255,255,255,.9);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);align-items:center;justify-content:center;}
 .ovl.on{display:flex;}
 .modal{background:var(--bg3);border:1px solid var(--border2);border-radius:16px;padding:26px 22px;max-width:400px;width:92%;max-height:82vh;display:flex;flex-direction:column;}
 .modal h3{font-size:16px;font-weight:800;margin-bottom:5px;}
@@ -482,6 +482,14 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .priv-link{color:var(--blue2);text-decoration:underline;cursor:pointer;background:none;
   border:none;font-family:inherit;font-size:inherit;padding:0;}
 /* Consentimiento del registro */
+.pend-box{background:#eef4ff;border:1px solid #c7d9ff;border-radius:10px;padding:12px 13px;
+  margin:0 0 15px;font-size:11.5px;color:#1e3a8a;line-height:1.55;}
+.pend-box b{display:block;font-size:12.5px;margin-bottom:2px;}
+.pend-btns{display:flex;gap:8px;margin-top:10px;}
+.pend-btns button{flex:1;padding:9px;border-radius:7px;font-size:11.5px;font-weight:700;
+  cursor:pointer;font-family:inherit;border:none;}
+.pend-ok{background:var(--blue);color:#fff;}
+.pend-no{background:#fff;border:1px solid var(--border2);color:var(--muted);}
 .reg-consent{display:flex;align-items:flex-start;gap:9px;margin:14px 0 4px;
   font-size:11.5px;line-height:1.5;color:var(--muted);}
 .reg-consent input{margin-top:2px;width:16px;height:16px;flex:none;cursor:pointer;}
@@ -860,6 +868,14 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
 <div id="s-elogin" class="scr">
   <div class="lform">
     <h2>Acceso Estudiante</h2>
+    <div id="est-pendiente" class="pend-box" style="display:none">
+      <b>Ya casi está</b>
+      <span id="est-pendiente-txt">Solo falta completar tus datos del curso.</span>
+      <div class="pend-btns">
+        <button class="pend-ok" onclick="abrirRegistro(_correoPendiente,'completar')">Completar mis datos</button>
+        <button class="pend-no" onclick="salirPendiente()">Salir</button>
+      </div>
+    </div>
     <p class="lsub">Ingresa con tu correo y contraseña, o crea tu cuenta si es tu primera vez.</p>
     <div class="lfield"><label>Correo electrónico</label><input type="email" id="se" placeholder="" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('sep').focus()"></div>
     <div class="lfield"><label>Contraseña de acceso</label><input type="password" id="sep" placeholder="••••••••" autocomplete="off" onkeydown="if(event.key==='Enter')loginEst()"></div>
@@ -1456,7 +1472,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
       Continuar con Google
     </button>
 
-    <button class="bback" style="margin-top:14px;" onclick="closeOvl()">← Cancelar</button>
+    <button class="bback" id="reg-cancelar" style="margin-top:14px;" onclick="regCancelar()">← Cancelar</button>
   </div>
 </div>
 <div class="ovl" id="ovl-claves">
@@ -1657,6 +1673,10 @@ let SB = null;
 try{ SB = window.supabase.createClient(SB_URL, SB_KEY); }catch(e){ console.error('Supabase no disponible',e); }
 
 let _perfil = null;      // fila de la tabla alumnos del usuario actual
+// Alumno autenticado (Google o correo confirmado) al que todavía le falta su
+// ficha del curso. Sin esto quedaba en la pantalla de acceso pidiéndole una
+// contraseña que, si entró con Google, no existe.
+let _correoPendiente = null;
 let _ingresoId = null;   // id de la fila de ingreso de esta sesión
 // Los temas ya NO van incrustados en base64: se cargan como archivos
 // sueltos (fuerzas-internas.html, centroide.html, momentos-de-inercia.html) desde openApp().
@@ -1830,14 +1850,32 @@ async function api(action, body={}, timeoutMs=12000){
                 token:data.session.access_token};
       }
 
-      // ── Completar datos tras entrar con Google ──
+      // ── Completar datos tras entrar con Google o confirmar el correo ──
       case 'completarPerfil': {
-        const { data:{user} } = await SB.auth.getUser();
-        if(!user) return {ok:false, error:'Tu sesión expiró. Vuelve a ingresar.'};
-        const ficha={id:user.id, codigo:body.codigo, nombre:body.nombre,
-                     apellidos:body.apellidos, correo:user.email, horario:body.horario};
+        // La sesión local basta para saber quién es: getUser() sale a la red y
+        // en un móvil con mala cobertura se quedaba colgado o devolvía null, y
+        // el alumno leía «tu sesión expiró» con la sesión abierta.
+        let usuario = null;
+        try{
+          const { data:{session} } = await SB.auth.getSession();
+          usuario = session && session.user;
+        }catch(e){}
+        if(!usuario){
+          try{ const r = await SB.auth.getUser(); usuario = r && r.data && r.data.user; }catch(e){}
+        }
+        if(!usuario) return {ok:false, sinSesion:true,
+          error:'Tu sesión ya no está activa. Vuelve a entrar y repite el paso.'};
+        const ficha={id:usuario.id, codigo:body.codigo, nombre:body.nombre,
+                     apellidos:body.apellidos, correo:usuario.email, horario:body.horario};
         const { error } = await SB.from('alumnos').upsert(ficha);
-        if(error) return {ok:false, error:error.message};
+        if(error){
+          const m = String(error.message||'');
+          if(/duplicate key|unique/i.test(m))
+            return {ok:false, error:'Ya hay una cuenta con ese correo. Entra con tu contraseña o pide a tu profesor que la elimine.'};
+          if(/row-level security|policy|permission/i.test(m))
+            return {ok:false, error:'El servidor no aceptó tus datos. Sal, vuelve a entrar y repite el paso.'};
+          return {ok:false, error:m || 'No se pudieron guardar tus datos.'};
+        }
         _perfil=ficha;
         return {ok:true, email:user.email,
                 student:{codigo:body.codigo, nombre:body.nombre+' '+body.apellidos,
@@ -2855,7 +2893,22 @@ async function abrirRegistro(correo, modo, extra){
   // Al completar una ficha ya existente el aviso se aceptó al registrarse.
   if(filaAcepto) filaAcepto.style.display = esCompletar ? 'none' : '';
   document.getElementById('reg-err').textContent='';
+  // Con Google no hay nada que elegir aquí: sobra el botón y su separador.
+  const gb=document.querySelector('#ovl-reg .gbtn'), gor=document.querySelector('#ovl-reg .reg-or');
+  if(gb)  gb.style.display  = esCompletar ? 'none' : '';
+  if(gor) gor.style.display = esCompletar ? 'none' : '';
+  const bCancel=document.getElementById('reg-cancelar');
+  if(bCancel) bCancel.textContent = esCompletar ? 'Salir de mi cuenta' : '← Cancelar';
   cargarHorarios();
+
+  // El modal se muestra YA. Antes se abría después de consultar el perfil de
+  // Google: si esa llamada tardaba (red móvil), el alumno se quedaba mirando
+  // la pantalla de acceso sin saber que le faltaba un paso.
+  document.getElementById('ovl-reg').classList.add('on');
+  setTimeout(()=>{
+    const f=document.getElementById(esCompletar?'reg-codigo':'reg-nombre');
+    if(f)f.focus();
+  },160);
 
   // Con Google ya conocemos su nombre: se rellena solo y queda de solo lectura.
   if(esCompletar && SB){
@@ -2876,12 +2929,41 @@ async function abrirRegistro(correo, modo, extra){
       if(txt&&nom) txt.textContent='Hola '+nom+'. Solo faltan tu código de alumno y tu horario.';
     }catch(e){}
   }
+}
 
-  document.getElementById('ovl-reg').classList.add('on');
-  setTimeout(()=>{
-    const f=document.getElementById(esCompletar?'reg-codigo':'reg-nombre');
-    if(f)f.focus();
-  },160);
+// ── Alumno autenticado al que le falta la ficha ────────────────────────────
+// Se le enseña en qué punto está y qué botón pulsar. Antes se le dejaba en el
+// formulario de acceso, que le pedía una contraseña inexistente si había
+// entrado con Google: de ahí salían las cuentas sin ficha.
+function mostrarPendiente(correo){
+  _correoPendiente = correo || null;
+  showEstLogin();
+  const caja=document.getElementById('est-pendiente');
+  if(caja){
+    const t=document.getElementById('est-pendiente-txt');
+    if(t) t.textContent = 'Entraste como ' + (correo||'tu cuenta')
+      + '. Solo falta tu código de alumno y tu horario para terminar.';
+    caja.style.display='block';
+  }
+  abrirRegistro(correo, 'completar');
+}
+function ocultarPendiente(){
+  _correoPendiente = null;
+  const caja=document.getElementById('est-pendiente');
+  if(caja) caja.style.display='none';
+}
+// Salir desde el paso pendiente: cierra la sesión de verdad, para poder
+// empezar de cero con otra cuenta.
+async function salirPendiente(){
+  ocultarPendiente();
+  closeOvl();
+  try{ if(SB) await SB.auth.signOut(); }catch(e){}
+  setAuthToken(null); role=null; user=null; updNav(); showLanding();
+}
+// El botón de abajo del modal: cancelar en el registro normal, salir cuando
+// lo que falta es completar la ficha.
+function regCancelar(){
+  if(_regModo==='completar') salirPendiente(); else closeOvl();
 }
 
 async function enviarRegistro(){
@@ -2928,17 +3010,39 @@ async function enviarRegistro(){
     }
     err.style.color='#e05c5c';
     err.textContent='⚠ '+((r&&r.error)||'No se pudo crear la cuenta. Revisa tu conexión.');
+    if(r && r.sinSesion){
+      const b=document.getElementById('reg-cancelar');
+      if(b) b.textContent='Salir y volver a entrar';
+    }
     return;
   }
+  ocultarPendiente();
   closeOvl();
   enterStudent(r.email, r.student);
 }
 
 // ── Ingreso con Google ──
+// Google RECHAZA su pantalla de acceso dentro de los navegadores incrustados
+// de Instagram, Facebook, TikTok o el correo (error «disallowed_useragent»).
+// Ahí no se intenta: se explica qué hacer, que es abrir la página en Chrome o
+// Safari, o registrarse con correo y contraseña.
+function navegadorIncrustado(){
+  const ua = navigator.userAgent || '';
+  return /FBAN|FBAV|FB_IAB|Instagram|Line\/|Twitter|WhatsApp|TikTok|MicroMessenger|; ?wv\)/i.test(ua);
+}
 async function entrarConGoogle(){
   if(!SB) return;
+  if(navegadorIncrustado()){
+    alert('Estás dentro del navegador de otra aplicación y Google no permite iniciar sesión aquí.\n\n'
+      + 'Abre beamsectionanalysis.com en Chrome o Safari, o crea tu cuenta con correo y contraseña.');
+    return;
+  }
   try{
-    await SB.auth.signInWithOAuth({provider:'google', options:{redirectTo:location.href.split('#')[0]}});
+    // Sin la parte de consulta: la dirección de vuelta debe coincidir con la
+    // que el proyecto tiene autorizada.
+    const vuelta = location.origin + location.pathname;
+    const { error } = await SB.auth.signInWithOAuth({provider:'google', options:{redirectTo:vuelta}});
+    if(error) alert('No se pudo abrir el ingreso con Google: ' + error.message);
   }catch(e){ alert('No se pudo abrir el ingreso con Google.'); }
 }
 
@@ -3898,15 +4002,14 @@ async function restaurarSesion(){
       }
     }
 
-    // Entró con Google pero aún no ha completado sus datos del curso.
-    // Se le lleva a la pantalla de estudiante y allí se le pide completarlos,
-    // en lugar de abrir el formulario sobre la pantalla de bienvenida.
+    // Entró con Google (o confirmó su correo) pero aún no tiene ficha del
+    // curso: se le dice exactamente qué le falta y se le abre el formulario.
     if(!perfil){
       authToken=session.access_token;
-      showEstLogin();
-      setTimeout(()=>abrirRegistro(session.user.email,'completar'), 250);
+      mostrarPendiente(session.user.email);
       return;
     }
+    ocultarPendiente();
     _perfil=perfil; authToken=session.access_token;
     role = perfil.es_profesor ? 'prof' : 'est';
     user = perfil.correo;
@@ -3920,6 +4023,52 @@ async function restaurarSesion(){
     }
   }catch(e){ console.warn('No se pudo restaurar la sesión:',e); }
 }
+// La sesión no siempre está lista cuando arranca la página: al volver de
+// Google o del enlace del correo, el cliente todavía está leyendo la
+// dirección. Antes solo se miraba una vez, 600 ms después de cargar, y si aún
+// no estaba lista el alumno se quedaba en la pantalla de acceso creyendo que
+// no le habían aceptado. Ahora se escucha a Supabase y se reacciona en cuanto
+// aparece la sesión.
+let _restaurando = false;
+async function restaurarSesionUnaVez(){
+  if(_restaurando || role) return;
+  _restaurando = true;
+  try{ await restaurarSesion(); }
+  finally{ _restaurando = false; }
+}
+if(SB){
+  try{
+    SB.auth.onAuthStateChange((evento, session)=>{
+      if(!session) return;
+      if(evento === 'SIGNED_IN' || evento === 'INITIAL_SESSION' || evento === 'TOKEN_REFRESHED'){
+        if(!role) restaurarSesionUnaVez();
+      }
+    });
+  }catch(e){ console.warn('No se pudo escuchar el estado de la sesión:', e); }
+}
+
+// Google y el enlace del correo devuelven los fallos en la propia dirección
+// (#error=... o ?error=...). Sin esto, un rechazo se veía como «no pasa nada».
+function avisarErrorDeAcceso(){
+  try{
+    const h = new URLSearchParams(String(location.hash||'').replace(/^#/, ''));
+    const q = new URLSearchParams(location.search||'');
+    const desc = h.get('error_description') || q.get('error_description')
+              || h.get('error') || q.get('error');
+    if(!desc) return;
+    const txt = decodeURIComponent(String(desc).replace(/\+/g,' '));
+    const err = document.getElementById('se-err');
+    showEstLogin();
+    if(err){
+      err.textContent = /expired|invalid/i.test(txt)
+        ? 'El enlace ya no es válido o caducó. Vuelve a intentarlo desde aquí.'
+        : 'No se pudo completar el acceso: ' + txt;
+    }
+    // Se limpia la dirección para que el aviso no reaparezca al recargar.
+    history.replaceState(null, '', location.origin + location.pathname);
+  }catch(e){}
+}
+
 // Si algún día se reactiva la animación de entrada, la sesión se restaura
 // solo cuando ésta ha terminado, para no interrumpir la secuencia
 // intro → rol → acceso. Sin splash en la página, el elemento no existe y
@@ -3930,7 +4079,8 @@ function iniciarTrasIntro(){
   // El catálogo se lee antes de restaurar la sesión: así el panel del
   // profesor y los títulos ya conocen los temas dados de alta en la base.
   // Si la consulta falla se sigue adelante con el catálogo de respaldo.
-  cargarTemas().finally(restaurarSesion);
+  avisarErrorDeAcceso();
+  cargarTemas().finally(restaurarSesionUnaVez);
 }
 setTimeout(iniciarTrasIntro, 600);
 

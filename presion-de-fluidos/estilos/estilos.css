@@ -227,7 +227,7 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 }
 
 @media(max-width:820px){
-  .top-row{grid-template-columns:1fr;height:calc(100dvh - 108px);min-height:0;position:relative;}
+  .top-row{grid-template-columns:1fr;height:calc(100vh - 108px);height:calc(100dvh - 108px);min-height:0;position:relative;}
   .canvas-area{height:calc(100vh - 107px);height:calc(100dvh - 107px);}
   /* Las reglas del cajón móvil antiguo se retiraron: mantenían el panel
      desplazado fuera de pantalla y anulaban la columna de control nueva. */
