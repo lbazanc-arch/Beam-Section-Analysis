@@ -1867,19 +1867,39 @@ async function api(action, body={}, timeoutMs=12000){
           error:'Tu sesión ya no está activa. Vuelve a entrar y repite el paso.'};
         const ficha={id:usuario.id, codigo:body.codigo, nombre:body.nombre,
                      apellidos:body.apellidos, correo:usuario.email, horario:body.horario};
-        const { error } = await SB.from('alumnos').upsert(ficha);
+        // Aquí NO se puede usar `upsert`. PostgREST mete todas las columnas del
+        // objeto en el SET del ON CONFLICT, `id` incluida, y el rol
+        // `authenticated` tiene UPDATE sobre codigo, nombre, apellidos, correo y
+        // horario pero NO sobre `id` (ni sobre `es_profesor`, a propósito: nadie
+        // debe poder cambiarse el identificador ni ascenderse a profesor).
+        // Postgres rechazaba la orden ENTERA con «permission denied for table
+        // alumnos» aunque la ficha no existiera todavía, así que ninguna cuenta
+        // de Google llegaba a completarse. Se inserta; y solo si ya había ficha
+        // se actualiza, sin tocar `id`.
+        let error = (await SB.from('alumnos').insert(ficha)).error;
+        if(error && /duplicate key|unique|already exists/i.test(String(error.message||''))){
+          const { data:filas, error:eUp } = await SB.from('alumnos')
+            .update({codigo:body.codigo, nombre:body.nombre,
+                     apellidos:body.apellidos, horario:body.horario})
+            .eq('id', usuario.id).select('id');
+          if(eUp) error = eUp;
+          else if(filas && filas.length) error = null;      // ya tenía ficha: actualizada
+          else return {ok:false, error:'Ya hay una cuenta con ese correo. '
+                       + 'Entra con tu contraseña o pide a tu profesor que la elimine.'};
+        }
         if(error){
           const m = String(error.message||'');
-          if(/duplicate key|unique/i.test(m))
-            return {ok:false, error:'Ya hay una cuenta con ese correo. Entra con tu contraseña o pide a tu profesor que la elimine.'};
           if(/row-level security|policy|permission/i.test(m))
-            return {ok:false, error:'El servidor no aceptó tus datos. Sal, vuelve a entrar y repite el paso.'};
+            return {ok:false, error:'El servidor no aceptó tus datos. Avísale a tu profesor: '
+                    + 'faltan permisos en la tabla de alumnos.'};
           return {ok:false, error:m || 'No se pudieron guardar tus datos.'};
         }
         _perfil=ficha;
-        return {ok:true, email:user.email,
+        // `usuario`, no `user`: `user` es la global del portal (el correo de la
+        // sesión ya iniciada) y aquí todavía vale null.
+        return {ok:true, email:usuario.email,
                 student:{codigo:body.codigo, nombre:body.nombre+' '+body.apellidos,
-                         email:user.email, horario:body.horario, cambio:'Sí'}};
+                         email:usuario.email, horario:body.horario, cambio:'Sí'}};
       }
 
       // ── Horarios (los administra el profesor) ──
