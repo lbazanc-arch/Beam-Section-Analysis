@@ -38,10 +38,13 @@ function tikzViga(conReacciones, sel){
   _nd.forEach(n=>{
     const x = Xn(n.x), y = Yn(n.y);
     if(n.apoyo && n.apoyo !== 'libre'){
-      // Empotramiento: las rayas miran hacia afuera de la viga
-      const lado = (n.x >= maxx - 1e-9 && n.x > minx + 1e-9) ? 1 : -1;
-      out += tikzApoyo(x, y, n.apoyo, 1, lado);
-      if(n.apoyo === 'empotrado') tzOcupar(x-0.2, y-0.45, x+0.2, y+0.45);
+      // Empotramiento: el muro mira hacia afuera de la viga, girando con los
+      // tramos que llegan al nudo (`anguloEmpotramiento`, 15-), igual que en el
+      // lienzo. El criterio anterior solo distinguía izquierda y derecha, y en
+      // una columna el muro salía montado sobre la propia viga.
+      const emp = (n.apoyo === 'empotrado');
+      out += tikzApoyo(x, y, n.apoyo, 1, emp ? anguloEmpotramiento(n) : undefined);
+      if(emp) tzOcupar(x-0.45, y-0.45, x+0.45, y+0.45);
       else tzOcupar(x-0.42, y-0.62, x+0.42, y+0.02);
     }
   });

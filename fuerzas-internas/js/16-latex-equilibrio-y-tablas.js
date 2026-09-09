@@ -988,7 +988,11 @@ function tikzEsquemaGrupo(R, gg, W){
     out += '\\filldraw[color=bsaAcc2] (' + F(x) + ',0) circle (0.05);\n';
     out += '\\node[above, font=\\scriptsize\\bfseries, color=bsaAcc2] at (' + F(x) + ',0.08) {' + escLatex(e.n.nombre) + '};\n';
     tzOcupar(x-0.15, 0.08, x+0.15, 0.36);
-    if(e.n.apoyo && e.n.apoyo !== 'libre') out += tikzApoyo(x, 0, e.n.apoyo, 0.8);
+    // Aquí la pieza va desarrollada sobre su eje, así que el muro sigue a ESE
+    // eje, no a la geometría del modelo: a la izquierda si el apoyo está en el
+    // arranque y a la derecha si está en el extremo final.
+    if(e.n.apoyo && e.n.apoyo !== 'libre')
+      out += tikzApoyo(x, 0, e.n.apoyo, 0.8, (e.n.apoyo === 'empotrado' && e.s > L/2) ? 0 : 180);
     if(e.n.rotula){
       out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.8pt] (' + F(x) + ',0) circle (0.09);\n';
     }

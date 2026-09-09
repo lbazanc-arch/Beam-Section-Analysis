@@ -710,12 +710,36 @@ function pasoAPasoReacciones(R){
   return out;
 }
 
+// ── Hacia dónde mira el muro de un empotramiento ──
+// La dirección contraria a la media de los tramos que llegan al nudo, en grados
+// (0 = a la derecha, 90 = arriba). Es el mismo criterio del lienzo
+// (`dibujarApoyo`, 08-), y por eso el símbolo del PDF coincide con el que el
+// alumno ve mientras dibuja; allí se calcula en coordenadas de pantalla (y hacia
+// abajo) y aquí en las del modelo (y hacia arriba), que es la de TikZ.
+function anguloEmpotramiento(n){
+  let sx = 0, sy = 0, cuenta = 0;
+  tramos.forEach(t=>{
+    const o = (t.a === n.id) ? nodo(t.b) : (t.b === n.id ? nodo(t.a) : null);
+    if(!o) return;
+    const L = Math.hypot(o.x - n.x, o.y - n.y) || 1;
+    sx += (o.x - n.x)/L; sy += (o.y - n.y)/L; cuenta++;
+  });
+  if(!cuenta || Math.hypot(sx, sy) < 1e-9) return 180;      // sin viga: a la izquierda
+  // Con una viga horizontal, `-sy` es −0 y `Math.atan2(-0, -1)` vale −π, no π:
+  // se normaliza para que un muro a la izquierda salga siempre como 180.
+  const a = Math.atan2(-sy, -sx)*180/Math.PI;
+  return a <= -179.999 ? 180 : a;
+}
+
 // ── Símbolo de apoyo en TikZ ──
 // El mismo dibujo sirve para el modelo, los DCL y el esquema de los
 // diagramas, así el alumno reconoce el apoyo en las tres figuras.
-// lado: hacia dónde miran las rayas del empotramiento (−1 izquierda, +1 derecha).
-function tikzApoyo(x, y, tipo, k, lado){
-  const K = k || 1, F = n => n.toFixed(3), s = lado || -1;
+// angMuro: hacia dónde mira el muro del empotramiento, en grados (0 = a la
+// derecha, 180 = a la izquierda, que es el valor por defecto). Lo da
+// `anguloEmpotramiento(n)` salvo en el esquema de los diagramas, donde la pieza
+// se dibuja desarrollada sobre su eje y el muro sigue a ese eje, no al modelo.
+function tikzApoyo(x, y, tipo, k, angMuro){
+  const K = k || 1, F = n => n.toFixed(3);
   let out = '';
   if(tipo === 'simple'){
     out += '\\draw[line width=1pt] (' + F(x) + ',' + F(y) + ') -- (' + F(x-0.28*K) + ',' + F(y-0.45*K)
@@ -732,11 +756,18 @@ function tikzApoyo(x, y, tipo, k, lado){
     out += '\\draw[line width=1pt] (' + F(x+0.13*K) + ',' + F(y-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
     out += '\\draw[line width=1pt] (' + F(x-0.36*K) + ',' + F(y-0.54*K) + ') -- (' + F(x+0.36*K) + ',' + F(y-0.54*K) + ');\n';
   } else if(tipo === 'empotrado'){
-    out += '\\draw[line width=1.4pt] (' + F(x) + ',' + F(y-0.42*K) + ') -- (' + F(x) + ',' + F(y+0.42*K) + ');\n';
+    // El muro entero gira: se dibuja con la cara del muro sobre el eje vertical
+    // local y las rayas hacia +x, y el `rotate` lo lleva a su orientación. Así
+    // el empotramiento de una columna queda debajo de ella y el de un voladizo
+    // a su lado, en vez de quedar siempre vertical.
+    const a = (angMuro === undefined ? 180 : angMuro);
+    out += '\\begin{scope}[shift={(' + F(x) + ',' + F(y) + ')}, rotate=' + a.toFixed(2) + ']\n';
+    out += '\\draw[line width=1.4pt] (0,' + F(-0.42*K) + ') -- (0,' + F(0.42*K) + ');\n';
     for(let i=-3;i<=3;i++){
-      const yi = y + i*0.13*K;
-      out += '\\draw[line width=.6pt] (' + F(x) + ',' + F(yi) + ') -- (' + F(x+s*0.16*K) + ',' + F(yi-0.1*K) + ');\n';
+      const yi = i*0.13*K;
+      out += '\\draw[line width=.6pt] (0,' + F(yi) + ') -- (' + F(0.16*K) + ',' + F(yi-0.1*K) + ');\n';
     }
+    out += '\\end{scope}\n';
   }
   return out;
 }
@@ -813,8 +844,11 @@ function tikzDCLSub(R, gg, seg, sub, info){
     // ya está representado por N0, V0 y M0 y no lleva apoyo.
     const esArranque = (i === 0);
     if(p.n && p.n.apoyo && p.n.apoyo !== 'libre' && (primero || !esArranque)){
-      out += tikzApoyo(X(p.x), Y(p.y), p.n.apoyo, 0.9, -1);
-      tzOcupar(X(p.x)-0.42, Y(p.y)-0.62, X(p.x)+0.42, Y(p.y)-0.02);
+      const emp = (p.n.apoyo === 'empotrado');
+      out += tikzApoyo(X(p.x), Y(p.y), p.n.apoyo, 0.9, emp ? anguloEmpotramiento(p.n) : undefined);
+      // el empotramiento gira, así que su hueco es un cuadrado alrededor del nudo
+      if(emp) tzOcupar(X(p.x)-0.42, Y(p.y)-0.42, X(p.x)+0.42, Y(p.y)+0.42);
+      else tzOcupar(X(p.x)-0.42, Y(p.y)-0.62, X(p.x)+0.42, Y(p.y)-0.02);
     }
     if(p.n && p.n.rotula && !esArranque)
       out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.8pt] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.09);\n';
