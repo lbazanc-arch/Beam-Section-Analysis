@@ -604,7 +604,7 @@ const EJEMPLOS_IN = [
   {
     id:'zeta', nom:'Sección en Z (producto de inercia, Hibbeler ej. 10.8)',
     desc:'Alma de 10 × 100 centrada en el origen y dos alas de 50 × 10 en las esquinas opuestas (cuadrantes 1 y 3). P_xy positivo.',
-    ref:'Ī_x = 2 866 667; Ī_y = 1 116 667; P_xy = 2·500·30·45 = +1 350 000 mm⁴; θp = −28.53°; I_máx = 3 600 417.',
+    ref:'Ī_x = 2 866 667; Ī_y = 1 116 667; P_xy = 2·500·30·45 = +1 350 000 mm⁴; θp = −28.53°; I_máx = 3 600 432; I_mín = 382 902.',
     esperado:{Ix:2866666.7, Iy:1116666.7, Ixy:1350000, thetaP:-28.53},
     armar(F){
       figures = [

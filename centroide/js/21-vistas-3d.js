@@ -872,9 +872,21 @@ function renderResults3d(res){
 // ══ Ejemplo 3D ═══════════════════════════════════════════════════════════════
 // Placa base + cilindro + semiesfera encima, con un agujero cilíndrico que
 // atraviesa el cilindro. Simétrico respecto de X e Y: x̄ = ȳ = 0 sirve de
-// comprobación, y z̄ se obtiene con la tabla.
-function loadExample3d(){
+// comprobación, y z̄ se obtiene con la tabla. Es la lista que enseña el panel
+// de ejemplos en modo 3D (abrirEjemplosCen, 12-); antes el panel listaba los
+// ejemplos planos y cualquiera de ellos cargaba este.
+const EJEMPLOS_3D = [
+  {
+    id:'solido', nom:'Placa, cilindro y semiesfera con agujero (sólidos)', unidad:'mm',
+    desc:'Placa base de 160 × 160 × 20 (de z = −20 a 0), cilindro de radio 50 y altura 100 apoyado en ella, semiesfera de radio 50 encima (desde z = 100) y un agujero cilíndrico de radio 20 que atraviesa el cilindro. Simétrico respecto de X e Y.',
+    esperado:{xbar:0, ybar:0, zbar:41.126},
+    ref:'V = 512 000 + 785 398 + 261 799 − 125 664 = 1 433 534 mm³; z̄ = (512 000·(−10) + 785 398·50 + 261 799·118.75 − 125 664·50)/1 433 534 = 41.13 mm; x̄ = ȳ = 0 por simetría.'
+  }
+];
+function loadExample3d(id){
+  const ej = EJEMPLOS_3D.find(e=>e.id === id) || EJEMPLOS_3D[0];
   resetAll();
+  ejemploActualCen = ej.id;
   const base = (tipo, dims, x, y, zBase, signo) => {
     const def = SOLID_DEFS[tipo];
     return {tipo, dims, cx:x, cy:y, cz:zBase + def.cBase(dims), signo};
@@ -891,6 +903,8 @@ function loadExample3d(){
     name:SOLID_DEFS[d.tipo].name, es3d:true,
     matId:(modoCuerpo==='heterogeneo' && MATS.length) ? MATS[0].id : null, thickness:1, angleMode:'semi'
   }));
-  setUnit('mm'); colorIdx = figures.length % COLORS.length;
+  setUnit(ej.unidad || 'mm'); colorIdx = figures.length % COLORS.length;
   renderFigList(); fitView(); calculate();
+  comprobarEjemploCen(ej);
+  cerrarEjemplosCen();
 }

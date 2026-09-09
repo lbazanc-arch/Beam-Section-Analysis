@@ -463,8 +463,10 @@ const EJEMPLOS_CEN = [
 ];
 function abrirEjemplosCen(){
   const el = document.getElementById('ejLista');
-  // En modo Alambre la lista es la de alambres compuestos (24-alambres.js).
-  const lista = (modoEspacio === 'alambre' && typeof EJEMPLOS_ALAMBRE !== 'undefined') ? EJEMPLOS_ALAMBRE : EJEMPLOS_CEN;
+  // Cada modo enseña su propia lista: sólidos (21-vistas-3d.js), alambres
+  // compuestos (24-alambres.js) o secciones planas.
+  const lista = (modoEspacio === '3d' && typeof EJEMPLOS_3D !== 'undefined') ? EJEMPLOS_3D
+              : (modoEspacio === 'alambre' && typeof EJEMPLOS_ALAMBRE !== 'undefined') ? EJEMPLOS_ALAMBRE : EJEMPLOS_CEN;
   if(el) el.innerHTML = lista.map((e,i)=>
       '<div class="item-row" style="display:block;padding:9px 11px;margin-bottom:7px;cursor:pointer" '
     + 'onclick="loadExampleSection(\'' + e.id + '\')">'
@@ -477,8 +479,9 @@ function abrirEjemplosCen(){
 function cerrarEjemplosCen(){ const m = document.getElementById('ejModal'); if(m) m.classList.remove('show'); }
 function comprobarEjemploCen(ej){
   if(!ej || !ej.esperado || !results) return;
-  const esc0 = Math.max(1, Math.abs(ej.esperado.xbar), Math.abs(ej.esperado.ybar));
-  ['xbar','ybar'].forEach(k=>{
+  const esc0 = Math.max(1, Math.abs(ej.esperado.xbar), Math.abs(ej.esperado.ybar), Math.abs(ej.esperado.zbar || 0));
+  ['xbar','ybar','zbar'].forEach(k=>{
+    if(ej.esperado[k] === undefined) return;
     if(Math.abs(results[k] - ej.esperado[k]) > 1e-3*esc0)
       console.warn('Ejemplo ' + ej.id + ': ' + k + ' se desvía de la referencia', {esperado:ej.esperado[k], obtenido:results[k]});
   });
@@ -486,7 +489,7 @@ function comprobarEjemploCen(ej){
 
 // Sin argumento carga la sección de 18 figuras, para no romper llamadas antiguas.
 function loadExampleSection(id){
-  if(modoEspacio === '3d') return loadExample3d();      // 21-vistas-3d.js
+  if(modoEspacio === '3d') return loadExample3d(id);    // 21-vistas-3d.js
   if(modoEspacio === 'alambre') return loadExampleAlambre(id);   // 24-alambres.js
   const ej = EJEMPLOS_CEN.find(e=>e.id === id) || EJEMPLOS_CEN[0];
   resetAll();
