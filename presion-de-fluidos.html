@@ -47,9 +47,6 @@
     <button class="tool-btn" id="tApoyo" onclick="setTool('apoyo')">
       <svg viewBox="0 0 40 34"><circle cx="20" cy="10" r="4" fill="#0b3f3a"/><path d="M20 12 L11 26 L29 26 Z" fill="none" stroke="#0f5c56" stroke-width="2.5"/><line x1="8" y1="26" x2="32" y2="26" stroke="#0b3f3a" stroke-width="2.5"/></svg><span>Apoyo</span>
     </button>
-    <button class="tool-btn" id="tRotula" onclick="setTool('rotula')">
-      <svg viewBox="0 0 40 34"><line x1="6" y1="17" x2="15" y2="17" stroke="#0f5c56" stroke-width="3"/><line x1="25" y1="17" x2="34" y2="17" stroke="#0f5c56" stroke-width="3"/><circle cx="20" cy="17" r="6" fill="#fff" stroke="#c0392b" stroke-width="2.4"/></svg><span>Rótula interna</span>
-    </button>
     <button class="tool-btn" id="tTope" onclick="setTool('tope')">
       <svg viewBox="0 0 40 34"><line x1="8" y1="17" x2="26" y2="17" stroke="#b45309" stroke-width="3"/><path d="M31 17 L21 11 L21 23 Z" fill="#b45309"/><text x="6" y="12" font-size="9" font-weight="800" fill="#b45309">?</text></svg><span>Tope</span>
     </button>
@@ -315,11 +312,28 @@
 <div class="modal-ov" id="apoyoModal">
   <div class="modal">
     <h3>Apoyo en el nudo <span id="apNom"></span></h3>
-    <p class="sub">El apoyo fijo (articulado) aporta dos reacciones; el móvil solo una.</p>
+    <p class="sub">El fijo aporta dos reacciones; el móvil, una.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="tpl-btn" style="flex:1;padding:12px 8px" id="apbFijo" onclick="setApoyo('fijo')">
+        <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="10" r="4" fill="#0b3f3a"/><path d="M20 12 L11 26 L29 26 Z" fill="none" stroke="#0f5c56" stroke-width="2.5"/><line x1="8" y1="26" x2="32" y2="26" stroke="#0b3f3a" stroke-width="2.5"/></svg>
+        Fijo
+      </button>
+      <button class="tpl-btn" style="flex:1;padding:12px 8px" id="apbMovil" onclick="setApoyo('movil')">
+        <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="8" r="4" fill="#0b3f3a"/><path d="M20 10 L12 21 L28 21 Z" fill="none" stroke="#0f5c56" stroke-width="2.5"/><circle cx="15" cy="25" r="3" fill="none" stroke="#0b3f3a" stroke-width="2"/><circle cx="25" cy="25" r="3" fill="none" stroke="#0b3f3a" stroke-width="2"/></svg>
+        Móvil
+      </button>
+      <button class="tpl-btn" style="flex:1;padding:12px 8px;border-color:#e0b4b4" id="apbQuitar" onclick="setApoyo(null)">
+        <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="17" r="5" fill="#c0392b"/><line x1="10" y1="27" x2="30" y2="7" stroke="#c0392b" stroke-width="2.5"/></svg>
+        Quitar
+      </button>
+    </div>
+    <div class="cfg-lbl" style="margin:2px 0 6px">Rótula interna</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button class="btn-sm" style="flex:1;padding:11px 6px" id="apbFijo" onclick="setApoyo('fijo')">Fijo / articulado<br><span style="font-size:9px;color:var(--muted)">2 reacciones</span></button>
-      <button class="btn-sm" style="flex:1;padding:11px 6px" id="apbMovil" onclick="setApoyo('movil')">Móvil / libre<br><span style="font-size:9px;color:var(--muted)">1 reacción</span></button>
-      <button class="btn-sm" style="flex:1;padding:11px 6px;border-color:#e0b4b4;color:#c0392b" id="apbQuitar" onclick="setApoyo(null)">Quitar</button>
+      <button class="tpl-btn" style="flex:1;padding:12px 8px" id="apbRotula" onclick="toggleRotulaNudo()">
+        <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><line x1="6" y1="17" x2="15" y2="17" stroke="#0f5c56" stroke-width="3"/><line x1="25" y1="17" x2="34" y2="17" stroke="#0f5c56" stroke-width="3"/><circle cx="20" cy="17" r="6" fill="#fff" stroke="#c0392b" stroke-width="2.4"/></svg>
+        Rótula interna
+      </button>
+      <div class="hint-sm" style="flex:2;align-self:center">Da una ecuación más: el momento en ese nudo es nulo. Es independiente del apoyo.</div>
     </div>
     <div class="modal-field" id="apAngRow"><label>Ángulo de la reacción</label>
       <input type="number" id="apAng" value="90" step="any" style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:var(--mf)"><span style="font-size:11px">°</span></div>

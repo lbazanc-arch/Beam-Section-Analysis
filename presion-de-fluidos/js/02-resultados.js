@@ -217,7 +217,8 @@ function renderResultados(r){
       const terms = [];
       d.bandas.forEach(bd=>{ if(bd.Fr>1e-12) terms.push(f(bd.Fr) + '(' + nl(bd.s0 + bd.sR) + ')'); if(bd.Ft>1e-12) terms.push(f(bd.Ft) + '(' + nl(bd.s0 + bd.sT) + ')'); });
       h += '<div class="eq-row"><div class="eq-body">' + kx('s_P = \\dfrac{\\sum F_i s_i}{' + c.nombre + '} = \\dfrac{' + terms.join(' + ') + '}{' + f(d.F) + '} = ' + nl(d.sP) + '\\ \\text{' + uL + '}') + '</div></div>'
-        + '<div class="hint-sm">' + kx('s_P') + ' se mide sobre la placa desde ' + (d.T.nombre ? 'el nudo ' + d.T.nombre : 'el corte con la superficie libre') + '. Profundidad del centro de presión: ' + kx('z_P = ' + nl(d.zP)) + ' ' + uL + (d.gzA ? '. Comprobación: ' + kx('\\gamma\\,\\bar z\\,A = ' + f(d.gzA.g) + '\\,(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F)) + ' ' + uF + ', y ' + kx('z_P > \\bar z = ' + nl(d.gzA.zBar)) : '') + '.</div>';
+        + '<div class="hint-sm">' + kx('s_P') + ' desde ' + (d.T.nombre ? d.T.nombre : 'la superficie libre') + '.</div>'
+        + (d.gzA ? '<div class="eq-row"><div class="eq-body">' + kx('\\gamma\\,\\bar z\\,A = ' + f(d.gzA.g) + '\\,(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F) + '\\ \\text{' + uF + '}\\quad\\checkmark') + '</div></div>' : '');
       h += '</div>';
     } else {
       h += '<div class="proc-block" style="padding:9px 12px">';
@@ -234,8 +235,7 @@ function renderResultados(r){
       }
       h += '<div class="eq-row"><div class="eq-body">' + kx('F_v = b\\sum\\gamma_i A_i = ' + nl(c.b) + '\\,(' + d.areas.filter(a=>a.A>1e-12).map(a=>f(a.g) + '\\cdot' + nl(a.A)).join(' + ') + ') = ' + f(Math.abs(d.FvBloque)) + '\\ \\text{' + uF + '}\\ (\\text{hacia ' + d.sentidoV + '})') + '</div></div>';
       h += '<div class="eq-row"><div class="eq-body">' + kx(c.nombre + ' = \\sqrt{F_h^2 + F_v^2} = \\sqrt{' + f(Math.abs(d.Fh)) + '^2 + ' + f(Math.abs(d.Fv)) + '^2} = ' + f(d.F) + '\\ \\text{' + uF + '}\\qquad \\theta = ' + d.theta.toFixed(2) + '^\\circ') + '</div></div>';
-      h += '<div class="hint-sm">La línea de acción pasa por el centro del arco ' + kx('O_c = (' + nl(d.arc.cx) + ';\\ ' + nl(d.arc.cy) + ')') + ' y corta la placa en ' + kx('P') + ', a ' + kx('z_P = ' + nl(d.zP)) + ' ' + uL + ' bajo la superficie.'
-        + (!d.monoX || !d.monoY ? ' La parte mojada se repliega sobre sí misma: las componentes se han integrado directamente.' : '') + '</div>';
+      h += '<div class="eq-row"><div class="eq-body">' + kx('O_c = (' + nl(d.arc.cx) + ';\\ ' + nl(d.arc.cy) + ')\\qquad z_P = ' + nl(d.zP) + '\\ \\text{' + uL + '}') + '</div></div>';
       h += '</div>';
     }
     h += '</div><div class="fig-card-dib">' + (d ? croquisCarga(c, d) : '') + '</div></div>';
@@ -270,29 +270,27 @@ function renderResultados(r){
     + '<div class="proc-col"><div class="proc-sub">Ecuaciones (' + r.diag.eq + ')</div>'
     + '<div class="eq-row"><div class="eq-body">' + kx('\\sum F_x = 0,\\quad \\sum F_y = 0,\\quad \\sum M_{' + plan.centro.nombre + '} = 0') + '</div></div>'
     + (r.diag.rot ? '<div class="eq-row"><div class="eq-body">' + kx('\\sum M_{\\text{rótula}} = 0') + ' <span class="hint-sm" style="display:inline">(solo las fuerzas de un lado)</span></div></div>' : '')
-    + '<div class="hint-sm">Momentos respecto de <b>' + plan.centro.nombre + '</b>: por ahí pasan ' + (plan.ecs[0].us.length < r.inc.length ? (r.inc.length - plan.ecs[0].us.length) + ' incógnita(s)' : 'las incógnitas') + '.</div>'
     + '</div></div>';
   h += '<div class="proc-block">';
   plan.pasos.forEach(paso=>{
     if(paso.tipo === 'despeje' || paso.tipo === 'comprobacion'){
+      // La ecuación con sus números y, debajo, el resultado. La sustitución paso
+      // a paso y el despeje intermedio son procedimiento: van en el PDF.
       const q = ecuacionDelPaso(r, paso);
-      h += '<div class="eq-row"><div class="eq-body">' + kx(q.icono + q.ec.nombre.replace(' = 0','') + ':\\quad ' + q.literal + '\\qquad(' + paso.num + ')') + '</div></div>';
-      if(q.sustituida !== q.literal)
-        h += '<div class="eq-row"><div class="eq-body">' + kx('\\phantom{' + q.icono + '}' + q.sustituida) + '</div></div>';
+      h += '<div class="eq-row"><div class="eq-body">' + kx(q.icono + q.ec.nombre.replace(' = 0','') + ':\\quad ' + q.sustituida + '\\qquad(' + paso.num + ')') + '</div></div>';
       if(q.despeje){
         const dp = q.despeje;
-        const factor = dp.factor === '1' ? '' : dp.factor;
-        h += '<div class="eq-row"><div class="eq-body">' + kx('\\phantom{' + q.icono + '}' + dp.simb + (factor ? '\\,' + factor : '') + ' = ' + f(-dp.sumaConocida) + '\\ \\Rightarrow\\ \\boxed{' + dp.simb + ' = ' + f(dp.valor) + '\\ \\text{' + uF + '}}') + '</div></div>';
+        h += '<div class="eq-row"><div class="eq-body">' + kx('\\phantom{' + q.icono + '}\\boxed{' + dp.simb + ' = ' + f(dp.valor) + '\\ \\text{' + uF + '}}') + '</div></div>';
         if(dp.valor < 0)
-          h += '<div class="hint-sm">El signo negativo indica que ' + kx(dp.simb) + ' actúa en sentido contrario al supuesto' + (r.inc[paso.j].tipo === 'T' ? ': <b>el tope no puede tirar; la compuerta se separa de él</b>' : '') + '.</div>';
+          h += '<div class="hint-sm">Signo negativo: ' + kx(dp.simb) + ' actúa al revés de lo supuesto' + (r.inc[paso.j].tipo === 'T' ? '; el tope no tira, la compuerta se separa' : '') + '.</div>';
       }
-      if(paso.tipo === 'comprobacion') h += '<div class="hint-sm">Ecuación sin incógnitas nuevas: sirve de comprobación (paso 5).</div>';
+      if(paso.tipo === 'comprobacion') h += '<div class="hint-sm">Sirve de comprobación.</div>';
     } else if(paso.tipo === 'sistema'){
       paso.grupo.forEach(g=>{
         const q = ecuacionDelPaso(r, {tipo:'sistema', e:g.e, libres:paso.libres});
         h += '<div class="eq-row"><div class="eq-body">' + kx(q.icono + q.ec.nombre.replace(' = 0','') + ':\\quad ' + q.sustituida + '\\qquad(' + g.num + ')') + '</div></div>';
       });
-      h += '<div class="hint-sm">Sistema de ecuaciones; solución:</div>'
+      h += '<div class="hint-sm">Solución del sistema:</div>'
         + '<div class="eq-row"><div class="eq-body">' + kx(paso.libres.map(j=>'\\boxed{' + simbIncognita(r.inc[j]) + ' = ' + f(r.val[j]) + '\\ \\text{' + uF + '}}').join('\\qquad')) + '</div></div>';
     }
   });

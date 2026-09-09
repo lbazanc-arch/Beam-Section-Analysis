@@ -332,6 +332,18 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
   .fig-card-dib{flex:0 0 auto;max-width:280px;margin:0 auto;}
 }
 
+/* Botones de opción de las ventanas (apoyo, rótula): iconos con el nombre
+   debajo y la elegida marcada, igual que en los demás temas. */
+.tpl-btn{
+  padding:5px 10px; border-radius:7px; border:1px solid var(--border2); background:#fff;
+  font-size:10.5px; font-weight:700; color:var(--text); cursor:pointer; font-family:inherit;
+  transition:all .13s;
+}
+.tpl-btn:hover{border-color:var(--acc); background:var(--acc-l); color:var(--acc);}
+.tpl-btn.active{background:var(--acc); border-color:var(--acc); color:#fff;}
+.tpl-btn.active svg [fill]:not([fill="none"]){fill:#fff;}
+.tpl-btn.active svg [stroke]:not([stroke="none"]){stroke:#fff;}
+
 /* ══════════════════════════════════════════════════════════════════════
    DISPOSICIÓN COMÚN A LOS CINCO TEMAS
    Bloque IDÉNTICO al final de los cinco estilos.css. Fija dimensiones y

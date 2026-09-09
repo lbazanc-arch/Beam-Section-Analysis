@@ -44,7 +44,6 @@ function onDown(e){
     else { selNodo=null; dibujar(); }
   }
   else if(tool==='apoyo'){ if(n) abrirApoyoModal(n.id); }
-  else if(tool==='rotula'){ if(n){ registrarCambio(); n.rotula=!n.rotula; R=null; refrescar(); } }
   else if(tool==='tope'){ if(n) abrirTopeModal(n.id); }
   else if(tool==='pan'){ iniciarPan(mx,my); }
   else if(tool==='sel' || tool==='borrar'){
@@ -241,7 +240,7 @@ function onDbl(e){
 
 function setTool(t){
   tool=t; selNodo=null;
-  ['nudo','recto','arco','apoyo','rotula','tope','sel','pan'].forEach(k=>{
+  ['nudo','recto','arco','apoyo','tope','sel','pan'].forEach(k=>{
     const el=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active',k===t);
   });
@@ -251,8 +250,7 @@ function setTool(t){
   const hints={nudo:'Haz clic para colocar un nudo.',
     recto:'Haz clic en dos nudos para unirlos con un tramo recto.',
     arco:'Haz clic en dos nudos para unirlos con un tramo curvo.',
-    apoyo:'Haz clic en un nudo y elige el tipo de apoyo.',
-    rotula:'Haz clic en un nudo para poner o quitar una rótula interna.',
+    apoyo:'Haz clic en un nudo y elige su apoyo o su rótula interna.',
     tope:'Haz clic en un nudo para colocar un tope liso: una fuerza incógnita, normal a la compuerta (o con la dirección que indiques).',
     pan:'Arrastra el lienzo para desplazar la vista.',
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',

@@ -156,6 +156,18 @@ function marcarApoyoPF(n){
   });
   const q = document.getElementById('apbQuitar');
   if(q) q.classList.toggle('active', !(n && n.apoyo));
+  const r = document.getElementById('apbRotula');
+  if(r) r.classList.toggle('active', !!(n && n.rotula));
+}
+// La rótula interna se pone y se quita desde la misma ventana del apoyo
+// (2026-09-09): antes era una herramienta suelta de la barra, y era el único
+// atributo de un nudo que no se editaba donde se editan los demás.
+function toggleRotulaNudo(){
+  const n = nodos.find(z=>z.id===apoyoId); if(!n) return;
+  registrarCambio();
+  n.rotula = !n.rotula;
+  R = null;
+  actualizarPrevApoyo(); refrescar();
 }
 
 function actualizarPrevApoyo(){
@@ -168,6 +180,7 @@ function actualizarPrevApoyo(){
   const inc = nodos.reduce((s,z)=>s+(z.apoyo==='fijo'?2:z.apoyo==='movil'?1:0)+(z.tope?1:0),0);
   const eq = 3 + nodos.filter(z=>z.rotula).length;
   el.innerHTML='Ahora: <b>'+(n.apoyo?(n.apoyo==='fijo'?'apoyo fijo':'apoyo móvil'):'sin apoyo')
+    +(n.rotula?' con rótula':'')
     +'</b> · Incógnitas totales: <b>'+inc+'</b> frente a <b>'+eq+'</b> ecuaciones'
     + (chk && chk.checked ? '<br>La reacción del móvil será perpendicular a la compuerta en este nudo.' : '');
 }
