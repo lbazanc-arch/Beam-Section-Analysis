@@ -468,12 +468,11 @@ function abrirEjemplosCen(){
   const lista = (modoEspacio === '3d' && typeof EJEMPLOS_3D !== 'undefined') ? EJEMPLOS_3D
               : (modoEspacio === 'alambre' && typeof EJEMPLOS_ALAMBRE !== 'undefined') ? EJEMPLOS_ALAMBRE : EJEMPLOS_CEN;
   if(el) el.innerHTML = lista.map((e,i)=>
-      '<div class="item-row" style="display:block;padding:9px 11px;margin-bottom:7px;cursor:pointer" '
-    + 'onclick="loadExampleSection(\'' + e.id + '\')">'
-    + '<div style="font-weight:700;font-size:11.5px;color:var(--acc)">' + (i+1) + ' · ' + e.nom + '</div>'
-    + '<div class="hint-sm" style="margin-top:3px">' + e.desc + '</div>'
-    + '<div class="hint-sm" style="margin-top:3px;color:var(--acc2)"><b>Referencia:</b> ' + e.ref + '</div>'
-    + '</div>').join('');
+      '<button type="button" class="ej-item" onclick="loadExampleSection(\'' + e.id + '\')">'
+    + '<div class="ej-cab"><span class="ej-num">' + (i+1) + '</span><span class="ej-nom">' + e.nom + '</span></div>'
+    + '<div class="ej-desc">' + e.desc + '</div>'
+    + '<div class="ej-ref"><b>Referencia:</b> ' + e.ref + '</div>'
+    + '</button>').join('');
   const m = document.getElementById('ejModal'); if(m) m.classList.add('show');
 }
 function cerrarEjemplosCen(){ const m = document.getElementById('ejModal'); if(m) m.classList.remove('show'); }

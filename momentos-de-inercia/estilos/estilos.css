@@ -689,6 +689,30 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
   #histModal .modal-note,   #histModal .sub{ font-size:11.5px; }
 }
 
+:root{--ej-acc:var(--grn); --ej-acc2:var(--grn2); --ej-suave:rgba(4,29,86,.09);}
+/* ── Ventana de ejemplos: una tarjeta por caso, con el acento del tema ──
+   La geometría es la misma en los cinco; solo cambian las tres variables de
+   arriba, porque no todos los temas nombran igual su color de acento. */
+.ej-item{
+  display:block; width:100%; text-align:left; cursor:pointer; font-family:inherit;
+  border:1px solid var(--border2); border-left:3px solid var(--ej-acc);
+  border-radius:10px; background:#fff; padding:10px 12px 11px; margin-bottom:9px;
+  transition:border-color .13s, box-shadow .13s, transform .13s;
+}
+.ej-item:hover{border-color:var(--ej-acc); box-shadow:0 2px 12px rgba(0,0,0,.09); transform:translateY(-1px);}
+.ej-item:focus-visible{outline:2px solid var(--ej-acc); outline-offset:2px;}
+.ej-cab{display:flex; align-items:center; gap:8px; margin-bottom:5px;}
+.ej-num{flex:none; width:20px; height:20px; border-radius:50%; background:var(--ej-acc); color:#fff;
+  font-size:10.5px; font-weight:800; display:flex; align-items:center; justify-content:center;}
+.ej-nom{font-size:12px; font-weight:800; color:var(--ej-acc2); line-height:1.25;}
+.ej-desc{font-size:11px; color:var(--muted); line-height:1.5;}
+.ej-ref{margin-top:7px; padding:6px 9px; border-radius:7px; background:var(--ej-suave);
+  font-size:10.5px; color:var(--ej-acc2); line-height:1.5;}
+@media (max-width:640px){
+  .ej-item{padding:9px 10px 10px;}
+  .ej-nom{font-size:11.5px;}
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    DISPOSICIÓN COMÚN A LOS CINCO TEMAS
    Bloque IDÉNTICO al final de los cinco estilos.css. Fija dimensiones y

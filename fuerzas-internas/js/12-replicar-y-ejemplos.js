@@ -170,12 +170,11 @@ const EJEMPLOS = [
 function abrirEjemplos(){
   const el = document.getElementById('ejLista');
   if(el) el.innerHTML = EJEMPLOS.map((e,i)=>
-      '<div class="item-row" style="display:block;padding:9px 11px;margin-bottom:7px;cursor:pointer" '
-    + 'onclick="cargarEjemplo(\'' + e.id + '\')">'
-    + '<div style="font-weight:700;font-size:11.5px;color:var(--acc)">' + (i+1) + ' · ' + e.nom + '</div>'
-    + '<div class="hint-sm" style="margin-top:3px">' + e.desc + '</div>'
-    + '<div class="hint-sm" style="margin-top:3px;color:var(--acc2)"><b>Referencia:</b> ' + e.esperado + '</div>'
-    + '</div>').join('');
+      '<button type="button" class="ej-item" onclick="cargarEjemplo(\'' + e.id + '\')">'
+    + '<div class="ej-cab"><span class="ej-num">' + (i+1) + '</span><span class="ej-nom">' + e.nom + '</span></div>'
+    + '<div class="ej-desc">' + e.desc + '</div>'
+    + '<div class="ej-ref"><b>Referencia:</b> ' + e.esperado + '</div>'
+    + '</button>').join('');
   document.getElementById('ejModal').classList.add('show');
 }
 function cerrarEjemplos(){ document.getElementById('ejModal').classList.remove('show'); }
