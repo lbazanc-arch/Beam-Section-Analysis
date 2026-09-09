@@ -180,6 +180,81 @@ function abrirEjemplos(){
 }
 function cerrarEjemplos(){ document.getElementById('ejModal').classList.remove('show'); }
 
+// ── Verificación automática de cada ejemplo (propuesta 5, 2026-09-08) ──
+// Cada caso lleva comprobaciones resueltas a mano: reacciones, extremos de
+// M, momento nulo en rótulas y extremos libres, y N distinta de cero en un
+// tramo inclinado. Si alguna se desvía más del 0.1 %, avisa por consola.
+function _reaccionDe(r, nombre, tipo){
+  for(let j=0;j<r.inc.length;j++){ const u = r.inc[j]; if(u.n.nombre === nombre && u.tipo === tipo) return r.val[j]; }
+  return null;
+}
+function _momentoEnNudo(r, nombre){
+  for(const t of r.internas){
+    if(t.desde.nombre === nombre && t.subs.length) return polyVal(t.subs[0].cM, t.subs[0].sa);
+  }
+  for(const t of r.internas){
+    if(t.hasta.nombre === nombre && t.subs.length){ const su = t.subs[t.subs.length-1]; return polyVal(su.cM, su.sb); }
+  }
+  return null;
+}
+function _maxAbsSerie(t, clave){
+  const campo = {N:'cN', V:'cV', M:'cM'}[clave];
+  let m = 0;
+  t.subs.forEach(su=>{ for(let i=0;i<=12;i++){ const v = Math.abs(polyVal(su[campo], su.sa + (su.sb-su.sa)*i/12)); if(v > m) m = v; } });
+  return m;
+}
+const VERIFICACIONES = {
+  simple(r){
+    const g = gruposDireccion(r)[0], e = extremosSerie(g, 'M');
+    return [
+      {q:'R_yA', esp:12.5, obt:_reaccionDe(r,'A','Ry')},
+      {q:'R_yC', esp:17.5, obt:_reaccionDe(r,'C','Ry')},
+      {q:'M_max', esp:30.625, obt:e.mx && e.mx.v},
+      {q:'x(M_max)', esp:4.5, obt:e.mx && e.mx.x, tol:0.01}
+    ];
+  },
+  // Ojo: reNombrar bautiza los nudos por orden de creación (A, B, C, D…), no
+  // con las letras de las variables de `armar`. En este ejemplo el apoyo
+  // móvil (x = 7) es C y el extremo del voladizo es D.
+  triangular(r){
+    return [
+      {q:'M en A (apoyo fijo)', esp:0, obt:_momentoEnNudo(r,'A'), abs:1e-6},
+      {q:'M en D (extremo libre)', esp:0, obt:_momentoEnNudo(r,'D'), abs:1e-6},
+      {q:'M en C (apoyo movil, voladizo de 1 m con 0.5 T)', esp:-0.5*1, obt:_momentoEnNudo(r,'C')}
+    ];
+  },
+  rotula(r){
+    let sumRy = 0; r.inc.forEach((u,j)=>{ if(u.tipo==='Ry') sumRy += r.val[j]; });
+    return [
+      {q:'R_xA', esp:-70.7107, obt:_reaccionDe(r,'A','Rx')},
+      {q:'suma R_y', esp:120.7107, obt:sumRy},
+      {q:'M en la rotula C', esp:0, obt:_momentoEnNudo(r,'C'), abs:1e-6}
+    ];
+  },
+  portico(r){
+    const inclinado = r.internas.find(t=>Math.abs(t.ang) > 1 && Math.abs(Math.abs(t.ang)-90) > 1);
+    return [
+      {q:'M en A (apoyo fijo)', esp:0, obt:_momentoEnNudo(r,'A'), abs:1e-6},
+      {q:'M en E (apoyo movil, extremo)', esp:0, obt:_momentoEnNudo(r,'E'), abs:1e-6},
+      {q:'N no nula en el tramo inclinado', esp:'>0', obt:inclinado ? _maxAbsSerie(inclinado,'N') : null}
+    ];
+  }
+};
+function comprobarEjemploFI(id, r){
+  const fn = VERIFICACIONES[id];
+  if(!fn || !r || r.error) return;
+  let desvios = 0;
+  fn(r).forEach(c=>{
+    let mal;
+    if(c.obt === null || c.obt === undefined) mal = true;
+    else if(c.esp === '>0') mal = !(c.obt > 1e-6);
+    else if(c.abs !== undefined) mal = Math.abs(c.obt - c.esp) > c.abs;
+    else mal = Math.abs(c.obt - c.esp) > (c.tol || 1e-3)*Math.max(1, Math.abs(c.esp));
+    if(mal){ desvios++; console.warn('Ejemplo ' + id + ': ' + c.q + ' se desvía de la referencia', {esperado:c.esp, obtenido:c.obt}); }
+  });
+  return desvios;
+}
+
 // Sin argumento carga el primero, para no romper llamadas antiguas.
 function cargarEjemplo(id){
   const ej = EJEMPLOS.find(e=>e.id === id) || EJEMPLOS[0];
@@ -196,5 +271,6 @@ function cargarEjemplo(id){
   };
   ej.armar(N);
   reNombrar(); centrar(); refrescar(); calcular();
+  comprobarEjemploFI(ej.id, R);
   cerrarEjemplos();
 }

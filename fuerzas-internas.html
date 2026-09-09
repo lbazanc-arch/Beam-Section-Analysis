@@ -46,6 +46,9 @@
         <svg viewBox="0 0 40 34"><line x1="20" y1="5" x2="20" y2="21" stroke="#d94f5c" stroke-width="3"/><path d="M20 27 L14 18 L26 18 Z" fill="#d94f5c"/></svg>
         <span>Cargas</span>
       </button>
+      <button class="tool-btn" id="tCorte" onclick="setTool('corte')" title="Corta y mira: toca un punto de la viga calculada para ver el DCL del trozo izquierdo con N, V y M en la sección">
+        <svg viewBox="0 0 40 34"><line x1="6" y1="20" x2="34" y2="20" stroke="#2f6b66" stroke-width="3.4"/><line x1="20" y1="7" x2="20" y2="33" stroke="#d94f5c" stroke-width="2" stroke-dasharray="3,2"/><path d="M23 12 l6 0 M26 9 l0 6" stroke="#245650" stroke-width="1.8" fill="none"/><path d="M14 27 l-5 0 M11.5 24.5 l0 5" stroke="#245650" stroke-width="1.8" fill="none"/></svg><span>Corta y mira</span>
+      </button>
     </div>
     <div class="tb-sep"></div>
     <div class="tb-zona" id="tbZona2">
@@ -196,6 +199,7 @@
           <label class="vis-item"><input type="checkbox" id="visEjes" checked onchange="setVis('ejes',this.checked)"><span>Ejes</span></label>
           <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas</span></label>
           <label class="vis-item"><input type="checkbox" id="visCargas" checked onchange="setVis('cargas',this.checked)"><span>Cargas</span></label>
+          <label class="vis-item"><input type="checkbox" id="visLeyenda" checked onchange="setVis('leyenda',this.checked)"><span>Leyenda</span></label>
           <label class="vis-item"><input type="checkbox" id="visApoyos" checked onchange="setVis('apoyos',this.checked)"><span>Apoyos</span></label>
         </div>
         <div class="hint-sm">Oculta lo que no necesites ver en el panel de dibujo. No afecta al cálculo.</div>
@@ -591,6 +595,17 @@
   </div>
 </div>
 
+<div class="modal-ov" id="corteModal">
+  <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto">
+    <h3>Corta y mira: DCL del trozo izquierdo</h3>
+    <p class="sub" id="corteSub"></p>
+    <div id="corteCuerpo"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="cerrarCorte()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script src="vendor/katex.min.js"></script>
 <!-- ══ Nucleo comun a los cinco temas ══ -->
 <script src="core/comun.js"></script>
@@ -613,5 +628,6 @@
 <script src="fuerzas-internas/js/16-latex-equilibrio-y-tablas.js"></script>
 <script src="fuerzas-internas/js/17-latex-tikz-viga-y-diagramas.js"></script>
 <script src="fuerzas-internas/js/18-latex-compilacion-texlive.js"></script>
+<script src="fuerzas-internas/js/19-corta-y-mira.js"></script>
 </body>
 </html>

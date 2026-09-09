@@ -838,7 +838,29 @@ function tablaSingulares(R, gg){
 // ── Comprobación por el método de las áreas ──
 function tablaAreasGrupo(R, gg){
   const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
-  let out = tablaCaption('Tramo ' + escLatex(gg.recorrido) + ': en cada intervalo, el cambio de '
+  let out = '';
+  // Una sola vez (R1): la relación diferencial que sostiene el método.
+  if(_primeraVez('areas-porque'))
+    out += '\\porque{Entre dos secciones, $\\frac{dV}{dx} = -w$ y $\\frac{dM}{dx} = V$ (Hibbeler 7.3). Por eso el '
+      + '\\textbf{\\\'area bajo la carga} es el cambio de $V$, el \\textbf{\\\'area bajo $V$} es el cambio de $M$, y '
+      + 'donde $V = 0$ la pendiente de $M$ se anula: ah\\\'i $M$ es m\\\'aximo o m\\\'inimo. Una fuerza concentrada hace '
+      + 'saltar a $V$ y un par hace saltar a $M$; son los \\\'unicos saltos.}\n';
+  // Los extremos de M se sitúan como raíz de V ANTES de dar el valor: es la
+  // maniobra del método, no un dato leído del diagrama.
+  const extremos = [];
+  gg.tramos.forEach(t2=>{
+    const off = t2.s0 - gg.s0;
+    t2.subs.forEach(su=>{
+      const der = [su.cM[1]||0, 2*(su.cM[2]||0), 3*(su.cM[3]||0)];
+      raicesEn(der, su.sa, su.sb).forEach(v=>{
+        if(v <= su.sa + 1e-9 || v >= su.sb - 1e-9) return;
+        extremos.push('$V = 0$ en $' + gg.simbolo + ' = ' + dec(off+v,'len') + '$ (ra\\\'iz de $V$ en ese intervalo), y all\\\'i $M = ' + dec(polyVal(su.cM, v),'momento') + '$ ' + uM);
+      });
+    });
+  });
+  if(extremos.length)
+    out += '\\noindent{\\footnotesize Extremos interiores de $M$: ' + extremos.join('; ') + '.}\\\\[2pt]\n';
+  out += tablaCaption('Tramo ' + escLatex(gg.recorrido) + ': en cada intervalo, el cambio de '
     + '$V$ es el área de la carga (con signo cambiado) y el cambio de $M$ es el área bajo el diagrama de '
     + '$V$. Valores en ' + uF + ' y ' + uM + '.');
   out += '{\\footnotesize\\begin{center}\\begin{tabular}{crrrrrr}\n\\hline\n'

@@ -56,7 +56,7 @@ let panDrag = null, mouseW = null;
 
 // ── Visibilidad de capas del dibujo (criterio cap6) ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, ejes:true, cotas:true, cargas:true, apoyos:true};
+const VIS = {grilla:true, ejes:true, cotas:true, cargas:true, apoyos:true, leyenda:true};
 function setVis(cual, valor){ VIS[cual] = !!valor; dibujar(); }
 let edNodo = null, edTramo = null, edApoyo = null, edCarga = null;
 

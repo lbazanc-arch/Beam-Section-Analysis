@@ -131,38 +131,81 @@ function dibujar(){
     ctx.fillText(n.nombre, px+10, py-10);
   });
 
-  // reacciones calculadas: solo los valores bajo el nudo, igual que el Cap. 6
-  // (sin flechas ni arcos: el sentido lo da el signo del número)
+  // reacciones calculadas: flecha en su sentido real llegando al nudo y
+  // nombre completo (R_xA, R_yA, M_A), lo mismo que dibuja el informe (R6,
+  // R8). Antes iba solo el valor bajo el nudo, sin sentido.
   if(R && !R.error){
-    const porNudo = {};
     R.inc.forEach((u,j)=>{
-      if(!porNudo[u.n.id]) porNudo[u.n.id] = {n:u.n};
-      if(u.tipo==='Rx') porNudo[u.n.id].rx = R.val[j];
-      else if(u.tipo==='Ry'){ porNudo[u.n.id].ry = R.val[j];
-        if(u.ang !== undefined) porNudo[u.n.id].rot =
-          (u.n.apAng === undefined ? AP_ANG_DEF : u.n.apAng); }
-      else porNudo[u.n.id].m = R.val[j];
+      const v = R.val[j];
+      if(Math.abs(v) < 1e-9) return;
+      const [px,py] = aPantalla(u.n.x, u.n.y);
+      const nom = u.n.nombre;
+      if(u.tipo === 'M' && u.ang === undefined){
+        // par de empotramiento: arco con flecha, antihorario si es positivo
+        const hor = v < 0, rr = 21;
+        ctx.save(); ctx.strokeStyle = '#15803d'; ctx.fillStyle = '#15803d'; ctx.lineWidth = 2.2;
+        const a0 = Math.PI*0.15, a1 = Math.PI*1.55;   // ángulos de pantalla (sentido horario en pantalla = antihorario en el mundo)
+        ctx.beginPath(); ctx.arc(px, py, rr, hor ? a0 : a1, hor ? a1 : a0, !hor); ctx.stroke();
+        const af = hor ? a1 : a0, tang = hor ? 1 : -1;
+        const hx = px + rr*Math.cos(af), hy = py + rr*Math.sin(af);
+        ctx.translate(hx, hy); ctx.rotate(af + tang*Math.PI/2);
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-9,-4.5); ctx.lineTo(-9,4.5); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        rotulo('M' + nom + ' = ' + dec(Math.abs(v),'mom') + ' ' + uMom(), px, py - rr - 12, '#15803d', 0, -1, '700 10.5px Inter,sans-serif');
+        return;
+      }
+      let dx, dy;
+      if(u.ang !== undefined){ dx = Math.cos(u.ang); dy = Math.sin(u.ang); }
+      else if(u.tipo === 'Rx'){ dx = 1; dy = 0; } else { dx = 0; dy = 1; }
+      const sg = v >= 0 ? 1 : -1;
+      const ex = dx*sg, ey = dy*sg;                 // sentido real, en el mundo
+      const Lf = 44;
+      const x0 = px - ex*Lf, y0 = py + ey*Lf;        // cola de la flecha (y de pantalla invertida)
+      ctx.save(); ctx.strokeStyle = '#15803d'; ctx.fillStyle = '#15803d'; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(px - ex*9, py + ey*9); ctx.stroke();
+      ctx.translate(px - ex*8, py + ey*8); ctx.rotate(Math.atan2(-ey, ex));
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-4.5); ctx.lineTo(-10,4.5); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      const base = (u.ang !== undefined) ? 'R' + nom : (u.tipo === 'Rx' ? 'Rx' + nom : 'Ry' + nom);
+      rotulo(base + ' = ' + dec(Math.abs(v),'f') + ' ' + unitFor, x0 - ex*10, y0 + ey*10, '#15803d', -ex, ey, '700 10.5px Inter,sans-serif');
     });
-    // Una reacción por línea (Rx, Ry, M), no en fila: en fila el texto se
-    // hacía muy ancho y acababa cruzándose con las cotas y con las cargas
-    // del nudo vecino. Cada línea pasa por el colocador de rótulos, que la
-    // aparta si el sitio ya está ocupado.
-    Object.values(porNudo).forEach(o=>{
-      const [px,py] = aPantalla(o.n.x, o.n.y);
-      const lineas = [];
-      if(o.rx !== undefined) lineas.push('Rx = '+dec(o.rx,'f')+' '+unitFor);
-      if(o.ry !== undefined)
-        lineas.push((o.rot === undefined || Math.abs(o.rot - AP_ANG_DEF) < 1e-9 ? 'Ry = ' : 'R = ')
-          + dec(o.ry,'f') + ' ' + unitFor
-          + (o.rot !== undefined && Math.abs(o.rot - AP_ANG_DEF) > 1e-9
-             ? ' (apoyo a '+(+o.rot).toFixed(0)+'°)' : ''));
-      if(o.m  !== undefined) lineas.push('M = '+dec(o.m,'mom')+' '+uMom());
-      lineas.forEach((txt, k)=>{
-        rotulo(txt, px, py + 34 + k*14, '#15803d', 0, 1, '700 10.5px Inter,sans-serif');
-      });
-    });
-    ctx.textAlign='start';
+    ctx.textAlign = 'start';
   }
+
+  // leyenda mínima, plegable desde Visualización (propuesta 2)
+  if(VIS.leyenda) dibujarLeyenda();
+}
+
+// ── Leyenda: qué es cada color del lienzo ──
+function dibujarLeyenda(){
+  const filas = [
+    {tipo:'flecha', col:'#d94f5c', txt:'carga'},
+    {tipo:'bloque', col:'#b8860b', txt:'carga repartida / peso propio'},
+    {tipo:'flecha', col:'#15803d', txt:'reacción (sentido real)'},
+    {tipo:'rotula', col:'#d94f5c', txt:'rótula'}
+  ];
+  const x0 = 12, ancho = 196, alto = 14*filas.length + 12;
+  const y0 = H - alto - 44;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.strokeStyle = 'rgba(27,31,36,.18)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.rect(x0, y0, ancho, alto); ctx.fill(); ctx.stroke();
+  ctx.font = '600 10px Inter,sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  filas.forEach((f,i)=>{
+    const y = y0 + 6 + 14*i + 7, x = x0 + 8;
+    if(f.tipo === 'flecha'){
+      ctx.strokeStyle = f.col; ctx.fillStyle = f.col; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+16, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+20, y); ctx.lineTo(x+13, y-3.5); ctx.lineTo(x+13, y+3.5); ctx.closePath(); ctx.fill();
+    } else if(f.tipo === 'bloque'){
+      ctx.fillStyle = 'rgba(184,134,11,.25)'; ctx.fillRect(x, y-5, 20, 10);
+      ctx.strokeStyle = f.col; ctx.lineWidth = 1.5; ctx.strokeRect(x, y-5, 20, 10);
+    } else {
+      ctx.beginPath(); ctx.arc(x+10, y, 5, 0, Math.PI*2); ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = f.col; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.fillStyle = '#374151'; ctx.fillText(f.txt, x + 28, y);
+  });
+  ctx.restore();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -326,14 +369,17 @@ function pintarCotaTotal(c0, c1, eje, base, pos){
 // Puntos notables de las cargas. Devuelve las dos coordenadas: en una viga
 // quebrada la cadena vertical es tan necesaria como la horizontal, porque
 // una carga sobre un tramo inclinado no queda situada solo por su x.
-function puntosDeCargas(){
+function puntosDeCargas(soloTramos){
   const pts = [];
   cargas.forEach(c=>{
     if(c.destino === 'nudo'){
       const n = nodo(c.nudo);
-      if(n) pts.push({x:n.x, y:n.y});
+      if(!n) return;
+      if(soloTramos && !tramos.some(t=>soloTramos.indexOf(t.id)>=0 && (t.a===n.id || t.b===n.id))) return;
+      pts.push({x:n.x, y:n.y});
       return;
     }
+    if(soloTramos && soloTramos.indexOf(c.tramo) < 0) return;
     const t = tramos.find(z=>z.id===c.tramo), g = t && geoTramo(t);
     if(!g) return;
     if(c.tipo === 'U' || c.tipo === 'T'){
@@ -348,8 +394,16 @@ function puntosDeCargas(){
   });
   return pts;
 }
-function xsDeCargas(){ return puntosDeCargas().map(p=>p.x); }
-function ysDeCargas(){ return puntosDeCargas().map(p=>p.y); }
+// La cadena de subtramos (posiciones de las cargas) solo se acota para el
+// tramo seleccionado: con todos a la vez, en un pórtico se montaba sobre las
+// cargas (propuesta 2, 2026-09-08). Las cadenas por tramo y la total, siempre.
+function tramosSeleccionadosParaCotas(){
+  const ids = selTramos.slice();
+  if(selTramo !== null && ids.indexOf(selTramo) < 0) ids.push(selTramo);
+  return ids;
+}
+function xsDeCargas(){ const ids = tramosSeleccionadosParaCotas(); return ids.length ? puntosDeCargas(ids).map(p=>p.x) : []; }
+function ysDeCargas(){ const ids = tramosSeleccionadosParaCotas(); return ids.length ? puntosDeCargas(ids).map(p=>p.y) : []; }
 
 function dibujarCotas(){
   if(nodos.length < 2) return;

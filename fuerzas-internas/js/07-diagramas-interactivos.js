@@ -331,7 +331,62 @@ function gruposDireccion(r){
   return g;
 }
 
+// ── Relaciones w–V–M visibles (propuesta 1, 2026-09-08) ──
+// Cada diagrama registra su escala para que, al pasar el ratón, se lea el
+// valor y la pendiente en ese punto: la pendiente de V es −w y la de M es V.
+let _fiGrupos = {}, _fiSeq = 0;
+function polyDerVal(c, s){ let v = 0; for(let i=c.length-1;i>=1;i--) v = v*s + i*c[i]; return v; }
+function fiHoverSalir(gid){ const g = document.getElementById('fiHover-' + gid); if(g) g.style.display = 'none'; }
+function fiHoverMover(ev, gid){
+  const d = _fiGrupos[gid]; if(!d) return;
+  const svg = ev.currentTarget.ownerSVGElement || ev.currentTarget; if(!svg || !svg.createSVGPoint) return;
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+  let xg = (q.x - d.M)/d.anchoUtil*d.total;
+  xg = Math.max(0, Math.min(d.total, xg));
+  let t = null, sub = null, xl = 0;
+  for(const tt of d.lista){
+    const off = tt.s0 - d.base0;
+    if(xg >= off - 1e-9 && xg <= off + tt.L + 1e-9){
+      t = tt; xl = Math.max(0, Math.min(tt.L, xg - off));
+      sub = tt.subs.find(su=>xl >= su.sa - 1e-9 && xl <= su.sb + 1e-9) || tt.subs[tt.subs.length-1];
+      break;
+    }
+  }
+  const g = document.getElementById('fiHover-' + gid);
+  if(!t || !sub || !g) return;
+  g.style.display = '';
+  const PX = x => d.M + x/d.total*d.anchoUtil;
+  const X = PX(xg);
+  const lx = document.getElementById('fiHoverX-' + gid);
+  if(lx){ lx.setAttribute('x1', X.toFixed(1)); lx.setAttribute('x2', X.toFixed(1)); }
+  const delta = 0.05*d.total;
+  const vals = {};
+  d.series.forEach(se=>{
+    const c = sub[{N:'cN', V:'cV', M:'cM'}[se.k]];
+    const v = polyVal(c, xl), dv = polyDerVal(c, xl);
+    vals[se.k] = {v, dv};
+    const PY = y => se.yc - y*se.esc;
+    const ln = document.getElementById('fiHoverT-' + gid + '-' + se.k);
+    if(ln){
+      ln.setAttribute('x1', PX(xg - delta).toFixed(1)); ln.setAttribute('y1', PY(v - dv*delta).toFixed(1));
+      ln.setAttribute('x2', PX(xg + delta).toFixed(1)); ln.setAttribute('y2', PY(v + dv*delta).toFixed(1));
+    }
+    const pc = document.getElementById('fiHoverP-' + gid + '-' + se.k);
+    if(pc){ pc.setAttribute('cx', X.toFixed(1)); pc.setAttribute('cy', PY(v).toFixed(1)); }
+  });
+  const w = -vals.V.dv;
+  const txt = d.simb + ' = ' + dec(xg,'len') + ' ' + unitLen
+    + '   |   w = ' + dec(w,'f') + ' ' + unitFor + '/' + unitLen + ' (pendiente de V = −w)'
+    + '   |   V = ' + dec(vals.V.v,'f') + ' ' + unitFor + ' (pendiente de M = V)'
+    + '   |   M = ' + dec(vals.M.v,'mom') + ' ' + uMom();
+  const tx = document.getElementById('fiHoverTxt-' + gid);
+  if(tx) tx.textContent = txt;
+}
+
 function svgDiagramas(r, grupo){
+  const gid = ++_fiSeq;
+  const _reg = {series:[]};
   const lista = grupo ? grupo.tramos : r.internas;
   const base0 = grupo ? grupo.s0 : 0;
   const simb  = grupo ? grupo.simbolo : 'x';
@@ -347,6 +402,7 @@ function svgDiagramas(r, grupo){
     {k:'M', col:'#8b5cf6', tit:'DMF — Momento flector', u:'mom'}
   ];
   const PX = x => M + x/total*anchoUtil;
+  Object.assign(_reg, {lista, base0, total, M, anchoUtil, simb});
 
   series.forEach((se, si)=>{
     const y0 = 26 + si*(alto+sep);
@@ -359,6 +415,7 @@ function svgDiagramas(r, grupo){
     });
     const esc = (alto/2 - 20)/vmax;
     const PY = v => yc - v*esc;
+    _reg.series.push({k:se.k, yc, esc, col:se.col});
 
     s += '<text x="'+M+'" y="'+(y0-8)+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="'+se.col+'">'+se.tit+'</text>';
 
@@ -373,12 +430,16 @@ function svgDiagramas(r, grupo){
 
     // relleno + contorno, rama a rama; los saltos son segmentos verticales
     let d = '', trazo = '';
+    const saltosTxt = [];
     ramas.forEach(rm=>{
       if(rm.salto){
         // relleno: se cierra la rama anterior y se abre la siguiente en la
         // misma abscisa, así el área no queda cosida en diagonal
         trazo += ' L '+PX(rm.x).toFixed(1)+' '+PY(rm.a).toFixed(1);
         d += ' L '+PX(rm.x).toFixed(1)+' '+PY(rm.a).toFixed(1);
+        // El salto es el único sitio donde el diagrama "rompe": se nombra
+        // con su valor (ΔV por una fuerza concentrada, ΔM por un par).
+        saltosTxt.push({X:PX(rm.x), Y:(PY(rm.de)+PY(rm.a))/2, txt:'Δ'+se.k+' = '+dec(rm.a-rm.de, se.u)});
         return;
       }
       const p = rm.pts;
@@ -401,6 +462,25 @@ function svgDiagramas(r, grupo){
 
     // eje de referencia por encima del relleno
     s += '<line x1="'+M+'" y1="'+yc+'" x2="'+(W2-M)+'" y2="'+yc+'" stroke="#5b6672" stroke-width="1.2"/>';
+    saltosTxt.forEach(q=>{
+      s += '<text x="'+(q.X+5).toFixed(1)+'" y="'+(q.Y+3).toFixed(1)+'" font-family="Inter,sans-serif" font-size="8.5" font-weight="700" fill="'+se.col+'" fill-opacity=".85">'+q.txt+'</text>';
+    });
+    // En el diagrama de M, cada extremo interior se explica: ahí V = 0.
+    if(se.k === 'M'){
+      lista.forEach(t=>{
+        const off = t.s0 - base0;
+        t.subs.forEach(su=>{
+          const der = [su.cM[1]||0, 2*(su.cM[2]||0), 3*(su.cM[3]||0)];
+          raicesEn(der, su.sa, su.sb).forEach(v=>{
+            if(v <= su.sa + 1e-9 || v >= su.sb - 1e-9) return;
+            const Xe = PX(off + v), Ye = PY(polyVal(su.cM, v));
+            const arriba = polyVal(su.cM, v) >= 0;
+            s += '<line x1="'+Xe.toFixed(1)+'" y1="'+Ye.toFixed(1)+'" x2="'+Xe.toFixed(1)+'" y2="'+(arriba ? Ye-22 : Ye+22).toFixed(1)+'" stroke="'+se.col+'" stroke-width=".8" stroke-dasharray="2,2"/>';
+            s += '<text x="'+Xe.toFixed(1)+'" y="'+(arriba ? Ye-25 : Ye+31).toFixed(1)+'" font-family="Inter,sans-serif" font-size="8.5" font-style="italic" fill="'+se.col+'" text-anchor="middle">V = 0 → M extremo</text>';
+          });
+        });
+      });
+    }
 
     // ── valores anotados ──
     let et = etiquetasSerie(ramas).filter(e=>Math.abs(e.v) > 1e-7);
@@ -456,6 +536,18 @@ function svgDiagramas(r, grupo){
   }
   s += '<text x="'+(W2-M+18)+'" y="'+yTxt+'" font-family="Inter,sans-serif" font-size="10.5" '
     + 'font-style="italic" font-weight="700" fill="#3c4652">'+simb+'</text>';
+  // capa de lectura al pasar el ratón: guía vertical, tangente y punto en cada
+  // diagrama, y una línea de texto con x, w, V y M
+  _fiGrupos[gid] = _reg;
+  s += '<g id="fiHover-'+gid+'" style="display:none;pointer-events:none">'
+    + '<line id="fiHoverX-'+gid+'" x1="0" y1="26" x2="0" y2="'+(H-40)+'" stroke="#1b1f24" stroke-width=".8" stroke-dasharray="3,3"/>'
+    + _reg.series.map(se=>'<line id="fiHoverT-'+gid+'-'+se.k+'" x1="0" y1="0" x2="0" y2="0" stroke="#1b1f24" stroke-width="1.6"/>'
+        + '<circle id="fiHoverP-'+gid+'-'+se.k+'" cx="0" cy="0" r="3.2" fill="#fff" stroke="'+se.col+'" stroke-width="1.8"/>').join('')
+    + '<rect x="'+(M-4)+'" y="4" width="'+(anchoUtil+8)+'" height="16" rx="4" fill="#fff" fill-opacity=".92" stroke="#dfe4ea"/>'
+    + '<text id="fiHoverTxt-'+gid+'" x="'+(M+anchoUtil/2)+'" y="15.5" font-family="Inter,sans-serif" font-size="9" font-weight="600" fill="#1b1f24" text-anchor="middle"></text>'
+    + '</g>';
+  s += '<rect x="'+M+'" y="22" width="'+anchoUtil+'" height="'+(H-56)+'" fill="transparent" style="cursor:crosshair" '
+    + 'onmousemove="fiHoverMover(event,'+gid+')" onmouseleave="fiHoverSalir('+gid+')"/>';
   s += '</svg>';
   return s;
 }

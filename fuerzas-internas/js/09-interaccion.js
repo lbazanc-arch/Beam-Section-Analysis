@@ -79,6 +79,15 @@ function onDown(e){
     else aviso('Toca sobre un tramo para asignarle el peso.');
     return;
   }
+  // Corta y mira: tocar un punto de la viga abre el DCL del trozo izquierdo
+  // hasta ese punto, con N, V y M en la sección (propuesta 3, 2026-09-08).
+  if(tool==='corte'){
+    const [_mx,_my] = aPantalla(wx, wy);
+    const tr = tramoEn(_mx, _my);
+    if(tr) abrirCorteEn(tr, _mx, _my);
+    else aviso('Toca sobre un tramo de la viga: ahí se hace el corte.');
+    return;
+  }
   if(tool==='nudo'){
     // construir por nudos: cada clic añade un nudo y lo une al anterior
     registrarCambio();
@@ -299,7 +308,7 @@ function onDbl(e){
 
 function setTool(t){
   tool=t; if(t!=='nudo') primerNodo=null;
-  ['pan','nudo','apoyo','sel'].forEach(k=>{
+  ['pan','nudo','apoyo','sel','corte'].forEach(k=>{
     const el=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
@@ -314,6 +323,7 @@ function setTool(t){
     apoyo:'Haz clic en un nudo para asignarle apoyo o rótula.',
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
     peso:'Toca los tramos a los que quieras asignar el peso elegido; tócalos de nuevo para quitárselo.',
+    corte:'Toca un punto de la viga (ya calculada): se aísla el trozo a la izquierda del corte y se muestra su DCL con N, V y M en la sección.',
     borrar:'Toca un nudo, tramo o carga para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'};
   const ch=document.getElementById('canvasHint'); if(ch) ch.textContent=hints[t]||'';
   dibujar();
