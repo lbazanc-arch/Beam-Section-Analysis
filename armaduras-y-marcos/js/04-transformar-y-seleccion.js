@@ -1,8 +1,20 @@
+// Deja marcado el apoyo que tiene el nudo: con cuatro botones parecidos era
+// imposible saber cuál estaba puesto (bloque 4, 2026-09-09).
+function marcarApoyoArm(n){
+  const cual = {fijo:'apbFijo', movil:'apbMovil', empotrado:'apbEmpotrado'};
+  Object.keys(cual).forEach(k=>{
+    const b = document.getElementById(cual[k]);
+    if(b) b.classList.toggle('active', n.apoyo === k);
+  });
+  const q = document.getElementById('apbQuitar');
+  if(q) q.classList.toggle('active', !n.apoyo);
+}
 function actualizarPrevApoyo(){
   const n = nodos.find(z=>z.id===apoyoNodoId);
   const el = document.getElementById('apPrev');
   const dirBox = document.getElementById('apDirBox');
   if(!el || !n) return;
+  marcarApoyoArm(n);
   const esMovil = n.apoyo === 'movil';
   if(dirBox) dirBox.style.display = esMovil ? '' : 'none';
   if(esMovil){

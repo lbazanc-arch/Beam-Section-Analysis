@@ -147,7 +147,19 @@ function closeApoyoModal(){
   }
   document.getElementById('apoyoModal').classList.remove('show'); apoyoId=null; R=null; refrescar();
 }
+// Deja marcado el apoyo que tiene el nudo (bloque 4, 2026-09-09).
+function marcarApoyoPF(n){
+  const cual = {fijo:'apbFijo', movil:'apbMovil'};
+  Object.keys(cual).forEach(k=>{
+    const b = document.getElementById(cual[k]);
+    if(b) b.classList.toggle('active', n && n.apoyo === k);
+  });
+  const q = document.getElementById('apbQuitar');
+  if(q) q.classList.toggle('active', !(n && n.apoyo));
+}
+
 function actualizarPrevApoyo(){
+  marcarApoyoPF(nodos.find(z=>z.id===apoyoId));
   const n=nodos.find(z=>z.id===apoyoId), el=document.getElementById('apPrev');
   if(!n||!el) return;
   const chk = document.getElementById('apNormal');

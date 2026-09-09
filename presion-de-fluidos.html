@@ -317,9 +317,9 @@
     <h3>Apoyo en el nudo <span id="apNom"></span></h3>
     <p class="sub">El apoyo fijo (articulado) aporta dos reacciones; el móvil solo una.</p>
     <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button class="btn-sm" style="flex:1;padding:11px 6px" onclick="setApoyo('fijo')">Fijo / articulado<br><span style="font-size:9px;color:var(--muted)">2 reacciones</span></button>
-      <button class="btn-sm" style="flex:1;padding:11px 6px" onclick="setApoyo('movil')">Móvil / libre<br><span style="font-size:9px;color:var(--muted)">1 reacción</span></button>
-      <button class="btn-sm" style="flex:1;padding:11px 6px;border-color:#e0b4b4;color:#c0392b" onclick="setApoyo(null)">Quitar</button>
+      <button class="btn-sm" style="flex:1;padding:11px 6px" id="apbFijo" onclick="setApoyo('fijo')">Fijo / articulado<br><span style="font-size:9px;color:var(--muted)">2 reacciones</span></button>
+      <button class="btn-sm" style="flex:1;padding:11px 6px" id="apbMovil" onclick="setApoyo('movil')">Móvil / libre<br><span style="font-size:9px;color:var(--muted)">1 reacción</span></button>
+      <button class="btn-sm" style="flex:1;padding:11px 6px;border-color:#e0b4b4;color:#c0392b" id="apbQuitar" onclick="setApoyo(null)">Quitar</button>
     </div>
     <div class="modal-field" id="apAngRow"><label>Ángulo de la reacción</label>
       <input type="number" id="apAng" value="90" step="any" style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:var(--mf)"><span style="font-size:11px">°</span></div>

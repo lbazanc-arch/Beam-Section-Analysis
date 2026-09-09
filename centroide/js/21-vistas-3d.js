@@ -68,6 +68,12 @@ function setModoEspacio(m, opts){
     b.title = 'Espacio de trabajo: ' + (es3 ? 'cuerpo sólido (3D)' : esAl ? 'alambre (líneas)' : 'sección plana (2D)') + '. Pulsa para cambiar.';
     b.classList.toggle('active', es3 || esAl);
   }
+  // El menú de espacio de trabajo también marca el modo activo: antes se
+  // quedaba siempre en «2D» aunque se estuviera en 3D o en alambre.
+  [['esp-2d','2d'], ['esp-3d','3d'], ['esp-alambre','alambre']].forEach(([id, v])=>{
+    const e = document.getElementById(id);
+    if(e) e.classList.toggle('active', m === v);
+  });
   const mostrar = (id, si) => { const e = document.getElementById(id); if(e) e.style.display = si ? '' : 'none'; };
   mostrar('palGrid', !es3 && !esAl); mostrar('palGrid3d', es3);
   mostrar('btnPerfiles', !es3 && !esAl);

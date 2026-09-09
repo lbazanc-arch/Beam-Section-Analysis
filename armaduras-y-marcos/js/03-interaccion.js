@@ -306,8 +306,12 @@ function setTool(t){
 // disponible a través de las herramientas de la barra superior.
 function setTipo(t, btn){
   tipoTpl = t;
-  document.querySelectorAll('.tpl-btn').forEach(b=>b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
+  // Solo los botones de SU fila: el reinicio global borraba también la marca de
+  // los botones de apoyo, unión y tipo de pieza, que son otros grupos.
+  if(btn){
+    (btn.parentElement || document).querySelectorAll('.tpl-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  }
   dibujarRefPlantilla();
 }
 
