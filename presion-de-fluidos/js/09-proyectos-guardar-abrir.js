@@ -8,8 +8,8 @@ function escaparTexto(s){
 }
 function estadoActual(){
   return {
-    nodos: nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,apAng:n.apAng,
-                          rotula:n.rotula,tope:n.tope})),
+    nodos: nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,apAng:n.apAng,apModo:n.apModo||'angulo',
+                          rotula:n.rotula,tope:n.tope ? Object.assign({}, n.tope) : null})),
     tramos: tramos.map(t=>({id:t.id,a:t.a,b:t.b,tipo:t.tipo,flecha:t.flecha,
                             activo:t.activo,invertir:t.invertir})),
     zonas: JSON.parse(JSON.stringify(zonas)),
@@ -49,7 +49,13 @@ function cargarProyecto(id){
   if(!it||!it.estado){ aviso('Ese ejercicio no tiene datos para abrir.', 'error'); return; }
   const e=it.estado;
   try{
-    nodos=(e.nodos||[]).map(n=>Object.assign({nombre:''},n));
+    // Archivos de la versión 1: el tope solo traía su ángulo (modo 'angulo')
+    // y el apoyo móvil no tenía modo.
+    nodos=(e.nodos||[]).map(n=>{
+      const nn = Object.assign({nombre:'', apModo:'angulo'}, n);
+      if(nn.tope && !nn.tope.modo) nn.tope = Object.assign({modo:'angulo', lado:1}, nn.tope);
+      return nn;
+    });
     tramos=(e.tramos||[]).slice();
     nodoSeq=nodos.reduce((m,n)=>Math.max(m,n.id),0);
     tramoSeq=tramos.reduce((m,t)=>Math.max(m,t.id),0);
@@ -84,6 +90,7 @@ window.addEventListener('message', ev=>{
 function manejarEsc(){
   // 1) Un modal abierto: se cierra con su función propia para no dejar estado sucio
   const cierres = {edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal',
+    ejModal:'cerrarEjemplos',
     unitsModal:'closeUnitsModal', decModal:'closeDecModal',
     guardarModal:'cerrarGuardar', histModal:'cerrarHistorial',
     transModal:'closeTransformar', repModal:'closeReplicar'};
@@ -186,7 +193,7 @@ window.addEventListener('load', ()=>{
 //  API no existe (Firefox, Safari, móvil) se recurre a la descarga normal.
 // ═══════════════════════════════════════════════════════════
 const BSA_FORMATO = 'bsa9p';
-const BSA_VERSION = 1;
+const BSA_VERSION = 2;                // 2 (2026-09-08): topes con modo/lado y apoyos móviles con modo
 const BSA_EXT     = '.json';          // un solo .json: la doble extensión .bsa9p.json
                                       // dejaba los archivos en gris en el selector de Android
 const BSA_PREFIJO = 'presion-de-fluidos-';    // el tema va en el nombre, y el formato dentro (bsaApp)
@@ -241,8 +248,11 @@ async function guardarProyecto(){
   }
   const como = await bsaGuardarArchivo(texto, archivo);
   cerrarGuardar();
-  if(como === 'compartido') aviso('Guardado "' + archivo + '" donde elegiste.');
-  else if(como === 'descargado') aviso('Descargando "' + archivo + '". Búscalo en tu carpeta de descargas.');
+  // En el móvil el archivo sale como .txt (ver bsaGuardarArchivo): se avisa
+  // con el nombre real, que es el que el alumno verá en Archivos.
+  const guardadoComo = bsaUltimoNombreGuardado || archivo;
+  if(como === 'compartido') aviso('Guardado "' + guardadoComo + '" donde elegiste.');
+  else if(como === 'descargado') aviso('Descargando "' + guardadoComo + '". Búscalo en tu carpeta de descargas.');
 }
 
 

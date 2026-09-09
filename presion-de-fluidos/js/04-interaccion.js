@@ -23,7 +23,7 @@ function tramoEn(mx,my){
   return mejor;
 }
 function addNodo(x,y){
-  const n={id:++nodoSeq,x:snap(x),y:snap(y),nombre:'',apoyo:null,apAng:90,rotula:false,tope:null};
+  const n={id:++nodoSeq,x:snap(x),y:snap(y),nombre:'',apoyo:null,apAng:90,apModo:'angulo',rotula:false,tope:null};
   nodos.push(n); reNombrar(); return n;
 }
 function addTramo(a,b,tipo){
@@ -253,7 +253,7 @@ function setTool(t){
     arco:'Haz clic en dos nudos para unirlos con un tramo curvo.',
     apoyo:'Haz clic en un nudo y elige el tipo de apoyo.',
     rotula:'Haz clic en un nudo para poner o quitar una rótula interna.',
-    tope:'Haz clic en un nudo para colocar una fuerza incógnita con su dirección.',
+    tope:'Haz clic en un nudo para colocar un tope liso: una fuerza incógnita, normal a la compuerta (o con la dirección que indiques).',
     pan:'Arrastra el lienzo para desplazar la vista.',
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
     borrar:'Toca un nudo o un tramo para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'};

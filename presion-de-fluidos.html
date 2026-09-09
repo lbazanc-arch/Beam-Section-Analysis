@@ -114,7 +114,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1.4 13H7.4Z"/><path d="M4 7h16M10 4h4"/></svg>
         <span>Limpiar</span>
       </button>
-      <button class="rail-btn accion" onclick="cargarEjemplo()">
+      <button class="rail-btn accion" onclick="abrirEjemplos()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19V5h9l5 5v9z"/><path d="M9 12h6M9 15h4"/></svg>
         <span>Ejemplo</span>
       </button>
@@ -148,16 +148,19 @@
         <label class="vis-item"><input type="checkbox" id="visApoyos" checked onchange="setVis('apoyos',this.checked)"><span>Apoyos</span></label>
         <label class="vis-item"><input type="checkbox" id="visLiquidos" checked onchange="setVis('liquidos',this.checked)"><span>Líquidos</span></label>
         <label class="vis-item"><input type="checkbox" id="visPresion" checked onchange="setVis('presion',this.checked)"><span>Presión</span></label>
+        <label class="vis-item"><input type="checkbox" id="visResultantes" checked onchange="setVis('resultantes',this.checked)"><span>Resultantes</span></label>
+        <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas y valores</span></label>
       </div>
       <div class="hint-sm">Oculta lo que no necesites ver en el panel de dibujo. No afecta al cálculo.</div>
       </div>
-      <div class="sec-cont" id="sec_ele" style="display:none"><div class="hint-sm" style="margin-bottom:6px">Marca qué tramos entran en el análisis. La cara que mira a cada zona se deduce de la geometría; si no coincide, púlsala para invertirla.</div>
+      <div class="sec-cont" id="sec_ele" style="display:none"><div class="hint-sm" style="margin-bottom:6px">Marca qué tramos entran en el análisis. La compuerta separa las dos zonas: la <b>zona 1</b> queda a la izquierda de la cadena de tramos y la <b>zona 2</b> a la derecha; sobre cada tramo actúa el líquido que toca cada cara. Si el dibujo del líquido no coincide con lo que quieres, invierte la cara con el botón del tramo.</div>
       <div id="listaTramos"><div class="list-empty">Sin tramos. Coloca nudos y únelos.</div></div>
       <div class="panel-title" style="margin-top:10px">Apoyos y topes</div>
       <div id="listaApoyos"><div class="list-empty">Sin apoyos.</div></div></div>
-      <div class="sec-cont" id="sec_liq" style="display:none"><div class="panel-title">Zona 1 · izquierda</div><div id="listaZ1"></div>
-      <button class="btn-sm" style="width:100%;margin-top:5px" onclick="addLiquido(1)">+ Añadir líquido</button><div class="panel-title" style="margin-top:12px">Zona 2 · derecha</div><div id="listaZ2"></div>
+      <div class="sec-cont" id="sec_liq" style="display:none"><div class="panel-title">Zona 1 · a la izquierda de la compuerta</div><div id="listaZ1"></div>
+      <button class="btn-sm" style="width:100%;margin-top:5px" onclick="addLiquido(1)">+ Añadir líquido</button><div class="panel-title" style="margin-top:12px">Zona 2 · a la derecha de la compuerta</div><div id="listaZ2"></div>
       <button class="btn-sm" style="width:100%;margin-top:5px" onclick="addLiquido(2)">+ Añadir líquido</button>
+      <div class="hint-sm" style="margin-top:6px">Cada capa se define por el peso específico γ y la cota de su superficie libre (nivel). Con varias capas, la presión se acumula de arriba abajo.</div>
       <div class="num-row" style="margin-top:8px"><label>Ancho de la compuerta</label><input type="number" id="pB" value="1" step="any"><span class="u" id="uL5">m</span></div></div>
     </div>
   </div>
@@ -178,7 +181,7 @@
 <div class="results-area" id="resultsArea">
   <div class="results-wrap">
     <div id="noResultsHint" class="empty-hint">
-      Define la superficie y el líquido, y pulsa <b style="color:var(--acc)">▶ Calcular</b> para obtener la fuerza resultante y su punto de aplicación.
+      Arma la compuerta, pon el líquido en su zona y pulsa <b style="color:var(--acc)">▶ Resolver</b>: obtendrás la resultante de cada tramo mojado, su centro de presión y las reacciones.
     </div>
     <div id="resultsPanel" style="display:none"></div>
   </div>
@@ -189,11 +192,11 @@
 <div class="modal-ov" id="histModal">
   <div class="modal">
     <h3>Abrir ejercicio</h3>
-    <p class="sub">Elige un archivo <code>.json</code> que hayas guardado
+    <p class="sub">Elige un archivo <code>.json</code> (o <code>.txt</code>, si lo guardaste desde el móvil) que hayas guardado
       antes. No se guarda nada en este navegador ni en el portal: el archivo
       es tuyo y se abre desde donde lo tengas.</p>
     <div id="histLista"></div>
-    <input type="file" id="archivoAbrir" accept=".json,application/json" data-bsa-relajar="1"
+    <input type="file" id="archivoAbrir" accept=".json,.txt,application/json,text/plain" data-bsa-relajar="1"
            style="display:none" onchange="onArchivoElegido(event)">
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="cerrarHistorial()">Cancelar</button>
@@ -254,7 +257,7 @@
 <div class="modal-ov" id="guardarModal">
   <div class="modal">
     <h3>Guardar ejercicio</h3>
-    <p class="sub">Se guarda un archivo <code>.json</code>. En el ordenador
+    <p class="sub">Se guarda un archivo <code>.json</code> (en el móvil, un <code>.txt</code> con el mismo contenido). En el ordenador
       podrás <b>elegir la carpeta</b>; en el móvil se abre la hoja de compartir para guardarlo o enviarlo. Para
       retomarlo, usa <b>Historial → Abrir archivo</b>.</p>
     <div class="modal-field"><label>Nombre</label>
@@ -320,6 +323,7 @@
     </div>
     <div class="modal-field" id="apAngRow"><label>Ángulo de la reacción</label>
       <input type="number" id="apAng" value="90" step="any" style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:var(--mf)"><span style="font-size:11px">°</span></div>
+    <div class="chk-row"><input type="checkbox" id="apNormal" onchange="actualizarPrevApoyo()"><label for="apNormal">Reacción perpendicular a la compuerta (apoyo liso sobre la placa)</label></div>
     <div class="modal-preview" id="apPrev"></div>
     <div class="modal-btns"><button class="mbtn ghost" onclick="closeApoyoModal()">Cerrar</button></div>
   </div>
@@ -328,13 +332,36 @@
 <div class="modal-ov" id="topeModal">
   <div class="modal">
     <h3>Tope en el nudo <span id="tpNom"></span></h3>
-    <p class="sub">Fuerza de magnitud desconocida en la dirección que indiques. El programa la despejará del equilibrio.</p>
-    <div class="modal-field"><label>Ángulo</label>
-      <input type="number" id="tpAng" value="0" step="any" style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:var(--mf)"><span style="font-size:11px">°</span></div>
-    <div class="modal-preview">0° apunta hacia la derecha; 90° hacia arriba. La dirección se mide desde el eje horizontal, en sentido antihorario.</div>
+    <p class="sub">Un tope liso solo puede <b>empujar</b> a la compuerta, perpendicularmente a ella. El programa despeja su fuerza del equilibrio; si sale negativa, la compuerta se separa del tope (se abre).</p>
+    <div style="display:flex;gap:7px;margin:4px 0 12px">
+      <button class="modo-btn active" id="tpTabNormal" onclick="setTopeModo('normal')">Perpendicular a la compuerta</button>
+      <button class="modo-btn" id="tpTabAngulo" onclick="setTopeModo('angulo')">Dirección dada</button>
+    </div>
+    <div id="tpCampoNormal">
+      <div class="modal-field"><label>Lado del tope</label>
+        <select id="tpLado"><option value="1">Zona 1 (izquierda)</option><option value="2">Zona 2 (derecha)</option></select></div>
+      <div class="modal-preview">El tope se apoya en la cara que mira a esa zona y empuja hacia la otra. Normalmente va en el lado seco, el contrario al del líquido.</div>
+    </div>
+    <div id="tpCampoAngulo" style="display:none">
+      <div class="modal-field"><label>Ángulo</label>
+        <input type="number" id="tpAng" value="0" step="any" style="flex:1;padding:7px 9px;border:1px solid var(--border2);border-radius:7px;font-family:var(--mf)"><span style="font-size:11px">°</span></div>
+      <div class="modal-preview">Dirección en que el tope empuja a la compuerta: 0° hacia la derecha, 90° hacia arriba, medida desde la horizontal en sentido antihorario.</div>
+    </div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="quitarTope()">Quitar</button>
       <button class="mbtn" onclick="applyTope()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-ov" id="ejModal">
+  <div class="modal" style="max-width:470px;max-height:88vh;overflow-y:auto">
+    <h3>Ejemplos de verificación</h3>
+    <p class="sub">Casos de complejidad creciente, resueltos a mano con las fórmulas del curso
+      (Hibbeler §9.5, Beer §5.9). Sirven para comprobar que el programa devuelve lo mismo.</p>
+    <div id="ejLista"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="cerrarEjemplos()">Cerrar</button>
     </div>
   </div>
 </div>
