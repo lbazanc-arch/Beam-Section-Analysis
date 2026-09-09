@@ -560,12 +560,12 @@ function construirLatex(){
     const medidasDe = fg => {
       const def = FIG_DEFS[fg.type];
       if(fg.perfil) return 'valores tabulados';
-      return def.dims.map(d=>{
-        if(d.id === 'alpha') return '$\\theta = ' + decP(fg.dims.alpha,'ang') + '^\\circ$ (semiángulo)';
+      const lens = def.dims.filter(d=>d.id !== 'alpha').map(d=>{
         const m = String(d.label).match(/\(([^)]+)\)/);
-        const simb = m ? m[1] : d.id;
-        return '$' + simb + ' = ' + decP(fg.dims[d.id],'len') + '$';
-      }).join(', ') + '\\,' + utexto(u1);
+        return '$' + (m ? m[1] : d.id) + ' = ' + decP(fg.dims[d.id],'len') + '$';
+      });
+      const angs = def.dims.filter(d=>d.id === 'alpha').map(()=>'$\\theta = ' + decP(fg.dims.alpha,'ang') + '^\\circ$ (semiángulo)');
+      return lens.join(', ') + '\\,' + utexto(u1) + (angs.length ? ', ' + angs.join(', ') : '');
     };
     tex += '\\vspace{10pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{8pt}\n\n';
     tex += '\\noindent{\\bfseries\\color{bsaAcc} Partes ' + listaNums(omitidas.map(i=>i+1)) + '}\\ \\ '
