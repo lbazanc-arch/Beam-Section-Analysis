@@ -20,7 +20,7 @@ function manejarEsc(){
     return;
   }
   // 2) Un menú desplegable de la barra
-  const menu = ['menuFiguras','menuTipoCuerpo'].find(id=>{
+  const menu = ['menuFiguras','menuTipoCuerpo','menuEspacio'].find(id=>{
     const m = document.getElementById(id);
     return m && m.classList.contains('abierto');
   });

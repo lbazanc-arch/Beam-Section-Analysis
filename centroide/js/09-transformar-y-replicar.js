@@ -201,6 +201,7 @@ function togglePanTool(){ setHerramienta('pan'); }
 
 function calculate(){
   if(modoEspacio === '3d') return calculate3d();        // 21-vistas-3d.js
+  if(modoEspacio === 'alambre') return calculateAlambre();   // 24-alambres.js
   if(!figures.length){ aviso('Agrega al menos una figura.'); return; }
 
   const u2 = unit+'²';
@@ -448,7 +449,7 @@ function drawSeccionFinal(canvasId){
   //    (Un único trazado con 'evenodd' anulaba las zonas superpuestas
   //     y hacía desaparecer figuras enteras, como el rectángulo.)
   const COL='#0f5c56';
-  figures.filter(f=>f.sign>0).forEach(f=>{
+  figures.filter(f=>f.sign>0 && !FIG_DEFS[f.type].esLinea).forEach(f=>{
     c.save(); c.beginPath(); trazar(f);
     c.fillStyle='rgba(15,92,86,.20)'; c.fill();
     c.restore();
@@ -464,7 +465,7 @@ function drawSeccionFinal(canvasId){
   // 3) Contornos por encima del relleno, para que se distinga cada pieza
   figures.filter(f=>f.sign>0).forEach(f=>{
     c.save(); c.beginPath(); trazar(f);
-    c.strokeStyle=COL; c.lineWidth=2; c.stroke();
+    c.strokeStyle=COL; c.lineWidth=FIG_DEFS[f.type].esLinea ? 3.2 : 2; c.lineCap='round'; c.stroke();
     c.restore();
   });
   figures.filter(f=>f.sign<0).forEach(f=>{

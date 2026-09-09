@@ -267,8 +267,9 @@ function drawCompositeFigure(canvasId) {
     ctx2.beginPath();def.draw(ctx2,fig.dims,false);ctx2.restore();
   }
   for(const fig of figures.filter(f=>f.sign===1)){
-    figPath(fig,c);c.fillStyle=hexAlpha(fig.color,.28);c.fill();
-    figPath(fig,c);c.strokeStyle=hexAlpha(fig.color,.9);c.lineWidth=1.8;c.stroke();
+    const esL = !!FIG_DEFS[fig.type].esLinea;    // un tramo de alambre no se rellena
+    if(!esL){ figPath(fig,c);c.fillStyle=hexAlpha(fig.color,.28);c.fill(); }
+    figPath(fig,c);c.strokeStyle=hexAlpha(fig.color,.9);c.lineWidth=esL?3.2:1.8;c.lineCap='round';c.stroke();
   }
   for(const fig of figures.filter(f=>f.sign===-1)){
     figPath(fig,c);c.fillStyle='#ffffff';c.fill();
@@ -316,6 +317,8 @@ function drawCompositeFigure(canvasId) {
       } else if(fig.type==='sector'){
         const t=d.alpha*Math.PI/180, yc=2*d.r*Math.sin(t)/(3*t);
         co={x:0,y:-yc};           ext={x:0,y:-yc+d.r};   // sobre la bisectriz
+      } else if(def.centroArco){                          // arcos de alambre (24-)
+        co=def.centroArco(d);     ext=def.puntoRadio(d);
       }
       if(co){
         const p0=S(co.x,co.y), p1=S(ext.x,ext.y);
@@ -337,6 +340,9 @@ function drawCompositeFigure(canvasId) {
         etiq.add('R='+d.r+unit, mx-8*Math.sin(ang), my+8*Math.cos(ang)-2, clr, 'bold 9px Inter');
         if(fig.type==='sector'){
           etiq.add('\u03b8='+d.alpha+'\u00b0', p0.x, p0.y+13, clr, '9px Inter');
+        }
+        if(fig.type==='l_arco'){
+          etiq.add('\u03c6='+d.phi+'\u00b0', p0.x, p0.y+13, clr, '9px Inter');
         }
         c.restore();
       }

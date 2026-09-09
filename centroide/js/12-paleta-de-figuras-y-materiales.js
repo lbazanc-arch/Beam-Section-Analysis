@@ -20,7 +20,7 @@ function cerrarPanelSiMovil(){
 const PAL_VISIBLES = 6;
 function alternarVerMas(){
   // En 3D la paleta es #palGrid3d y no tiene «Ver más» (seis sólidos caben).
-  const grid = document.getElementById(modoEspacio === '3d' ? 'palGrid3d' : 'palGrid');
+  const grid = document.getElementById(modoEspacio === '3d' ? 'palGrid3d' : modoEspacio === 'alambre' ? 'palGridAlambre' : 'palGrid');
   const btn  = document.getElementById('palMas');
   const txt  = document.getElementById('palMasTxt');
   if(!grid || !btn) return;
@@ -463,7 +463,9 @@ const EJEMPLOS_CEN = [
 ];
 function abrirEjemplosCen(){
   const el = document.getElementById('ejLista');
-  if(el) el.innerHTML = EJEMPLOS_CEN.map((e,i)=>
+  // En modo Alambre la lista es la de alambres compuestos (24-alambres.js).
+  const lista = (modoEspacio === 'alambre' && typeof EJEMPLOS_ALAMBRE !== 'undefined') ? EJEMPLOS_ALAMBRE : EJEMPLOS_CEN;
+  if(el) el.innerHTML = lista.map((e,i)=>
       '<div class="item-row" style="display:block;padding:9px 11px;margin-bottom:7px;cursor:pointer" '
     + 'onclick="loadExampleSection(\'' + e.id + '\')">'
     + '<div style="font-weight:700;font-size:11.5px;color:var(--acc)">' + (i+1) + ' · ' + e.nom + '</div>'
@@ -485,6 +487,7 @@ function comprobarEjemploCen(ej){
 // Sin argumento carga la sección de 18 figuras, para no romper llamadas antiguas.
 function loadExampleSection(id){
   if(modoEspacio === '3d') return loadExample3d();      // 21-vistas-3d.js
+  if(modoEspacio === 'alambre') return loadExampleAlambre(id);   // 24-alambres.js
   const ej = EJEMPLOS_CEN.find(e=>e.id === id) || EJEMPLOS_CEN[0];
   resetAll();
   ejemploActualCen = ej.id;

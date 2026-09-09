@@ -62,7 +62,7 @@ function cerrarSeccion(){
 // Todos los botones de la Zona 1 usan el mismo mecanismo: se despliegan hacia
 // abajo desde la barra y al abrir uno se cierra cualquier otro que estuviera
 // abierto, incluida la columna lateral.
-const MENUS_ZONA1 = ['menuFiguras','menuTipoCuerpo'];
+const MENUS_ZONA1 = ['menuFiguras','menuTipoCuerpo','menuEspacio'];
 function abrirMenuBarra(id, ev){
   const m=document.getElementById(id); if(!m) return;
   const abre=!m.classList.contains('abierto');
@@ -98,7 +98,7 @@ function menuTipoCuerpo(ev){ abrirMenuBarra('menuTipoCuerpo', ev); }
 document.addEventListener('click', ev=>{
   const abiertos = MENUS_ZONA1.map(k=>document.getElementById(k)).filter(m=>m&&m.classList.contains('abierto'));
   if(!abiertos.length) return;
-  const boton = ev.target.closest && ev.target.closest('[onclick*="menuFiguras"],[onclick*="menuTipoCuerpo"]');
+  const boton = ev.target.closest && ev.target.closest('[onclick*="menuFiguras"],[onclick*="menuTipoCuerpo"],[onclick*="menuEspacio"]');
   if(boton) return;                       // lo gestiona abrirMenuBarra
   abiertos.forEach(m=>{
     const dentro = m.contains(ev.target);

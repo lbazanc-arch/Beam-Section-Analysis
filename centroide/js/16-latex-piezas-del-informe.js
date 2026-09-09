@@ -99,7 +99,9 @@ function tikzCroquisFigura(fig, anchoCm){
 
   let s = '\\begin{tikzpicture}[scale=1]\n';
   s += '\\begin{scope}[shift={(' + n(ox) + ',' + n(oy) + ')}, scale=' + esc.toFixed(4) + ']\n';
-  s += '\\path[' + (neg
+  s += def.esLinea
+    ? '\\draw[draw={'+col+'}, line width=1.2pt, line cap=round] '      // tramo de alambre: solo trazo
+    : '\\path[' + (neg
         ? 'pattern=north east lines, pattern color={'+col+'}, draw={'+col+'}, line width=0.7pt, dashed'
         : 'fill={'+col+'}, fill opacity=0.28, draw={'+col+'}, line width=0.8pt') + '] ';
   s += figuraPathLocal(fig.type, fig.dims) + ';\n';
@@ -391,6 +393,7 @@ function _preambuloLatexCen(subcabecera){
 
 function construirLatex(){
   if(results && results.es3d) return construirLatex3d();   // modo 3D (22-latex-3d.js)
+  if(results && results.esLinea) return construirLatexAlambre();   // modo Alambre (24-alambres.js)
   if(!results){ aviso('Primero calcula el centroide.'); return null; }
   _yaDichoCen = {};
   const het = results.hetero;

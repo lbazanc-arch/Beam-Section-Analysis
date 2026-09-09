@@ -97,8 +97,8 @@ function histSnapshot(){
   const desc=Object.keys(tipos).map(k=>tipos[k]+'× '+k).join(', ');
   // Se añade el área (o el volumen en 3D) para distinguir secciones con las
   // mismas figuras pero distintas medidas
-  const es3 = (modoEspacio === '3d');
-  const areaTxt=(results&&isFinite(results.A))?('  ·  '+(es3?'V=':'A=')+fmtVal(results.A)+' '+unit+(es3?'³':'²')):'';
+  const es3 = (modoEspacio === '3d'), esL = (modoEspacio === 'alambre');
+  const areaTxt=(results&&isFinite(results.A))?('  ·  '+(es3?'V=':esL?'L=':'A=')+fmtVal(results.A)+' '+unit+(es3?'³':esL?'':'²')):'';
   const title=desc+areaTxt;
   return {title, state:{
     modoEspacio,
@@ -112,7 +112,7 @@ function histSnapshot(){
 }
 function histRestore(s){
   // Los archivos anteriores al modo 3D no traen modoEspacio: son 2D.
-  const modo = (s.modoEspacio === '3d') ? '3d' : '2d';
+  const modo = (s.modoEspacio === '3d' || s.modoEspacio === 'alambre') ? s.modoEspacio : '2d';
   if(modo !== modoEspacio) setModoEspacio(modo, {sinLimpiar:true, sinAjustar:true});
   figures=JSON.parse(JSON.stringify(s.figures));
   if(typeof s.colorIdx==='number') colorIdx=s.colorIdx;

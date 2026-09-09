@@ -75,6 +75,8 @@ function figuraPathLocal(tipo, d){
              [x0+d.t,y0+d.b2],[x0,y0+d.b2]];
     return P.map(q=>'('+q[0]+','+q[1]+')').join(' -- ') + ' -- cycle';
   }
+  // Tramos de alambre (24-alambres.js): trazo abierto, sin relleno.
+  if(FIG_DEFS[tipo] && FIG_DEFS[tipo].esLinea && typeof pathLineaTikz === 'function') return pathLineaTikz(tipo, d);
   return '(0,0) circle (1)';
 }
 
@@ -105,7 +107,7 @@ function tikzFigura(fig, tx, ty, esc, numero){
     ? 'fill={' + col + '}, fill opacity=0.30, draw={' + col + '}, line width=0.9pt'
     : 'pattern=north east lines, pattern color={' + col + '}, draw={' + col + '}, line width=0.8pt, dashed';
   let s = '\\begin{scope}[shift={(' + cxS + ',' + cyS + ')}, rotate=' + (fig.rotation||0) + ', scale=' + esc + ']\n';
-  s += '\\filldraw[' + relleno + '] ' + pathLocal + ';\n';
+  s += (def.esLinea ? '\\draw[draw={' + col + '}, line width=1.3pt, line cap=round] ' : '\\filldraw[' + relleno + '] ') + pathLocal + ';\n';
   s += '\\end{scope}\n';
   // Punto y etiqueta del centroide local de la figura (fig.cx,fig.cy YA es su centroide)
   s += '\\fill[black!55] (' + cxS + ',' + cyS + ') circle (1.1pt);\n';
@@ -232,10 +234,12 @@ function tikzCotasCompuesta(cajaMundo, tx, ty){
     if(f.type==='quarter'){ const dc=4*d.r/(3*Math.PI); co.x=-dc; co.y=-dc; }
     else if(f.type==='semicircle'){ co.y = -4*d.r/(3*Math.PI); }
     else if(f.type==='sector'){ const t=d.alpha*Math.PI/180; co.y = -2*d.r*Math.sin(t)/(3*t); }
+    else if(FIG_DEFS[f.type] && FIG_DEFS[f.type].centroArco){ const q = FIG_DEFS[f.type].centroArco(d); co.x = q.x; co.y = q.y; }
     const wx = f.cx + co.x*Math.cos(rot) - co.y*Math.sin(rot);
     const wy = f.cy + co.x*Math.sin(rot) + co.y*Math.cos(rot);
     let txt = 'R=' + decP(d.r,'len');
     if(f.type==='sector') txt += ',\\ 2\\theta=' + decP(d.alpha*2,'len') + '^\\circ';
+    if(f.type==='l_arco') txt += ',\\ \\varphi=' + decP(d.phi,'len') + '^\\circ';
     items.push({txt, ancla:{x:px(wx), y:py(wy)},
                 w: tikzMedirTexto(txt) + 0.22, h: ALTO_ROT});
   });

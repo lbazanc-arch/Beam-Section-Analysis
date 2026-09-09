@@ -59,31 +59,33 @@ function setModoEspacio(m, opts){
   opts = opts || {};
   const cambia = (modoEspacio !== m);
   modoEspacio = m;
-  const es3 = (m === '3d');
+  const es3 = (m === '3d'), esAl = (m === 'alambre');
   const b = document.getElementById('btnEspacio');
   if(b){
-    const sp = b.querySelector('span'); if(sp) sp.textContent = es3 ? '2D' : '3D';
-    b.title = es3 ? 'Volver a la sección plana (2D)' : 'Pasar a cuerpo sólido (3D)';
-    b.classList.toggle('active', es3);
+    // Con tres modos (2D, 3D y Alambre) el botón muestra el modo ACTUAL y abre
+    // el menú #menuEspacio para cambiarlo (24-alambres.js).
+    const sp = b.querySelector('span'); if(sp) sp.textContent = es3 ? '3D' : (esAl ? 'Alambre' : '2D');
+    b.title = 'Espacio de trabajo: ' + (es3 ? 'cuerpo sólido (3D)' : esAl ? 'alambre (líneas)' : 'sección plana (2D)') + '. Pulsa para cambiar.';
+    b.classList.toggle('active', es3 || esAl);
   }
   const mostrar = (id, si) => { const e = document.getElementById(id); if(e) e.style.display = si ? '' : 'none'; };
-  mostrar('palGrid', !es3); mostrar('palGrid3d', es3);
-  mostrar('btnPerfiles', !es3);
+  mostrar('palGrid', !es3 && !esAl); mostrar('palGrid3d', es3);
+  mostrar('btnPerfiles', !es3 && !esAl);
   mostrar('posZField', es3); mostrar('rotField', !es3);
   mostrar('transCampoDz', es3); mostrar('repCampoDz', es3); mostrar('visIsoItem', es3);
-  { const lb = document.querySelector('#rotField label'); if(lb) lb.textContent = es3 ? 'Giro α (°) alrededor del eje vertical' : 'Rotación α (°)'; }
+  { const lb = document.querySelector('#rotField label'); if(lb) lb.textContent = es3 ? 'Giro α (°) alrededor del eje vertical' : (esAl ? 'Orientación α (°)' : 'Rotación α (°)'); }
   // Las dos paletas comparten el botón «Ver más»: al cambiar de modo se
   // pliegan las dos y el botón vuelve a «Ver más».
   try{
     const btn = document.getElementById('palMas'), txt = document.getElementById('palMasTxt');
     if(btn){ btn.classList.remove('abierto'); if(txt) txt.textContent = 'Ver más'; }
-    ['palGrid','palGrid3d'].forEach(gid=>{ const g = document.getElementById(gid); if(!g) return;
+    ['palGrid','palGrid3d','palGridAlambre'].forEach(gid=>{ const g = document.getElementById(gid); if(!g) return;
       g.querySelectorAll('.fig-btn').forEach((b,i)=>b.classList.toggle('oculta', i >= PAL_VISIBLES)); });
   }catch(e){}
   const pp = document.getElementById('palPerfiles');
-  if(pp){ if(es3) pp.style.display = 'none'; else { try{ pintarMisPerfiles(); }catch(e){} } }
+  if(pp){ if(es3 || esAl) pp.style.display = 'none'; else { try{ pintarMisPerfiles(); }catch(e){} } }
   const head = document.querySelector('#menuFiguras .tb-menu-head');
-  if(head) head.textContent = es3 ? 'Insertar sólido' : 'Insertar figura';
+  if(head) head.textContent = es3 ? 'Insertar sólido' : (esAl ? 'Insertar tramo' : 'Insertar figura');
   if(cambia && !opts.sinLimpiar){
     figures = []; selectedFigId = null; selectedFigType = null; selFiguras = [];
     results = null; colorIdx = 0; ghostPos = null;
@@ -95,8 +97,11 @@ function setModoEspacio(m, opts){
   const hint = document.getElementById('canvasHint');
   if(hint) hint.textContent = es3
     ? 'Planta a la izquierda, alzado a la derecha. Elige un sólido en Figuras y haz clic para colocarlo.'
+    : esAl
+    ? 'Elige un tramo (segmento o arco) en Figuras y haz clic para colocarlo; luego fija su longitud, orientación y extremos en el panel.'
     : 'Selecciona una figura del panel y haz clic para colocarla';
   canvas.style.cursor = (herramienta === 'pan') ? 'grab' : 'default';
+  if(typeof _interfazAlambre === 'function') _interfazAlambre(esAl);   // 24-alambres.js
   if(!opts.sinAjustar) fitView();
   render();
 }

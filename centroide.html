@@ -36,11 +36,11 @@
   </button>
   <div class="tb-sep"></div>
   <div class="tb-zona" id="tbZona1">
-    <!-- Espacio de trabajo: el botón muestra el modo al que se PASA («3D»
-         mientras se trabaja en 2D, «2D» mientras se trabaja en 3D). -->
-    <button class="tool-btn" id="btnEspacio" onclick="alternarEspacio()" title="Pasar a cuerpo sólido (3D)">
+    <!-- Espacio de trabajo: el botón muestra el modo ACTUAL (2D, 3D o Alambre)
+         y abre el menú #menuEspacio para cambiarlo (24-alambres.js). -->
+    <button class="tool-btn" id="btnEspacio" onclick="menuEspacio(event)" title="Espacio de trabajo: sección plana (2D). Pulsa para cambiar.">
       <svg viewBox="0 0 40 34"><path d="M13 12 l7 -4 l8 4 v10 l-8 4 l-7 -4 Z M20 8 v18 M13 12 l7 4 l8 -4" fill="none" stroke="#0f5c56" stroke-width="2.2" stroke-linejoin="round"/></svg>
-      <span>3D</span>
+      <span>2D</span>
     </button>
     <button class="tool-btn" id="btnFiguras" onclick="menuFiguras(event)" title="Insertar una figura">
       <svg viewBox="0 0 40 34"><rect x="8" y="9" width="11" height="11" fill="none" stroke="#0f5c56" stroke-width="2.2"/><circle cx="27" cy="20" r="6" fill="none" stroke="#0f5c56" stroke-width="2.2"/></svg>
@@ -114,6 +114,17 @@
             <div id="mat-msg" style="font-size:9px;color:var(--muted);margin-top:4px;line-height:1.4;"></div>
           </div></div></div>
 
+<div class="tb-menu" id="menuEspacio"><div class="tb-menu-head">Espacio de trabajo</div><div class="tb-menu-body">
+          <div style="display:flex;flex-direction:column;gap:5px;padding:0 8px;">
+            <button class="modo-btn active" id="esp-2d" onclick="elegirEspacio('2d')">Sección plana (2D)</button>
+            <button class="modo-btn" id="esp-3d" onclick="elegirEspacio('3d')">Cuerpo sólido (3D)</button>
+            <button class="modo-btn" id="esp-alambre" onclick="elegirEspacio('alambre')">Alambre (líneas)</button>
+          </div>
+          <div style="font-size:9px;color:var(--muted);margin:6px 8px 0;line-height:1.45;">
+            Sección plana: centroide de áreas. Cuerpo sólido: de volúmenes, en planta y alzado. Alambre: de líneas
+            (segmentos y arcos). Cambiar de espacio vacía el panel.
+          </div></div></div>
+
 <div class="tb-menu" id="menuFiguras"><div class="tb-menu-head">Insertar figura</div><div class="tb-menu-body"><div class="pal">
           <div class="pal-grid" id="palGrid">
             <button class="fig-btn" onclick="selectFigType('rect')" id="figbtn-rect">
@@ -183,6 +194,26 @@
             <button class="fig-btn oculta" onclick="selectFigType('s_cuna')" id="figbtn-s_cuna">
             <svg viewBox="0 0 44 44" fill="none"><path d="M8 34 L34 34 L8 12 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M8 12 l8 -5 l26 22 l-8 5 M34 34 l8 -5" stroke="currentColor" stroke-width="1.4" fill="rgba(168,232,216,.10)"/><circle cx="17" cy="27" r="2.5" fill="#f0c040"/></svg>
             <span>Cuña</span>
+            </button>
+          </div>
+          <!-- Paleta del modo Alambre (líneas): segmentos rectos y arcos. Se
+               muestra en lugar de #palGrid cuando modoEspacio === 'alambre'. -->
+          <div class="pal-grid" id="palGridAlambre" style="display:none">
+            <button class="fig-btn" onclick="selectFigType('l_segmento')" id="figbtn-l_segmento">
+            <svg viewBox="0 0 44 44" fill="none"><line x1="6" y1="34" x2="38" y2="10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
+            <span>Segmento</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('l_arco')" id="figbtn-l_arco">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8,32 A18,18 0 0,1 36,32" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line x1="22" y1="36" x2="8" y2="32" stroke="currentColor" stroke-width="1" opacity=".5"/><line x1="22" y1="36" x2="36" y2="32" stroke="currentColor" stroke-width="1" opacity=".5"/><circle cx="22" cy="21" r="2.5" fill="#f0c040"/></svg>
+            <span>Arco φ</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('l_cuarto')" id="figbtn-l_cuarto">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M38,38 A30,30 0 0,0 8,8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M8,38 L8,8 M8,38 L38,38" stroke="currentColor" stroke-width="1" opacity=".5"/><circle cx="27" cy="19" r="2.5" fill="#f0c040"/></svg>
+            <span>¼ de arco</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('l_semi')" id="figbtn-l_semi">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M5,32 A17,17 0 0,1 39,32" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line x1="5" y1="32" x2="39" y2="32" stroke="currentColor" stroke-width="1" opacity=".5"/><circle cx="22" cy="21" r="2.5" fill="#f0c040"/></svg>
+            <span>Semicircunf.</span>
             </button>
           </div>
           <button class="pal-mas" id="palMas" onclick="alternarVerMas()">
@@ -350,7 +381,7 @@
     <h3>Ejemplos de verificación</h3>
     <p class="sub">Casos resueltos a mano (Hibbeler §9.2 y §9.4, reformulados con datos propios). Al cargarlos,
       el programa contrasta el centroide con el valor de referencia y avisa por consola si se desvía más del 0.1 %.
-      En modo 3D, el botón carga el ejemplo de sólidos.</p>
+      En modo 3D el botón carga el ejemplo de sólidos; en modo Alambre, los alambres compuestos (§9.2, líneas).</p>
     <div id="ejLista"></div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="cerrarEjemplosCen()">Cerrar</button>
@@ -386,6 +417,8 @@
 <script src="centroide/js/21-vistas-3d.js"></script>
 <script src="centroide/js/22-latex-3d.js"></script>
 <script src="centroide/js/23-vista-isometrica.js"></script>
+<!-- Modo Alambre (líneas): tramos, cálculo con longitudes, ejemplos e informe -->
+<script src="centroide/js/24-alambres.js"></script>
 
 <!-- ── MODAL DE UNIDADES ── -->
 <!-- MODAL REPLICAR -->

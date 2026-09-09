@@ -130,7 +130,13 @@ function drawFigure(fig, selected){
   // Fill
   ctx.beginPath();
   def.draw(ctx, fig.dims, selected);
-  if(fig.type === 'annulus'){
+  if(def.esLinea){
+    // Tramo de alambre (24-alambres.js): solo trazo, más grueso, sin relleno ni trama.
+    ctx.strokeStyle = selected ? '#fff' : hexAlpha(color, 0.95);
+    ctx.lineWidth = (selected ? 4.2 : 3.2)/viewScale;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  } else if(fig.type === 'annulus'){
     // Outer circle
     ctx.beginPath();
     ctx.arc(0,0,fig.dims.R,0,2*Math.PI);
@@ -159,7 +165,7 @@ function drawFigure(fig, selected){
     ctx.stroke();
   }
   // Hatch for negative
-  if(fig.sign === -1){
+  if(fig.sign === -1 && !def.esLinea){
     ctx.beginPath(); def.draw(ctx,fig.dims,selected);
     ctx.clip();
     ctx.strokeStyle = hexAlpha(color,0.3);
@@ -238,7 +244,8 @@ function drawGhost(type, wpos){
   ctx.strokeStyle = 'rgba(228,172,23,.8)';
   ctx.setLineDash([4,3]);
   ctx.lineWidth = 1.5/viewScale;
-  ctx.fill(); ctx.stroke();
+  if(!def.esLinea) ctx.fill();
+  ctx.stroke();
   ctx.restore();
   ctx.setLineDash([]);
 }
