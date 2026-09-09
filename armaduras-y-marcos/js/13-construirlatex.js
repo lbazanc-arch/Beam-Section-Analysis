@@ -200,12 +200,16 @@ function construirLatex(){
     'Para aislar un nudo que est\\\'a sobre un apoyo hace falta conocer su reacci\\\'on, y en general el '
     + 'primer nudo con dos inc\\\'ognitas suele ser un apoyo. Por eso se resuelven antes, con el equilibrio de '
     + 'la armadura completa: en \\textbf{ese} cuerpo libre las fuerzas de las barras son internas y no aparecen.');
-  tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
-    + tikzArmaduraCompleta({cotas:true, valores:false, reaccionesIncognita:true}) + '\\end{tikzpicture}\n\\end{center}\n';
-  tex += figCaption('DCL global: cargas y reacciones inc\\\'ognita en su sentido positivo.' + _angulosArm(_angulosFigura));
-
   const pines = nodos.filter(n=>n.apoyo==='fijo');
   const rodillos = nodos.filter(n=>n.apoyo==='movil');
+  // Los momentos se toman en el pasador cuando hay pasador y rodillo; entonces
+  // el DCL acota los brazos desde ahí en vez de repetir la geometría.
+  const centroM = (pines.length===1 && rodillos.length===1) ? pines[0] : null;
+  tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
+    + tikzArmaduraCompleta({cotas:!centroM, valores:false, reaccionesIncognita:true, brazosDesde:centroM}) + '\\end{tikzpicture}\n\\end{center}\n';
+  tex += figCaption('DCL global: cargas y reacciones inc\\\'ognita en su sentido positivo'
+    + (centroM ? ', con los brazos acotados desde ' + nomN(centroM) + ', el punto respecto al que se toman los momentos' : '')
+    + '.' + _angulosArm(_angulosFigura));
   const cargasN = nodos.filter(n=>!esCero(n.fx) || !esCero(n.fy));
   const sumFx = nodos.reduce((s,n)=>s+(n.fx||0),0), sumFy = nodos.reduce((s,n)=>s+(n.fy||0),0);
   const simbR = (n, comp) => 'R_{' + comp + nomN(n) + '}';

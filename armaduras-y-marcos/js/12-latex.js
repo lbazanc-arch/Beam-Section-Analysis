@@ -71,6 +71,69 @@ function tikzCotas(tx, ty, minX, maxX, minY, maxY, esc, nodosSubconjunto){
   return s;
 }
 
+// ── Cotas corridas de los brazos, desde el punto de momentos ──
+// El criterio de `fuerzas-internas` (ver su LEEME, «Reglas de redacción»): se
+// acota SIEMPRE desde el punto respecto al cual se toman los momentos, solo las
+// fuerzas que producen momento, y cada brazo va en su propio nivel. Así la
+// figura enseña exactamente los números que aparecen en la ecuación.
+//   O        {x, y, nombre} punto de momentos, en coordenadas del modelo.
+//   fuerzas  [{x, y, fx, fy}] puntos de aplicación y dirección (basta el sentido).
+//   ext      {yTop, yBase, xBase} en coordenadas del dibujo: de dónde arrancan
+//            las líneas de referencia y dónde empieza cada banda de cotas.
+// El brazo de una fuerza VERTICAL es horizontal (y al revés), así que las cotas
+// horizontales se sacan de las componentes en y, y las verticales de las x.
+function tikzBrazosMomento(O, fuerzas, tx, ty, ext){
+  const F = v => v.toFixed(3), uL = escLatex(unitLen);
+  const bx = [], by = [];
+  (fuerzas || []).forEach(f=>{
+    if(Math.abs(f.fy) > 1e-9 && Math.abs(f.x - O.x) > 1e-6) bx.push(f.x);
+    if(Math.abs(f.fx) > 1e-9 && Math.abs(f.y - O.y) > 1e-6) by.push(f.y);
+  });
+  const x0 = parseFloat(tx(O.x)), y0 = parseFloat(ty(O.y));
+  let s = '';
+  // Si el punto de momentos no cae sobre un nudo dibujado, se marca: sin verlo,
+  // las cotas arrancarían de la nada.
+  if(!nodos.some(n=>Math.abs(n.x - O.x) < 1e-6 && Math.abs(n.y - O.y) < 1e-6)){
+    s += '\\filldraw[black] (' + F(x0) + ',' + F(y0) + ') circle (1.6pt);\n';
+    s += '\\node[font=\\scriptsize\\bfseries, below left, inner sep=2pt] at (' + F(x0) + ',' + F(y0) + ') {' + escLatex(O.nombre || 'O') + '};\n';
+  }
+  const xs = [...new Set(bx.map(v=>+v.toFixed(4)))].sort((a,b)=>Math.abs(a-O.x)-Math.abs(b-O.x));
+  const ys = [...new Set(by.map(v=>+v.toFixed(4)))].sort((a,b)=>Math.abs(a-O.y)-Math.abs(b-O.y));
+  const guia = (xa, ya, xb, yb) =>
+    '\\draw[black!40, line width=0.3pt, dash pattern=on 1.4pt off 1.4pt] (' + F(xa) + ',' + F(ya) + ') -- (' + F(xb) + ',' + F(yb) + ');\n';
+  if(xs.length){
+    s += guia(x0, ext.yTop, x0, ext.yBase - (xs.length-1)*0.42 - 0.14);
+    xs.forEach((xv, i)=>{
+      const yy = ext.yBase - i*0.42, x1 = parseFloat(tx(xv));
+      s += guia(x1, ext.yTop, x1, yy - 0.14);
+      s += '\\draw[black!70, line width=0.45pt, <->, >=stealth] (' + F(x0) + ',' + F(yy) + ') -- (' + F(x1) + ',' + F(yy) + ');\n';
+      s += '\\node[font=\\tiny, fill=white, inner sep=1pt] at (' + F((x0+x1)/2) + ',' + F(yy) + ') {'
+         + dec(Math.abs(xv-O.x),'len') + (i === xs.length-1 ? '\\,' + uL : '') + '};\n';
+    });
+  }
+  ys.forEach((yv, i)=>{
+    const xx = ext.xBase + i*0.44, y1 = parseFloat(ty(yv));
+    s += guia(x0, y0, xx + 0.14, y0);
+    s += guia(parseFloat(tx(O.x)), y1, xx + 0.14, y1);
+    s += '\\draw[black!70, line width=0.45pt, <->, >=stealth] (' + F(xx) + ',' + F(y0) + ') -- (' + F(xx) + ',' + F(y1) + ');\n';
+    s += '\\node[font=\\tiny, fill=white, inner sep=1pt, rotate=90] at (' + F(xx) + ',' + F((y0+y1)/2) + ') {'
+       + dec(Math.abs(yv-O.y),'len') + '\\,' + uL + '};\n';
+  });
+  return s;
+}
+// Las fuerzas exteriores que producen momento en el DCL global: las cargas de
+// los nudos y las reacciones (de estas basta su dirección, que es lo que fija
+// su línea de acción).
+function _fuerzasParaBrazos(reacciones){
+  const out = [];
+  nodos.forEach(n=>{
+    if(!esCero(n.fx || 0) || !esCero(n.fy || 0)) out.push({x:n.x, y:n.y, fx:n.fx || 0, fy:n.fy || 0});
+    const rr = reacciones && reacciones[n.id];
+    if(rr) out.push({x:n.x, y:n.y, fx:(rr.rx !== undefined ? 1 : 0), fy:(rr.ry !== undefined ? 1 : 0)});
+  });
+  return out;
+}
+
 // De qué lado se dibuja una fuerza aplicada en un nudo para que no se pise con
 // una barra. Por defecto LLEGA al nudo (cola en -û). Si a menos de 12° de ese
 // lado hay una barra, SALE del nudo (cola en el nudo, punta hacia +û), que es
@@ -682,6 +745,12 @@ function tikzArmaduraCompleta(opts){
   });
   if(opts.cotas){
     s += tikzCotas(tx, ty, minX, maxX, minY, maxY, esc);
+  }
+  // Brazos desde el punto de momentos: sustituyen a las cotas geométricas en el
+  // DCL con el que se plantea la ecuación (la geometría ya está en la Figura 1).
+  if(opts.brazosDesde){
+    s += tikzBrazosMomento(opts.brazosDesde, _fuerzasParaBrazos(reacciones), tx, ty,
+                           {yTop:-0.15, yBase:-2.10, xBase:parseFloat(tx(maxX)) + 0.95});
   }
   return s;
 }

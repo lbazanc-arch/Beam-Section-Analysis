@@ -1054,6 +1054,25 @@ function tikzMarcoCompleto(opts){
     }
   });
   if(opts.cotas) s += tikzCotas(tx, ty, minX, maxX, minY, maxY, esc);
+  // Brazos desde el punto de momentos (12-latex.js): la figura enseña los mismos
+  // números que la ecuación de ΣM.
+  if(opts.brazosDesde){
+    const fz = _fuerzasParaBrazos(resultado ? resultado.reacciones : null);
+    // las cargas repartidas y puntuales sobre las piezas también dan momento
+    barras.forEach(b=>{
+      const g2 = geomBarra(b);
+      cargasDeBarra(b).forEach(c=>{
+        if(c.tipo === 'M') return;
+        const q = (c.tipo === 'P') ? compCargaPuntual(c, g2) : null;
+        if(q){ fz.push({x:g2.na.x + g2.ux*c.s, y:g2.na.y + g2.uy*c.s, fx:q.fx, fy:q.fy}); return; }
+        // repartida: su resultante actúa en el centro del trozo cargado
+        const sm = (c.s1 + c.s2)/2, d = vectorCarga(c.dir, g2);
+        fz.push({x:g2.na.x + g2.ux*sm, y:g2.na.y + g2.uy*sm, fx:d.x, fy:d.y});
+      });
+    });
+    s += tikzBrazosMomento(opts.brazosDesde, fz, tx, ty,
+                           {yTop:-0.15, yBase:-2.10, xBase:parseFloat(tx(maxX)) + 0.95});
+  }
   return s;
 }
 // DCL de una pieza: la barra en su orientación real, cargas con valor, fuerzas
@@ -1077,6 +1096,30 @@ function tikzDCLPieza(b, res){
     s += '\\fill[bsaBarra] (' + F(px) + ',' + F(py) + ') circle (1.8pt);\n';
     s += '\\node[font=\\small\\bfseries, ' + (ext === 'a' ? 'below left' : 'below right') + ', inner sep=2pt] at (' + F(px) + ',' + F(py) + ') {' + escLatex(nom) + '};\n';
   });
+  // ── Brazos de la ecuación de momentos respecto del extremo a ──
+  // En ΣM_a aparecen Δx (brazo de la componente vertical del pasador b) y Δy (el
+  // de la horizontal): se acotan igual que en fuerzas-internas, desde el propio a.
+  {
+    const dxr = g.nb.x - g.na.x, dyr = g.nb.y - g.na.y;
+    const xa = parseFloat(tx(g.na.x)), ya = parseFloat(ty(g.na.y));
+    const xb = parseFloat(tx(g.nb.x)), yb = parseFloat(ty(g.nb.y));
+    const gz = (x1,y1,x2,y2) => '\\draw[black!40, line width=0.3pt, dash pattern=on 1.4pt off 1.4pt] ('
+      + F(x1) + ',' + F(y1) + ') -- (' + F(x2) + ',' + F(y2) + ');\n';
+    if(Math.abs(dxr) > 1e-9){
+      const yy = Math.min(ya, yb) - 1.75;
+      s += gz(xa, ya, xa, yy - 0.14) + gz(xb, yb, xb, yy - 0.14);
+      s += '\\draw[black!70, line width=0.45pt, <->, >=stealth] (' + F(xa) + ',' + F(yy) + ') -- (' + F(xb) + ',' + F(yy) + ');\n';
+      s += '\\node[font=\\tiny, fill=white, inner sep=1pt] at (' + F((xa+xb)/2) + ',' + F(yy) + ') {$\\Delta x = ' + dec(Math.abs(dxr),'len') + '$\\,' + escLatex(unitLen) + '};\n';
+    }
+    if(Math.abs(dyr) > 1e-9){
+      // la cadena de s va a 0.9 del eje por el lado -n: la cota de Δy se coloca
+      // más allá de ella, o las dos etiquetas se solapan en una pieza vertical
+      const xx = Math.max(xa, xb, xa - 0.9*g.nx, xb - 0.9*g.nx) + 1.25;
+      s += gz(xa, ya, xx + 0.14, ya) + gz(xb, yb, xx + 0.14, yb);
+      s += '\\draw[black!70, line width=0.45pt, <->, >=stealth] (' + F(xx) + ',' + F(ya) + ') -- (' + F(xx) + ',' + F(yb) + ');\n';
+      s += '\\node[font=\\tiny, fill=white, inner sep=1pt, rotate=90] at (' + F(xx) + ',' + F((ya+yb)/2) + ') {$\\Delta y = ' + dec(Math.abs(dyr),'len') + '$\\,' + escLatex(unitLen) + '};\n';
+    }
+  }
   // cotas de s de cada carga, bajo la pieza
   const ss = [0, g.L]; cargasDeBarra(b).forEach(c=>{ if(esRepartida(c)){ ss.push(c.s1, c.s2); } else ss.push(c.s); });
   const uni = [...new Set(ss.map(v=>+v.toFixed(6)))].sort((p,q)=>p-q);
@@ -1185,7 +1228,8 @@ function construirLatexMarco(){
 
   // 4 · Equilibrio del conjunto
   tex += '\\seccion{4. Paso 3 --- Equilibrio del conjunto}\n';
-  tex += lamina(tikzMarcoCompleto({cotas:false, reaccionesIncognita:true}), 'DCL del bastidor completo: cargas y reacciones inc\\\'ognita en su sentido positivo.');
+  tex += lamina(tikzMarcoCompleto({cotas:false, reaccionesIncognita:true, brazosDesde:{x:0, y:0, nombre:'O'}}),
+    'DCL del bastidor completo: cargas y reacciones inc\\\'ognita en su sentido positivo, con los brazos acotados desde $O$, el punto respecto al que se toman los momentos.');
   {
     let sumFx = 0, sumFy = 0, sumM = 0;   // momentos de las cargas respecto de O
     const termsM = [];
