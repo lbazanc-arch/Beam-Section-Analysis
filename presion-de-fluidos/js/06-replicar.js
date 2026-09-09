@@ -321,7 +321,7 @@ const EJEMPLOS = [
     id:'vertical',
     nom:'Placa vertical entre 2 y 5 m de profundidad',
     desc:'Compuerta AB vertical de 3 m, ancho 1.5 m, con la superficie del agua 2 m por encima de A. '
-        +'Articulada en A y apoyada en un tope liso en B. Es el ejemplo 9.14 de Hibbeler.',
+        +'Articulada en A y apoyada en un tope liso en B.',
     esperado:'F₁ = 154.51 kN a 1.29 m sobre B (z_P = 3.71 m) · N_B = 88.29 kN ← · R_xA = 66.22 kN ← · R_yA = 0',
     armar(N){
       const A=N(0,-2), B=N(0,-5);
@@ -335,7 +335,7 @@ const EJEMPLOS = [
     id:'inclinada',
     nom:'Compuerta inclinada apoyada en el fondo',
     desc:'Compuerta AB de 2 × 3 (inclinada), ancho 2 m, articulada en A al nivel del agua y apoyada en B '
-        +'sobre el fondo liso del canal (reacción vertical). El agua queda sobre la placa, a su derecha. Como Beer prob. 5.84.',
+        +'sobre el fondo liso del canal (reacción vertical). El agua queda sobre la placa, a su derecha.',
     esperado:'Diagrama triangular: F₁ = γ z̄ A = 9.81·1.5·(3.606·2) = 106.11 kN, en P a 2/3 de AB (z_P = 2.00 m) · R_B = 127.53 kN ↑ · R_xA = 88.29 kN → · R_yA = 68.67 kN ↓',
     armar(N){
       const A=N(0,0), B=N(2,-3);
@@ -349,7 +349,7 @@ const EJEMPLOS = [
     id:'curva',
     nom:'Compuerta curva (cuarto de círculo)',
     desc:'Arco AB de radio 2 m con centro en (2 ; 0), ancho 2 m; el agua llena el cuarto de círculo, a la derecha, '
-        +'hasta el nivel de A. Articulada en B (abajo) y con un tope liso en A, del lado seco. Placa curva de Hibbeler §9.5.',
+        +'hasta el nivel de A. Articulada en B (abajo) y con un tope liso en A, del lado seco.',
     esperado:'F_h = γ(1)(2)(2) = 39.24 kN ← · F_v = peso del cuarto de círculo de agua = γ b πR²/4 = 61.64 kN ↓ · F₁ = 73.07 kN por el centro del arco · N_A = 39.24 kN →',
     armar(N){
       const A=N(0,0), B=N(2,-2);
@@ -377,7 +377,7 @@ const EJEMPLOS = [
     id:'dosLados',
     nom:'Compuerta de marea: líquido a los dos lados',
     desc:'Compuerta AB vertical de 3 m y 1.2 m de ancho, con bisagra en A (arriba) y tope en B. A la derecha, mar '
-        +'(γ = 10.05) 0.5 m por encima de A; a la izquierda, agua dulce (γ = 9.81) 0.3 m por debajo de A. Como Beer prob. 5.79.',
+        +'(γ = 10.05) 0.5 m por encima de A; a la izquierda, agua dulce (γ = 9.81) 0.3 m por debajo de A.',
     esperado:'Dos fuerzas en el DCL: F₁ = 42.91 kN del agua dulce (izquierda, 2.7 m mojados, z_P = 1.80 m) y F₂ = 72.36 kN del mar (derecha, z_P = 2.38 m). El tope, del lado izquierdo, resiste la diferencia: N_B = 15.19 kN → · R_xA = 14.26 kN →',
     armar(N){
       const A=N(0,0), B=N(0,-3);
@@ -405,7 +405,9 @@ const EJEMPLOS = [
 
 function abrirEjemplos(){
   const el = document.getElementById('ejLista');
-  if(el) el.innerHTML = EJEMPLOS.map((e,i)=>
+  // Un solo ejemplo a la vista; los demás siguen en el código como casos de
+  // verificación, que es lo que contrasta la consola (CLAUDE.md §4).
+  if(el) el.innerHTML = EJEMPLOS.slice(0,1).map((e,i)=>
       '<button type="button" class="ej-item" onclick="cargarEjemplo(\'' + e.id + '\')">'
     + '<div class="ej-cab"><span class="ej-num">' + (i+1) + '</span><span class="ej-nom">' + e.nom + '</span></div>'
     + '<div class="ej-desc">' + e.desc + '</div>'

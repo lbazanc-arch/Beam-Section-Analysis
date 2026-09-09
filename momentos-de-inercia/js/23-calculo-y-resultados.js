@@ -345,7 +345,7 @@ function renderResults(res, u4, u2, u1){
     html += `<div class="res-section">
       <div class="res-section-title"><div class="num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M5 4h14M12 4v16M5 20h14"/></svg></div>Perfiles laminados de acero</div>
       <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px;">
-        Cada perfil es <b>una sola figura</b> con valores <b>tabulados</b> (Beer &amp; Johnston, Ap. C); se compara con la sección idealizada dibujada.
+        Cada perfil es <b>una sola figura</b> con valores <b>tabulados</b>; se compara con la sección idealizada dibujada.
       </div>`;
     conPerfil.forEach(fig=>{
       const tb = perfilTab(fig); if(!tb) return;

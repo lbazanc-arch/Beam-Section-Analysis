@@ -169,7 +169,9 @@ const EJEMPLOS = [
 
 function abrirEjemplos(){
   const el = document.getElementById('ejLista');
-  if(el) el.innerHTML = EJEMPLOS.map((e,i)=>
+  // Un solo ejemplo a la vista; los demás siguen en el código como casos de
+  // verificación, que es lo que contrasta la consola (CLAUDE.md §4).
+  if(el) el.innerHTML = EJEMPLOS.slice(0,1).map((e,i)=>
       '<button type="button" class="ej-item" onclick="cargarEjemplo(\'' + e.id + '\')">'
     + '<div class="ej-cab"><span class="ej-num">' + (i+1) + '</span><span class="ej-nom">' + e.nom + '</span></div>'
     + '<div class="ej-desc">' + e.desc + '</div>'

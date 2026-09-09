@@ -191,6 +191,34 @@ function bsaPanelMovil(){
 // debajo de la resolucion: la plataforma, las letras BSA con los colores del
 // logo y el autor. Exige que el preambulo defina bsaMuted, bsaLogoB, bsaLogoS
 // y bsaLogoA. Vive aqui para que un cambio de texto o de color salga igual en
+// ── Referencias del informe, en APA ──
+// Las mismas obras en los cinco temas, así que viven aquí: corregir una edición
+// se hace en un solo sitio y sale igual en los cinco PDF. Orden alfabético y
+// sangría francesa, como pide APA.
+//   opts.materiales : añade el libro del que salen las tablas de perfiles
+//                     (solo lo usan centroide y momentos de inercia).
+//   opts.extra      : entradas propias del tema, ya escritas en LaTeX.
+function bsaReferenciasLatex(opts){
+  opts = opts || {};
+  const refs = [
+    'Beer, F. P., Johnston, E. R., Mazurek, D. F. y Cornwell, P. J. (2017). '
+      + '\\emph{Mec\\\'anica vectorial para ingenieros: Est\\\'atica} (11.\\textsuperscript{a} ed.). McGraw-Hill Interamericana.'
+  ];
+  if(opts.materiales) refs.push(
+    'Beer, F. P., Johnston, E. R., DeWolf, J. T. y Mazurek, D. F. (2017). '
+      + '\\emph{Mec\\\'anica de materiales} (7.\\textsuperscript{a} ed.). McGraw-Hill Interamericana.');
+  refs.push(
+    'Hibbeler, R. C. (2016). \\emph{Ingenier\\\'ia mec\\\'anica: Est\\\'atica} (14.\\textsuperscript{a} ed.). Pearson Educaci\\\'on.');
+  (opts.extra || []).forEach(r=>refs.push(r));
+  // \par cierra el párrafo anterior: sin él, «Referencias» se pegaba al final
+  // del último texto del informe en vez de empezar en su propia línea.
+  return '\\par\\vspace{10pt}\\noindent{\\footnotesize\\color{bsaMuted}\\textbf{Referencias}\\\\[3pt]\n'
+    + '\\begin{list}{}{\\setlength{\\leftmargin}{1.3em}\\setlength{\\itemindent}{-1.3em}'
+    + '\\setlength{\\topsep}{0pt}\\setlength{\\itemsep}{2pt}\\setlength{\\parsep}{0pt}}\n'
+    + refs.map(r=>'\\item ' + r + '\n').join('')
+    + '\\end{list}}\n';
+}
+
 // los cinco PDF.
 function colofonLatexBSA(){
   // Todo el bloque va en una minipage de ancho completo: es indivisible, asi

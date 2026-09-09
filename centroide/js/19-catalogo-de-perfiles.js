@@ -30,7 +30,7 @@ function abrirCatalogo(){
   document.getElementById('cat-familias').style.display='';
   document.getElementById('cat-add').style.display='none';
   document.getElementById('cat-sub').textContent=
-    'Elige una familia de perfiles. Fuente: Beer & Johnston, Mecánica de Materiales, Apéndice C.';
+    'Elige una familia de perfiles.';
   let h='<div style="max-height:380px;overflow:auto;border:1px solid var(--border);border-radius:8px;">'+
         '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
         '<thead style="position:sticky;top:0;background:var(--card2);"><tr>'+

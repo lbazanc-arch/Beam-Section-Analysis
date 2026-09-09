@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  INFORME LaTeX · desarrollo de cada corte, tablas y diagramas
-//  Sigue el procedimiento de análisis del curso (Hibbeler, cap. 7;
-//  Rodríguez, cap. 8 PUCP): reacciones → cortes por tramos → funciones
+//  Sigue el procedimiento de análisis del curso (Hibbeler, 2016): reacciones → cortes por tramos → funciones
 //  N(x), V(x), M(x) → diagramas → comprobaciones.
 //  Todo lo que se escribe se contrasta contra los polinomios que calculó
 //  el motor, así que el desarrollo y el resultado no pueden discrepar.
@@ -841,7 +840,7 @@ function tablaAreasGrupo(R, gg){
   let out = '';
   // Una sola vez (R1): la relación diferencial que sostiene el método.
   if(_primeraVez('areas-porque'))
-    out += '\\porque{Entre dos secciones, $\\frac{dV}{dx} = -w$ y $\\frac{dM}{dx} = V$ (Hibbeler 7.3). Por eso el '
+    out += '\\porque{Entre dos secciones, $\\frac{dV}{dx} = -w$ y $\\frac{dM}{dx} = V$ (Hibbeler, 2016). Por eso el '
       + '\\textbf{\\\'area bajo la carga} es el cambio de $V$, el \\textbf{\\\'area bajo $V$} es el cambio de $M$, y '
       + 'donde $V = 0$ la pendiente de $M$ se anula: ah\\\'i $M$ es m\\\'aximo o m\\\'inimo. Una fuerza concentrada hace '
       + 'saltar a $V$ y un par hace saltar a $M$; son los \\\'unicos saltos.}\n';

@@ -384,7 +384,7 @@ function renderResultsAlambre(res){
 // las de SU centroide y `rot` su orientación.
 const EJEMPLOS_ALAMBRE = [
   {
-    id:'gancho', nom:'Alambre con semicircunferencia (Hibbeler ej. 9.9, en el plano)', unidad:'mm',
+    id:'gancho', nom:'Alambre con semicircunferencia', unidad:'mm',
     desc:'Semicircunferencia de radio 60 con el centro en el origen y la cuerda sobre el eje X; desde su extremo derecho (60, 0) sigue un segmento horizontal de 40 y luego uno vertical de 20 hacia abajo.',
     esperado:{xbar:20.9259, ybar:28.1695},
     ref:'L₁ = π·60 = 188.50 con ỹ₁ = 2R/π = 38.20; L₂ = 40 en (80, 0); L₃ = 20 en (100, −10). ΣL = 248.50; x̄ = 5200/248.50 = 20.93; ȳ = (7200 − 200)/248.50 = 28.17 mm.',
@@ -582,7 +582,7 @@ function construirLatexAlambre(){
       else if(f.type === 'l_cuarto')
         tex += porque('cuarto-l', 'El cuarto de arco es media semicircunferencia: por simetría su centroide está sobre la '
           + 'bisectriz a $45^\\circ$, y proyectado sobre cada radio queda a $2R/\\pi$ del centro, por el mismo cálculo que '
-          + 'en la semicircunferencia (Hibbeler, tabla de centroides de líneas).');
+          + 'en la semicircunferencia (Hibbeler, 2016).');
       else if(f.type === 'l_arco')
         tex += porque('arco-l', 'El arco de semiángulo $\\alpha$ tiene su centroide sobre la bisectriz, a $R\\sen\\alpha/\\alpha$ '
           + 'del centro: $\\int R\\cos\\theta\\cdot R\\,d\\theta$ entre $-\\alpha$ y $\\alpha$, dividido entre $2\\alpha R$. '
@@ -718,10 +718,7 @@ function construirLatexAlambre(){
     + 'Centroide $\\bar{y}$ & $' + decP(results.ybar,'len') + '$ & ' + uTxt + ' \\\\\n'
     + '\\hline\\end{tabular}\\end{tablacentrada}}\n';
 
-  tex += '\\vspace{10pt}\\noindent{\\footnotesize\\color{bsaMuted}\\textbf{Referencias.} '
-    + 'R.~C. Hibbeler, \\emph{Ingeniería Mecánica: Estática}, 12.\\textsuperscript{a} ed., cap.~9 «Centro de gravedad '
-    + 'y centroide», §9.2 (ej.~9.9, centroide de una línea compuesta). F.~P. Beer y E.~R. Johnston, \\emph{Mecánica '
-    + 'vectorial para ingenieros: Estática}, cap.~5, §5.5.}\n';
+  tex += bsaReferenciasLatex();
   tex += colofonLatexBSA();
   tex += '\\end{document}\n';
   return tex;

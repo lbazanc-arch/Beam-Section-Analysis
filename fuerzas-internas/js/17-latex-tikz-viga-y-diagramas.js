@@ -698,10 +698,8 @@ function construirLatex(){
     + '{\\footnotesize\\color{bsaMuted}Valores en ' + uF + ' (fuerzas) y ' + uM + ' (momento). '
     + 'La sección crítica para el diseño a flexión es la de $|M|$ máximo; la crítica a cortante, la de $|V|$ máximo.}\n';
 
-  tex += '\\vspace{10pt}\\noindent{\\footnotesize\\color{bsaMuted}\\textbf{Referencias.} '
-    + 'R.~C. Hibbeler, \\emph{Ingeniería Mecánica: Estática}, 12.ª ed., cap.~7 «Fuerzas internas». '
-    + 'H.~J. Rodríguez, \\emph{Cap.~8 Fuerzas internas}, Sección de Ingeniería Mecánica, PUCP. '
-    + 'F.~P. Beer y E.~R. Johnston, \\emph{Mecánica vectorial para ingenieros: Estática}, cap.~7.}\n';
+  tex += bsaReferenciasLatex({extra:['Rodr\\\'iguez, H.~J. (s.f.). \\emph{Fuerzas internas} (cap.~8). '
+    + 'Secci\\\'on de Ingenier\\\'ia Mec\\\'anica, Pontificia Universidad Cat\\\'olica del Per\\\'u.']});
 
   // ── Colofón (R20): el mismo bloque en los cinco temas, desde core/comun.js ──
   tex += colofonLatexBSA();

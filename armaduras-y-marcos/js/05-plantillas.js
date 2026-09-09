@@ -73,7 +73,7 @@ const EJEMPLOS = [
   {
     id:'fuerza-cero',
     nom:'Barra de fuerza cero por inspección',
-    desc:'Triángulo A–C–D (base 8 m, altura 3 m) con montante DB en el centro. 10 kN hacia abajo en D. Como Hibbeler ej. 6.4.',
+    desc:'Triángulo A–C–D (base 8 m, altura 3 m) con montante DB en el centro. 10 kN hacia abajo en D.',
     esperado:{AB:6.67, BC:6.67, AD:-8.33, DC:-8.33, DB:0},
     ref:'En B concurren tres barras, dos colineales (AB y BC) y sin carga: F_DB = 0. Luego F_AD = −5/sen 36.87° = −8.33 (C) y F_AB = 6.67 (T).',
     armar(){
@@ -86,7 +86,7 @@ const EJEMPLOS = [
   {
     id:'reacciones-primero',
     nom:'Primero las reacciones: ningún nudo empieza con dos incógnitas',
-    desc:'Base A–B–C de 6 m, cordón superior D–E a 3 m sobre A y B, diagonales DB y EC. 15 kN en B y 10 kN en E, hacia abajo. Como Hibbeler ej. 6.3.',
+    desc:'Base A–B–C de 6 m, cordón superior D–E a 3 m sobre A y B, diagonales DB y EC. 15 kN en B y 10 kN en E, hacia abajo.',
     esperado:{AB:0, BC:12.5, AD:-12.5, DE:-12.5, EC:-17.68, DB:17.68, EB:2.5},
     ref:'Sin las reacciones, A tiene cuatro incógnitas y D tres. Con R_yA = R_yC = 12.5 kN: F_AD = −12.5 (C), F_AB = 0, F_DB = 17.68 (T), F_DE = −12.5 (C), F_EC = −17.68 (C), F_BC = 12.5 (T), F_EB = 2.5 (T).',
     armar(){
@@ -100,7 +100,7 @@ const EJEMPLOS = [
   {
     id:'secciones',
     nom:'Armadura de nueve barras para el método de secciones',
-    desc:'Base A–B–C–D de 9 m, cordón superior E–F a 3 m sobre B y C, diagonal EC. 20 kN hacia abajo en B. Como Hibbeler ej. 6.5: un corte por BC, EC y EF deja tres incógnitas.',
+    desc:'Base A–B–C–D de 9 m, cordón superior E–F a 3 m sobre B y C, diagonal EC. 20 kN hacia abajo en B. Un corte por BC, EC y EF deja tres incógnitas.',
     esperado:{AB:13.33, BC:13.33, CD:6.67, AE:-18.86, EF:-6.67, FD:-9.43, BE:20, CF:6.67, EC:-9.43},
     ref:'R_yA = 13.33, R_yD = 6.67 kN. F_AE = −18.86 (C), F_AB = F_BC = 13.33 (T), F_BE = 20 (T), F_EC = −9.43 (C), F_EF = −6.67 (C), F_FD = −9.43 (C), F_CD = F_CF = 6.67 (T).',
     armar(){
@@ -117,7 +117,9 @@ const EJEMPLOS = [
 function abrirEjemplos(){
   const el = document.getElementById('ejLista');
   const lista = EJEMPLOS.concat(typeof EJEMPLOS_MARCO !== 'undefined' ? EJEMPLOS_MARCO : []);   // bastidores (19-)
-  if(el) el.innerHTML = lista.map((e,i)=>
+  // Un solo ejemplo a la vista; los demás siguen en el código como casos de
+  // verificación, que es lo que contrasta la consola (CLAUDE.md §4).
+  if(el) el.innerHTML = lista.slice(0,1).map((e,i)=>
       '<button type="button" class="ej-item" onclick="cargarEjemplo(\'' + e.id + '\')">'
     + '<div class="ej-cab"><span class="ej-num">' + (i+1) + '</span><span class="ej-nom">' + e.nom + '</span></div>'
     + '<div class="ej-desc">' + e.desc + '</div>'

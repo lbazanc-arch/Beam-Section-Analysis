@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  INFORME LaTeX del modo 3D · la misma clase paso a paso que el 2D
-//  (Hibbeler §9.2, cuerpos compuestos), con volúmenes y tres coordenadas.
+//  (Hibbeler, 2016), con volúmenes y tres coordenadas.
 //  Láminas: planta y alzado en TikZ, una junto a otra. Sigue las reglas de
 //  redacción de fuerzas-internas/LEEME.md.
 // ═══════════════════════════════════════════════════════════
@@ -407,7 +407,7 @@ function construirLatex3d(){
     const vistos = {};
     const lineas = pap.filas.filter(r=>{ if(vistos[r.fig.type]) return false; vistos[r.fig.type] = true; return true; })
       .map(r=>SOLID_DEFS[r.fig.type].name.toLowerCase() + ': $' + r.p.texA + '$, $' + r.p.texR + '$');
-    tex += '\\noindent{\\footnotesize Media sección de cada sólido (Hibbeler, tabla de centroides de áreas) --- ' + lineas.join('; ') + '.}\\par\\vspace{3pt}\n';
+    tex += '\\noindent{\\footnotesize Media sección de cada sólido (Hibbeler, 2016) --- ' + lineas.join('; ') + '.}\\par\\vspace{3pt}\n';
     tex += tablaCaption('Comprobación por Pappus y Guldinus: área generatriz, brazo de su centroide y volumen $2\\pi\\bar{r}_iA_i$ frente al de la Tabla ' + tNumV + '. Las áreas de los huecos van con signo negativo.');
     tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clcccc}\\hline\n\\textbf{Parte} & \\textbf{Sólido} & ' + cab('$A_i$', fA, escLatex(unit) + '\\textsuperscript{2}')
       + ' & \\textbf{$\\bar{r}_i$} {\\scriptsize(' + uTxt + ')} & ' + cab('$2\\pi\\bar{r}_iA_i$', fVp, u3Txt) + ' & \\textbf{$V_i$} {\\scriptsize(Tabla ' + tNumV + ')}\\\\\\hline\n';
@@ -430,7 +430,7 @@ function construirLatex3d(){
     + 'Centro de gravedad $\\bar{x}_G$, $\\bar{y}_G$, $\\bar{z}_G$ & $' + decP(results.xg,'len') + '$, $' + decP(results.yg,'len') + '$, $' + decP(results.zg,'len') + '$ & ' + uTxt + ' \\\\\n';
   tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
 
-  tex += '\\vspace{10pt}\\noindent{\\footnotesize\\color{bsaMuted}\\textbf{Referencias.} R.~C. Hibbeler, \\emph{Ingeniería Mecánica: Estática}, 12.\\textsuperscript{a} ed., cap.~9 «Centro de gravedad y centroide», §9.1--9.2 y tabla de centroides de sólidos. F.~P. Beer y E.~R. Johnston, \\emph{Mecánica vectorial para ingenieros: Estática}, cap.~5.}\n';
+  tex += bsaReferenciasLatex();
   tex += colofonLatexBSA();
   tex += '\\end{document}\n';
   return tex;

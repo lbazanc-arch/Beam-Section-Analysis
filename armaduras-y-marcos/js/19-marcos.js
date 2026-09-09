@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  MARCOS (bastidores) · elementos de varias fuerzas (Hibbeler §6.6)
+//  MARCOS (bastidores) · elementos de varias fuerzas (Hibbeler, 2016)
 // ═══════════════════════════════════════════════════════════
 // Una barra pasa a ser un ELEMENTO de varias fuerzas cuando lleva cargas entre
 // sus extremos o cuando algún extremo va unido rígidamente (transmite momento).
@@ -918,7 +918,7 @@ const EJEMPLOS_MARCO = [
   },
   {
     id:'puntal', marco:true,
-    nom:'Viga con puntal de dos fuerzas (Hibbeler ej. 6.15)',
+    nom:'Viga con puntal de dos fuerzas',
     desc:'Viga A–B–C de 6 m (pasador en A, extremo C libre) con 3 kN/m hacia abajo en toda su longitud, sostenida en B (a 4 m de A) por el puntal BD, una barra de dos fuerzas, con D en (1, −4). La viga es continua en B (unión rígida) y la barra se articula ahí por ser barra.',
     ref:'Viga entera: ΣM_A = 0 → F_By = 18·3/4 = 13.5 kN; el puntal (3-4-5) empuja con S = 16.875 kN (C), S_x = 10.125. R_A = (−10.125, 4.5), R_D = (10.125, 13.5) kN. M en B = −6 kN·m; M máx = 3.375 kN·m en s = 1.5 m.',
     esperado:{R:{A:{rx:-10.125, ry:4.5}, D:{rx:10.125, ry:13.5}}, F:{BD:-16.875}, ext:{AB:{b:{m:-6}}, BC:{a:{fy:6, m:6}}}},
@@ -1195,7 +1195,7 @@ function construirLatexMarco(){
     + 'piezas dibujadas como \\emph{viga o marco}: elementos r\\\'igidos que reciben cargas entre sus extremos o van unidos '
     + 'r\\\'igidamente, es decir, \\emph{elementos de varias fuerzas}; la fuerza de sus extremos ya no va a lo largo de la pieza '
     + 'y dentro aparecen fuerza normal, cortante y momento flector. '
-    + 'El m\\\'etodo es \\textbf{desmembrar} (Hibbeler \\S6.6): separar las piezas en los pasadores y plantear el equilibrio '
+    + 'El m\\\'etodo es \\textbf{desmembrar} (Hibbeler, 2016): separar las piezas en los pasadores y plantear el equilibrio '
     + 'de cada una, con la fuerza del pasador igual y opuesta en las dos piezas que une (tercera ley de Newton).');
   tex += '\\subpaso{Procedimiento de an\\\'alisis}\n\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
     + '\\item \\textbf{Determinaci\\\'on est\\\'atica.} Se cuentan las inc\\\'ognitas (fuerzas de pasador y reacciones) y las ecuaciones (tres por pieza y las de cada nudo).\n'
@@ -1341,7 +1341,7 @@ function construirLatexMarco(){
     tex += '\\noindent Con todas las fuerzas exteriores (cargas y reacciones halladas):\n\\[ \\sum F_x = ' + cero(sx) + ' \\qquad \\sum F_y = ' + cero(sy) + ' \\qquad \\sum M_O = ' + cero(sm) + ' \\qquad\\checkmark \\]\n';
     tex += '\\noindent Y en cada pasador la fuerza sobre una pieza es igual y opuesta a la fuerza sobre la otra (Tabla 1).\n';
   }
-  tex += '\\vspace{10pt}\\noindent{\\footnotesize\\color{bsaMuted}\\textbf{Referencias.} R.~C. Hibbeler, \\emph{Ingenier\\\'ia Mec\\\'anica: Est\\\'atica}, 12.\\textsuperscript{a} ed., cap.~6, \\S6.6 «Bastidores y m\\\'aquinas» (ej.~6.14--6.21) y cap.~7, \\S7.1--7.2. F.~P. Beer y E.~R. Johnston, \\emph{Mec\\\'anica vectorial para ingenieros: Est\\\'atica}, cap.~6.}\n';
+  tex += bsaReferenciasLatex();
   tex += colofonLatexBSA();
   tex += '\\end{document}\n';
   return tex;

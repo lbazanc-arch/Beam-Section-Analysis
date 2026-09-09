@@ -412,7 +412,7 @@ const EJEMPLOS_CEN = [
     }
   },
   {
-    id:'placa', nom:'Placa con triángulo y hueco (Hibbeler ej. 9.10)', unidad:'mm',
+    id:'placa', nom:'Placa con triángulo y hueco', unidad:'mm',
     desc:'Rectángulo de 120 × 60 con un triángulo rectángulo de 120 × 60 encima (ángulo recto a la izquierda) y un hueco rectangular de 40 × 20 centrado en el rectángulo.',
     esperado:{xbar:52.8, ybar:48.0},
     ref:'A = 7200 + 3600 − 800 = 10000 mm²; x̄ = (7200·60 + 3600·40 − 800·60)/10000 = 52.80; ȳ = (7200·30 + 3600·80 − 800·30)/10000 = 48.00 mm.',
@@ -463,10 +463,10 @@ const EJEMPLOS_CEN = [
 ];
 function abrirEjemplosCen(){
   const el = document.getElementById('ejLista');
-  // Cada modo enseña su propia lista: sólidos (21-vistas-3d.js), alambres
-  // compuestos (24-alambres.js) o secciones planas.
-  const lista = (modoEspacio === '3d' && typeof EJEMPLOS_3D !== 'undefined') ? EJEMPLOS_3D
-              : (modoEspacio === 'alambre' && typeof EJEMPLOS_ALAMBRE !== 'undefined') ? EJEMPLOS_ALAMBRE : EJEMPLOS_CEN;
+  // Un solo ejemplo a la vista, el de sólidos, en cualquier modo (decisión del
+  // profesor, 2026-09-09): al cargarlo se pasa a 3D. Los ejemplos planos y los de
+  // alambre siguen en el código como casos de verificación (CLAUDE.md §4).
+  const lista = (typeof EJEMPLOS_3D !== 'undefined') ? EJEMPLOS_3D.slice(0,1) : EJEMPLOS_CEN.slice(0,1);
   if(el) el.innerHTML = lista.map((e,i)=>
       '<button type="button" class="ej-item" onclick="loadExampleSection(\'' + e.id + '\')">'
     + '<div class="ej-cab"><span class="ej-num">' + (i+1) + '</span><span class="ej-nom">' + e.nom + '</span></div>'
@@ -488,6 +488,9 @@ function comprobarEjemploCen(ej){
 
 // Sin argumento carga la sección de 18 figuras, para no romper llamadas antiguas.
 function loadExampleSection(id){
+  // Un ejemplo de sólidos se carga aunque se esté en otro modo: pasa a 3D solo.
+  const es3d = (typeof EJEMPLOS_3D !== 'undefined') && EJEMPLOS_3D.some(e=>e.id === id);
+  if(es3d && modoEspacio !== '3d') setModoEspacio('3d');
   if(modoEspacio === '3d') return loadExample3d(id);    // 21-vistas-3d.js
   if(modoEspacio === 'alambre') return loadExampleAlambre(id);   // 24-alambres.js
   const ej = EJEMPLOS_CEN.find(e=>e.id === id) || EJEMPLOS_CEN[0];

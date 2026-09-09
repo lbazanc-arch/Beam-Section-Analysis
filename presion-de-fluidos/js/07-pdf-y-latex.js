@@ -630,7 +630,7 @@ function construirLatex(){
     + 'su punto de aplicaci\\\'on (el centro de presi\\\'on) y, con ellas, las inc\\\'ognitas del equilibrio: '
     + apoyosTxt.join(', ') + '.\\\\[3pt]\n';
   tex += porque('presion', 'En un l\\\'iquido en reposo la presi\\\'on manom\\\'etrica crece con la profundidad, $p = \\gamma h$ '
-    + '(ley de Pascal, Hibbeler 9-13), y act\\\'ua siempre \\textbf{perpendicular} a la superficie que la recibe. '
+    + '(ley de Pascal; Hibbeler, 2016), y act\\\'ua siempre \\textbf{perpendicular} a la superficie que la recibe. '
     + 'Por eso una compuerta inclinada o curva recibe la misma $p$ que una vertical a igual profundidad: lo que cambia es la direcci\\\'on. '
     + (dosLados ? 'Con l\\\'iquido a los dos lados, cada zona empuja sobre su cara; son dos fuerzas distintas y se tratan por separado. ' : '')
     + (hayCapas ? 'Con varias capas, la presi\\\'on se acumula capa a capa, $p = \\sum \\gamma_i h_i$: cada capa apoya su peso sobre la de abajo.' : ''));
@@ -665,7 +665,7 @@ function construirLatex(){
   // ═══ 3. Paso 2: resultantes ═══
   tex += '\\seccion{3. Paso 2 --- Resultante de cada tramo mojado y su centro de presi\\\'on}\n';
   tex += porque('centro-presion', 'La resultante de una presi\\\'on repartida es el \\textbf{\\\'area del diagrama} de presi\\\'on (por el ancho $b$) '
-    + 'y pasa por su centroide (Hibbeler 9.4). Como abajo la presi\\\'on es mayor, ese centroide ---el \\textbf{centro de presi\\\'on} $P$--- '
+    + 'y pasa por su centroide (Hibbeler, 2016). Como abajo la presi\\\'on es mayor, ese centroide ---el \\textbf{centro de presi\\\'on} $P$--- '
     + 'queda \\textbf{por debajo del centro de la placa}: $F_R = \\gamma\\,\\bar z\\,A$ da la magnitud, pero $P$ no es el centroide de la placa. '
     + 'En una placa plana el diagrama es un trapecio; se reparte en un rect\\\'angulo, aplicado a $L/2$, y un tri\\\'angulo, aplicado a $2L/3$ del extremo menos cargado (ej. 9.14, soluci\\\'on II), y $P$ sale de sumar momentos.');
   r.cargas.forEach(c=>{
@@ -693,7 +693,7 @@ function construirLatex(){
       tex += '\\resultado{$' + c.nombre + ' = ' + f(d.F) + '$' + UF + ', perpendicular a la placa, aplicada en $P$ a $s_P = ' + nl(d.sP) + '$' + UL + ' de ' + origen + ', es decir a $z_P = ' + nl(d.zP) + '$' + UL + ' bajo la superficie libre'
         + (d.gzA ? '. Comprobaci\\\'on: $\\gamma\\,\\bar z\\,A = ' + f(d.gzA.g) + '\\,(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F) + '$' + UF + (d.horizontal ? '' : ' y $z_P = ' + nl(d.zP) + ' > \\bar z = ' + nl(d.gzA.zBar) + '$') : '') + '.}\n';
     } else {
-      tex += porque('curva', 'En una placa curva la presi\\\'on cambia de direcci\\\'on punto a punto. En vez de integrar se trabaja por componentes (Hibbeler fig. 9-26, Beer 5.19): '
+      tex += porque('curva', 'En una placa curva la presi\\\'on cambia de direcci\\\'on punto a punto. En vez de integrar se trabaja por componentes (Hibbeler, 2016; Beer et al., 2017): '
         + '$F_h$ es la resultante de la presi\\\'on sobre la \\textbf{proyecci\\\'on vertical} de la placa (un trapecio de presiones como el de una placa vertical) y '
         + '$F_v$ es el \\textbf{peso del l\\\'iquido} comprendido entre la placa y la superficie libre (real si el l\\\'iquido est\\\'a sobre la placa; el mismo bloque, hacia arriba, si est\\\'a debajo). '
         + 'Como en un arco de c\\\'irculo todas las presiones son radiales, la resultante pasa por el centro del arco, y as\\\'i se sit\\\'ua $P$.');
@@ -835,9 +835,7 @@ function construirLatex(){
     + '}\\end{center}\n';
 
   // ═══ Referencias y colofón ═══
-  tex += '\\seccion{Referencias}\n'
-    + '{\\small\\noindent R. C. Hibbeler, \\emph{Ingenier\\\'ia Mec\\\'anica: Est\\\'atica}, 12.\\textsuperscript{a} ed., \\S 9.4--9.5 (ejemplos 9.14 a 9.16).\\\\\n'
-    + 'F. P. Beer, E. R. Johnston, \\emph{Mec\\\'anica vectorial para ingenieros: Est\\\'atica}, 8.\\textsuperscript{a} ed., \\S 5.9 (problemas resueltos 5.9 y 5.10).}\n';
+  tex += bsaReferenciasLatex();
   tex += colofonLatexBSA();
   tex += '\n\\end{document}\n';
   return tex;

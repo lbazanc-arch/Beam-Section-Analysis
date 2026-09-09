@@ -29,7 +29,7 @@ function renderResults(res, u4, u2, u1){
 
   // Lectura como carga distribuida (propuesta 2.4): el ejemplo guiado del §9.4.
   if(typeof ejemploActualCen !== 'undefined' && ejemploActualCen === 'carga'){
-    html += `<div class="res-section"><div class="proc-block"><div class="proc-sub">Lectura como carga distribuida (Hibbeler §9.4)</div>
+    html += `<div class="res-section"><div class="proc-block"><div class="proc-sub">Lectura como carga distribuida</div>
       <div class="eq-row"><div class="eq-body">${kx(`F_R = \\int w\\,dx = A = ${ftex(res.A)}`)}</div></div>
       <div class="eq-row"><div class="eq-body">${kx(`\\bar{x} = ${ftex(res.xbar)}\\,${utex(u1)}\\quad\\text{(línea de acción)}`)}</div></div>
     </div></div>`;

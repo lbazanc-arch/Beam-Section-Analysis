@@ -594,9 +594,7 @@ function construirLatex(){
   }
 
   // ══ Referencias y colofón ══
-  tex += '\\vspace{10pt}\\noindent{\\footnotesize\\color{bsaMuted}\\textbf{Referencias.} '
-    + 'R.~C. Hibbeler, \\emph{Ingenier\\\'ia Mec\\\'anica: Est\\\'atica}, 12.\\textsuperscript{a} ed., cap.~6 \\textquotedblleft An\\\'alisis estructural\\textquotedblright. '
-    + 'F.~P. Beer y E.~R. Johnston, \\emph{Mec\\\'anica vectorial para ingenieros: Est\\\'atica}, cap.~6.}\n';
+  tex += bsaReferenciasLatex();
   // Colofón (R20): el mismo bloque en los cinco temas, desde core/comun.js.
   tex += colofonLatexBSA();
   tex += '\\end{document}\n';

@@ -151,7 +151,7 @@ function abrirCatalogo(){
   document.getElementById('cat-familias').style.display='';
   document.getElementById('cat-add').style.display='none';
   document.getElementById('cat-sub').textContent=
-    'Elige una familia de perfiles. Fuente: Beer & Johnston, Mecánica de Materiales, Apéndice C.';
+    'Elige una familia de perfiles.';
   let h='<div style="max-height:380px;overflow:auto;border:1px solid var(--border);border-radius:8px;">'+
         '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
         '<thead style="position:sticky;top:0;background:var(--card2);"><tr>'+
@@ -590,7 +590,7 @@ const EJEMPLOS_IN = [
     }
   },
   {
-    id:'te', nom:'Sección en T (Steiner, Hibbeler ej. 10.4)',
+    id:'te', nom:'Sección en T (Steiner)',
     desc:'Ala de 100 × 20 sobre un alma de 20 × 100 (mm). Un eje de simetría: P_xy = 0.',
     ref:'ȳ = 80 mm; Ī_x = 100·20³/12 + 2000·30² + 20·100³/12 + 2000·30² = 5 333 333 mm⁴; Ī_y = 1 733 333 mm⁴; P_xy = 0.',
     esperado:{Ix:5333333.3, Iy:1733333.3, Ixy:0},
@@ -602,7 +602,7 @@ const EJEMPLOS_IN = [
     }
   },
   {
-    id:'zeta', nom:'Sección en Z (producto de inercia, Hibbeler ej. 10.8)',
+    id:'zeta', nom:'Sección en Z (producto de inercia)',
     desc:'Alma de 10 × 100 centrada en el origen y dos alas de 50 × 10 en las esquinas opuestas (cuadrantes 1 y 3). P_xy positivo.',
     ref:'Ī_x = 2 866 667; Ī_y = 1 116 667; P_xy = 2·500·30·45 = +1 350 000 mm⁴; θp = −28.53°; I_máx = 3 600 432; I_mín = 382 902.',
     esperado:{Ix:2866666.7, Iy:1116666.7, Ixy:1350000, thetaP:-28.53},
@@ -629,7 +629,9 @@ const EJEMPLOS_IN = [
 ];
 function abrirEjemplosIn(){
   const el = document.getElementById('ejLista');
-  if(el) el.innerHTML = EJEMPLOS_IN.map((e,i)=>
+  // Un solo ejemplo a la vista; los demás siguen en el código como casos de
+  // verificación, que es lo que contrasta la consola (CLAUDE.md §4).
+  if(el) el.innerHTML = EJEMPLOS_IN.slice(0,1).map((e,i)=>
       '<button type="button" class="ej-item" onclick="loadExampleSection(\'' + e.id + '\')">'
     + '<div class="ej-cab"><span class="ej-num">' + (i+1) + '</span><span class="ej-nom">' + e.nom + '</span></div>'
     + '<div class="ej-desc">' + e.desc + '</div>'
