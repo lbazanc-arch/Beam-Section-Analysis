@@ -316,10 +316,15 @@ function render3d(){
   ctx.save();
   ctx.strokeStyle = 'rgba(15,92,86,.35)'; ctx.lineWidth = 1.5; ctx.setLineDash([6,4]);
   ctx.beginPath(); ctx.moveTo(g.ancho,0); ctx.lineTo(g.ancho,H); ctx.stroke(); ctx.setLineDash([]);
-  // Rótulo centrado arriba de cada vista (a la izquierda lo taparía la columna).
+  // Rótulo centrado arriba de cada vista, pero sin meterse debajo de la columna
+  // de control (izquierda, 96 px) ni de los botones del lienzo (arriba a la
+  // derecha): el del alzado se montaba con ellos.
+  const RESERVA_DER = 118, RESERVA_IZQ = 104;
   [g.planta, g.alzado].forEach(v=>{
     ctx.font = 'bold 11px Inter'; const w = ctx.measureText(v.rotulo).width + 16;
-    const xr = (v.x0+v.x1)/2 - w/2;
+    let xr = (v.x0+v.x1)/2 - w/2;
+    xr = Math.min(xr, W - w - RESERVA_DER);
+    xr = Math.max(xr, RESERVA_IZQ);
     ctx.fillStyle = 'rgba(15,92,86,.92)'; ctx.fillRect(xr, 10, w, 22);
     ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(v.rotulo, xr+8, 21); ctx.textBaseline = 'alphabetic';
   });

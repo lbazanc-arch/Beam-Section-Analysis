@@ -184,7 +184,11 @@ function dibujarLeyenda(){
     {tipo:'flecha', col:'#15803d', txt:'reacción (sentido real)'},
     {tipo:'rotula', col:'#d94f5c', txt:'rótula'}
   ];
-  const x0 = 12, ancho = 196, alto = 14*filas.length + 12;
+  // La columna de control (96 px, 88 en móvil) se superpone al lienzo por la
+  // izquierda: la leyenda arrancaba en x = 12 y quedaba tapada entera. Se
+  // aparta más allá de la columna y, si no cabe, se pega lo que pueda.
+  const ancho = 196, alto = 14*filas.length + 12;
+  const x0 = Math.max(12, Math.min(108, W - ancho - 12));
   const y0 = H - alto - 44;
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.strokeStyle = 'rgba(27,31,36,.18)'; ctx.lineWidth = 1;
