@@ -90,18 +90,19 @@ function dibujarApoyo(n){
 }
 
 function dibujarCarga(n){
-  // Fuente de verdad: n.cargas (una o varias fuerzas). Si el nudo viene de un
-  // formato antiguo sin ese arreglo, se usa la resultante fx/fy como una
-  // única carga implícita, para no perder dibujos guardados previamente.
+  // Fuente de verdad: n.cargas, cada una con su magnitud y su dirección
+  // (19-marcos.js). Si el nudo viene de un formato antiguo, la resultante fx/fy
+  // se lee como una única carga implícita para no perder dibujos guardados.
   const lista = (n.cargas && n.cargas.length) ? n.cargas
-              : ((!esCero(n.fx||0) || !esCero(n.fy||0)) ? [{fx:n.fx||0, fy:n.fy||0}] : []);
+              : ((!esCero(n.fx||0) || !esCero(n.fy||0)) ? _cargasNudoDeComponentes(n.fx||0, n.fy||0) : []);
   if(!lista.length) return;
   const [px,py] = aPantalla(n.x, n.y);
   const L = 46;
   lista.forEach(c=>{
-    if(esCero(c.fx||0) && esCero(c.fy||0)) return;
-    const mag = Math.hypot(c.fx||0, c.fy||0);
-    const ux = c.fx/mag, uy = c.fy/mag;
+    const q = compCargaNudo(c);
+    if(esCero(q.fx) && esCero(q.fy)) return;
+    const mag = Math.hypot(q.fx, q.fy);
+    const ux = q.fx/mag, uy = q.fy/mag;
     // la flecha apunta hacia el nudo, terminando en él; con varias cargas
     // todas parten del mismo punto y se distinguen por su propia dirección
     const sx = px - ux*L, sy = py + uy*L;
@@ -117,7 +118,7 @@ function dibujarCarga(n){
     ctx.textAlign = 'start';
     // Carga inclinada: su ángulo agudo con la horizontal, acotado en la cola
     // de la flecha como en el DCL del informe (propuesta E, 2026-09-08).
-    if(!esCero(c.fx||0) && !esCero(c.fy||0)){
+    if(!esCero(q.fx) && !esCero(q.fy)){
       // Se acota por el lado contrario al nudo (ángulos opuestos por el
       // vértice, mismo valor): así el rótulo no cae sobre el nudo ni sobre
       // su número de orden.

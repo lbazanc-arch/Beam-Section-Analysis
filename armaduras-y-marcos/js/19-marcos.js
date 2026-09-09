@@ -15,7 +15,7 @@
 // componentes positivas hacia +x y +y; los momentos son positivos antihorarios.
 // Datos nuevos del modelo (todo lo demás sigue igual que en la armadura):
 //   barra.cargas = [{tipo:'P', s, fx, fy} | {tipo:'M', s, m} |
-//                   {tipo:'w', s1, s2, w1, w2, dir:'y'|'x'|'n'}]     s desde el extremo a
+//                   {tipo:'U'|'T', s1, s2, dir, mag, mag2}]        s desde el extremo a
 //   barra.artA / barra.artB = true si ese extremo va articulado aunque el nudo sea rígido
 //   nodo.union = 'pasador' | 'rigido'          nodo.apoyo = 'empotrado' (Rx, Ry, M)
 // Los esfuerzos internos de cada elemento (N, V, M a lo largo de s) salen del
@@ -91,12 +91,117 @@ function geomBarra(b){
   const dx = nb.x-na.x, dy = nb.y-na.y, L = Math.hypot(dx,dy) || 1e-12;
   return {na, nb, L, ux:dx/L, uy:dy/L, nx:-dy/L, ny:dx/L};
 }
-function dirCarga(g, c){ return c.dir === 'x' ? {x:1, y:0} : (c.dir === 'n' ? {x:g.nx, y:g.ny} : {x:0, y:1}); }
+// ══ Cargas: el convenio de fuerzas-internas ═════════════════════════════════
+// Una carga se declara con MAGNITUD y DIRECCION, nunca por componentes, y el
+// signo positivo significa lo mismo que en fuerzas-internas:
+//   'y'      vertical del plano, positiva HACIA ABAJO
+//   'x'      horizontal del plano, positiva hacia la derecha
+//   'perp'   perpendicular al eje de la pieza, positiva «contra» ella
+//   'axial'  paralela al eje de la pieza, en su sentido de avance
+// Un par es positivo antihorario. Las componentes (fx, fy) siguen siendo lo que
+// consume el motor, con +y hacia arriba, pero ya no las escribe el usuario.
+const DIR_CARGA_ARM = {
+  y:     {nom:'Vertical (Y)',   ico:'\u2193', ayuda:'Vertical del plano, positiva hacia abajo.'},
+  x:     {nom:'Horizontal (X)', ico:'\u2192', ayuda:'Horizontal del plano, positiva hacia la derecha.'},
+  perp:  {nom:'Perpendicular',  ico:'\u21e3', ayuda:'Perpendicular al eje de la pieza, positiva «contra» ella.'},
+  axial: {nom:'Axial',          ico:'\u21e2', ayuda:'Paralela al eje de la pieza, en su sentido de avance.'}
+};
+// Vector unitario en el que actúa una magnitud POSITIVA.
+function vectorCarga(dir, g){
+  if(dir === 'x') return {x:1, y:0};
+  if(dir === 'axial') return g ? {x:g.ux, y:g.uy} : {x:1, y:0};
+  if(dir === 'perp'){
+    if(!g) return {x:0, y:-1};
+    // «Contra» la pieza: en una horizontal coincide con la vertical hacia
+    // abajo, así cambiar de modo no altera el resultado en piezas rectas.
+    const nx = -g.uy, ny = g.ux, sg = (ny > 0) ? -1 : 1;
+    return {x:nx*sg, y:ny*sg};
+  }
+  return {x:0, y:-1};                  // 'y': hacia abajo
+}
+// Magnitud al principio y al final de una repartida ('U' es de valor único).
+function wIni(c){ return +c.mag || 0; }
+function wFin(c){ return c.tipo === 'U' ? (+c.mag || 0) : (+c.mag2 || 0); }
+function esRepartida(c){ return c.tipo === 'U' || c.tipo === 'T'; }
+// Componentes de una carga de nudo, que solo admite las dos direcciones del plano.
+function compCargaNudo(c){
+  const v = vectorCarga(c.dir);
+  const m = +c.mag || 0;
+  return {fx:m*v.x, fy:m*v.y};
+}
+// La resultante del nudo es lo que lee el motor de equilibrio (06-).
+function recomponerCargaNudo(n){
+  let fx = 0, fy = 0;
+  (n.cargas || []).forEach(c=>{ const q = compCargaNudo(c); fx += q.fx; fy += q.fy; });
+  n.fx = fx; n.fy = fy;
+  return n;
+}
+// Pone (o quita) la carga de una dirección en un nudo. La usan los ejemplos.
+function ponerCargaNudo(n, dir, mag){
+  n.cargas = (n.cargas || []).filter(c=>c.dir !== dir);
+  if(Math.abs(mag) > 1e-12) n.cargas.push({dir, mag});
+  return recomponerCargaNudo(n);
+}
+// ── Lectura de los archivos anteriores al convenio único (2026-09-09) ──
+// Antes una carga se guardaba por COMPONENTES (fx, fy con +y hacia arriba) y
+// una repartida con w1/w2 firmadas sobre el eje de su dirección. Se convierte al
+// abrir; al guardar de nuevo, el archivo ya sale en el modelo nuevo.
+function _cargasNudoDeComponentes(fx, fy){
+  const out = [];
+  if(Math.abs(fx) > 1e-12) out.push({dir:'x', mag:fx});
+  if(Math.abs(fy) > 1e-12) out.push({dir:'y', mag:-fy});     // +y arriba pasa a positivo hacia abajo
+  return out;
+}
+function normalizarCargasNodo(n){
+  const out = [];
+  (n.cargas || []).forEach(c=>{
+    if(!c) return;
+    if(c.dir && c.mag !== undefined){ out.push({dir:c.dir, mag:+c.mag || 0}); return; }
+    _cargasNudoDeComponentes(+c.fx || 0, +c.fy || 0).forEach(q=>out.push(q));
+  });
+  if(!out.length && (Math.abs(n.fx || 0) > 1e-12 || Math.abs(n.fy || 0) > 1e-12))
+    _cargasNudoDeComponentes(n.fx || 0, n.fy || 0).forEach(q=>out.push(q));
+  n.cargas = out;
+  return recomponerCargaNudo(n);
+}
+function normalizarCargasBarra(b){
+  const na = nodos.find(z=>z.id === b.a), nb = nodos.find(z=>z.id === b.b);
+  const g = (na && nb) ? geomBarra(b) : null;
+  b.cargas = cargasDeBarra(b).map(c=>{
+    if(c.tipo === 'M') return {tipo:'M', s:+c.s || 0, mag:+(c.mag !== undefined ? c.mag : c.m) || 0};
+    if(c.tipo === 'P'){
+      if(c.mag !== undefined) return {tipo:'P', s:+c.s || 0, dir:c.dir || 'y', mag:+c.mag || 0};
+      const fx = +c.fx || 0, fy = +c.fy || 0;
+      return Math.abs(fx) > Math.abs(fy)
+        ? {tipo:'P', s:+c.s || 0, dir:'x', mag:fx}
+        : {tipo:'P', s:+c.s || 0, dir:'y', mag:-fy};
+    }
+    if(c.mag !== undefined && esRepartida(c)) return c;
+    // repartida antigua ('w'): w1/w2 firmadas sobre el eje de la dirección vieja
+    const dir = c.dir === 'n' ? 'perp' : (c.dir === 'x' ? 'x' : 'y');
+    const vNuevo = vectorCarga(dir, g);
+    const vViejo = c.dir === 'x' ? {x:1, y:0}
+                 : c.dir === 'n' ? {x:(g ? g.nx : 0), y:(g ? g.ny : 1)}
+                 : {x:0, y:1};
+    const sg = (vNuevo.x*vViejo.x + vNuevo.y*vViejo.y) >= 0 ? 1 : -1;
+    const w1 = sg*(+c.w1 || 0), w2 = sg*(+c.w2 || 0);
+    return Math.abs(w1 - w2) < 1e-12
+      ? {tipo:'U', s1:+c.s1 || 0, s2:+c.s2 || 0, dir, mag:w1}
+      : {tipo:'T', s1:+c.s1 || 0, s2:+c.s2 || 0, dir, mag:w1, mag2:w2};
+  });
+  return b;
+}
+// Deja TODO el modelo en el convenio vigente. Se llama al abrir un archivo, al
+// deshacer y al cargar un ejemplo.
+function normalizarCargasArm(){
+  nodos.forEach(normalizarCargasNodo);
+  barras.forEach(normalizarCargasBarra);
+}
 // Integrales de una carga repartida lineal desde s1 hasta e (≤ s2): ∫w ds y ∫s·w ds.
 function _intW(c, e){
-  const Lw = Math.max(c.s2 - c.s1, 1e-12), k = (c.w2 - c.w1)/Lw;
-  const I0 = c.w1*(e - c.s1) + k*(e - c.s1)*(e - c.s1)/2;
-  const I1 = c.w1*(e*e - c.s1*c.s1)/2 + k*((e*e*e - c.s1*c.s1*c.s1)/3 - c.s1*(e*e - c.s1*c.s1)/2);
+  const w1 = wIni(c), Lw = Math.max(c.s2 - c.s1, 1e-12), k = (wFin(c) - w1)/Lw;
+  const I0 = w1*(e - c.s1) + k*(e - c.s1)*(e - c.s1)/2;
+  const I1 = w1*(e*e - c.s1*c.s1)/2 + k*((e*e*e - c.s1*c.s1*c.s1)/3 - c.s1*(e*e - c.s1*c.s1)/2);
   return {I0, I1};
 }
 // Resultante (Fx, Fy) y momento respecto del extremo a de las cargas de la barra;
@@ -105,22 +210,31 @@ function resultanteCargas(b, hastaS){
   const g = geomBarra(b);
   let Fx = 0, Fy = 0, Ma = 0;
   cargasDeBarra(b).forEach(c=>{
-    if(c.tipo === 'P'){ if(hastaS !== undefined && c.s > hastaS) return; Fx += c.fx; Fy += c.fy; Ma += c.s*(g.ux*c.fy - g.uy*c.fx); }
-    else if(c.tipo === 'M'){ if(hastaS !== undefined && c.s > hastaS) return; Ma += c.m; }
-    else if(c.tipo === 'w'){
+    if(c.tipo === 'P'){
+      if(hastaS !== undefined && c.s > hastaS) return;
+      const d = vectorCarga(c.dir, g), fx = c.mag*d.x, fy = c.mag*d.y;
+      Fx += fx; Fy += fy; Ma += c.s*(g.ux*fy - g.uy*fx);
+    }
+    else if(c.tipo === 'M'){ if(hastaS !== undefined && c.s > hastaS) return; Ma += c.mag; }
+    else if(esRepartida(c)){
       const e = hastaS === undefined ? c.s2 : Math.min(hastaS, c.s2);
       if(e <= c.s1) return;
-      const d = dirCarga(g, c), I = _intW(c, e);
+      const d = vectorCarga(c.dir, g), I = _intW(c, e);
       Fx += I.I0*d.x; Fy += I.I0*d.y; Ma += (g.ux*d.y - g.uy*d.x)*I.I1;
     }
   });
   return {Fx, Fy, Ma};
 }
+function nomDir(dir){ return (DIR_CARGA_ARM[dir] || DIR_CARGA_ARM.y).nom.toLowerCase(); }
 function descCarga(c){
-  if(c.tipo === 'P') return 'Puntual (' + dec(c.fx,'f') + ', ' + dec(c.fy,'f') + ') ' + unitFor + ' en s = ' + dec(c.s,'len') + ' ' + unitLen;
-  if(c.tipo === 'M') return 'Par ' + dec(c.m,'f') + ' ' + unitFor + '·' + unitLen + ' en s = ' + dec(c.s,'len') + ' ' + unitLen;
-  const d = c.dir === 'x' ? 'horizontal' : (c.dir === 'n' ? 'normal a la barra' : 'vertical');
-  return 'Repartida ' + dec(c.w1,'f') + ' → ' + dec(c.w2,'f') + ' ' + unitFor + '/' + unitLen + ' (' + d + ') de s = ' + dec(c.s1,'len') + ' a ' + dec(c.s2,'len') + ' ' + unitLen;
+  if(c.tipo === 'P') return 'Puntual ' + dec(c.mag,'f') + ' ' + unitFor + ' ' + nomDir(c.dir) + ' en s = ' + dec(c.s,'len') + ' ' + unitLen;
+  if(c.tipo === 'M') return 'Par ' + dec(c.mag,'f') + ' ' + unitFor + '·' + unitLen + ' (antihorario +) en s = ' + dec(c.s,'len') + ' ' + unitLen;
+  const val = c.tipo === 'U' ? dec(wIni(c),'f') : dec(wIni(c),'f') + ' → ' + dec(wFin(c),'f');
+  return 'Repartida ' + val + ' ' + unitFor + '/' + unitLen + ' ' + nomDir(c.dir) + ' de s = ' + dec(c.s1,'len') + ' a ' + dec(c.s2,'len') + ' ' + unitLen;
+}
+// Descripción de una carga de nudo, en el mismo convenio.
+function descCargaNudo(c){
+  return dec(c.mag,'f') + ' ' + unitFor + ' ' + nomDir(c.dir);
 }
 // Cuántas incógnitas aporta un apoyo (amplía gradosApoyo de 06-).
 function gradosApoyoMarco(n){ return n.apoyo === 'empotrado' ? 3 : gradosApoyo(n); }
@@ -212,7 +326,7 @@ function esfuerzosElemento(b, ex){
   const NM = 60; for(let i=1;i<NM;i++) puntos.add(L*i/NM);
   const eps = 1e-6*Math.max(L, 1);
   cargasDeBarra(b).forEach(c=>{
-    if(c.tipo === 'w'){ puntos.add(c.s1); puntos.add(c.s2); }
+    if(esRepartida(c)){ puntos.add(c.s1); puntos.add(c.s2); }
     else { puntos.add(Math.max(0, c.s - eps)); puntos.add(Math.min(L, c.s + eps)); }
   });
   const ss = [...puntos].filter(s=>s >= 0 && s <= L).sort((p,q)=>p-q);
@@ -222,9 +336,9 @@ function esfuerzosElemento(b, ex){
     const N = -(Fx*g.ux + Fy*g.uy), V = Fx*g.nx + Fy*g.ny;
     let M = Ma - s*(g.ux*Fa.fy - g.uy*Fa.fx);
     cargasDeBarra(b).forEach(c=>{
-      if(c.tipo === 'P'){ if(c.s <= s) M += (c.s - s)*(g.ux*c.fy - g.uy*c.fx); }
-      else if(c.tipo === 'M'){ if(c.s <= s) M += c.m; }
-      else if(c.tipo === 'w'){ const e = Math.min(s, c.s2); if(e > c.s1){ const d = dirCarga(g, c), I = _intW(c, e); M += (g.ux*d.y - g.uy*d.x)*(I.I1 - s*I.I0); } }
+      if(c.tipo === 'P'){ if(c.s <= s){ const d = vectorCarga(c.dir, g); M += (c.s - s)*(g.ux*c.mag*d.y - g.uy*c.mag*d.x); } }
+      else if(c.tipo === 'M'){ if(c.s <= s) M += c.mag; }
+      else if(esRepartida(c)){ const e = Math.min(s, c.s2); if(e > c.s1){ const d = vectorCarga(c.dir, g), I = _intW(c, e); M += (g.ux*d.y - g.uy*d.x)*(I.I1 - s*I.I0); } }
     });
     return {s, N, V, M:-M};
   });
@@ -241,7 +355,7 @@ function abrirCargaBarra(id){
   document.getElementById('cargaBarraNom').textContent = nombreBarra(b);
   document.getElementById('cargaBarraA').textContent = g.na.nombre;
   cargaBarraFilas = cargasDeBarra(b).map(c=>Object.assign({}, c));
-  if(!cargaBarraFilas.length) cargaBarraFilas.push({tipo:'P', s:+(g.L/2).toFixed(4), fx:0, fy:-10});
+  if(!cargaBarraFilas.length) cargaBarraFilas.push(cargaBarraPorDefecto('P', g.L));
   cargaBarraAbierta = 0;
   renderCargaBarraLista();
   document.getElementById('cargaBarraModal').classList.add('show');
@@ -249,8 +363,21 @@ function abrirCargaBarra(id){
 function closeCargaBarra(){ document.getElementById('cargaBarraModal').classList.remove('show'); cargaBarraId = null; }
 function _campoCB(idx, campo, valor, etiqueta, unidad){
   return '<div class="carga-campo"><label class="carga-campo-lbl">' + etiqueta + '</label>'
-    + '<div class="carga-input-wrap"><input type="number" step="any" value="' + valor + '" oninput="actualizarCampoCargaBarra(' + idx + ',\'' + campo + '\',this.value)">'
+    + '<div class="carga-input-wrap"><input type="number" step="any" value="' + valor + '" oninput="actualizarCampoCargaBarra(' + idx + ',&quot;' + campo + '&quot;,this.value)">'
     + '<span class="carga-campo-unit">' + unidad + '</span></div></div>';
+}
+// Celda de la matriz de doble entrada (posición y magnitud), como en fuerzas internas.
+function _celdaCB(idx, campo, valor, colspan){
+  return '<td' + (colspan ? ' colspan="' + colspan + '"' : '') + '>'
+    + '<input type="number" step="any" value="' + valor + '" oninput="actualizarCampoCargaBarra(' + idx + ',&quot;' + campo + '&quot;,this.value)"></td>';
+}
+// Valores de partida de cada tipo, ya en el convenio (positivo hacia abajo).
+function cargaBarraPorDefecto(tipo, L){
+  const s = +(L/2).toFixed(4), fin = +L.toFixed(4);
+  return tipo === 'P' ? {tipo:'P', s, dir:'y', mag:10}
+       : tipo === 'M' ? {tipo:'M', s, mag:10}
+       : tipo === 'T' ? {tipo:'T', s1:0, s2:fin, dir:'y', mag:0, mag2:5}
+       :                {tipo:'U', s1:0, s2:fin, dir:'y', mag:5};
 }
 function renderCargaBarraLista(){
   const b = barras.find(z=>z.id===cargaBarraId); if(!b) return;
@@ -261,49 +388,119 @@ function renderCargaBarraLista(){
       return '<div class="carga-mini" onclick="cargaBarraAbierta=' + i + ';renderCargaBarraLista()"><span class="carga-mini-nom">Carga ' + (i+1) + '</span>'
         + '<span class="carga-mini-val">' + descCarga(c) + '</span>'
         + '<button class="carga-del" title="Quitar" onclick="event.stopPropagation();quitarCargaBarra(' + i + ')">\u00d7</button></div>';
+    const rep2 = esRepartida(c), esPar = (c.tipo === 'M');
+    // Tipo: los mismos cuatro de fuerzas internas, en botones marcados.
+    const tipos = [['P','Puntual'], ['U','Uniforme'], ['T','Triangular'], ['M','Par']]
+      .map(([v,t])=>segCargaArm(c.tipo===v, v, t, 'Carga ' + t.toLowerCase(),
+          'cambiarTipoCargaBarra(' + i + ',&quot;' + v + '&quot;)')).join('');
     let h = '<div class="carga-card"><div class="carga-card-head"><span class="carga-card-title">Carga ' + (i+1) + '</span>'
       + '<button class="carga-del" title="Quitar" onclick="quitarCargaBarra(' + i + ')">\u00d7</button></div>'
-      + '<div class="carga-eje-row"><div class="carga-campo" style="flex:1 1 100%"><label class="carga-campo-lbl">Tipo</label>'
-      + '<select onchange="cambiarTipoCargaBarra(' + i + ',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px">'
-      + '<option value="P"' + (c.tipo==='P'?' selected':'') + '>Fuerza puntual</option>'
-      + '<option value="M"' + (c.tipo==='M'?' selected':'') + '>Par (momento)</option>'
-      + '<option value="w"' + (c.tipo==='w'?' selected':'') + '>Carga repartida</option></select></div></div>';
-    if(c.tipo === 'P'){
-      h += '<div class="carga-eje-row">' + _campoCB(i,'s',c.s,'s desde ' + g.na.nombre, unitLen) + _campoCB(i,'fx',c.fx,'F<sub>x</sub>',unitFor) + _campoCB(i,'fy',c.fy,'F<sub>y</sub>',unitFor) + '</div>';
-    } else if(c.tipo === 'M'){
-      h += '<div class="carga-eje-row">' + _campoCB(i,'s',c.s,'s desde ' + g.na.nombre, unitLen) + _campoCB(i,'m',c.m,'M (antihorario +)',um) + '</div>';
+      + '<div class="cg-grupo"><div class="cg-cap">Tipo</div><div class="cg-seg">' + tipos + '</div></div>';
+    // Matriz de doble entrada: columnas Inicio / Final, filas Distancia y Magnitud.
+    const uMag = esPar ? um : (rep2 ? uw : unitFor);
+    h += '<table class="cg-tabla"><thead><tr><th></th><th>' + (rep2 ? 'Inicio' : 'Aplicaci\u00f3n') + '</th>'
+       + (rep2 ? '<th>Final</th>' : '') + '</tr></thead><tbody>'
+       + '<tr><th>s desde ' + g.na.nombre + ' (' + unitLen + ')</th>'
+       + (rep2 ? _celdaCB(i,'s1',c.s1) + _celdaCB(i,'s2',c.s2) : _celdaCB(i,'s',c.s))
+       + '</tr><tr><th>' + (esPar ? 'Momento' : 'Magnitud') + ' (' + uMag + ')</th>'
+       + (c.tipo === 'T' ? _celdaCB(i,'mag',c.mag) + _celdaCB(i,'mag2',c.mag2)
+                         : _celdaCB(i,'mag',c.mag, rep2 ? 2 : 0))
+       + '</tr></tbody></table>';
+    if(esPar){
+      h += '<div class="hint-sm">Positivo antihorario.</div>';
     } else {
-      h += '<div class="carga-eje-row">' + _campoCB(i,'s1',c.s1,'desde s₁',unitLen) + _campoCB(i,'s2',c.s2,'hasta s₂',unitLen) + '</div>'
-        + '<div class="carga-eje-row">' + _campoCB(i,'w1',c.w1,'w en s₁',uw) + _campoCB(i,'w2',c.w2,'w en s₂',uw) + '</div>'
-        + '<div class="carga-eje-row"><div class="carga-campo" style="flex:1 1 100%"><label class="carga-campo-lbl">Dirección</label>'
-        + '<select onchange="actualizarCampoCargaBarra(' + i + ',\'dir\',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px">'
-        + '<option value="y"' + (c.dir==='y'?' selected':'') + '>Vertical (Y; hacia abajo es negativa)</option>'
-        + '<option value="x"' + (c.dir==='x'?' selected':'') + '>Horizontal (X)</option>'
-        + '<option value="n"' + (c.dir==='n'?' selected':'') + '>Perpendicular a la barra (hacia +n)</option></select></div></div>';
+      const dir = c.dir || 'y';
+      const bot = [['y','\u2193 Vert.'], ['x','\u2192 Horiz.'], ['perp','\u21e3 Perp.'], ['axial','\u21e2 Axial']]
+        .map(([v,t])=>segCargaArm(dir===v, v, t, DIR_CARGA_ARM[v].ayuda,
+            'actualizarCampoCargaBarra(' + i + ',&quot;dir&quot;,&quot;' + v + '&quot;)')).join('');
+      h += '<div class="cg-grupo"><div class="cg-cap">Direcci\u00f3n</div><div class="cg-seg">' + bot + '</div>'
+        + '<div class="hint-sm">' + DIR_CARGA_ARM[dir].ayuda + '</div></div>';
     }
     return h + '</div>';
   }).join('');
   const res = document.getElementById('cargaBarraResumen');
-  if(res) res.innerHTML = 'Barra <b>' + nombreBarra(b) + '</b> de ' + dec(g.L,'len') + ' ' + unitLen + ' (s de 0 a ' + dec(g.L,'len') + '). '
-    + cargaBarraFilas.length + ' carga(s): la barra se trata como elemento de varias fuerzas.';
+  if(res) res.innerHTML = 'Viga <b>' + nombreBarra(b) + '</b> de ' + dec(g.L,'len') + ' ' + unitLen + ' (s de 0 a ' + dec(g.L,'len') + '). '
+    + cargaBarraFilas.length + ' carga(s): la pieza se resuelve como elemento de varias fuerzas.';
+  dibujarCroquisBarra();
+}
+
+// ── Croquis acotado de la pieza, con la carga abierta marcada ──
+// El mismo papel que el croquis del tramo en fuerzas internas: enseña dónde cae
+// la carga que se está escribiendo y hacia dónde empuja.
+function dibujarCroquisBarra(){
+  const cont = document.getElementById('cargaBarraCroquis'); if(!cont) return;
+  const b = barras.find(z=>z.id===cargaBarraId);
+  if(!b){ cont.innerHTML = '<div style="font-size:10.5px;color:#66727e;padding:14px 6px">Sin pieza.</div>'; return; }
+  const g = geomBarra(b);
+  const W2 = 220, M = 30, H2max = 200;
+  const dx = g.nb.x - g.na.x, dy = g.nb.y - g.na.y;
+  const k = Math.min((W2-2*M)/Math.max(Math.abs(dx),1e-6), (H2max-2*M-26)/Math.max(Math.abs(dy),1e-6), 90);
+  const H2 = Math.max(110, Math.min(H2max, Math.abs(dy)*k + 2*M + 26));
+  const cx = W2/2, cy = H2/2 - 4;
+  const ax = cx - dx*k/2, ay = cy + dy*k/2, bx = cx + dx*k/2, by = cy - dy*k/2;
+  let s = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;height:auto;display:block">'
+        + '<rect width="' + W2 + '" height="' + H2 + '" fill="#fff"/>';
+  s += '<line x1="' + ax.toFixed(1) + '" y1="' + ay.toFixed(1) + '" x2="' + bx.toFixed(1) + '" y2="' + by.toFixed(1) + '" stroke="#7c3a06" stroke-width="5" stroke-linecap="round"/>'
+     + '<circle cx="' + ax.toFixed(1) + '" cy="' + ay.toFixed(1) + '" r="4" fill="#7c3a06"/>'
+     + '<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="4" fill="#7c3a06"/>'
+     + '<text x="' + (ax-9).toFixed(1) + '" y="' + (ay+4).toFixed(1) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">' + g.na.nombre + '</text>'
+     + '<text x="' + (bx+5).toFixed(1) + '" y="' + (by+4).toFixed(1) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">' + g.nb.nombre + '</text>';
+  // cota de la longitud, por el lado opuesto a la carga
+  const ox = -(by-ay), oy = (bx-ax), on = Math.hypot(ox,oy) || 1;
+  const px = ox/on*16, py = oy/on*16;
+  s += '<line x1="' + (ax+px).toFixed(1) + '" y1="' + (ay+py).toFixed(1) + '" x2="' + (bx+px).toFixed(1) + '" y2="' + (by+py).toFixed(1) + '" stroke="#1b1f24" stroke-width="1"/>';
+  let am = Math.atan2((by)-(ay), (bx)-(ax));
+  if(am > Math.PI/2 || am < -Math.PI/2) am += Math.PI;
+  s += '<g transform="translate(' + ((ax+bx)/2+px).toFixed(1) + ',' + ((ay+by)/2+py).toFixed(1) + ') rotate(' + (am*180/Math.PI).toFixed(1) + ')">'
+     + '<text y="-4" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#1b1f24" text-anchor="middle">L = ' + dec(g.L,'len') + ' ' + unitLen + '</text></g>';
+  // la carga abierta
+  const c = cargaBarraFilas[cargaBarraAbierta];
+  if(c){
+    const F = s0 => Math.max(0, Math.min(1, s0/(g.L || 1)));
+    const Pt = f => [ax + (bx-ax)*f, ay + (by-ay)*f];
+    if(esRepartida(c)){
+      const f1 = F(c.s1), f2 = F(c.s2);
+      const [q1x,q1y] = Pt(f1), [q2x,q2y] = Pt(f2);
+      if(Math.abs(f2-f1) > 1e-6){
+        s += '<line x1="' + q1x.toFixed(1) + '" y1="' + q1y.toFixed(1) + '" x2="' + q2x.toFixed(1) + '" y2="' + q2y.toFixed(1) + '" stroke="#c0392b" stroke-width="7" stroke-linecap="round" opacity=".55"/>'
+           + '<text x="' + ((q1x+q2x)/2-px).toFixed(1) + '" y="' + ((q1y+q2y)/2-py).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">cargado ' + dec(Math.abs(c.s2-c.s1),'len') + '</text>';
+      }
+    } else {
+      const f1 = F(c.s), [qx,qy] = Pt(f1);
+      s += '<circle cx="' + qx.toFixed(1) + '" cy="' + qy.toFixed(1) + '" r="5" fill="#c0392b"/>'
+         + '<text x="' + qx.toFixed(1) + '" y="' + (qy-11).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(c.s,'len') + '</text>';
+    }
+    // sentido en el que empuja la magnitud escrita
+    if(c.tipo !== 'M' && Math.abs(c.mag) > 1e-12){
+      const v = vectorCarga(c.dir, g), sg = c.mag >= 0 ? 1 : -1;
+      const ux = v.x*sg, uy = -v.y*sg;
+      const f0 = esRepartida(c) ? (F(c.s1)+F(c.s2))/2 : F(c.s);
+      const [mx0,my0] = Pt(f0);
+      s += '<line x1="' + (mx0-ux*30).toFixed(1) + '" y1="' + (my0-uy*30).toFixed(1) + '" x2="' + (mx0-ux*8).toFixed(1) + '" y2="' + (my0-uy*8).toFixed(1) + '" stroke="#c0392b" stroke-width="2"/>'
+         + '<polygon points="0,0 -8,-3.6 -8,3.6" fill="#c0392b" transform="translate(' + (mx0-ux*7).toFixed(1) + ',' + (my0-uy*7).toFixed(1) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>';
+    }
+  }
+  cont.innerHTML = s + '</svg>';
 }
 function actualizarCampoCargaBarra(i, campo, valor){
   const c = cargaBarraFilas[i]; if(!c) return;
   c[campo] = campo === 'dir' ? valor : (parseFloat(valor) || 0);
-  if(campo === 'dir') renderCargaBarraLista();
+  if(campo === 'dir') renderCargaBarraLista(); else dibujarCroquisBarra();
 }
 function cambiarTipoCargaBarra(i, tipo){
   const b = barras.find(z=>z.id===cargaBarraId); const L = b ? geomBarra(b).L : 1;
-  const c = cargaBarraFilas[i]; if(!c) return;
-  const s = c.s !== undefined ? c.s : +(L/2).toFixed(4);
-  cargaBarraFilas[i] = tipo === 'P' ? {tipo:'P', s, fx:0, fy:-10}
-                     : tipo === 'M' ? {tipo:'M', s, m:10}
-                     : {tipo:'w', s1:0, s2:+L.toFixed(4), w1:-5, w2:-5, dir:'y'};
+  const c = cargaBarraFilas[i]; if(!c || c.tipo === tipo) return;
+  const nuevo = cargaBarraPorDefecto(tipo, L);
+  // se conserva lo que tenga sentido: la posición y la dirección elegidas
+  if(c.dir && nuevo.dir) nuevo.dir = c.dir;
+  if(esRepartida(nuevo) && esRepartida(c)){ nuevo.s1 = c.s1; nuevo.s2 = c.s2; nuevo.mag = c.mag; }
+  else if(!esRepartida(nuevo) && c.s !== undefined) nuevo.s = c.s;
+  cargaBarraFilas[i] = nuevo;
   renderCargaBarraLista();
 }
 function agregarCargaBarra(){
   const b = barras.find(z=>z.id===cargaBarraId); const L = b ? geomBarra(b).L : 1;
-  cargaBarraFilas.push({tipo:'P', s:+(L/2).toFixed(4), fx:0, fy:-10});
+  cargaBarraFilas.push(cargaBarraPorDefecto('P', L));
   cargaBarraAbierta = cargaBarraFilas.length - 1;
   renderCargaBarraLista();
 }
@@ -319,11 +516,11 @@ function applyCargaBarra(){
     const L = geomBarra(b).L;
     b.cargas = cargaBarraFilas.map(c=>{
       const q = Object.assign({}, c);
-      if(q.tipo === 'w'){ q.s1 = Math.max(0, Math.min(L, q.s1)); q.s2 = Math.max(q.s1, Math.min(L, q.s2)); if(!q.dir) q.dir = 'y'; }
-      else q.s = Math.max(0, Math.min(L, q.s));
+      if(esRepartida(q)){ q.s1 = Math.max(0, Math.min(L, q.s1)); q.s2 = Math.max(q.s1, Math.min(L, q.s2)); if(!q.dir) q.dir = 'y'; }
+      else { q.s = Math.max(0, Math.min(L, q.s)); if(q.tipo !== 'M' && !q.dir) q.dir = 'y'; }
       return q;
-    }).filter(c=>c.tipo === 'w' ? (c.s2 > c.s1 && (Math.abs(c.w1) > 1e-12 || Math.abs(c.w2) > 1e-12))
-                                : (c.tipo === 'M' ? Math.abs(c.m) > 1e-12 : (Math.abs(c.fx) > 1e-12 || Math.abs(c.fy) > 1e-12)));
+    }).filter(c=>esRepartida(c) ? (c.s2 > c.s1 && (Math.abs(wIni(c)) > 1e-12 || Math.abs(wFin(c)) > 1e-12))
+                                : Math.abs(c.mag) > 1e-12);
     resultado = null;
   }
   closeCargaBarra(); refrescar();
@@ -360,27 +557,28 @@ function dibujarCargasBarras(){
       ctx.save(); ctx.strokeStyle = '#c0392b'; ctx.fillStyle = '#c0392b'; ctx.lineWidth = 2.2;
       ctx.font = '600 10.5px Inter, sans-serif'; ctx.textAlign = 'center';
       if(c.tipo === 'P'){
-        const [px,py] = P(c.s), mag = Math.hypot(c.fx, c.fy); if(mag < 1e-12){ ctx.restore(); return; }
-        const ux = c.fx/mag, uy = c.fy/mag, L = 42;
+        const [px,py] = P(c.s), mag = Math.abs(c.mag); if(mag < 1e-12){ ctx.restore(); return; }
+        const v = vectorCarga(c.dir, g), sg = c.mag >= 0 ? 1 : -1;
+        const ux = v.x*sg, uy = v.y*sg, L = 42;
         const sx = px - ux*L, sy = py + uy*L;
         ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(px - ux*9, py + uy*9); ctx.stroke();
         ctx.save(); ctx.translate(px - ux*8, py + uy*8); ctx.rotate(Math.atan2(-uy, ux));
         ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-4.5); ctx.lineTo(-10,4.5); ctx.closePath(); ctx.fill(); ctx.restore();
         ctx.fillText(dec(mag,'f') + ' ' + unitFor, sx - ux*8, sy + uy*8 - 6);
       } else if(c.tipo === 'M'){
-        const [px,py] = P(c.s), R = 14, ccw = c.m > 0;
+        const [px,py] = P(c.s), R = 14, ccw = c.mag > 0;
         ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, py, R, ccw ? -0.2 : Math.PI+0.2, ccw ? -Math.PI*1.3 : -Math.PI*0.3, true); ctx.stroke();
         const ae = ccw ? -Math.PI*1.3 : -Math.PI*0.3;
         const ex = px + R*Math.cos(ae), ey = py + R*Math.sin(ae);
         ctx.save(); ctx.translate(ex, ey); ctx.rotate(ae + (ccw ? -Math.PI/2 : Math.PI/2));
         ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-9,-4); ctx.lineTo(-9,4); ctx.closePath(); ctx.fill(); ctx.restore();
-        ctx.fillText(dec(Math.abs(c.m),'f') + ' ' + unitFor + '·' + unitLen, px, py - R - 6);
+        ctx.fillText(dec(Math.abs(c.mag),'f') + ' ' + unitFor + '·' + unitLen, px, py - R - 6);
       } else {
-        const d = dirCarga(g, c), n = 6, Lmax = 34;
-        const wmax = Math.max(Math.abs(c.w1), Math.abs(c.w2), 1e-12);
+        const d = vectorCarga(c.dir, g), n = 6, Lmax = 34;
+        const wmax = Math.max(Math.abs(wIni(c)), Math.abs(wFin(c)), 1e-12);
         const puntas = [];
         for(let i=0;i<=n;i++){
-          const s = c.s1 + (c.s2 - c.s1)*i/n, w = c.w1 + (c.w2 - c.w1)*i/n;
+          const s = c.s1 + (c.s2 - c.s1)*i/n, w = wIni(c) + (wFin(c) - wIni(c))*i/n;
           const [px,py] = P(s), len = Lmax*Math.abs(w)/wmax;
           const sg = w >= 0 ? 1 : -1;              // el vector w·d apunta hacia donde empuja
           const ux = d.x*sg, uy = d.y*sg;           // la flecha llega a la barra con ese sentido
@@ -392,9 +590,9 @@ function dibujarCargasBarras(){
           ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-7,-3.2); ctx.lineTo(-7,3.2); ctx.closePath(); ctx.fill(); ctx.restore();
         }
         ctx.lineWidth = 1.6; ctx.beginPath(); puntas.forEach((p,i)=>{ if(i) ctx.lineTo(p[0],p[1]); else ctx.moveTo(p[0],p[1]); }); ctx.stroke();
-        const txt = (Math.abs(c.w1 - c.w2) < 1e-9 ? dec(Math.abs(c.w1),'f') : dec(Math.abs(c.w1),'f') + ' → ' + dec(Math.abs(c.w2),'f')) + ' ' + unitFor + '/' + unitLen;
+        const txt = (Math.abs(wIni(c) - wFin(c)) < 1e-9 ? dec(Math.abs(wIni(c)),'f') : dec(Math.abs(wIni(c)),'f') + ' → ' + dec(Math.abs(wFin(c)),'f')) + ' ' + unitFor + '/' + unitLen;
         const pm = puntas[Math.floor(n/2)];
-        ctx.fillText(txt, pm[0] - (d.x*(c.w1+c.w2) >= 0 ? -1 : 1)*0, pm[1] - 7 - (d.y ? 0 : 0));
+        ctx.fillText(txt, pm[0], pm[1] - 7);
       }
       ctx.restore();
     });
@@ -574,25 +772,26 @@ function svgDCLPieza(b, res){
   // cargas
   cargasDeBarra(b).forEach(c=>{
     if(c.tipo === 'P'){
-      const [px,py] = P(c.s), mag = Math.hypot(c.fx,c.fy); if(mag < 1e-12) return;
-      const ux = c.fx/mag, uy = -c.fy/mag, L = 30;
+      const [px,py] = P(c.s), mag = Math.abs(c.mag); if(mag < 1e-12) return;
+      const v = vectorCarga(c.dir, g), sg = c.mag >= 0 ? 1 : -1;
+      const ux = v.x*sg, uy = -v.y*sg, L = 30;
       s += '<line x1="' + (px-ux*L).toFixed(1) + '" y1="' + (py-uy*L).toFixed(1) + '" x2="' + (px-ux*7).toFixed(1) + '" y2="' + (py-uy*7).toFixed(1) + '" stroke="#c0392b" stroke-width="2"/>' + fl(px-ux*6, py-uy*6, Math.atan2(uy,ux)*180/Math.PI, '#c0392b')
         + '<text x="' + (px-ux*L-ux*10).toFixed(1) + '" y="' + (py-uy*L-uy*10+3).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(mag,'f') + '</text>';
     } else if(c.tipo === 'M'){
       const [px,py] = P(c.s);
-      s += '<path d="M' + (px+10).toFixed(1) + ' ' + py.toFixed(1) + ' A10 10 0 1 ' + (c.m > 0 ? 0 : 1) + ' ' + (px-7).toFixed(1) + ' ' + (py-7).toFixed(1) + '" fill="none" stroke="#c0392b" stroke-width="1.8"/>'
-        + '<text x="' + px.toFixed(1) + '" y="' + (py-16).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(Math.abs(c.m),'f') + '</text>';
+      s += '<path d="M' + (px+10).toFixed(1) + ' ' + py.toFixed(1) + ' A10 10 0 1 ' + (c.mag > 0 ? 0 : 1) + ' ' + (px-7).toFixed(1) + ' ' + (py-7).toFixed(1) + '" fill="none" stroke="#c0392b" stroke-width="1.8"/>'
+        + '<text x="' + px.toFixed(1) + '" y="' + (py-16).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(Math.abs(c.mag),'f') + '</text>';
     } else {
-      const d = dirCarga(g, c), n = 5, wmax = Math.max(Math.abs(c.w1), Math.abs(c.w2), 1e-12), pts = [];
+      const d = vectorCarga(c.dir, g), n = 5, wmax = Math.max(Math.abs(wIni(c)), Math.abs(wFin(c)), 1e-12), pts = [];
       for(let i=0;i<=n;i++){
-        const sv = c.s1 + (c.s2-c.s1)*i/n, w = c.w1 + (c.w2-c.w1)*i/n, [px,py] = P(sv), len = 22*Math.abs(w)/wmax;
+        const sv = c.s1 + (c.s2-c.s1)*i/n, w = wIni(c) + (wFin(c)-wIni(c))*i/n, [px,py] = P(sv), len = 22*Math.abs(w)/wmax;
         const sg = w >= 0 ? 1 : -1, ux = d.x*sg, uy = -d.y*sg;
         pts.push([px-ux*len, py-uy*len]);
         if(len > 2) s += '<line x1="' + (px-ux*len).toFixed(1) + '" y1="' + (py-uy*len).toFixed(1) + '" x2="' + (px-ux*5).toFixed(1) + '" y2="' + (py-uy*5).toFixed(1) + '" stroke="#c0392b" stroke-width="1.3"/>' + fl(px-ux*4, py-uy*4, Math.atan2(uy,ux)*180/Math.PI, '#c0392b');
       }
       s += '<polyline points="' + pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ') + '" fill="none" stroke="#c0392b" stroke-width="1.3"/>';
       const pm = pts[Math.floor(n/2)];
-      s += '<text x="' + pm[0].toFixed(1) + '" y="' + (pm[1]-6).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + (Math.abs(c.w1-c.w2)<1e-9 ? dec(Math.abs(c.w1),'f') : dec(Math.abs(c.w1),'f') + '→' + dec(Math.abs(c.w2),'f')) + '</text>';
+      s += '<text x="' + pm[0].toFixed(1) + '" y="' + (pm[1]-6).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + (Math.abs(wIni(c)-wFin(c))<1e-9 ? dec(Math.abs(wIni(c)),'f') : dec(Math.abs(wIni(c)),'f') + '→' + dec(Math.abs(wFin(c)),'f')) + '</text>';
     }
   });
   // fuerzas de pasador (sentido positivo supuesto) y momentos
@@ -652,8 +851,8 @@ const EJEMPLOS_MARCO = [
       const ab = addBarra(A.id,B.id,'viga'), bc = addBarra(B.id,C.id,'viga'), cd = addBarra(C.id,D.id,'viga');
       A.apoyo = 'fijo'; D.apoyo = 'movil'; D.apAng = 90;
       B.union = 'rigido'; C.union = 'rigido';
-      B.fx = 6; B.cargas = [{fx:6, fy:0}];
-      bc.cargas = [{tipo:'P', s:3, fx:0, fy:-12}];
+      ponerCargaNudo(B, 'x', 6);                       // 6 kN hacia la derecha
+      bc.cargas = [{tipo:'P', s:3, dir:'y', mag:12}];   // 12 kN hacia abajo
       void ab; void cd;
     }
   },
@@ -667,8 +866,8 @@ const EJEMPLOS_MARCO = [
       const A = addNodo(0,0), C = addNodo(4,0), B = addNodo(6,0), D = addNodo(1,-4);
       const ac = addBarra(A.id,C.id,'viga'), cb = addBarra(C.id,B.id,'viga'), cd = addBarra(C.id,D.id,'barra');
       A.apoyo = 'fijo'; D.apoyo = 'fijo'; C.union = 'rigido';
-      ac.cargas = [{tipo:'w', s1:0, s2:4, w1:-3, w2:-3, dir:'y'}];
-      cb.cargas = [{tipo:'w', s1:0, s2:2, w1:-3, w2:-3, dir:'y'}];
+      ac.cargas = [{tipo:'U', s1:0, s2:4, dir:'y', mag:3}];    // 3 kN/m hacia abajo
+      cb.cargas = [{tipo:'U', s1:0, s2:2, dir:'y', mag:3}];
       void cd;                              // el puntal es barra: va articulado en C aunque C sea rígido
     }
   },
@@ -682,7 +881,7 @@ const EJEMPLOS_MARCO = [
       const A = addNodo(0,0), B = addNodo(0,3), C = addNodo(3,3);
       addBarra(A.id,B.id,'viga'); addBarra(B.id,C.id,'viga');
       A.apoyo = 'empotrado'; A.union = 'rigido'; B.union = 'rigido';
-      C.fy = -5; C.cargas = [{fx:0, fy:-5}];
+      ponerCargaNudo(C, 'y', 5);                       // 5 kN hacia abajo
     }
   }
 ];
@@ -729,25 +928,26 @@ function _tikzCargasBarra(b, tx, ty, esc, conValor){
   let s = '';
   cargasDeBarra(b).forEach(c=>{
     if(c.tipo === 'P'){
-      const [px,py] = P(c.s), mag = Math.hypot(c.fx,c.fy); if(mag < 1e-12) return;
-      const ux = c.fx/mag, uy = c.fy/mag, Lf = 1.0;
+      const [px,py] = P(c.s), mag = Math.abs(c.mag); if(mag < 1e-12) return;
+      const v = vectorCarga(c.dir, g), sg = c.mag >= 0 ? 1 : -1;
+      const ux = v.x*sg, uy = v.y*sg, Lf = 1.0;
       s += '\\draw[->, >=stealth, line width=0.85pt, bsaAcc] (' + F(px-ux*Lf) + ',' + F(py-uy*Lf) + ') -- (' + F(px-ux*0.05) + ',' + F(py-uy*0.05) + ');\n';
       if(conValor !== false) s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt] at (' + F(px-ux*(Lf+0.32)) + ',' + F(py-uy*(Lf+0.32)) + ') {' + dec(mag,'f') + '\\,' + uF + '};\n';
     } else if(c.tipo === 'M'){
-      const [px,py] = P(c.s), sg = c.m > 0 ? 1 : -1;
+      const [px,py] = P(c.s), sg = c.mag > 0 ? 1 : -1;
       s += '\\draw[->, >=stealth, line width=0.85pt, bsaAcc] (' + F(px+0.32) + ',' + F(py) + ') arc [start angle=0, end angle=' + (sg*250) + ', radius=0.32];\n';
-      if(conValor !== false) s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt, above] at (' + F(px) + ',' + F(py+0.36) + ') {' + dec(Math.abs(c.m),'f') + '\\,' + uF + '$\\cdot$' + uL + '};\n';
+      if(conValor !== false) s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt, above] at (' + F(px) + ',' + F(py+0.36) + ') {' + dec(Math.abs(c.mag),'f') + '\\,' + uF + '$\\cdot$' + uL + '};\n';
     } else {
-      const d = dirCarga(g, c), n = 6, wmax = Math.max(Math.abs(c.w1), Math.abs(c.w2), 1e-12), pts = [];
+      const d = vectorCarga(c.dir, g), n = 6, wmax = Math.max(Math.abs(wIni(c)), Math.abs(wFin(c)), 1e-12), pts = [];
       for(let i=0;i<=n;i++){
-        const sv = c.s1 + (c.s2-c.s1)*i/n, w = c.w1 + (c.w2-c.w1)*i/n, [px,py] = P(sv), len = 0.9*Math.abs(w)/wmax;
+        const sv = c.s1 + (c.s2-c.s1)*i/n, w = wIni(c) + (wFin(c)-wIni(c))*i/n, [px,py] = P(sv), len = 0.9*Math.abs(w)/wmax;
         const sg = w >= 0 ? 1 : -1, ux = d.x*sg, uy = d.y*sg;
         pts.push([px-ux*len, py-uy*len]);
         if(len > 0.05) s += '\\draw[->, >=stealth, line width=0.5pt, bsaAcc] (' + F(px-ux*len) + ',' + F(py-uy*len) + ') -- (' + F(px-ux*0.04) + ',' + F(py-uy*0.04) + ');\n';
       }
       s += '\\draw[bsaAcc, line width=0.5pt] ' + pts.map(p=>'(' + F(p[0]) + ',' + F(p[1]) + ')').join(' -- ') + ';\n';
       if(conValor !== false){ const pm = pts[Math.floor(n/2)];
-        s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt, above] at (' + F(pm[0]) + ',' + F(pm[1]+0.05) + ') {' + (Math.abs(c.w1-c.w2)<1e-9 ? dec(Math.abs(c.w1),'f') : dec(Math.abs(c.w1),'f') + '$\\to$' + dec(Math.abs(c.w2),'f')) + '\\,' + uF + '/' + uL + '};\n'; }
+        s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt, above] at (' + F(pm[0]) + ',' + F(pm[1]+0.05) + ') {' + (Math.abs(wIni(c)-wFin(c))<1e-9 ? dec(Math.abs(wIni(c)),'f') : dec(Math.abs(wIni(c)),'f') + '$\\to$' + dec(Math.abs(wFin(c)),'f')) + '\\,' + uF + '/' + uL + '};\n'; }
     }
   });
   return s;
@@ -818,7 +1018,7 @@ function tikzDCLPieza(b, res){
     s += '\\node[font=\\small\\bfseries, ' + (ext === 'a' ? 'below left' : 'below right') + ', inner sep=2pt] at (' + F(px) + ',' + F(py) + ') {' + escLatex(nom) + '};\n';
   });
   // cotas de s de cada carga, bajo la pieza
-  const ss = [0, g.L]; cargasDeBarra(b).forEach(c=>{ if(c.tipo === 'w'){ ss.push(c.s1, c.s2); } else ss.push(c.s); });
+  const ss = [0, g.L]; cargasDeBarra(b).forEach(c=>{ if(esRepartida(c)){ ss.push(c.s1, c.s2); } else ss.push(c.s); });
   const uni = [...new Set(ss.map(v=>+v.toFixed(6)))].sort((p,q)=>p-q);
   if(uni.length > 1){
     const off = 0.9;

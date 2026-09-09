@@ -325,12 +325,21 @@
 
 <!-- MODAL CARGA -->
 <div class="modal-ov" id="cargaModal">
-  <div class="modal">
+  <div class="modal" style="max-width:640px">
     <h3>Cargas en el nudo <span id="cargaNodoNom"></span></h3>
-    <p class="sub">Puedes asignar más de una fuerza en el mismo nudo; se combinan por suma vectorial. Positivo: X hacia la derecha, Y hacia arriba.</p>
-    <div id="cargaLista"></div>
-    <button class="btn-sm" style="width:100%;margin:2px 0 10px" onclick="agregarFilaCarga()">+ Añadir otra fuerza</button>
-    <div class="modal-preview" id="cargaResultante"></div>
+    <p class="sub">Cada fuerza se declara con su <b>magnitud</b> y su <b>dirección</b>, con el mismo convenio que en fuerzas internas:
+      la vertical es positiva <b>hacia abajo</b> y la horizontal hacia la derecha. Puedes poner varias en el mismo nudo; se suman.</p>
+    <div class="cg-cols">
+      <div>
+        <div id="cargaLista"></div>
+        <button class="btn-sm" style="width:100%;margin:2px 0 10px" onclick="agregarFilaCarga()">+ Añadir otra fuerza</button>
+        <div class="modal-preview" id="cargaResultante"></div>
+      </div>
+      <div class="cg-croquis-col">
+        <div class="cg-cap">Nudo y fuerzas</div>
+        <div id="cargaCroquis"></div>
+      </div>
+    </div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="closeCargaModal()">Cancelar</button>
       <button class="mbtn" onclick="applyCarga()">Aplicar</button>
@@ -494,13 +503,22 @@
 
 <!-- MODAL CARGAS SOBRE UNA BARRA (bastidores, 19-marcos.js) -->
 <div class="modal-ov" id="cargaBarraModal">
-  <div class="modal" style="max-height:88vh;overflow-y:auto">
+  <div class="modal" style="max-width:680px;max-height:88vh;overflow-y:auto">
     <h3>Cargas sobre la viga <span id="cargaBarraNom"></span></h3>
     <p class="sub">Una viga o marco recibe cargas entre sus extremos (<b>elemento de varias fuerzas</b>): la estructura se resuelve como bastidor (§6.6).
-      La distancia <i>s</i> se mide desde el extremo <b id="cargaBarraA"></b>. Positivo: X a la derecha, Y hacia arriba, pares antihorarios.</p>
-    <div id="cargaBarraLista"></div>
-    <button class="btn-sm" style="width:100%;margin:2px 0 10px" onclick="agregarCargaBarra()">+ Añadir otra carga</button>
-    <div class="modal-preview" id="cargaBarraResumen"></div>
+      La distancia <i>s</i> se mide desde el extremo <b id="cargaBarraA"></b>. Mismo convenio que en fuerzas internas:
+      la magnitud vertical es positiva <b>hacia abajo</b>, la horizontal hacia la derecha y el par es positivo antihorario.</p>
+    <div class="cg-cols">
+      <div>
+        <div id="cargaBarraLista"></div>
+        <button class="btn-sm" style="width:100%;margin:2px 0 10px" onclick="agregarCargaBarra()">+ Añadir otra carga</button>
+        <div class="modal-preview" id="cargaBarraResumen"></div>
+      </div>
+      <div class="cg-croquis-col">
+        <div class="cg-cap">Pieza y carga</div>
+        <div id="cargaBarraCroquis"></div>
+      </div>
+    </div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="closeCargaBarra()">Cancelar</button>
       <button class="mbtn" onclick="applyCargaBarra()">Aplicar</button>

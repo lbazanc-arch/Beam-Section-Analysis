@@ -67,7 +67,7 @@ const EJEMPLOS = [
       addBarra(A.id,D.id); addBarra(D.id,E.id); addBarra(E.id,C.id);
       addBarra(D.id,B.id); addBarra(E.id,B.id);
       A.apoyo = 'fijo'; C.apoyo = 'movil';
-      B.fy = -20;
+      ponerCargaNudo(B, 'y', 20);
     }
   },
   {
@@ -80,7 +80,7 @@ const EJEMPLOS = [
       const A = addNodo(0,0), B = addNodo(4,0), C = addNodo(8,0), D = addNodo(4,3);
       addBarra(A.id,B.id); addBarra(B.id,C.id); addBarra(A.id,D.id); addBarra(D.id,C.id); addBarra(D.id,B.id);
       A.apoyo = 'fijo'; C.apoyo = 'movil';
-      D.fy = -10;
+      ponerCargaNudo(D, 'y', 10);
     }
   },
   {
@@ -94,7 +94,7 @@ const EJEMPLOS = [
       addBarra(A.id,B.id); addBarra(B.id,C.id); addBarra(A.id,D.id); addBarra(D.id,E.id); addBarra(E.id,C.id);
       addBarra(D.id,B.id); addBarra(E.id,B.id);
       A.apoyo = 'fijo'; C.apoyo = 'movil';
-      B.fy = -15; E.fy = -10;
+      ponerCargaNudo(B, 'y', 15); ponerCargaNudo(E, 'y', 10);
     }
   },
   {
@@ -109,7 +109,7 @@ const EJEMPLOS = [
       addBarra(A.id,E.id); addBarra(E.id,F.id); addBarra(F.id,D.id);
       addBarra(B.id,E.id); addBarra(C.id,F.id); addBarra(E.id,C.id);
       A.apoyo = 'fijo'; D.apoyo = 'movil';
-      B.fy = -20;
+      ponerCargaNudo(B, 'y', 20);
     }
   }
 ];
@@ -153,6 +153,7 @@ function cargarEjemplo(id){
   const ej = lista.find(e=>e.id === id) || EJEMPLOS[0];
   nodos = []; barras = []; nodoSeq = 0; barraSeq = 0; resultado = null;
   ej.armar();
+  normalizarCargasArm();          // deja todo en el convenio vigente (19-marcos.js)
   reNombrar(); centrar(); refrescar(); resolver();
   if(ej.marco) comprobarEjemploMarco(ej); else comprobarEjemplo(ej);
   cerrarEjemplos();

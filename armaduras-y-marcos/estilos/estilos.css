@@ -473,6 +473,41 @@ body{
   #histModal .modal-note,   #histModal .sub{ font-size:11.5px; }
 }
 
+/* ── Ventana de cargas: misma forma que en fuerzas internas ──
+   Dos columnas (campos y croquis), grupos segmentados para el tipo y la
+   dirección, y matriz de doble entrada para posición y magnitud. Los colores
+   son los del tema; la geometría es la misma en los dos. */
+#cargaModal .cg-cols, #cargaBarraModal .cg-cols{
+  display:grid; grid-template-columns:1fr 240px; gap:14px; align-items:start;
+}
+#cargaModal .cg-cols > *, #cargaBarraModal .cg-cols > *{min-width:0;}
+.cg-cap{font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.5px; margin-bottom:5px;}
+.cg-grupo{margin:9px 0 8px;}
+.cg-seg{display:flex; gap:0; border:1px solid var(--border2); border-radius:8px; overflow:hidden;}
+.seg-btn{flex:1; padding:7px 6px; border:none; background:#fff; cursor:pointer;
+  font-family:inherit; font-size:10.5px; font-weight:700; color:var(--text);
+  border-right:1px solid var(--border2); transition:all .13s;}
+.seg-btn:last-child{border-right:none;}
+.seg-btn:hover{background:var(--acc-l);}
+.seg-btn.active{background:var(--acc); color:#fff;}
+.cg-tabla{width:100%; border-collapse:collapse; margin:4px 0 2px;}
+.cg-tabla th{font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.4px; padding:0 3px 3px;}
+.cg-tabla tbody th{text-align:left; white-space:nowrap; padding-right:8px; font-size:10.5px;
+  text-transform:none; letter-spacing:0; color:var(--acc2);}
+.cg-tabla td{padding:2px 3px;}
+.cg-tabla input{width:100%; padding:6px 8px; border:1px solid var(--border2); border-radius:7px;
+  font-family:var(--mf); font-size:12px;}
+.cg-tabla input:focus{outline:none; border-color:var(--acc);}
+.cg-croquis-col{border:1px solid var(--border2); border-radius:11px; padding:9px 10px; background:#fbfbfc;}
+@media (max-width:640px){
+  #cargaModal .cg-cols, #cargaBarraModal .cg-cols{grid-template-columns:1fr; gap:8px;}
+  #cargaModal .cg-croquis-col, #cargaBarraModal .cg-croquis-col{order:-1;}
+  .cg-tabla tbody th{font-size:10px;}
+  .cg-tabla input{padding:5px 6px; font-size:11.5px;}
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    DISPOSICIÓN COMÚN A LOS CINCO TEMAS
    Bloque IDÉNTICO al final de los cinco estilos.css. Fija dimensiones y

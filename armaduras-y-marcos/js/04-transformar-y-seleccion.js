@@ -299,7 +299,7 @@ function applyReplicar(){
     orig.forEach(id=>{
       const o = nodos.find(z=>z.id===id);
       if(!o) return;
-      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), nombre:'', union:o.union};
+      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>({dir:c.dir, mag:c.mag})), nombre:'', union:o.union};
       nodos.push(nn); mapa[id] = nn.id; nuevosN.push(nn.id);
     });
     barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b], tipoBarra(b));
@@ -395,11 +395,11 @@ function pintarLista(){
       cargados.forEach(n=>{
         // Con varias fuerzas se lista cada una por separado (F1, F2...) y al
         // final la resultante del nudo; con una sola, solo sus componentes.
-        const lista = (n.cargas && n.cargas.length) ? n.cargas : [{fx:n.fx||0, fy:n.fy||0}];
+        const lista = (n.cargas && n.cargas.length) ? n.cargas : _cargasNudoDeComponentes(n.fx||0, n.fy||0);
         const detalle = lista.length > 1
-          ? lista.map((c,i)=>'F'+(i+1)+'=('+dec(c.fx,'f')+', '+dec(c.fy,'f')+')').join(' , ')
+          ? lista.map((c,i)=>'F'+(i+1)+' = '+descCargaNudo(c)).join(' , ')
             + ' \u00b7 resultante Fx=' + dec(n.fx,'f') + ', Fy=' + dec(n.fy,'f') + ' ' + unitFor
-          : 'Fx = ' + dec(n.fx,'f') + '   Fy = ' + dec(n.fy,'f') + ' ' + unitFor;
+          : (lista.length ? descCargaNudo(lista[0]) : '');
         const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
         h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
            + '<div class="nm">Nudo ' + n.nombre + ' \u00b7 ' + detalle + '</div>'

@@ -35,21 +35,18 @@ function renderCargasEdit(){
       lista.forEach((c, i)=>{
         h += '<div style="display:flex;gap:8px;align-items:center;margin:4px 0 4px 14px;flex-wrap:wrap">'
           + '<span style="font-size:11px;color:var(--acc2);font-weight:800;min-width:58px">Fuerza ' + (i+1) + '</span>'
-          + '<label style="font-size:11px;color:var(--muted)">Fx</label>'
-          + '<input type="number" step="any" id="vc-fx-' + n.id + '-' + i + '" value="' + c.fx + '" '
-          + 'style="width:82px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
-          + '<label style="font-size:11px;color:var(--muted)">Fy</label>'
-          + '<input type="number" step="any" id="vc-fy-' + n.id + '-' + i + '" value="' + c.fy + '" '
-          + 'style="width:82px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
+          + '<label style="font-size:11px;color:var(--muted)">' + nomDir(c.dir) + '</label>'
+          + '<input type="number" step="any" id="vc-mag-' + n.id + '-' + i + '" value="' + c.mag + '" '
+          + 'style="width:96px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
           + '<span style="font-size:11px;color:var(--muted)">' + unitFor + '</span></div>';
       });
     } else {
       h += '<div style="display:flex;gap:8px;align-items:center;margin-left:14px;flex-wrap:wrap">'
-        + '<label style="font-size:11px;color:var(--muted)">Fx</label>'
+        + '<label style="font-size:11px;color:var(--muted)" title="Positiva hacia la derecha">Horiz. \u2192</label>'
         + '<input type="number" step="any" id="vc-fx-' + n.id + '" value="' + n.fx + '" '
         + 'style="width:88px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
-        + '<label style="font-size:11px;color:var(--muted)">Fy</label>'
-        + '<input type="number" step="any" id="vc-fy-' + n.id + '" value="' + n.fy + '" '
+        + '<label style="font-size:11px;color:var(--muted)" title="Positiva hacia abajo">Vert. \u2193</label>'
+        + '<input type="number" step="any" id="vc-fy-' + n.id + '" value="' + (-n.fy) + '" '
         + 'style="width:88px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
         + '<span style="font-size:11px;color:var(--muted)">' + unitFor + '</span>'
         + (lista.length > 1 ? '<span style="font-size:10.5px;color:var(--muted)">(resultante de ' + lista.length + ' fuerzas)</span>' : '')
@@ -80,16 +77,17 @@ function cargasDeLosCampos(){
     if(modo === 'separado' && lista && lista.length > 1){
       let sfx = 0, sfy = 0, tocado = false;
       lista.forEach((c, i)=>{
-        const ex = document.getElementById('vc-fx-'+n.id+'-'+i), ey = document.getElementById('vc-fy-'+n.id+'-'+i);
-        if(ex || ey) tocado = true;
-        sfx += ex ? (parseFloat(ex.value)||0) : c.fx;
-        sfy += ey ? (parseFloat(ey.value)||0) : c.fy;
+        const em = document.getElementById('vc-mag-'+n.id+'-'+i);
+        if(em) tocado = true;
+        const q = compCargaNudo({dir:c.dir, mag: em ? (parseFloat(em.value)||0) : c.mag});
+        sfx += q.fx; sfy += q.fy;
       });
       if(tocado) m[n.id] = {fx:sfx, fy:sfy};
     } else {
       const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
+      // el campo vertical va en el convenio del usuario (positivo hacia abajo)
       if(ex || ey) m[n.id] = {fx: ex ? (parseFloat(ex.value)||0) : n.fx,
-                              fy: ey ? (parseFloat(ey.value)||0) : n.fy};
+                              fy: ey ? -(parseFloat(ey.value)||0) : n.fy};
     }
   });
   return m;
@@ -107,9 +105,8 @@ function escalarCargas(k){
     const lista = (n.cargas && n.cargas.length) ? n.cargas : null;
     if(modo === 'separado' && lista && lista.length > 1){
       lista.forEach((c, i)=>{
-        const ex = document.getElementById('vc-fx-'+n.id+'-'+i), ey = document.getElementById('vc-fy-'+n.id+'-'+i);
-        if(ex) ex.value = (parseFloat(ex.value)||0)*k;
-        if(ey) ey.value = (parseFloat(ey.value)||0)*k;
+        const em = document.getElementById('vc-mag-'+n.id+'-'+i);
+        if(em) em.value = (parseFloat(em.value)||0)*k;
       });
     } else {
       const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
@@ -126,14 +123,13 @@ function restaurarCargas(){
     const lista = (n.cargas && n.cargas.length) ? n.cargas : null;
     if(modo === 'separado' && lista && lista.length > 1){
       lista.forEach((c, i)=>{
-        const ex = document.getElementById('vc-fx-'+n.id+'-'+i), ey = document.getElementById('vc-fy-'+n.id+'-'+i);
-        if(ex) ex.value = c.fx;
-        if(ey) ey.value = c.fy;
+        const em = document.getElementById('vc-mag-'+n.id+'-'+i);
+        if(em) em.value = c.mag;
       });
     } else {
       const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
       if(ex) ex.value = n.fx;
-      if(ey) ey.value = n.fy;
+      if(ey) ey.value = -n.fy;
     }
   });
   const dm = document.getElementById('dclMod');
