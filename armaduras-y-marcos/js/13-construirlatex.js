@@ -335,6 +335,16 @@ function construirLatex(){
 
       tex += '\\subpaso{Nudo ' + nomN(n) + '\\quad{\\normalfont\\footnotesize\\color{bsaMuted}' + conec.length + ' barra(s) \\textperiodcentered\\ '
         + (nuevas.length ? nuevas.length + ' inc\\\'ognita(s)' : 'comprobaci\\\'on') + '}}\n';
+      // Por qué este nudo ahora, en una línea (propuesta C): le quedan como
+      // máximo dos barras desconocidas; si está sobre un apoyo, su reacción
+      // ya se conoce del paso 2, que es justo lo que permite empezar por él.
+      const conApoyo = !!n.apoyo;
+      const incSinReac = nuevas.length + (n.apoyo === 'fijo' ? 2 : (n.apoyo === 'movil' ? 1 : 0));
+      tex += '\\noindent{\\footnotesize ' + (nuevas.length
+        ? 'Se resuelve ' + nomN(n) + ' porque ' + (nuevas.length === 1 ? 'solo le queda una barra desconocida' : 'solo le quedan dos barras desconocidas')
+          + (conApoyo ? ' y su reacci\\\'on ya se conoce del paso 2' : '')
+          + (i === 0 && conApoyo && incSinReac > 2 ? ' (sin las reacciones tendr\\\'ia ' + incSinReac + ' inc\\\'ognitas, por eso se calcularon antes; ej. 6.3)' : '') + '.'
+        : 'En ' + nomN(n) + ' ya se conocen todas las barras: sus dos ecuaciones sirven de comprobaci\\\'on.') + '}\\\\[2pt]\n';
       const dclA = tikzDCLNudo(n, resultado);
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.72]\n' + dclA.tikz + '\\end{tikzpicture}\\end{center}\n';
       tex += figCaption('DCL del nudo ' + nomN(n) + '.' + _angulosArm(dclA.angulos));
@@ -474,6 +484,20 @@ function construirLatex(){
     + 'ecuaciones cierran con los valores hallados. Adem\\\'as, $\\sum F_x$ y $\\sum F_y$ de toda la armadura (cargas m\\\'as reacciones) dan '
     + dec(sumFx + nodos.reduce((s,n)=>s + ((resultado.reacciones[n.id]||{}).rx||0),0),'f') + ' y '
     + dec(sumFy + nodos.reduce((s,n)=>s + ((resultado.reacciones[n.id]||{}).ry||0),0),'f') + ' ' + escLatex(uF) + '.}\\\\[4pt]\n';
+  // Simetría como comprobación (propuesta D): cada pareja de barras espejo
+  // debe llevar la misma fuerza (o la opuesta, con carga antisimétrica).
+  if(sim.simetrica || sim.antisimetrica){
+    const pares = paresSimetricos(sim);
+    if(pares.length){
+      const sg = sim.simetrica ? 1 : -1;
+      const okTodo = pares.every(p=>Math.abs((resultado.fuerzas[p[0].id]||0) - sg*(resultado.fuerzas[p[1].id]||0)) < 1e-6*Math.max(1, escalaDelProblema()));
+      tex += '\\noindent{\\footnotesize\\textbf{Simetr\\\'ia.} '
+        + (sim.simetrica ? 'Las barras que se reflejan entre s\\\'i llevan la misma fuerza'
+                         : 'Con carga antisim\\\'etrica, las barras que se reflejan llevan fuerzas opuestas') + ': '
+        + pares.map(p=>'$F_{' + nomB(p[0]) + '} = ' + (sim.simetrica ? '' : '-') + 'F_{' + nomB(p[1]) + '} = ' + dec(resultado.fuerzas[p[0].id]||0,'f') + '$').join(', ')
+        + (okTodo ? ' $\\checkmark$' : ' (no coincide: revisa el modelo)') + '.}\\\\[4pt]\n';
+    }
+  }
 
   // ══ 7. ¿Qué pasa si cambio la carga? ══
   const analizarConEscala = k => {

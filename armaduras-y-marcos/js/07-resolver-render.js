@@ -83,15 +83,27 @@ function renderResultados(res){
   // Informativo: no altera el cálculo, solo lo explica. Se coloca antes de
   // los pasos numerados para no perturbar su numeración.
   const sim = analizarSimetria(res);
+  const pares = paresSimetricos(sim);
+  const signoPar = sim.simetrica ? 1 : -1;
+  const parejasHtml = pares.length
+    ? '<div class="hint-sm" style="margin-top:6px">Comprobación: '
+      + pares.map(p=>{ const fa = res.fuerzas[p[0].id]||0, fb = res.fuerzas[p[1].id]||0;
+          const ok = Math.abs(fa - signoPar*fb) < 1e-6*Math.max(1, escalaDelProblema());
+          return kx('F_{' + nombreBarra(p[0]) + '} = ' + (sim.simetrica ? '' : '-') + 'F_{' + nombreBarra(p[1]) + '} = ' + dec(fa,'f')) + (ok ? ' \u2713' : ' \u2717'); }).join(' \u00b7 ')
+      + '</div>'
+    : '';
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">\u21c4</div>\u00bfEs una estructura sim\u00e9trica?</div>'
     + (sim.simetrica
         ? '<div class="verdict ok"><div class="verdict-t">S\u00ed, es sim\u00e9trica</div>'
           + 'La geometr\u00eda, las cargas y las reacciones son sim\u00e9tricas respecto a un eje vertical en x = '
           + dec(sim.eje,'len') + ' ' + unitLen + '. Esto permite anticipar, sin resolver todo el sistema, que '
-          + 'las barras que se reflejan entre s\u00ed soportan la misma fuerza.</div>'
+          + 'las barras que se reflejan entre s\u00ed soportan la misma fuerza.' + parejasHtml + '</div>'
+        : (sim.antisimetrica
+        ? '<div class="verdict ok"><div class="verdict-t">Geometr\u00eda sim\u00e9trica, carga antisim\u00e9trica</div>'
+          + sim.motivo + parejasHtml + '</div>'
         : '<div class="verdict bad"><div class="verdict-t">No es sim\u00e9trica</div>'
-          + sim.motivo + (sim.fase ? ' <span style="color:var(--muted)">(en: '+sim.fase+')</span>' : '') + '</div>')
+          + sim.motivo + (sim.fase ? ' <span style="color:var(--muted)">(en: '+sim.fase+')</span>' : '') + '</div>'))
     + '</div>';
 
   // ── 1. Determinación ──

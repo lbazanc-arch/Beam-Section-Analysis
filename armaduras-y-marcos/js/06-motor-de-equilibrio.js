@@ -66,28 +66,27 @@ function analizarSimetria(res){
     }
   }
 
-  // 3) Cargas: en una pareja espejo, Fy debe coincidir y Fx debe ser opuesta
-  //    (una carga espejada invierte su componente horizontal). Sobre el
-  //    propio eje, Fx=−Fx solo se cumple si Fx=0.
+  // 3) Cargas: SIMÉTRICAS si en cada pareja espejo Fy coincide y Fx es
+  //    opuesta (una carga espejada invierte su componente horizontal; sobre el
+  //    propio eje, Fx = 0), o ANTISIMÉTRICAS si Fy es opuesta y Fx coincide
+  //    (sobre el eje, Fy = 0). En el segundo caso las barras espejo llevan
+  //    fuerzas opuestas, y eso también sirve de comprobación (propuesta D).
+  let simC = true, antiC = true, motivoC = '';
   for(const n of nodos){
     const idm = espejo[n.id];
     if(idm === n.id){
-      if(!esCero(n.fx||0)){
-        return {simetrica:false, fase:'cargas',
-          motivo:'El nudo ' + n.nombre + ' está sobre el eje de simetría pero tiene una carga horizontal.'};
-      }
+      if(!esCero(n.fx||0)){ simC = false; motivoC = motivoC || ('El nudo ' + n.nombre + ' está sobre el eje de simetría pero tiene una carga horizontal.'); }
+      if(!esCero(n.fy||0)) antiC = false;
     } else if(idm > n.id){
       const m = nodos.find(z=>z.id===idm);
-      if(Math.abs((n.fy||0)-(m.fy||0)) > epsF){
-        return {simetrica:false, fase:'cargas',
-          motivo:'Las cargas verticales de ' + n.nombre + ' y ' + m.nombre + ' no coinciden.'};
-      }
-      if(Math.abs((n.fx||0)+(m.fx||0)) > epsF){
-        return {simetrica:false, fase:'cargas',
-          motivo:'Las cargas horizontales de ' + n.nombre + ' y ' + m.nombre + ' no son opuestas.'};
-      }
+      if(Math.abs((n.fy||0)-(m.fy||0)) > epsF){ simC = false; motivoC = motivoC || ('Las cargas verticales de ' + n.nombre + ' y ' + m.nombre + ' no coinciden.'); }
+      if(Math.abs((n.fx||0)+(m.fx||0)) > epsF){ simC = false; motivoC = motivoC || ('Las cargas horizontales de ' + n.nombre + ' y ' + m.nombre + ' no son opuestas.'); }
+      if(Math.abs((n.fy||0)+(m.fy||0)) > epsF || Math.abs((n.fx||0)-(m.fx||0)) > epsF) antiC = false;
     }
   }
+  const hayCarga = nodos.some(n=>!esCero(n.fx||0) || !esCero(n.fy||0));
+  const antisim = !simC && antiC && hayCarga;
+  if(!simC && !antisim) return {simetrica:false, fase:'cargas', motivo:motivoC};
 
   // 4) Apoyos: cada nudo con apoyo necesita su espejo también apoyado, y si
   //    ambos son móviles, con la misma dirección de reacción (una dirección
@@ -110,8 +109,8 @@ function analizarSimetria(res){
   }
 
   // 5) Reacciones, si ya se resolvió: la componente vertical debe coincidir
-  //    en cada pareja de apoyos espejo.
-  if(res && res.reacciones){
+  //    en cada pareja de apoyos espejo (solo con carga simétrica).
+  if(simC && res && res.reacciones){
     for(const n of nodos){
       if(!n.apoyo) continue;
       const idm = espejo[n.id];
@@ -128,7 +127,26 @@ function analizarSimetria(res){
     }
   }
 
-  return {simetrica:true, eje};
+  if(antisim) return {simetrica:false, antisimetrica:true, eje, espejo, fase:'cargas',
+    motivo:'Las cargas son antisimétricas respecto del eje x = ' + dec(eje,'len') + ' ' + unitLen
+         + ': las barras que se reflejan entre sí llevan fuerzas iguales y de signo contrario.'};
+  return {simetrica:true, eje, espejo};
+}
+
+// Parejas de barras espejo (cada una una vez, sin las que se reflejan en sí
+// mismas), a partir del mapa `espejo` de analizarSimetria.
+function paresSimetricos(sim){
+  if(!sim || !sim.espejo) return [];
+  const espejo = sim.espejo;
+  const buscar = (a,b) => barras.find(x=>(x.a===a&&x.b===b)||(x.a===b&&x.b===a));
+  const pares = [], vistos = new Set();
+  barras.forEach(b=>{
+    const m = buscar(espejo[b.a], espejo[b.b]);
+    if(!m || m.id === b.id || vistos.has(b.id) || vistos.has(m.id)) return;
+    vistos.add(b.id); vistos.add(m.id);
+    pares.push([b, m]);
+  });
+  return pares;
 }
 
 function analizar(){

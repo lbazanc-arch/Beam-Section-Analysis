@@ -114,6 +114,31 @@ function dibujarCarga(n){
     ctx.textAlign = 'center';
     ctx.fillText(dec(mag,'f')+' '+unitFor, sx, sy - 5);
     ctx.textAlign = 'start';
+    // Carga inclinada: su ángulo agudo con la horizontal, acotado en la cola
+    // de la flecha como en el DCL del informe (propuesta E, 2026-09-08).
+    if(!esCero(c.fx||0) && !esCero(c.fy||0)){
+      // Se acota por el lado contrario al nudo (ángulos opuestos por el
+      // vértice, mismo valor): así el rótulo no cae sobre el nudo ni sobre
+      // su número de orden.
+      const sgx = ux >= 0 ? -1 : 1;
+      const ang = Math.atan2(-uy, -ux), a0 = sgx > 0 ? 0 : Math.PI;
+      let d = ang - a0;
+      while(d > Math.PI) d -= 2*Math.PI;
+      while(d < -Math.PI) d += 2*Math.PI;
+      const r = 20;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(192,57,43,.75)'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + sgx*32, sy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - ux*30, sy + uy*30); ctx.stroke();
+      ctx.setLineDash([]);
+      // en el lienzo la y va invertida: los ángulos cambian de signo
+      ctx.beginPath(); ctx.arc(sx, sy, r, -a0, -ang, d > 0); ctx.stroke();
+      const am = a0 + d/2;
+      const grados = Math.acos(Math.min(1, Math.abs(ux)))*180/Math.PI;
+      ctx.font = '600 10px Inter, sans-serif'; ctx.fillStyle = '#c0392b'; ctx.textAlign = 'center';
+      ctx.fillText(grados.toFixed(1) + '°', sx + Math.cos(am)*(r+14), sy - Math.sin(am)*(r+14) + 3);
+      ctx.restore();
+    }
   });
 }
 
@@ -226,10 +251,64 @@ function dibujarCuadroBarra(){
 
 // ── Visibilidad de capas del dibujo ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, ejes:true, cotas:true, cargas:true, apoyos:true};
+const VIS = {grilla:true, ejes:true, cotas:true, cargas:true, apoyos:true, fuerzas:false};
 function setVis(cual, valor){
   VIS[cual] = !!valor;
   dibujar();
+}
+
+// ── Rótulos de fuerza sobre las barras, a demanda (propuesta A, 2026-09-08) ──
+// Valor y T/C junto a cada barra, sin color (el lienzo va sin colores de
+// tracción/compresión por decisión del 2026-09-04). Cada rótulo reserva su
+// caja y el que chocaría se corre arriba o abajo hasta encontrar hueco.
+let _rotArmCajas = [];
+function _rotuloArm(txt, x, y, color, font){
+  ctx.save();
+  ctx.font = font || '700 10px Inter, sans-serif';
+  const w = ctx.measureText(txt).width + 6, h = 14;
+  let cy = y;
+  for(let k=0;k<8;k++){
+    const caja = {x0:x-w/2, y0:cy-h/2, x1:x+w/2, y1:cy+h/2};
+    const choca = _rotArmCajas.some(q=>caja.x0<q.x1 && caja.x1>q.x0 && caja.y0<q.y1 && caja.y1>q.y0);
+    if(!choca || k===7){
+      _rotArmCajas.push(caja);
+      ctx.fillStyle = 'rgba(255,255,255,.86)'; ctx.fillRect(caja.x0, caja.y0, w, h);
+      ctx.fillStyle = color || '#1b1f24'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(txt, x, cy);
+      break;
+    }
+    cy = y + ((k%2) ? -1 : 1)*(h+2)*Math.ceil((k+1)/2);   // alterna abajo / arriba
+  }
+  ctx.restore();
+}
+function dibujarFuerzasBarras(){
+  _rotArmCajas = [];
+  barras.forEach(b=>{
+    const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
+    if(!na || !nb) return;
+    const f = resultado.fuerzas[b.id];
+    const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(nb.x, nb.y);
+    const mx = (x1+x2)/2, my = (y1+y2)/2, dx = x2-x1, dy = y2-y1, L = Math.hypot(dx,dy) || 1;
+    const nx = -dy/L, ny = dx/L;                        // normal a la barra, en pantalla
+    const txt = esCero(f) ? '0' : dec(Math.abs(f),'f') + ' ' + unitFor + (f > 0 ? ' T' : ' C');
+    _rotuloArm(txt, mx + nx*12, my + ny*12, esCero(f) ? '#6b7280' : '#1b1f24');
+  });
+}
+// ── Orden de resolución de los nudos, numerado sobre el lienzo (propuesta C) ──
+function dibujarOrdenNudos(){
+  if(typeof metodo !== 'undefined' && metodo === 'secciones') return;
+  const orden = ordenNudos();
+  ctx.save();
+  orden.forEach((p,i)=>{
+    const [px,py] = aPantalla(p.nodo.x, p.nodo.y);
+    const cx = px - 14, cy = py - 14;
+    ctx.beginPath(); ctx.arc(cx, cy, 7.5, 0, Math.PI*2);
+    ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#b45309'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.font = '700 9px Inter, sans-serif'; ctx.fillStyle = '#b45309';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(i+1), cx, cy + 0.5);
+  });
+  ctx.restore();
 }
 
 // ── Cotas encadenadas de la armadura ──
@@ -369,6 +448,7 @@ function dibujar(){
   if(VIS.apoyos) nodos.forEach(n=>{ if(n.apoyo) dibujarApoyo(n); });
   if(VIS.cargas) nodos.forEach(n=>dibujarCarga(n));
   if(VIS.cotas) dibujarCotasArmadura();
+  if(resultado && VIS.fuerzas) dibujarFuerzasBarras();
 
   // nudos
   nodos.forEach(n=>{
@@ -386,6 +466,8 @@ function dibujar(){
     ctx.font = '700 10.5px Inter, sans-serif'; ctx.fillStyle = '#1b1f24';
     ctx.fillText(n.nombre, px+10, py-8);
   });
+
+  if(resultado) dibujarOrdenNudos();
 
   // reacciones resueltas
   if(resultado){
