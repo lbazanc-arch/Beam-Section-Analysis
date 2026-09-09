@@ -628,7 +628,16 @@ function construirLatex(){
     // Peso o masa, solo en cuerpo heterogéneo. Mismo material y espesor en todo
     // el grupo (forma parte de la clave), así que se escribe una vez.
     if(het){
-      const gs = s0.mat ? decP(s0.g,'len') : '1';
+      // γ en la unidad del sistema; si es muy pequeño (kN/mm³) se escribe con
+      // potencia de diez, y si el alumno lo escribió en su propia unidad
+      // (kN/m³, kg/m³…) esa se cita también (propuesta 2.2).
+      const _gTex = v => (Math.abs(v) > 0 && (Math.abs(v) < 1e-3 || Math.abs(v) >= 1e5))
+        ? (function(){ const e = Math.floor(Math.log10(Math.abs(v))); return (v/Math.pow(10,e)).toFixed(3) + '\\times10^{' + e + '}'; })()
+        : decP(v,'len');
+      const gs = s0.mat ? _gTex(s0.g) : '1';
+      const gIng = (s0.mat && s0.mat.valIng !== undefined && s0.mat.valIng !== null && s0.mat.uIng && s0.mat.uIng !== uGamma())
+        ? ' $= ' + decP(s0.mat.valIng,'len') + '\\,\\text{' + escLatex(s0.mat.uIng.replace('³','')) + '}^{3}$ tal como se escribi\\\'o'
+        : '';
       tex += '\\textbf{' + (esMasa ? 'Masa' : 'Peso') + '}\n';
       tex += porque('peso',
         'Con materiales distintos el ' + Wnom + ' ya no es proporcional al área: cada parte '
@@ -637,7 +646,7 @@ function construirLatex(){
         + 'gravedad se desplaza hacia el material más ' + (esMasa ? 'denso' : 'pesado') + '.');
       tex += '\\[ ' + Wsim + '_{' + nums[0] + '} = ' + simb + '_{' + nums[0] + '}\\,A_{' + nums[0] + '}\\,t_{' + nums[0] + '} = ('
            + gs + ')(' + decP(Math.abs(s0.a),'area') + ')(' + decP(s0.t,'len') + ') = ' + decP(Math.abs(s0.w),'area') + UW + ' \\]\n';
-      tex += '{\\footnotesize $' + simb + '_{' + nums[0] + '} = ' + gs + '\\,' + uGm + '$, $t_{' + nums[0] + '} = '
+      tex += '{\\footnotesize $' + simb + '_{' + nums[0] + '} = ' + gs + '\\,' + uGm + '$' + gIng + ', $t_{' + nums[0] + '} = '
            + decP(s0.t,'len') + U1 + '$'
            + (varios ? '; igual para ' + (nums.length > 2 ? 'las partes ' : 'la parte ') + listaNums(nums.slice(1)) : '')
            + (f.sign < 0 ? '. Como es un hueco, entra en las sumas con signo negativo' : '') + '.}\n';
@@ -740,6 +749,21 @@ function construirLatex(){
     + 'posiciones ponderado por áreas, y por eso siempre queda entre la parte más a la izquierda y la más a la derecha.');
   tex += '\\resultado{\\centering $C\\,(\\bar{x};\\ \\bar{y}) = (' + decP(results.xbar,'len') + ';\\ '
     + decP(results.ybar,'len') + ')' + U1 + '$, medido desde $O$.}\n';
+  // Centroide fuera del material (propuesta 2.5): se dice una vez, y solo si pasa.
+  if(typeof puntoEnMaterial === 'function' && !puntoEnMaterial(results.xbar, results.ybar))
+    tex += porque('fuera',
+      'Aquí $C$ cae \\textbf{donde no hay material}. No es un error: el centroide es un promedio de posiciones '
+      + 'ponderado por áreas, no un punto de la pieza. En un anillo, una L o un canal ese promedio queda en el hueco, '
+      + 'y aun así el cuerpo colgado de $C$ (con un hilo pasando por ese punto) queda en equilibrio en cualquier '
+      + 'orientación, porque respecto de cualquier eje que pase por $C$ el momento estático total es nulo.');
+  // Lectura como carga distribuida (propuesta 2.4): el ejemplo guiado del §9.4.
+  if(typeof ejemploActualCen !== 'undefined' && ejemploActualCen === 'carga')
+    tex += porque('carga-distribuida',
+      'Si estas figuras son el \\textbf{diagrama de una carga} $w(x)$ sobre una viga (Hibbeler 9.4), la magnitud de la '
+      + 'resultante es el \\textbf{\\\'area} bajo el diagrama, $F_R = \\int w\\,dx = ' + ftex(results.A) + '$, y su '
+      + 'l\\\'inea de acci\\\'on pasa por el \\textbf{centroide} de esa \\\'area, a $\\bar{x} = ' + decP(results.xbar,'len')
+      + '$' + U1 + ' del extremo izquierdo. Es exactamente la sustituci\\\'on que Fuerzas Internas hace al reemplazar '
+      + 'una carga repartida por su resultante para calcular reacciones.');
   if(het){
     tex += '\\subpaso{Centro de gravedad $G$}\n';
     tex += '\\noindent Con las sumas de la Tabla ' + tNumW + ', el mismo cociente pero con ' + Wnoms + ':\n';

@@ -27,6 +27,16 @@ function renderResults(res, u4, u2, u1){
     </div>
   </div>`;
 
+  // Lectura como carga distribuida (propuesta 2.4): el ejemplo guiado del §9.4.
+  if(typeof ejemploActualCen !== 'undefined' && ejemploActualCen === 'carga'){
+    html += `<div class="res-section"><div class="verdict"><div class="verdict-t">Lectura como carga distribuida (Hibbeler §9.4)</div>
+      Si las figuras son el <b>diagrama de una carga</b> w(x) sobre una viga, con el ancho en ${esc(u1)} y la altura en fuerza/${esc(u1)},
+      el <b>área total es la resultante</b> (${f(res.A)} en unidades de fuerza) y su <b>línea de acción pasa por el centroide</b>,
+      a x̄ = ${nL(res.xbar)} ${esc(u1)} del extremo izquierdo. El rectángulo y el triángulo son las dos cargas parciales
+      (${res.steps.map(s=>f(Math.abs(s.a))).join(' y ')}) y el resultado es el mismo que en Fuerzas Internas, donde esa sustitución se usa sin explicarla.
+    </div></div>`;
+  }
+
   // ══════════════════════════════════════════════════
   //  2 · Propiedades de cada figura, con su croquis al lado
   // ══════════════════════════════════════════════════
@@ -49,7 +59,7 @@ function renderResults(res, u4, u2, u1){
             <tr><td>Área</td><td><i>A<sub>i</sub></i></td><td class="v">${f(Math.abs(s.a))}</td><td>${u2}</td></tr>
             <tr><td>Centroide x</td><td><i>x̃<sub>i</sub></i></td><td class="v">${nL(s.xi)}</td><td>${u1}</td></tr>
             <tr><td>Centroide y</td><td><i>ỹ<sub>i</sub></i></td><td class="v">${nL(s.yi)}</td><td>${u1}</td></tr>
-            ${het?`<tr><td>${matMagnitud==='densidad'?'Densidad':'Peso específico'}</td><td><i>${simb}<sub>i</sub></i></td><td class="v">${s.mat?nL(s.mat.val):'—'}</td><td>${s.mat?esc(s.mat.unidad||''):'—'}</td></tr>
+            ${het?`<tr><td>${matMagnitud==='densidad'?'Densidad':'Peso específico'}</td><td><i>${simb}<sub>i</sub></i></td><td class="v">${s.mat?_matValTxt(s.mat):'—'}</td><td>${s.mat?esc(_matUniTxt(s.mat)):'—'}</td></tr>
             <tr><td>Peso</td><td><i>W<sub>i</sub></i></td><td class="v">${f(Math.abs(s.w))}</td><td>—</td></tr>`:''}
           </tbody>
         </table>
@@ -100,7 +110,7 @@ function renderResults(res, u4, u2, u1){
   if(het){
     html += `<div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.6">
       W<sub>i</sub> = ${simb}<sub>i</sub> · A<sub>i</sub> &nbsp;·&nbsp; ` +
-      MATS.map(m=>`<b style="color:var(--grn2)">${simb}${m.id}</b> = ${nL(m.val)} ${esc(m.unidad||'')}`).join(' &nbsp; ') + `</div>`;
+      MATS.map(m=>`<b style="color:var(--grn2)">${simb}${m.id}</b> = ${_matValTxt(m)} ${esc(_matUniTxt(m))}`).join(' &nbsp; ') + `</div>`;
   }
   html += `</div>`;
 

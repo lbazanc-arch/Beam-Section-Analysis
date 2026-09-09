@@ -3,13 +3,29 @@
 // ═══════════════════════════════════════════════════════════
 // ── Visibilidad de capas del dibujo ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, cotas:true, ejes:true, centroide:true, iso:false};   // iso: recuadro isométrico, solo en 3D
+const VIS = {grilla:true, cotas:true, ejes:true, centroide:true, iso:false, coords:true};   // iso: recuadro isométrico, solo en 3D
+// Rótulos «(x, y)» de cada figura (propuesta 2.1, 2026-09-08): con muchas
+// figuras se pisaban entre sí y con las cotas, así que a partir de ocho se
+// apagan solos una vez (el alumno puede volver a encenderlos); la figura
+// seleccionada muestra el suyo siempre.
+let _coordsAuto = false;
+function _ajustarCoordsAuto(){
+  if(figures.length >= 8 && !_coordsAuto){
+    _coordsAuto = true; VIS.coords = false;
+    const cb = document.getElementById('visCoords'); if(cb) cb.checked = false;
+  } else if(figures.length < 8 && _coordsAuto){
+    // con pocas figuras vuelven solos, que es lo que el alumno espera
+    _coordsAuto = false; VIS.coords = true;
+    const cb = document.getElementById('visCoords'); if(cb) cb.checked = true;
+  }
+}
 function setVis(cual, valor){
   VIS[cual] = !!valor;
   render();
 }
 
 function render(){
+  _ajustarCoordsAuto();
   // Modo 3D: dos vistas ortogonales, dibujadas en 21-vistas-3d.js.
   if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d' && typeof render3d === 'function'){ render3d(); return; }
   const W = canvas.clientWidth, H = canvas.clientHeight;
@@ -177,10 +193,37 @@ function drawFigure(fig, selected){
     }
   }
 
-  // Dimension hint near centroid
-  ctx.fillStyle = hexAlpha(color, 0.7);
-  ctx.font = '9px Inter';
-  ctx.fillText(`(${r2(fig.cx)}, ${r2(fig.cy)})`, sp.x+6, sp.y-6);
+  // Coordenadas del centroide propio, si el interruptor está encendido (o
+  // la figura está seleccionada).
+  if(VIS.coords || selected){
+    ctx.fillStyle = hexAlpha(color, 0.7);
+    ctx.font = '9px Inter';
+    ctx.fillText(`(${r2(fig.cx)}, ${r2(fig.cy)})`, sp.x+6, sp.y-6);
+  }
+}
+
+// ¿Hay material en el punto (x, y) del mundo? Se prueba cada figura con su
+// propio contorno (isPointInPath sobre un lienzo auxiliar); un hueco que
+// contenga el punto lo vacía. Sirve para decir si el centroide cae fuera del
+// material (anillo, L, canal), como en el modo 3D (propuesta 2.5).
+function puntoEnMaterial(x, y){
+  try{
+    const oc = document.createElement('canvas'); const c2 = oc.getContext('2d');
+    let dentro = false, enHueco = false;
+    for(const fig of figures){
+      const def = FIG_DEFS[fig.type]; if(!def) continue;
+      c2.setTransform(1,0,0,1,0,0);
+      c2.translate(fig.cx, fig.cy); c2.rotate((fig.rotation||0)*Math.PI/180);
+      let hit;
+      if(fig.type === 'annulus'){
+        c2.beginPath(); c2.arc(0,0,fig.dims.R,0,2*Math.PI); const o = c2.isPointInPath(x,y);
+        c2.beginPath(); c2.arc(0,0,fig.dims.r,0,2*Math.PI); hit = o && !c2.isPointInPath(x,y);
+      } else { c2.beginPath(); def.draw(c2, fig.dims, false); hit = c2.isPointInPath(x,y); }
+      if(!hit) continue;
+      if(fig.sign === -1) enHueco = true; else dentro = true;
+    }
+    return dentro && !enHueco;
+  }catch(e){ return true; }
 }
 
 function drawGhost(type, wpos){

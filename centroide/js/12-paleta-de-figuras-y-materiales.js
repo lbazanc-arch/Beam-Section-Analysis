@@ -42,9 +42,47 @@ function asegurarFiguraVisible(tipo){
 }
 
 // ── Materiales que define el estudiante ──
+// ── Unidad propia del peso específico o la densidad (propuesta 2.2, 2026-09-08) ──
+// El alumno piensa en kN/m³ o kg/m³ aunque la longitud del dibujo vaya en mm.
+// Cada material guarda el valor tal como se escribió (valIng, uIng) y el
+// programa lo convierte a la unidad del sistema (unitForce/unit³ o kg/unit³),
+// que es la que usa el cálculo (m.val). Factores a kN/m³ y a kg/m³.
+const MAT_UNIDADES = {
+  peso:     {'kN/m³':1, 'N/m³':1e-3, 'kgf/m³':0.00980665, 'tonf/m³':9.80665, 'lb/ft³':0.157087},
+  densidad: {'kg/m³':1, 'g/cm³':1000, 'lb/ft³':16.0185}
+};
+function unidadesMaterial(){ return Object.keys(MAT_UNIDADES[matMagnitud==='densidad' ? 'densidad' : 'peso']); }
+function gammaAlSistema(v, u){
+  const tabla = MAT_UNIDADES[matMagnitud==='densidad' ? 'densidad' : 'peso'];
+  const fac = tabla[u]; if(fac === undefined) return v;
+  const porM3 = v*fac;                                   // kN/m³ o kg/m³
+  const L = LEN_FAC_I[unit] || 1;                        // metros que mide una unidad de longitud
+  const porUnidad3 = porM3*L*L*L;                        // por unit³
+  return (matMagnitud==='densidad') ? porUnidad3 : porUnidad3/(FOR_A_KN[unitForce] || 1);
+}
+function reconvertirMateriales(){
+  MATS.forEach(m=>{
+    if(m.valIng !== undefined && m.valIng !== null && m.uIng) m.val = +gammaAlSistema(m.valIng, m.uIng).toPrecision(10);
+    m.unidad = uGamma();
+  });
+}
+function renderMatUnidades(){
+  const sel = document.getElementById('mat-uni'); if(!sel) return;
+  const actual = sel.value;
+  const lista = unidadesMaterial();
+  sel.innerHTML = lista.map(u=>'<option value="'+u+'">'+u+'</option>').join('');
+  sel.value = lista.indexOf(actual) >= 0 ? actual : lista[0];
+}
+function _matValTxt(m){ return (m.valIng !== undefined && m.valIng !== null) ? decFix(m.valIng,'len') : decFix(m.val,'len'); }
+function _matUniTxt(m){ return m.uIng || m.unidad || ''; }
 function setMagnitud(m){
+  const cambia = (matMagnitud !== m);
   matMagnitud=m;
+  // Al cambiar de magnitud el valor escrito deja de tener sentido: se conserva
+  // el número en la unidad del sistema y se olvida la unidad de entrada.
+  if(cambia) MATS.forEach(x=>{ x.valIng = null; x.uIng = null; });
   MATS.forEach(x=>{ x.unidad = uGamma(); });
+  renderMatUnidades();
   const a=document.getElementById('mag-peso'), b=document.getElementById('mag-dens');
   if(a) a.classList.toggle('active', m==='peso');
   if(b) b.classList.toggle('active', m==='densidad');
@@ -55,10 +93,12 @@ function setMagnitud(m){
 }
 function addMaterial(){
   const v=parseFloat((document.getElementById('mat-val')||{}).value);
-  const u=uGamma();     // la unidad viene del sistema elegido, no se escribe
+  const sel=document.getElementById('mat-uni');
+  const uIng=(sel && sel.value) || unidadesMaterial()[0];
+  const u=uGamma();     // unidad del sistema, la que usa el cálculo
   const msg=document.getElementById('mat-msg');
   if(!isFinite(v)||v<=0){ if(msg){msg.style.color='#c0392b';msg.textContent='Escribe un valor mayor que cero.';} return; }
-  MATS.push({id:++matSeq, val:v, unidad:u});
+  MATS.push({id:++matSeq, val:+gammaAlSistema(v, uIng).toPrecision(10), unidad:u, valIng:v, uIng});
   const inp=document.getElementById('mat-val'); if(inp){ inp.value=''; inp.focus(); }
   if(msg){ msg.style.color='var(--muted)'; msg.textContent=''; }
   renderMats();
@@ -86,7 +126,9 @@ function renderMats(){
   box.innerHTML=MATS.map(m=>
     '<div class="mat-item">'
     +'<span class="mat-sym">'+matSimbolo()+m.id+'</span>'
-    +'<span class="mat-val">= '+decFix(m.val,'len')+' '+esc(m.unidad||'')+'</span>'
+    +'<span class="mat-val">= '+_matValTxt(m)+' '+esc(_matUniTxt(m))
+    +((m.valIng!==undefined && m.valIng!==null && m.uIng !== uGamma()) ? ' <span style="color:var(--muted);font-size:9px">(= '+Number(m.val).toPrecision(4)+' '+esc(uGamma())+')</span>' : '')
+    +'</span>'
     +'<button class="mat-x" onclick="delMaterial('+m.id+')" title="Eliminar">×</button>'
     +'</div>').join('');
 }
@@ -211,7 +253,9 @@ function applyUnitsModal(){
 
   unitForce = newForce;
   convertUnits(newLen);
-  MATS.forEach(m=>{ m.unidad = uGamma(); });
+  // Los materiales con unidad propia se reconvierten desde el valor escrito:
+  // así no acumulan redondeos al cambiar de sistema varias veces.
+  reconvertirMateriales();
   renderMats();
   closeUnitsModal();
 }
@@ -330,30 +374,121 @@ function resetAll(){
 // OJO con el sector circular: fig.dims.alpha guarda SIEMPRE el SEMIÁNGULO θ.
 // La tabla del enunciado da el ángulo TOTAL (2θ), así que se divide entre dos
 // y se deja angleMode:'total' para que el panel lo muestre como se pidió.
-function loadExampleSection(){
-  if(modoEspacio === '3d') return loadExample3d();      // 21-vistas-3d.js
-  resetAll();
-  const DATOS = [
+// ═══════════════════════════════════════════════════════════
+//  EJEMPLOS DE VERIFICACIÓN (propuestas 2.4 y 2.6, 2026-09-08)
+//  Cada uno resuelto a mano; `esperado` es el centroide (x̄, ȳ) y, al
+//  cargarlo, se contrasta con el motor (aviso por consola si difiere más
+//  del 0.1 %). Las coordenadas de cada figura son las de SU centroide.
+// ═══════════════════════════════════════════════════════════
+let ejemploActualCen = null;
+const EJEMPLOS_CEN = [
+  {
+    id:'seccion', nom:'Sección compuesta de 18 figuras', unidad:'mm',
+    desc:'La sección de siempre: rectángulos, triángulos, sectores, semicírculos y dos huecos. Es la que más ejercita las cotas y el informe.',
+    ref:'Sin valor a mano; se comprueban simetría, envolvente y momento nulo respecto de C.',
+    armar(){
+      const DATOS = [
     // tipo,          dims,               cx,       cy,      rot,   signo
-    ['rect',        {b:220,   h:352.15},  110,      176.07,     0,  +1],
-    ['rect',        {b:140,   h:160.39},  110,      432.35,     0,  +1],
-    ['rect',        {b:120,   h:75},      290.07,   279.85,   -24,  +1],
-    ['rect',        {b:120,   h:75},      -70.07,   279.85,    24,  +1],
-    ['rect',        {b:75,    h:160},     397.66,   369.49,     0,  +1],
-    ['rect',        {b:75,    h:160},     -106.64,  132.71,    27,  +1],
-    ['rtriangle',   {b:75,    h:33.53},   -10.13,   320.22,   -66,  +1],
-    ['rtriangle2',  {b:75,    h:33.53},   230.13,   320.22,    66,  +1],
-    ['rtriangle',   {b:50.7,  h:25.56},   443.68,   432.59,   -90,  +1],
-    ['rtriangle2',  {b:50.7,  h:25.56},   351.64,   432.17,    90,  +1],
-    ['rtriangle',   {b:50.7,  h:25.56},   -118.54,  55.54,    117,  +1],
-    ['rtriangle2',  {b:50.7,  h:25.56},   -36.65,   97.56,    -63,  +1],
-    ['circle',      {r:25},               110,      446.93,     0,  -1],
-    ['semicircle',  {r:47.61},            110,      390.71,   180,  -1],
-    ['sector',      {r:75, alpha:114/2},  383.12,   254.14,  -147,  +1],
-    ['semicircle',  {r:63.06},            397.66,   476.25,     0,  +1],
-    ['sector',      {r:75, alpha:93/2},   -151.68,  235.94,   70.5,  +1],
-    ['semicircle',  {r:63.06},            -57.61,   37.71,   -153,  +1]
-  ];
+        ['rect',        {b:220,   h:352.15},  110,      176.07,     0,  +1],
+        ['rect',        {b:140,   h:160.39},  110,      432.35,     0,  +1],
+        ['rect',        {b:120,   h:75},      290.07,   279.85,   -24,  +1],
+        ['rect',        {b:120,   h:75},      -70.07,   279.85,    24,  +1],
+        ['rect',        {b:75,    h:160},     397.66,   369.49,     0,  +1],
+        ['rect',        {b:75,    h:160},     -106.64,  132.71,    27,  +1],
+        ['rtriangle',   {b:75,    h:33.53},   -10.13,   320.22,   -66,  +1],
+        ['rtriangle2',  {b:75,    h:33.53},   230.13,   320.22,    66,  +1],
+        ['rtriangle',   {b:50.7,  h:25.56},   443.68,   432.59,   -90,  +1],
+        ['rtriangle2',  {b:50.7,  h:25.56},   351.64,   432.17,    90,  +1],
+        ['rtriangle',   {b:50.7,  h:25.56},   -118.54,  55.54,    117,  +1],
+        ['rtriangle2',  {b:50.7,  h:25.56},   -36.65,   97.56,    -63,  +1],
+        ['circle',      {r:25},               110,      446.93,     0,  -1],
+        ['semicircle',  {r:47.61},            110,      390.71,   180,  -1],
+        ['sector',      {r:75, alpha:114/2},  383.12,   254.14,  -147,  +1],
+        ['semicircle',  {r:63.06},            397.66,   476.25,     0,  +1],
+        ['sector',      {r:75, alpha:93/2},   -151.68,  235.94,   70.5,  +1],
+        ['semicircle',  {r:63.06},            -57.61,   37.71,   -153,  +1]
+      ];
+      return DATOS;
+    }
+  },
+  {
+    id:'placa', nom:'Placa con triángulo y hueco (Hibbeler ej. 9.10)', unidad:'mm',
+    desc:'Rectángulo de 120 × 60 con un triángulo rectángulo de 120 × 60 encima (ángulo recto a la izquierda) y un hueco rectangular de 40 × 20 centrado en el rectángulo.',
+    esperado:{xbar:52.8, ybar:48.0},
+    ref:'A = 7200 + 3600 − 800 = 10000 mm²; x̄ = (7200·60 + 3600·40 − 800·60)/10000 = 52.80; ȳ = (7200·30 + 3600·80 − 800·30)/10000 = 48.00 mm.',
+    armar(){
+      return [
+        ['rect',      {b:120, h:60},  60, 30,   0, +1],
+        ['rtriangle', {b:120, h:60},  40, 80,   0, +1],   // ángulo recto en (0, 60): C = (b/3, h/3) desde él
+        ['rect',      {b:40,  h:20},  60, 30,   0, -1]
+      ];
+    }
+  },
+  {
+    id:'anillo', nom:'Anillo: el centroide cae en el aire', unidad:'mm',
+    desc:'Círculo de radio 60 menos círculo de radio 40, concéntricos. El centroide está en el centro, donde no hay material.',
+    esperado:{xbar:0, ybar:0},
+    ref:'Por simetría C = (0, 0): fuera del material. Es el «¿por qué?» de que el centroide es un promedio de posiciones, no un punto de la pieza.',
+    armar(){
+      return [
+        ['circle', {r:60}, 0, 0, 0, +1],
+        ['circle', {r:40}, 0, 0, 0, -1]
+      ];
+    }
+  },
+  {
+    id:'ele', nom:'Ángulo en L (dos rectángulos)', unidad:'mm',
+    desc:'Ala horizontal de 100 × 20 y ala vertical de 20 × 80 sobre ella, en la esquina inferior izquierda.',
+    esperado:{xbar:32.222, ybar:32.222},
+    ref:'x̄ = (2000·50 + 1600·10)/3600 = 32.22; ȳ = (2000·10 + 1600·60)/3600 = 32.22 mm. El punto (32.2, 32.2) no está en ninguna de las dos alas.',
+    armar(){
+      return [
+        ['rect', {b:100, h:20}, 50, 10, 0, +1],
+        ['rect', {b:20,  h:80}, 10, 60, 0, +1]
+      ];
+    }
+  },
+  {
+    id:'carga', nom:'Carga distribuida como área (§9.4)', unidad:'m',
+    desc:'Carga trapezoidal sobre una viga de 6 m: w crece de 2 a 5 kN/m. Se dibuja como rectángulo (6 × 2) más triángulo (6 × 3, ángulo recto a la derecha). El área es la resultante y el centroide su línea de acción.',
+    esperado:{xbar:3.4286, ybar:1.8571},
+    ref:'R = 12 + 9 = 21 kN; x̄ = (12·3 + 9·4)/21 = 3.43 m desde el extremo izquierdo (fórmula del trapecio: (L/3)(w₁+2w₂)/(w₁+w₂)).',
+    armar(){
+      return [
+        ['rect',       {b:6, h:2}, 3, 1, 0, +1],
+        ['rtriangle2', {b:6, h:3}, 4, 3, 0, +1]    // ángulo recto en (6, 2): C = BR − (b/3, −h/3)
+      ];
+    }
+  }
+];
+function abrirEjemplosCen(){
+  const el = document.getElementById('ejLista');
+  if(el) el.innerHTML = EJEMPLOS_CEN.map((e,i)=>
+      '<div class="item-row" style="display:block;padding:9px 11px;margin-bottom:7px;cursor:pointer" '
+    + 'onclick="loadExampleSection(\'' + e.id + '\')">'
+    + '<div style="font-weight:700;font-size:11.5px;color:var(--acc)">' + (i+1) + ' · ' + e.nom + '</div>'
+    + '<div class="hint-sm" style="margin-top:3px">' + e.desc + '</div>'
+    + '<div class="hint-sm" style="margin-top:3px;color:var(--acc2)"><b>Referencia:</b> ' + e.ref + '</div>'
+    + '</div>').join('');
+  const m = document.getElementById('ejModal'); if(m) m.classList.add('show');
+}
+function cerrarEjemplosCen(){ const m = document.getElementById('ejModal'); if(m) m.classList.remove('show'); }
+function comprobarEjemploCen(ej){
+  if(!ej || !ej.esperado || !results) return;
+  const esc0 = Math.max(1, Math.abs(ej.esperado.xbar), Math.abs(ej.esperado.ybar));
+  ['xbar','ybar'].forEach(k=>{
+    if(Math.abs(results[k] - ej.esperado[k]) > 1e-3*esc0)
+      console.warn('Ejemplo ' + ej.id + ': ' + k + ' se desvía de la referencia', {esperado:ej.esperado[k], obtenido:results[k]});
+  });
+}
+
+// Sin argumento carga la sección de 18 figuras, para no romper llamadas antiguas.
+function loadExampleSection(id){
+  if(modoEspacio === '3d') return loadExample3d();      // 21-vistas-3d.js
+  const ej = EJEMPLOS_CEN.find(e=>e.id === id) || EJEMPLOS_CEN[0];
+  resetAll();
+  ejemploActualCen = ej.id;
+  const DATOS = ej.armar();
   figures = DATOS.map(([tipo, dims, cx, cy, rot, signo], i)=>{
     const def = FIG_DEFS[tipo];
     const anc = def.defaultAnchor || 'C';
@@ -367,6 +502,8 @@ function loadExampleSection(){
       angleMode: (tipo==='sector') ? 'total' : 'semi'
     };
   });
-  setUnit('mm'); colorIdx = figures.length % COLORS.length;
+  setUnit(ej.unidad || 'mm'); colorIdx = figures.length % COLORS.length;
   renderFigList(); fitView(); calculate();
+  comprobarEjemploCen(ej);
+  cerrarEjemplosCen();
 }

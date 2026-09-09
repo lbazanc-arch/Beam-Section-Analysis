@@ -557,7 +557,7 @@ function buildPropPanel3d(fig){
   if(rf) rf.style.display = def.vertices ? '' : 'none';
   if(modoCuerpo==='heterogeneo'){
     const box = document.createElement('div'); box.className = 'field';
-    const opts = MATS.map(m=>`<option value="${m.id}"${fig.matId===m.id?' selected':''}>${matSimbolo()}${m.id} = ${decFix(m.val,'len')} ${m.unidad||''}</option>`).join('');
+    const opts = MATS.map(m=>`<option value="${m.id}"${fig.matId===m.id?' selected':''}>${matSimbolo()}${m.id} = ${_matValTxt(m)} ${_matUniTxt(m)}</option>`).join('');
     box.innerHTML = '<label>'+(matMagnitud==='densidad'?'Densidad':'Peso específico')
       +' <span style="color:var(--grn2);font-weight:800">('+matSimbolo()+')</span></label>'
       +'<select id="fig-mat" onchange="asignarMaterial(this.value)" style="width:100%;background:var(--bg);'
@@ -773,7 +773,7 @@ function renderResults3d(res){
           <tr><td>Centroide x</td><td><i>x̃<sub>i</sub></i></td><td class="v">${nL(s.xi)}</td><td>${u1}</td></tr>
           <tr><td>Centroide y</td><td><i>ỹ<sub>i</sub></i></td><td class="v">${nL(s.yi)}</td><td>${u1}</td></tr>
           <tr><td>Centroide z</td><td><i>z̃<sub>i</sub></i></td><td class="v">${nL(s.zi)}</td><td>${u1}</td></tr>
-          ${het?`<tr><td>${matMagnitud==='densidad'?'Densidad':'Peso específico'}</td><td><i>${simb}<sub>i</sub></i></td><td class="v">${s.mat?nL(s.mat.val):'—'}</td><td>${s.mat?esc(s.mat.unidad||''):'—'}</td></tr>
+          ${het?`<tr><td>${matMagnitud==='densidad'?'Densidad':'Peso específico'}</td><td><i>${simb}<sub>i</sub></i></td><td class="v">${s.mat?_matValTxt(s.mat):'—'}</td><td>${s.mat?esc(_matUniTxt(s.mat)):'—'}</td></tr>
           <tr><td>${matMagnitud==='densidad'?'Masa':'Peso'}</td><td><i>${Wsim}<sub>i</sub></i></td><td class="v">${f(Math.abs(s.w))}</td><td>—</td></tr>`:''}
         </tbody></table></div>
       <div class="fig-card-dib">${croquisSolido(s.fig, i)}</div></div>`;
