@@ -285,16 +285,12 @@ function renderSeccionCorte(){
 
   h += '<div class="verdict ok"><div class="verdict-t">Corte válido</div>'
     + 'Cruza <b>' + info.cortadas.length + ' barra(s)</b>'
-    + (info.cero.length ? ', de las cuales ' + info.cero.length + ' ya se conocen por ser de fuerza cero' : '')
-    + ', con <b>' + info.incog.length + ' incógnita(s)</b>. '
-    + 'Se analiza la porción que contiene los nudos <b>' + nomLado + '</b>, por tener menos cargas y reacciones. '
-    + 'La otra porción daría exactamente los mismos valores.</div>';
+    + (info.cero.length ? ' (' + info.cero.length + ' de fuerza cero)' : '')
+    + ', <b>' + info.incog.length + ' incógnita(s)</b>. Porción analizada: nudos <b>' + nomLado + '</b>.</div>';
 
   h += '<div class="proc-block"><div class="proc-sub">Diagrama de cuerpo libre de la porción</div>'
     + svgPorcion(info, sol)
-    + '<div class="hint-sm" style="margin-top:5px">Las fuerzas de las barras cortadas se dibujan '
-    + '<b>saliendo</b> de la porción: se supone tracción, igual que en el método de nudos. '
-    + 'Los círculos punteados marcan los centros de momentos empleados.</div></div>';
+    + '<div class="hint-sm" style="margin-top:5px">Barras cortadas supuestas en tracción (salen de la porción); círculos punteados = centros de momentos.</div></div>';
 
   sol.pasos.forEach((p, i)=>{
     const d = p.d;
@@ -303,8 +299,8 @@ function renderSeccionCorte(){
     if(p.tipo === 'momento'){
       const cx = dec(p.centro.x,'len'), cy = dec(p.centro.y,'len');
       const nomC = p.centro.nombre || 'O';
-      h += '<div class="hint-sm" style="margin-bottom:6px">Se toman momentos respecto de <b>' + nomC + '</b> (' + cx + ' ; ' + cy + ') ' + uL
-        + (p.otros.length ? ', por donde pasan <b>' + p.otros.join('</b> y <b>') + '</b>: al pasar sus líneas de acción por ese punto, no producen momento y desaparecen de la ecuación.' : '.') + '</div>';
+      h += '<div class="hint-sm" style="margin-bottom:6px">Momentos respecto de <b>' + nomC + '</b> (' + cx + ' ; ' + cy + ') ' + uL
+        + (p.otros.length ? ', por donde pasan <b>' + p.otros.join('</b> y <b>') + '</b>.' : '.') + '</div>';
       h += '<div class="eq-row"><div class="eq-body">'
         + kx('\\sum M_{' + nomC + '} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
              + p.detalle.map(x=>(x.val>=0?' + ':' - ')+fmtNum2(Math.abs(x.val))).join('') + ' = 0')
@@ -332,15 +328,9 @@ function renderSeccionCorte(){
 
   if(info.cero.length){
     const nom = info.cero.map(id=>nombreBarra(barras.find(b=>b.id===id)));
-    h += '<div class="teoria"><div class="teoria-t">Barras cortadas ya conocidas</div>'
-      + 'El corte también cruza <b>' + nom.join(', ') + '</b>, identificadas antes como de fuerza cero. '
-      + 'Por eso no cuentan como incógnita y el corte sigue siendo resoluble.</div>';
+    h += '<div class="hint-sm">El corte también cruza <b>' + nom.join(', ') + '</b>, de fuerza cero: no cuentan como incógnitas.</div>';
   }
 
-  h += '<div class="teoria"><div class="teoria-t">Por qué conviene este método</div>'
-    + 'El método de nudos obliga a recorrer la armadura nudo a nudo hasta llegar a la barra que interesa. '
-    + 'Con un corte se obtiene <b>directamente</b> la fuerza de una barra concreta, sin resolver las anteriores. '
-    + 'Es la herramienta adecuada cuando el problema pide solo unas pocas barras.</div>';
   return h;
 }
 

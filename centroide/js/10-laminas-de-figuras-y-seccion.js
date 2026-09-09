@@ -29,11 +29,9 @@ function renderResults(res, u4, u2, u1){
 
   // Lectura como carga distribuida (propuesta 2.4): el ejemplo guiado del §9.4.
   if(typeof ejemploActualCen !== 'undefined' && ejemploActualCen === 'carga'){
-    html += `<div class="res-section"><div class="verdict"><div class="verdict-t">Lectura como carga distribuida (Hibbeler §9.4)</div>
-      Si las figuras son el <b>diagrama de una carga</b> w(x) sobre una viga, con el ancho en ${esc(u1)} y la altura en fuerza/${esc(u1)},
-      el <b>área total es la resultante</b> (${f(res.A)} en unidades de fuerza) y su <b>línea de acción pasa por el centroide</b>,
-      a x̄ = ${nL(res.xbar)} ${esc(u1)} del extremo izquierdo. El rectángulo y el triángulo son las dos cargas parciales
-      (${res.steps.map(s=>f(Math.abs(s.a))).join(' y ')}) y el resultado es el mismo que en Fuerzas Internas, donde esa sustitución se usa sin explicarla.
+    html += `<div class="res-section"><div class="proc-block"><div class="proc-sub">Lectura como carga distribuida (Hibbeler §9.4)</div>
+      <div class="eq-row"><div class="eq-body">${kx(`F_R = \\int w\\,dx = A = ${ftex(res.A)}`)}</div></div>
+      <div class="eq-row"><div class="eq-body">${kx(`\\bar{x} = ${ftex(res.xbar)}\\,${utex(u1)}\\quad\\text{(línea de acción)}`)}</div></div>
     </div></div>`;
   }
 
@@ -155,8 +153,8 @@ function renderResults(res, u4, u2, u1){
   }
   html += `<div class="proc-block" style="border-left:3px solid ${het?'#c0392b':'var(--grn)'};padding-left:12px;margin-top:10px;">
       <div style="font-size:11.5px;line-height:1.65;color:var(--muted)">${
-        het ? `Cuerpo <b style="color:#c0392b">heterogéneo</b>: el centro de gravedad G queda a ${nL(res.sep)} ${u1} del centroide C, desplazado hacia el material más pesado. El centro de masa coincide con G cuando la gravedad es uniforme.`
-            : `Cuerpo <b style="color:var(--grn2)">homogéneo</b>: el peso específico se cancela en el cociente, de modo que el <b>centroide, el centro de masa y el centro de gravedad son el mismo punto</b>.`
+        het ? `Cuerpo <b style="color:#c0392b">heterogéneo</b>: G a ${nL(res.sep)} ${u1} de C.`
+            : `Cuerpo <b style="color:var(--grn2)">homogéneo</b>: C = G = centro de masa.`
       }</div>
     </div>
   </div>`;
@@ -171,28 +169,6 @@ function renderResults(res, u4, u2, u1){
       Sección con los huecos ya descontados. <b style="color:#b8860c">C</b> = centro geométrico (centroide)${het?` &nbsp;·&nbsp; <b style="color:#c0392b">G</b> = centro de gravedad y centro de masa`:``}
     </div>
 
-    <div class="teoria">
-      <div class="teoria-t">${het?'Por qué NO coinciden':'Por qué coinciden'}</div>
-      <p>${ het
-        ? `El <b>centro geométrico</b> (centroide) depende únicamente de la <b>forma</b> de la sección:
-           se obtiene ponderando cada figura por su área. El <b>centro de gravedad</b>, en cambio,
-           pondera por el <b>peso</b> de cada parte.<br><br>
-           Como esta sección está formada por <b>dos o más materiales</b> con distinto
-           ${matMagnitud==='densidad'?'densidad':'peso específico'}, las áreas y los pesos no guardan la misma
-           proporción, de modo que <b style="color:#c0392b">ambos puntos no coinciden</b>: el centro de gravedad
-           se desplaza hacia el material más pesado, en este caso ${nL(res.sep)} ${u1}.<br><br>
-           El <b>centro de masa</b> coincide con el centro de gravedad porque la aceleración de la gravedad
-           es la misma en todos los puntos del cuerpo.`
-        : `El <b>centro geométrico</b> (centroide) depende únicamente de la <b>forma</b> de la sección,
-           mientras que el <b>centro de gravedad</b> depende de cómo se distribuye el <b>peso</b>.<br><br>
-           Al tratarse de un cuerpo formado por <b>un solo material</b>, el
-           ${matMagnitud==='densidad'?'la densidad es la misma':'peso específico es el mismo'} en todos sus puntos
-           y se cancela al dividir en el cociente. Por eso el peso de cada parte resulta proporcional a su área
-           y <b style="color:var(--grn2)">ambos puntos coinciden</b>.<br><br>
-           Además, como la aceleración de la gravedad es constante en toda la sección, el <b>centro de masa</b>
-           también coincide con ellos: centroide, centro de gravedad y centro de masa son el mismo punto.`
-      }</p>
-    </div>
   </div>`;
 
   // Se escribe DENTRO de #resultsPanel, no en #resultsArea. Si se escribiera en

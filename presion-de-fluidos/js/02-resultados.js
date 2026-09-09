@@ -167,12 +167,8 @@ function renderResultados(r){
   // ═══ 1 · Presión en los puntos clave ═══
   h += '<div class="res-section"><div class="res-title"><div class="num">1</div>'
     + 'Presión en los puntos clave</div>'
-    + '<div class="verdict"><div class="verdict-t">Idea clave</div>'
-    + 'A profundidad ' + kx('h') + ' bajo la superficie libre la presión manométrica vale ' + kx('p=\\gamma\\,h')
-    + (hayCapas ? ' y, con varias capas, se acumula capa a capa: ' + kx('p=\\sum\\gamma_i h_i') + ' (cada capa apoya su peso sobre la de abajo)' : '')
-    + '. La presión actúa siempre <b>perpendicular a la superficie</b> y es la misma a igual profundidad, esté la compuerta vertical, inclinada o curva.'
-    + (dosLados ? ' Con líquido a los dos lados, cada zona empuja por su cara: son <b>dos fuerzas distintas</b> en el diagrama de cuerpo libre.' : '')
-    + '</div>'
+    + '<div class="proc-block" style="padding:8px 12px;margin-bottom:8px"><div class="eq-row"><div class="eq-body">'
+    + kx('p = \\gamma\\,h' + (hayCapas ? '\\qquad p = \\sum\\gamma_i h_i' : '')) + '</div></div></div>'
     + '<table class="tabla"><thead><tr><th>Fuerza</th><th>Tramo</th><th>Zona</th><th>Extremo</th>'
     + '<th class="r">h (' + uL + ')</th><th class="r">p (' + uPres() + ')</th></tr></thead><tbody>';
   cargas.forEach(c=>{
@@ -197,13 +193,7 @@ function renderResultados(r){
 
   // ═══ 2 · Resultante de cada tramo mojado ═══
   h += '<div class="res-section"><div class="res-title"><div class="num">2</div>'
-    + 'Resultante de cada tramo mojado y su centro de presión</div>'
-    + '<div class="verdict"><div class="verdict-t">¿Por qué?</div>'
-    + 'La resultante es el <b>área del diagrama de presión</b> (por el ancho ' + kx('b') + ') y pasa por su centroide: '
-    + 'como abajo la presión es mayor, ese centroide —el <b>centro de presión</b> ' + kx('P') + '— queda <b>por debajo del centro de la placa</b>. '
-    + 'En una placa plana el diagrama es un trapecio, que se reparte en un rectángulo (' + kx('L/2') + ') y un triángulo (' + kx('2L/3') + ' desde el extremo menos cargado).'
-    + (hayCurvo ? ' En una placa <b>curva</b> se trabaja por componentes: ' + kx('F_h') + ' es la resultante sobre la <b>proyección vertical</b> y ' + kx('F_v') + ' es el <b>peso del líquido</b> comprendido entre la placa y la superficie libre; como todas las presiones son perpendiculares a un arco de círculo, la resultante pasa por su centro.' : '')
-    + '</div>';
+    + 'Resultante de cada tramo mojado y su centro de presión</div>';
   cargas.forEach(c=>{
     const d = c.des;
     h += '<div class="fig-card"><div class="fig-card-datos">'
@@ -265,7 +255,7 @@ function renderResultados(r){
   });
   h += '<tr class="fila-total"><td colspan="6">Σ del líquido</td>'
     + '<td class="r">'+f(SX)+'</td><td class="r">'+f(SY)+'</td><td></td></tr></tbody></table>';
-  h += '<div class="hint-sm">El programa integra la presión punto a punto sobre cada tramo; el desarrollo de arriba reproduce esa integral'
+  h += '<div class="hint-sm">Comprobación con la integral numérica del programa'
     + (cargas.every(c=>!c.des || c.des.coincide) ? ' ✓' : ' <b style="color:#c0392b">(discrepancia: revisa la geometría)</b>') + '.</div>';
   h += '</div>';
 
@@ -280,7 +270,7 @@ function renderResultados(r){
     + '<div class="proc-col"><div class="proc-sub">Ecuaciones (' + r.diag.eq + ')</div>'
     + '<div class="eq-row"><div class="eq-body">' + kx('\\sum F_x = 0,\\quad \\sum F_y = 0,\\quad \\sum M_{' + plan.centro.nombre + '} = 0') + '</div></div>'
     + (r.diag.rot ? '<div class="eq-row"><div class="eq-body">' + kx('\\sum M_{\\text{rótula}} = 0') + ' <span class="hint-sm" style="display:inline">(solo las fuerzas de un lado)</span></div></div>' : '')
-    + '<div class="hint-sm">Se toman momentos respecto de <b>' + plan.centro.nombre + '</b> porque por ahí pasan las líneas de acción de ' + (plan.ecs[0].us.length < r.inc.length ? (r.inc.length - plan.ecs[0].us.length) + ' incógnita(s), que así no aparecen' : 'las incógnitas') + '.</div>'
+    + '<div class="hint-sm">Momentos respecto de <b>' + plan.centro.nombre + '</b>: por ahí pasan ' + (plan.ecs[0].us.length < r.inc.length ? (r.inc.length - plan.ecs[0].us.length) + ' incógnita(s)' : 'las incógnitas') + '.</div>'
     + '</div></div>';
   h += '<div class="proc-block">';
   plan.pasos.forEach(paso=>{
@@ -302,7 +292,7 @@ function renderResultados(r){
         const q = ecuacionDelPaso(r, {tipo:'sistema', e:g.e, libres:paso.libres});
         h += '<div class="eq-row"><div class="eq-body">' + kx(q.icono + q.ec.nombre.replace(' = 0','') + ':\\quad ' + q.sustituida + '\\qquad(' + g.num + ')') + '</div></div>';
       });
-      h += '<div class="hint-sm">Estas ecuaciones no se despejan por separado: forman un sistema. Resolviéndolo:</div>'
+      h += '<div class="hint-sm">Sistema de ecuaciones; solución:</div>'
         + '<div class="eq-row"><div class="eq-body">' + kx(paso.libres.map(j=>'\\boxed{' + simbIncognita(r.inc[j]) + ' = ' + f(r.val[j]) + '\\ \\text{' + uF + '}}').join('\\qquad')) + '</div></div>';
     }
   });
@@ -321,13 +311,12 @@ function renderResultados(r){
       + '<td>' + iconoSentidoHtml(s.x, s.y) + (u.tipo==='T' ? (v >= 0 ? ' empuja a la compuerta' : ' <b style="color:#c0392b">se separa</b>') : '') + '</td></tr>';
   });
   h += '</tbody></table>'
-    + '<div class="hint-sm">El valor es la magnitud; el sentido real va en la flecha. En el lienzo cada fuerza llega al nudo en ese sentido.</div>';
+    + '<div class="hint-sm">Magnitud y sentido real (flecha).</div>';
   if(r.topesSueltos.length){
     h += '<div class="verdict bad"><div class="verdict-t">Tope que no trabaja</div>'
-      + 'El tope solo puede <b>empujar</b>. El equilibrio pide que ' + r.topesSueltos.map(u=>kx(simbIncognita(u))).join(', ')
-      + ' tire de la compuerta, y eso no es posible: <b>la compuerta se abre</b> (se separa del tope). Es la situación límite de los problemas «a punto de abrirse».</div>';
+      + r.topesSueltos.map(u=>kx(simbIncognita(u))).join(', ') + ' &lt; 0: el tope solo empuja, así que <b>la compuerta se abre</b>.</div>';
   } else if(r.inc.some(u=>u.tipo==='T')){
-    h += '<div class="verdict ok"><div class="verdict-t">Tope</div>La compuerta se apoya en el tope: la fuerza sale positiva, es decir, el tope empuja. Si diera cero, la compuerta estaría <b>a punto de abrirse</b>.</div>';
+    h += '<div class="verdict ok"><div class="verdict-t">Tope</div>Fuerza positiva: el tope empuja (cero = a punto de abrirse).</div>';
   }
   h += '</div>';
 
@@ -342,7 +331,7 @@ function renderResultados(r){
                 : '⚠ El equilibrio no cierra; revisa apoyos y caras mojadas.') + '</div>';
   const planas = cargas.filter(c=>c.des && c.des.tipo==='recto' && !c.des.horizontal);
   if(planas.length)
-    h += '<div class="hint-sm">Sentido común: en cada placa plana el centro de presión queda por debajo del centro de la parte mojada: '
+    h += '<div class="hint-sm">Centro de presión bajo el centro de la parte mojada: '
       + planas.map(c=>kx('z_{P' + c.k + '} = ' + nl(c.zP) + ' > \\bar z = ' + nl(c.des.zBar))).join(', ') + ' ✓</div>';
   h += '</div></div>';
   return h;

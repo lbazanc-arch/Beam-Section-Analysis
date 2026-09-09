@@ -31,12 +31,7 @@ function leyesDeCarga(seg, sub, off){
 }
 
 function renderMetodoEcuaciones(r){
-  let h = '<div class="verdict"><div class="verdict-t">Método de las ecuaciones</div>'
-    + 'En cada subtramo se corta en una sección genérica y se plantea el equilibrio del trozo '
-    + 'anterior. La abscisa se mide desde el último punto de quiebre: se llama <i>x</i> en los '
-    + 'tramos rectos y <i>r</i> en los inclinados, donde es la resultante de los catetos. El DCL muestra <b>todas las '
-    + 'cargas que interactúan</b> con ese trozo: reacciones, puntuales, momentos y la parte de '
-    + 'las distribuidas hasta el corte. El desarrollo paso a paso se incluye en el PDF.</div>';
+  let h = '<div class="hint-sm" style="margin-bottom:8px">Corte en una sección genérica de cada subtramo; la abscisa (<i>x</i> en tramos rectos, <i>r</i> en inclinados) se mide desde el último quiebre. El desarrollo completo va en el PDF.</div>';
   const _grupos = gruposDireccion(r);
   r.internas.forEach((t,ti)=>{
     // Grupo (recta continua) al que pertenece este tramo: de él salen el
@@ -54,12 +49,7 @@ function renderMetodoEcuaciones(r){
       h += '<div class="dcl-caja">'
         + '<div class="dcl-rango">'+(t.subs.length>1 ? 'Subtramo '+(si+1)+' · ' : '')
         + kx(a+' \\le '+sb+' \\le '+b)
-        + ' <span class="dcl-nota">(' + gt.simbolo + ' medida desde '
-        + gt.desde.nombre + ', a lo largo del eje del tramo'
-        + (gt.inclinado
-            ? '; al ser inclinado, <i>r</i> es la resultante de los catetos en x e y'
-            : '')
-        + ', en '+unitLen+')</span></div>'
+        + ' <span class="dcl-nota">(' + gt.simbolo + ' desde ' + gt.desde.nombre + ', sobre el eje del tramo, en '+unitLen+')</span></div>'
         + svgDCL(r, ti, sub)
         + '<div class="dcl-ecs">';
       const gN = desplazarPoly(sub.cN, off),
@@ -101,13 +91,8 @@ function renderMetodoEcuaciones(r){
 }
 
 function renderMetodoAreas(r){
-  let h = '<div class="verdict"><div class="verdict-t">Método de las áreas</div>'
-    + 'Se apoya en las relaciones diferenciales ' + kx('\\tfrac{dV}{dx} = -w') + ' y '
-    + kx('\\tfrac{dM}{dx} = V') + ': el cambio de V entre dos secciones es el área del '
-    + 'diagrama de carga con signo cambiado, y el cambio de M es el área bajo el diagrama '
-    + 'de cortante. En cada carga puntual V da un salto y en cada momento aplicado salta M. '
-    + 'Observa que en cada fila ΔM coincide con M fin − M inicio. '
-    + 'El desarrollo paso a paso se incluye en el PDF.</div>';
+  let h = '<div class="hint-sm" style="margin-bottom:8px">' + kx('\\Delta V = -\\int w\\,dx') + ' &nbsp;·&nbsp; ' + kx('\\Delta M = \\int V\\,dx')
+    + '; V salta en cada carga puntual y M en cada momento aplicado. El desarrollo completo va en el PDF.</div>';
   r.internas.forEach(t=>{
     h += '<div class="sub-tramo-cab">Tramo '+t.nombre+'</div>'
       + '<table class="tabla"><thead><tr><th>Intervalo ['+unitLen+']</th>'
@@ -181,9 +166,7 @@ function renderResultados(r){
   // 4 · Resumen de fuerzas internas por tramo
   h += '<div class="res-section"><div class="res-title"><div class="num">4</div>'
     + 'Resumen de fuerzas internas por tramo</div>'
-    + '<div class="verdict"><div class="verdict-t">Ejes locales</div>'
-    + 'En un tramo inclinado, <b>N</b> va a lo largo del tramo y <b>V</b> perpendicular a él. '
-    + 'Por eso cada tramo se analiza sobre su propio eje y no sobre la horizontal.</div>'
+    + '<div class="hint-sm" style="margin-bottom:8px">Ejes locales de cada tramo: <b>N</b> a lo largo del tramo, <b>V</b> perpendicular.</div>'
     + '<table class="tabla"><thead><tr><th>Tramo</th><th class="r">Longitud</th>'
     + '<th class="r">Inclinación</th><th class="r">N máx</th><th class="r">V máx</th>'
     + '<th class="r">M máx</th></tr></thead><tbody>';

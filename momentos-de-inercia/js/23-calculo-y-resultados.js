@@ -325,8 +325,7 @@ function renderResults(res, u4, u2, u1){
       const mx = Math.max(...vals), mn = Math.min(...vals);
       if(mx/mn > 1000)
         html += `<div class="verdict bad" style="margin-bottom:12px"><div class="verdict-t">¿Unidades mezcladas?</div>
-          Hay medidas de ${decFix(mn,'len')} y de ${decFix(mx,'len')} ${esc(u1)} en la misma sección: un factor ${Math.round(mx/mn)}.
-          Si una parte está en mm y otra en m, el error en las inercias <b>se eleva a la cuarta potencia</b>. Revisa que todas las cotas estén en ${esc(u1)}.</div>`;
+          Medidas de ${decFix(mn,'len')} y ${decFix(mx,'len')} ${esc(u1)} (factor ${Math.round(mx/mn)}): revisa que todas las cotas estén en ${esc(u1)}.</div>`;
     }
   }
   html += `<div class="res-section">
@@ -346,9 +345,7 @@ function renderResults(res, u4, u2, u1){
     html += `<div class="res-section">
       <div class="res-section-title"><div class="num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M5 4h14M12 4v16M5 20h14"/></svg></div>Perfiles laminados de acero</div>
       <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px;">
-        Cada perfil es <b>una sola figura</b>: el cálculo usa su área, sus inercias y su centroide
-        <b>tabulados</b> (Beer &amp; Johnston, Apéndice C). A título de comparación se muestra lo que
-        daría la sección idealizada que se dibuja.
+        Cada perfil es <b>una sola figura</b> con valores <b>tabulados</b> (Beer &amp; Johnston, Ap. C); se compara con la sección idealizada dibujada.
       </div>`;
     conPerfil.forEach(fig=>{
       const tb = perfilTab(fig); if(!tb) return;
@@ -383,9 +380,7 @@ function renderResults(res, u4, u2, u1){
           </tbody>
         </table>
         <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;">
-          ${usa
-            ? 'La diferencia proviene de los radios de acuerdo' + ((fig.perfil.fam||'').match(/^(S|C)_/) ? ' y de la conicidad de las alas' : '') + ', que la sección idealizada no reproduce. El cálculo de la sección compuesta usa los valores de la tabla.'
-            : 'La diferencia proviene de los radios de acuerdo, que la sección idealizada no reproduce.'}
+          Diferencia por los radios de acuerdo${(fig.perfil.fam||'').match(/^(S|C)_/) ? ' y la conicidad de las alas' : ''}${usa ? '; el cálculo usa la tabla' : ''}.
         </div>
       </div>`;
     });
@@ -567,8 +562,7 @@ function renderResults(res, u4, u2, u1){
           <text x="66" y="30" font-size="14" font-weight="800" fill="#0d3a8f" text-anchor="middle">+</text><text x="30" y="30" font-size="14" font-weight="800" fill="#c0392b" text-anchor="middle">−</text>
           <text x="30" y="76" font-size="14" font-weight="800" fill="#0d3a8f" text-anchor="middle">+</text><text x="66" y="76" font-size="14" font-weight="800" fill="#c0392b" text-anchor="middle">−</text>
           <text x="90" y="45" font-size="8" fill="#66727e">x</text><text x="51" y="12" font-size="8" fill="#66727e">y</text></svg>
-        <div style="flex:1;min-width:220px;font-size:11.5px">P<sub>xy</sub> es <b>positivo</b> cuando el material queda en los cuadrantes 1 y 3 respecto de los ejes centroidales,
-          <b>negativo</b> en los cuadrantes 2 y 4, y <b>cero</b> si la sección tiene un eje de simetría (cada elemento en (x, y) tiene su pareja en (−x, y)).
+        <div style="flex:1;min-width:220px;font-size:11.5px">P<sub>xy</sub> &gt; 0 con material en los cuadrantes 1 y 3; &lt; 0 en 2 y 4; 0 con un eje de simetría.
           Aquí P<sub>xyG</sub> = ${f(res.Ixy)} ${u4}${Math.abs(res.Ixy) < 1e-9*Math.max(1,Math.abs(res.Ix),Math.abs(res.Iy)) ? ': hay simetría' : (res.Ixy > 0 ? ': pesa más el material de los cuadrantes 1 y 3' : ': pesa más el material de los cuadrantes 2 y 4')}.</div>
       </div>
     </div>
@@ -607,8 +601,7 @@ function renderResults(res, u4, u2, u1){
     <canvas id="mohrCanvas" class="mohr-full"></canvas>
     <div class="proc-block" style="margin-top:8px">
       <div class="proc-subtitle">Gira los ejes y mira el círculo</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Al girar los ejes <b>u, v</b> un ángulo θ sobre la sección, el punto U recorre el círculo un ángulo <b>2θ</b>
-        en el <b>mismo sentido</b>. En θ<sub>p</sub> la asimetría desaparece: P<sub>uv</sub> = 0 e I<sub>u</sub> es I<sub>máx</sub> (o I<sub>mín</sub>).</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Ejes <b>u, v</b> girados θ: el punto U recorre <b>2θ</b> en el círculo; en θ<sub>p</sub>, P<sub>uv</sub> = 0.</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <input type="range" id="mohrSlider" min="-90" max="90" step="0.5" value="${decFix(mohrTheta,'ang')}" oninput="mohrGirar(this.value)" style="flex:1;min-width:180px">
         <span id="mohrSliderVal" style="font-family:var(--mf);font-size:12.5px;min-width:70px">θ = ${decFix(mohrTheta,'ang')}°</span>
@@ -699,9 +692,7 @@ function renderResults(res, u4, u2, u1){
         <div class="proc-block" style="border-left:3px solid #c0392b;padding-left:10px;">
           <div style="font-size:11.5px;color:#c0392b;font-weight:700;">Giro de ${n4(rt.norm)}°: los ejes se intercambian</div>
           <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:4px;">
-            Con θ = ±90° (o ±270°) el eje <b>u</b> queda sobre el eje <b>Y</b> original y el eje <b>v</b> sobre el <b>X</b>.
-            Por eso el valor que aparece como I<sub>u</sub> ya <b>no es la inercia respecto a X</b>, sino la de <b>Y</b>:
-            I<sub>u</sub> = I<sub>yP</sub> y I<sub>v</sub> = I<sub>xP</sub>, con P<sub>uv</sub> = −P<sub>xyP</sub>.
+            Con θ = ±90° los ejes se intercambian: I<sub>u</sub> = I<sub>yP</sub>, I<sub>v</sub> = I<sub>xP</sub>, P<sub>uv</sub> = −P<sub>xyP</sub>.
           </div>
         </div>`;
       }
@@ -771,14 +762,14 @@ function htmlRigidez(res){
   const qTras = mayor && Math.abs(mayor.pIx+mayor.tIx) > 1e-12 ? mayor.tIx/(mayor.pIx+mayor.tIx)*100 : 0;
   return '<div class="proc-block" style="margin-top:12px">'
     + '<div class="proc-subtitle">Dónde está la rigidez</div>'
-    + '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Aporte de cada parte a Ī<sub>xG</sub> e Ī<sub>yG</sub>: la franja clara es la inercia propia Ī y la oscura el traslado A·d² (en rojo si resta). Pasa el ratón para ver la parte en el lienzo.</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Franja clara: inercia propia Ī; oscura: traslado A·d² (rojo si resta). Pasa el ratón para ver la parte.</div>'
     + '<table class="tabla" style="width:100%"><thead><tr><th>Parte</th><th style="width:38%">Ī<sub>xG</sub></th><th style="width:38%">Ī<sub>yG</sub></th></tr></thead><tbody>'
     + filas.map(r=>'<tr onmouseenter="resaltarFigura('+r.fig.id+')" onmouseleave="resaltarFigura(null)" style="cursor:default">'
       + '<td style="white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+r.color+';margin-right:5px;vertical-align:middle"></span>'+(r.i+1)+' · '+esc(r.nom)+(r.fig.sign<0?' (hueco)':'')+'</td>'
       + '<td>'+barra(r.pIx, r.tIx, res.Ix)+'</td><td>'+barra(r.pIy, r.tIy, res.Iy)+'</td></tr>').join('')
     + '</tbody></table>'
     + (mayor ? '<div style="font-size:11px;margin-top:6px">La parte <b>'+(mayor.i+1)+'</b> aporta el <b>'+(mayorPct*100).toFixed(1)+' %</b> de Ī<sub>xG</sub>'
-       + (qTras > 60 ? ', casi todo por el traslado A·d²: el material lejos del eje es el que da rigidez (por eso un perfil I pone las alas lejos del alma).' : (qTras > 0 ? ', y el '+qTras.toFixed(0)+' % de ese aporte es traslado A·d².' : '.')) + '</div>' : '')
+       + (qTras > 60 ? ' (casi todo traslado A·d²).' : (qTras > 0 ? ', el '+qTras.toFixed(0)+' % por traslado A·d².' : '.')) + '</div>' : '')
     + '</div>';
 }
 function resaltarFigura(id){

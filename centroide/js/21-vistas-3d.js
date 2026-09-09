@@ -838,15 +838,15 @@ function renderResults3d(res){
   }
   html += `<div class="proc-block" style="border-left:3px solid ${het?'#c0392b':'var(--grn)'};padding-left:12px;margin-top:10px;">
       <div style="font-size:11.5px;line-height:1.65;color:var(--muted)">${het
-        ? `Cuerpo <b style="color:#c0392b">heterogéneo</b>: el centro de gravedad G queda a ${nL(res.sep)} ${u1} del centroide C, desplazado hacia el material más pesado.`
-        : `Cuerpo <b style="color:var(--grn2)">homogéneo</b>: el peso específico se cancela en el cociente, así que el centroide, el centro de masa y el centro de gravedad son el mismo punto.`}</div></div></div>`;
+        ? `Cuerpo <b style="color:#c0392b">heterogéneo</b>: G a ${nL(res.sep)} ${u1} de C.`
+        : `Cuerpo <b style="color:var(--grn2)">homogéneo</b>: C = G = centro de masa.`}</div></div></div>`;
 
   // Pappus–Guldinus: solo cuando todo es de revolución sobre el mismo eje.
   const pap = (typeof datosPappus === 'function') ? datosPappus() : null;
   let numSec = 4;
   if(pap){
     html += `<div class="res-section"><div class="res-section-title"><div class="num">${numSec++}</div>Comprobación — Pappus y Guldinus</div>
-      <div style="font-size:11.5px;line-height:1.6;color:var(--muted);margin-bottom:8px;">Todos los sólidos son de revolución alrededor del mismo eje vertical, así que cada volumen es el de girar 360° su media sección (área generatriz <i>A<sub>i</sub></i>) alrededor del eje: ${kx('V_i = 2\\pi\\,\\bar{r}_i\\,A_i')}, con <i>r̄<sub>i</sub></i> la distancia del centroide de esa área al eje.</div>
+      <div class="eq-row" style="margin-bottom:8px;"><div class="eq-body">${kx('V_i = 2\\pi\\,\\bar{r}_i\\,A_i')}</div></div>
       <div style="overflow-x:auto;"><table class="tabla-res"><thead><tr><th>N°</th><th>Sólido</th><th>A<sub>i</sub><br><span>(${unit}²)</span></th><th>r̄<sub>i</sub><br><span>(${u1})</span></th><th>2π r̄<sub>i</sub> A<sub>i</sub><br><span>(${u3})</span></th><th>V<sub>i</sub> de la tabla<br><span>(${u3})</span></th></tr></thead><tbody>`;
     pap.filas.forEach((r,i)=>{ html += `<tr><td>${i+1}</td><td>${esc(r.nombre)}</td><td class="v">${f(r.A)}</td><td class="v">${nL(r.r)}</td><td class="v">${f(r.Vp)}</td><td class="v">${f(r.V)}</td></tr>`; });
     html += `<tr class="fila-total"><td colspan="4">Σ (Total)</td><td class="v">${f(pap.Vp)}</td><td class="v">${f(res.V)}</td></tr></tbody></table></div>

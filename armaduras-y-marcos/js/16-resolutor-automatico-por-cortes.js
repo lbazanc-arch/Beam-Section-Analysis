@@ -273,10 +273,8 @@ function renderAutoCortes(){
   let h = '';
   const total = barras.length, porCortes = pasos.reduce((s,p)=>s+p.nuevas, 0);
   h += '<div class="verdict ok"><div class="verdict-t">Secuencia encontrada</div>'
-    + 'El programa ha resuelto <b>' + porCortes + ' de ' + total + ' barras</b> con solo '
-    + '<b>' + pasos.length + ' corte(s)</b>'
-    + (cero.length ? ', además de las ' + cero.length + ' de fuerza cero identificadas por inspección' : '')
-    + '. En cada paso se elige el corte que resuelve más barras de una vez.</div>';
+    + '<b>' + porCortes + ' de ' + total + ' barras</b> con <b>' + pasos.length + ' corte(s)</b>'
+    + (cero.length ? ' (más ' + cero.length + ' de fuerza cero por inspección)' : '') + '.</div>';
 
   pasos.forEach((paso, i)=>{
     const previas = Object.assign({}, resueltas);
@@ -299,7 +297,7 @@ function renderAutoCortes(){
         const nomC = p.centro.nombre || 'O';
         h += '<div class="hint-sm" style="margin:6px 0 2px">Momentos respecto de ' + nomC + ' (' + dec(p.centro.x,'len')
           + ' ; ' + dec(p.centro.y,'len') + ') ' + unitLen
-          + (p.otros.length ? ', por donde pasan ' + p.otros.join(' y ') + ', que así desaparecen' : '') + ':</div>'
+          + (p.otros.length ? ', por donde pasan ' + p.otros.join(' y ') : '') + ':</div>'
           + '<div class="eq-row"><div class="eq-body">'
           + kx('\\sum M_{' + nomC + '} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
                + p.detalle.map(x=>(x.val>=0?' + ':' - ')+fmtNum2(Math.abs(x.val))).join('') + ' = 0')
@@ -329,15 +327,7 @@ function renderAutoCortes(){
 
   const faltan = barras.filter(b=>resueltas[b.id] === undefined);
   if(faltan.length){
-    h += '<div class="teoria"><div class="teoria-t">Barras no alcanzadas por los cortes</div>'
-      + 'Quedan <b>' + faltan.map(b=>nombreBarra(b)).join(', ') + '</b>. '
-      + 'Ningún corte válido las deja con tres o menos incógnitas: se obtienen con el equilibrio de un nudo. '
-      + 'Sus valores aparecen igualmente en la tabla final.</div>';
+    h += '<div class="hint-sm">Sin corte válido para <b>' + faltan.map(b=>nombreBarra(b)).join(', ') + '</b>: salen del equilibrio de un nudo (valores en la tabla final).</div>';
   }
-  h += '<div class="teoria"><div class="teoria-t">Cómo elige el programa</div>'
-    + 'Entre todos los cortes que separan la armadura en dos partes, se descartan los que dejan más de tres '
-    + 'incógnitas, porque una porción solo aporta tres ecuaciones de equilibrio. De los válidos se toma el que '
-    + 'resuelve más barras a la vez y, a igualdad, el de la porción con menos cargas y reacciones: '
-    + 'ecuaciones más cortas y menos ocasiones de equivocarse.</div>';
   return h;
 }

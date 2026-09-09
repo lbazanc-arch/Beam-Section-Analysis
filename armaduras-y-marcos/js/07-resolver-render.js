@@ -96,9 +96,8 @@ function renderResultados(res){
     + '<div class="res-title"><div class="num">\u21c4</div>\u00bfEs una estructura sim\u00e9trica?</div>'
     + (sim.simetrica
         ? '<div class="verdict ok"><div class="verdict-t">S\u00ed, es sim\u00e9trica</div>'
-          + 'La geometr\u00eda, las cargas y las reacciones son sim\u00e9tricas respecto a un eje vertical en x = '
-          + dec(sim.eje,'len') + ' ' + unitLen + '. Esto permite anticipar, sin resolver todo el sistema, que '
-          + 'las barras que se reflejan entre s\u00ed soportan la misma fuerza.' + parejasHtml + '</div>'
+          + 'Eje vertical en x = ' + dec(sim.eje,'len') + ' ' + unitLen + ': las barras reflejadas comparten fuerza.'
+          + parejasHtml + '</div>'
         : (sim.antisimetrica
         ? '<div class="verdict ok"><div class="verdict-t">Geometr\u00eda sim\u00e9trica, carga antisim\u00e9trica</div>'
           + sim.motivo + parejasHtml + '</div>'
@@ -110,8 +109,7 @@ function renderResultados(res){
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">1</div>Estabilidad y determinación estática</div>'
     + '<div class="verdict ok"><div class="verdict-t">Resultado</div>'
-    + '<b>Armadura isostática.</b> El número de incógnitas coincide con el de ecuaciones de equilibrio, '
-    + 'así que puede resolverse con la estática por el método de nudos o por el de secciones.</div>'
+    + '<b>Armadura isostática.</b></div>'
     + '<div class="proc-block proc-cols">'
     + '<div class="proc-col"><div class="proc-sub">Conteo</div>'
     + '<div class="eq-row"><div class="eq-body">'
@@ -157,7 +155,7 @@ function renderResultados(res){
     + '<div class="res-title"><div class="num">3</div>Miembros de fuerza cero</div>';
   if(cero.length){
     h += '<div class="verdict"><div class="verdict-t">Identificados por inspección</div>'
-      + 'Estas barras no trabajan bajo esta carga. Reconocerlas <b>antes</b> de calcular ahorra buena parte del trabajo.</div>'
+      + cero.length + ' barra(s) de fuerza cero.</div>'
       + '<table class="tabla"><thead><tr><th>Barra</th><th>Nudo</th><th>Regla aplicada</th>'
       + '<th class="r">Fuerza ('+uF+')</th></tr></thead><tbody>';
     cero.forEach(c=>{
@@ -171,8 +169,7 @@ function renderResultados(res){
     h += '</tbody></table>';
   } else {
     h += '<div class="verdict"><div class="verdict-t">Resultado</div>'
-      + 'Ninguna barra cumple las reglas de fuerza cero en esta configuración. '
-      + 'Aun así, alguna puede resultar nula al desarrollar el cálculo.</div>';
+      + 'Ninguna barra de fuerza cero por inspección.</div>';
   }
   h += '</div>';
 
@@ -192,9 +189,8 @@ function renderResultados(res){
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">4</div>Método de nudos, paso a paso</div>'
     + '<div class="verdict"><div class="verdict-t">Orden de resolución</div>'
-    + 'Los nudos se recorren de modo que en cada uno queden como máximo <b>dos incógnitas</b>, '
-    + 'porque en cada nudo solo hay dos ecuaciones: '
-    + kx('\\sum F_x = 0') + ' y ' + kx('\\sum F_y = 0') + '.</div>';
+    + orden.map(p=>'<b>' + p.nodo.nombre + '</b>').join(' \u2192 ')
+    + ' <span style="color:var(--muted)">(como máximo dos incógnitas por nudo)</span></div>';
 
   orden.forEach((paso, i)=>{
     const n = paso.nodo;
@@ -243,7 +239,7 @@ function renderResultados(res){
       });
     } else {
       h += '<div class="hint-sm" style="margin-top:8px;color:var(--muted)">'
-         + 'Todas las barras de este nudo ya se conocen: sirve como comprobación del equilibrio.</div>';
+         + 'Comprobación: todas las barras ya conocidas.</div>';
     }
 
     h += '</div><div><svg class="joint-svg" id="dcl-'+n.id+'" viewBox="0 0 190 168"></svg></div>';
@@ -288,20 +284,12 @@ function renderTablaFinal(res){
     + '<div class="summary-box"><div class="s-lbl">Total</div><div class="s-val">'+barras.length+'</div><div class="s-unit">barras</div></div>'
     + '</div>';
 
-  h += '<div class="teoria"><div class="teoria-t">Cómo leer el signo</div>'
-    + 'El cálculo se plantea suponiendo <b>todas las barras en tracción</b>: la barra tira del nudo hacia afuera. '
-    + 'Si el resultado sale <b>positivo</b>, la suposición era correcta y la barra está en <b style="color:#1d4ed8">tracción</b>. '
-    + 'Si sale <b>negativo</b>, la barra en realidad empuja al nudo y trabaja en '
-    + '<b style="color:#c0392b">compresión</b>. Por eso en la tabla se muestra el valor absoluto junto con su naturaleza.'
-    + '</div></div>';
+  h += '<div class="hint-sm" style="margin-top:8px">Signo: + = tracción (T), − = compresión (C); la tabla muestra el valor absoluto con su naturaleza.</div></div>';
 
   // ── 6. Variación de cargas ──
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">6</div>¿Qué pasa si cambio las cargas?</div>'
-    + '<div class="verdict"><div class="verdict-t">Cómo funciona</div>'
-    + 'Una armadura isostática es <b>lineal</b>: no puedes fijar a mano la fuerza de una barra '
-    + '(quedaría fuera de equilibrio), pero sí cambiar las cargas y ver exactamente cómo responde cada barra. '
-    + 'Modifica los valores y compara con el caso original.</div>'
+    + '<div class="hint-sm" style="margin-bottom:8px">Cambia las cargas, pulsa Recalcular y compara con el caso original.</div>'
     + '<div class="proc-block"><div class="proc-sub">Cargas aplicadas</div>'
     + '<div id="cargasEdit">' + renderCargasEdit() + '</div>'
     + '</div>'
@@ -316,10 +304,7 @@ function renderTablaFinal(res){
   // ── 7. Capacidad admisible ──
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">7</div>¿Qué barra falla primero?</div>'
-    + '<div class="verdict"><div class="verdict-t">Verificación por resistencia</div>'
-    + 'Indica la fuerza admisible de las barras. La app calcula el aprovechamiento de cada una, '
-    + 'señala la que gobierna el diseño y el factor por el que podrían multiplicarse las cargas '
-    + 'antes de que la primera barra llegue a su límite.</div>'
+    + '<div class="hint-sm" style="margin-bottom:8px">Indica la fuerza admisible en tracción y en compresión: se evalúa el aprovechamiento de cada barra y cuál gobierna.</div>'
     + '<div class="proc-block">'
     + '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
     + '<label style="font-size:11.5px;font-weight:700">Admisible en tracción</label>'
@@ -329,14 +314,11 @@ function renderTablaFinal(res){
     + '<span style="font-size:11px;color:var(--muted)">'+uF+'</span>'
     + '<button class="mbtn" style="padding:7px 14px" onclick="evaluarCapacidad()">Evaluar</button>'
     + '</div>'
-    + '<div class="hint-sm" style="margin-top:6px">En compresión suele admitirse menos por el riesgo de pandeo.</div>'
     + '</div>'
     + '<div id="capBox"></div>'
     + '<div class="proc-block" id="simBlock" style="display:none">'
     + '<div class="proc-sub">Módulo dinámico: aumenta UNA carga y observa qué barra falla primero</div>'
-    + '<div class="hint-sm" style="margin-bottom:8px">Elige qué carga quieres variar. Se aumenta su '
-    + '<b>módulo</b> (la resultante) manteniendo su dirección; las demás cargas siguen igual. '
-    + 'Según cuál elijas, la barra que falla primero puede ser distinta.</div>'
+    + '<div class="hint-sm" style="margin-bottom:8px">Elige la carga que se aumenta (módulo, misma dirección).</div>'
     + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
     + '<span style="font-size:11px;color:var(--muted);font-weight:700">Carga en el nudo</span>'
     + '<select id="simNodo" onchange="prepararSim()" style="padding:6px 9px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px"></select>'
