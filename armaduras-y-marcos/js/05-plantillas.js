@@ -116,7 +116,7 @@ const EJEMPLOS = [
 
 function abrirEjemplos(){
   const el = document.getElementById('ejLista');
-  const lista = EJEMPLOS.concat(typeof EJEMPLOS_MARCO !== 'undefined' ? EJEMPLOS_MARCO : []);   // bastidores (19-)
+  const lista = EJEMPLOS;
   // Un solo ejemplo a la vista; los demás siguen en el código como casos de
   // verificación, que es lo que contrasta la consola (CLAUDE.md §4).
   if(el) el.innerHTML = lista.slice(0,1).map((e,i)=>
@@ -150,12 +150,12 @@ function comprobarEjemplo(ej){
 
 // Sin argumento carga el primero, para no romper llamadas antiguas.
 function cargarEjemplo(id){
-  const lista = EJEMPLOS.concat(typeof EJEMPLOS_MARCO !== 'undefined' ? EJEMPLOS_MARCO : []);
+  const lista = EJEMPLOS;
   const ej = lista.find(e=>e.id === id) || EJEMPLOS[0];
   nodos = []; barras = []; nodoSeq = 0; barraSeq = 0; resultado = null;
   ej.armar();
-  normalizarCargasArm();          // deja todo en el convenio vigente (19-marcos.js)
+  normalizarCargasArm();          // deja todo en el convenio vigente (10-modales.js)
   reNombrar(); centrar(); refrescar(); resolver();
-  if(ej.marco) comprobarEjemploMarco(ej); else comprobarEjemplo(ej);
+  comprobarEjemplo(ej);
   cerrarEjemplos();
 }

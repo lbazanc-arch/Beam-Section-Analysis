@@ -66,7 +66,6 @@ function _iconoSentido(fx, fy){
 
 function construirLatex(){
   if(!resultado || resultado.error){ aviso('Primero resuelve la armadura sin errores.'); return null; }
-  if(resultado.marco) return construirLatexMarco();   // bastidor: informe propio (19-marcos.js)
   _yaDichoArm = {};
   const uL = unitLen, uF = unitFor;
   const uM = escLatex(unitFor) + '\\cdot' + escLatex(unitLen);

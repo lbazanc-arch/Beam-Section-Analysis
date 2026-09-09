@@ -63,7 +63,6 @@ function colorBarra(f){
 }
 
 function dibujarApoyo(n){
-  if(n.apoyo === 'empotrado'){ dibujarApoyoEmpotrado(n); return; }   // 19-marcos.js
   const [px,py] = aPantalla(n.x, n.y);
   ctx.strokeStyle = '#563aa8'; ctx.fillStyle = '#563aa8'; ctx.lineWidth = 2;
   if(n.apoyo === 'fijo'){
@@ -91,7 +90,7 @@ function dibujarApoyo(n){
 
 function dibujarCarga(n){
   // Fuente de verdad: n.cargas, cada una con su magnitud y su dirección
-  // (19-marcos.js). Si el nudo viene de un formato antiguo, la resultante fx/fy
+  // (10-modales.js). Si el nudo viene de un formato antiguo, la resultante fx/fy
   // se lee como una única carga implícita para no perder dibujos guardados.
   const lista = (n.cargas && n.cargas.length) ? n.cargas
               : ((!esCero(n.fx||0) || !esCero(n.fy||0)) ? _cargasNudoDeComponentes(n.fx||0, n.fy||0) : []);
@@ -99,20 +98,6 @@ function dibujarCarga(n){
   const [px,py] = aPantalla(n.x, n.y);
   const L = 46;
   lista.forEach(c=>{
-    // Par aplicado en el nudo: arco con su valor.
-    if(typeof esParNudo === 'function' && esParNudo(c)){
-      if(esCero(c.mag || 0)) return;
-      const R = 16, ccw = c.mag > 0;
-      ctx.strokeStyle = '#c0392b'; ctx.fillStyle = '#c0392b'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(px, py, R, ccw ? -0.2 : Math.PI+0.2, ccw ? -Math.PI*1.3 : -Math.PI*0.3, true); ctx.stroke();
-      const ae = ccw ? -Math.PI*1.3 : -Math.PI*0.3;
-      ctx.save(); ctx.translate(px + R*Math.cos(ae), py + R*Math.sin(ae)); ctx.rotate(ae + (ccw ? -Math.PI/2 : Math.PI/2));
-      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-9,-4); ctx.lineTo(-9,4); ctx.closePath(); ctx.fill(); ctx.restore();
-      ctx.font = '600 11px Inter, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(dec(Math.abs(c.mag),'f') + ' ' + unitFor + '\u00b7' + unitLen, px, py - R - 7);
-      ctx.textAlign = 'start';
-      return;
-    }
     const q = compCargaNudo(c);
     if(esCero(q.fx) && esCero(q.fy)) return;
     const mag = Math.hypot(q.fx, q.fy);
@@ -236,12 +221,11 @@ function dibujarCuadroBarra(){
   const f = resultado ? resultado.fuerzas[b.id] : null;
   const L = Math.hypot(nb.x-na.x, nb.y-na.y);
   let l2, col = '#563aa8';
-  if(esViga(b)) l2 = (resultado && resultado.marco) ? 'Viga / marco: N, V y M en los resultados' : 'Viga / marco (N, V, M) · sin resolver';
-  else if(f === null || f === undefined) l2 = 'Sin resolver';
+  if(f === null || f === undefined) l2 = 'Sin resolver';
   else if(esCero(f)){ l2 = 'Fuerza cero'; col = '#9aa3ad'; }
   else { l2 = dec(Math.abs(f),'f')+' '+unitFor+(f>0?'  (tracción)':'  (compresión)');
          col = f>0 ? '#1d4ed8' : '#c0392b'; }
-  const l1 = (esViga(b) ? 'Viga / marco ' : 'Barra ') + nombreBarra(b);
+  const l1 = 'Barra ' + nombreBarra(b);
   const l3 = 'L = '+dec(L,'len')+' '+unitLen;
   ctx.font = '800 12px Inter, sans-serif';
   let w = ctx.measureText(l1).width;
@@ -303,7 +287,6 @@ function dibujarFuerzasBarras(){
   barras.forEach(b=>{
     const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
     if(!na || !nb) return;
-    if(resultado.marco && !resultado.dosFuerzas[b.id]) return;   // una viga o marco no tiene una sola fuerza
     const f = resultado.fuerzas[b.id];
     const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(nb.x, nb.y);
     const mx = (x1+x2)/2, my = (y1+y2)/2, dx = x2-x1, dy = y2-y1, L = Math.hypot(dx,dy) || 1;
@@ -439,20 +422,11 @@ function dibujar(){
     if(!na || !nb) return;
     const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(nb.x, nb.y);
     const f = resultado ? resultado.fuerzas[b.id] : null;
-    if(esViga(b)){
-      // viga o marco (19-marcos.js): banda clara con el eje encima, para
-      // distinguirla de la barra de armadura
-      ctx.strokeStyle = 'rgba(86,58,168,.20)'; ctx.lineWidth = 10;
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      ctx.strokeStyle = '#563aa8'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-    } else {
-      ctx.strokeStyle = colorBarra(f);
-      ctx.lineWidth = resultado ? (esCero(f) ? 2 : 3.4) : 3;
-      if(resultado && esCero(f)) ctx.setLineDash([6,4]);
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    ctx.strokeStyle = colorBarra(f);
+    ctx.lineWidth = resultado ? (esCero(f) ? 2 : 3.4) : 3;
+    if(resultado && esCero(f)) ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.setLineDash([]);
     // Resalte de la barra seleccionada. Los valores ya NO se rotulan todos a la
     // vez: se encabalgaban. Solo se muestra el recuadro de la barra elegida.
     if(selBarra === b.id || selBarras.indexOf(b.id) >= 0){
@@ -462,19 +436,18 @@ function dibujar(){
   });
   dibujarCorte();
 
-  // barra o viga en curso (la viga, más gruesa)
-  if((tool==='barra' || tool==='viga') && selNodo!==null){
+  // barra en curso
+  if(tool==='barra' && selNodo!==null){
     const na = nodos.find(n=>n.id===selNodo);
     if(na && mouseW){
       const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(mouseW[0], mouseW[1]);
-      ctx.strokeStyle = 'rgba(124,92,214,.45)'; ctx.lineWidth = tool==='viga' ? 6 : 2.4; ctx.setLineDash([7,5]);
+      ctx.strokeStyle = 'rgba(124,92,214,.45)'; ctx.lineWidth = 2.4; ctx.setLineDash([7,5]);
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
     }
   }
 
   if(VIS.apoyos) nodos.forEach(n=>{ if(n.apoyo) dibujarApoyo(n); });
   if(VIS.cargas) nodos.forEach(n=>dibujarCarga(n));
-  if(VIS.cargas && typeof dibujarCargasBarras === 'function') dibujarCargasBarras();   // cargas sobre barras (19-)
   if(VIS.cotas) dibujarCotasArmadura();
   if(resultado && VIS.fuerzas) dibujarFuerzasBarras();
 
@@ -488,7 +461,7 @@ function dibujar(){
       ctx.strokeStyle = '#7c5cd6'; ctx.lineWidth = 2; ctx.stroke();
     }
     ctx.beginPath();
-    if(n.union === 'rigido') ctx.rect(px-6.5, py-6.5, 13, 13); else ctx.arc(px, py, 6.5, 0, Math.PI*2);   // cuadrado = unión rígida
+    ctx.arc(px, py, 6.5, 0, Math.PI*2);
     ctx.fillStyle = (selNodo===n.id) ? '#7c5cd6' : '#563aa8';
     ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
@@ -496,7 +469,7 @@ function dibujar(){
     ctx.fillText(n.nombre, px+10, py-8);
   });
 
-  if(resultado && !resultado.marco) dibujarOrdenNudos();
+  if(resultado) dibujarOrdenNudos();
 
   // reacciones resueltas
   if(resultado){

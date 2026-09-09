@@ -57,8 +57,8 @@ const MAX_HISTORIAL = 60;
 function instantanea(){
   return JSON.stringify({
     nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre, apoyo:n.apoyo,
-                          apAng:n.apAng, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope, union:n.union})),
-    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b, tipo:tipoBarra(b), cargas:cargasDeBarra(b).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB})),
+                          apAng:n.apAng, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope})),
+    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b})),
     nodoSeq, barraSeq
   });
 }
@@ -75,9 +75,9 @@ function restaurarInstantanea(txt){
   const e = JSON.parse(txt);
   nodos = e.nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre||'',
             apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:90), fx:n.fx||0, fy:n.fy||0,
-            cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope||null, union:n.union||'pasador'}));
-  barras = e.barras.map(b=>({id:b.id, a:b.a, b:b.b, tipo:b.tipo, cargas:(b.cargas||[]).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB}));
-  normalizarTiposBarra(); normalizarCargasArm();
+            cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope||null}));
+  barras = e.barras.map(b=>({id:b.id, a:b.a, b:b.b}));
+  normalizarCargasArm();
   nodoSeq = e.nodoSeq; barraSeq = e.barraSeq;
   // La selección puede apuntar a elementos que ya no existen tras restaurar.
   selNodos = selNodos.filter(id=>nodos.some(n=>n.id===id));
@@ -109,8 +109,8 @@ function actualizarBotonesHistorial(){
 function estadoActual(){
   return {
     nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, apoyo:n.apoyo, apAng:n.apAng, fx:n.fx, fy:n.fy,
-                          cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), union:n.union||'pasador'})),
-    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b, tipo:tipoBarra(b), cargas:cargasDeBarra(b).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB})),
+                          cargas:(n.cargas||[]).map(c=>Object.assign({}, c))})),
+    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b})),
     unidades: {len: unitLen, fuerza: unitFor},
     decimales: DEC,
     metodo: (typeof metodo !== 'undefined') ? metodo : 'nudos'
@@ -162,6 +162,17 @@ function pintarHistorial(){
   }).join('');
 }
 
+// Un archivo de cuando el tema resolvía bastidores (2026-09-09 al 09-10) trae
+// vigas, uniones rígidas y cargas entre extremos. Todo eso ya no existe: se
+// abre como armadura y se avisa, en vez de perderlo en silencio.
+function _avisarRestosDeMarco(e){
+  const b = e.barras || [], n = e.nodos || [];
+  const hayViga = b.some(z=>z.tipo === 'viga' || (z.cargas || []).length || z.artA || z.artB);
+  const hayRigido = n.some(z=>z.union === 'rigido' || z.apoyo === 'empotrado' || (z.cargas || []).some(c=>c && c.tipo === 'M'));
+  if(hayViga || hayRigido)
+    aviso('Este ejercicio tenía vigas o marcos. Se abre solo con las barras y las cargas de nudo.', 'error');
+}
+
 function cargarProyecto(id){
   const it = histItems.find(x=>x.id===id);
   if(!it || !it.estado){ aviso('Ese ejercicio no tiene datos para abrir.', 'error'); return; }
@@ -169,9 +180,9 @@ function cargarProyecto(id){
   try{
     nodos = (e.nodos||[]).map(n=>({id:n.id, x:n.x, y:n.y, nombre:'',
               apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:90), fx:n.fx||0, fy:n.fy||0,
-              cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:null, union:n.union||'pasador'}));
-    barras = (e.barras||[]).map(b=>({id:b.id, a:b.a, b:b.b, tipo:b.tipo, cargas:(b.cargas||[]).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB}));
-    normalizarTiposBarra();          // archivos sin `tipo` (anteriores al 2026-09-09)
+              cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:null}));
+    barras = (e.barras||[]).map(b=>({id:b.id, a:b.a, b:b.b}));
+    _avisarRestosDeMarco(e);
     normalizarCargasArm();           // y sin magnitud + dirección en las cargas
     nodoSeq = nodos.reduce((m,n)=>Math.max(m,n.id), 0);
     barraSeq = barras.reduce((m,b)=>Math.max(m,b.id), 0);

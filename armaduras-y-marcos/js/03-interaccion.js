@@ -41,12 +41,12 @@ function addNodo(x, y){
   nodos.push(n); reNombrar(); return n;
 }
 
-// tipo: 'barra' (armadura, dos fuerzas) o 'viga' (viga o marco, con N, V y M); ver 19-marcos.js.
-function addBarra(a, b, tipo){
+// Una barra de armadura: dos fuerzas, siempre articulada, solo N.
+function addBarra(a, b){
   if(a===b) return null;
   if(barras.some(m=>(m.a===a&&m.b===b)||(m.a===b&&m.b===a))) return null;
   registrarCambio();
-  const m = {id:++barraSeq, a, b, tipo: tipo === 'viga' ? 'viga' : 'barra'};
+  const m = {id:++barraSeq, a, b};
   barras.push(m); return m;
 }
 
@@ -75,16 +75,14 @@ function onCanvasDown(e){
   const n = nodoEn(mx, my);
   const [wx, wy] = aMundo(mx, my);
 
-  if(tool === 'barra' || tool === 'viga'){
+  if(tool === 'barra'){
     // Construcción NUDO A NUDO, como en fuerzas-internas: cada clic coloca un
     // nudo —o reutiliza el que haya debajo— y lo une al anterior, encadenando.
     // No hay herramienta de nudo suelto: un nudo existe porque es el extremo de
     // una pieza. La cadena se corta al cambiar de herramienta o con Esc.
     const nn = n || addNodo(wx, wy);
     if(selNodo !== null && selNodo !== nn.id){
-      const nb = addBarra(selNodo, nn.id, tool);
-      // dos vigas en un nudo: unión rígida por defecto (19-marcos.js)
-      if(nb && tool === 'viga'){ unirVigasEnNudo(nb.a, nb); unirVigasEnNudo(nb.b, nb); }
+      addBarra(selNodo, nn.id);
     }
     selNodo = nn.id; resultado = null;
     refrescar();
@@ -179,7 +177,7 @@ function onCanvasMove(e){
     }
   }
 
-  if(dragNodo !== null || ((tool==='barra' || tool==='viga') && selNodo!==null)) dibujar();
+  if(dragNodo !== null || (tool==='barra' && selNodo!==null)) dibujar();
 }
 function onCanvasUp(){
   soltarPan();
@@ -189,7 +187,7 @@ function onCanvasUp(){
     const L = Math.hypot(corte.x2-corte.x1, corte.y2-corte.y1);
     if(L < 1e-6) corte = null;
     refrescar();
-    if(metodo === 'secciones' && resultado && !resultado.marco){
+    if(metodo === 'secciones' && resultado){
       const c = document.getElementById('corteBox');
       if(c){ c.innerHTML = renderSeccionCorte();
              try{ renderKatex(c); }catch(e){} }
@@ -275,7 +273,7 @@ function segmentosCruzan(ax,ay,bx,by, cx,cy,dx,dy){
 
 function setTool(t){
   tool = t; selNodo = null;
-  ['barra','viga','apoyo','corte','sel','pan'].forEach(k=>{
+  ['barra','apoyo','corte','sel','pan'].forEach(k=>{
     const el = document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
@@ -283,7 +281,6 @@ function setTool(t){
   if(bd) bd.classList.toggle('active', t==='borrar');
   const hints = {
     barra:'Barra de armadura: dos fuerzas, solo N. Cada clic coloca un nudo y lo une al anterior; Esc corta la cadena.',
-    viga:'Viga o marco: elemento rígido con N, V y M. Cada clic coloca un nudo y lo une al anterior; Esc corta la cadena.',
     apoyo:'Haz clic sobre un nudo y elige el tipo de apoyo, o quítalo.',
     corte:'Arrastra una línea que atraviese la armadura de lado a lado.',
     pan:'Arrastra el lienzo para desplazar la vista.',
@@ -432,7 +429,6 @@ function abrirEdNodo(id){
   document.getElementById('edNy').value = n.y;
   document.getElementById('edNuL').textContent = unitLen;
   document.getElementById('edNuF').textContent = unitFor;
-  if(typeof pintarUnionNodo === 'function') pintarUnionNodo(n);
   const nCargas = (n.cargas && n.cargas.length) ? n.cargas.length : ((!esCero(n.fx||0)||!esCero(n.fy||0)) ? 1 : 0);
   const rc = document.getElementById('edNCargasResumen');
   if(rc) rc.textContent = nCargas
@@ -470,12 +466,6 @@ function abrirEdBarra(id){
   document.getElementById('edBy2').value = nb.y;
   document.getElementById('edBlen').textContent =
     dec(Math.hypot(nb.x-na.x, nb.y-na.y),'len') + ' ' + unitLen;
-  // Bastidores (19-): tipo de pieza, cargas sobre la viga y extremos articulados.
-  pintarTipoBarra(b);
-  const c1 = document.getElementById('edBn1c'), c2 = document.getElementById('edBn2c');
-  if(c1) c1.textContent = na.nombre; if(c2) c2.textContent = nb.nombre;
-  const ka = document.getElementById('edBartA'), kb = document.getElementById('edBartB');
-  if(ka) ka.checked = !!b.artA; if(kb) kb.checked = !!b.artB;
   document.getElementById('edBarraModal').classList.add('show');
   dibujar();
 }

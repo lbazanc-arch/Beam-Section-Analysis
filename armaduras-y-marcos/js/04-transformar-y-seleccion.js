@@ -1,7 +1,7 @@
 // Deja marcado el apoyo que tiene el nudo: con cuatro botones parecidos era
 // imposible saber cuál estaba puesto (bloque 4, 2026-09-09).
 function marcarApoyoArm(n){
-  const cual = {fijo:'apbFijo', movil:'apbMovil', empotrado:'apbEmpotrado'};
+  const cual = {fijo:'apbFijo', movil:'apbMovil'};
   Object.keys(cual).forEach(k=>{
     const b = document.getElementById(cual[k]);
     if(b) b.classList.toggle('active', n.apoyo === k);
@@ -33,7 +33,6 @@ function setApoyo(tipo){
   if(n){
     n.apoyo = tipo;
     if(tipo === 'movil' && n.apAng === undefined) n.apAng = 90;  // vertical por defecto
-    if(tipo === 'empotrado') n.union = 'rigido';                 // el empotramiento fija el nudo (19-marcos.js)
     resultado = null;
   }
   actualizarPrevApoyo();
@@ -55,14 +54,12 @@ function setApAng(ang){
 function descApoyoLargo(n){
   if(!n.apoyo) return 'sin apoyo';
   if(n.apoyo === 'fijo') return 'apoyo fijo (2 reacciones)';
-  if(n.apoyo === 'empotrado') return 'empotramiento (3 reacciones)';
   return 'apoyo móvil (1 reacción ' + (n.apAng===0 ? 'horizontal' : 'vertical') + ')';
 }
 // Texto corto (lista de nudos).
 function descApoyoCorto(n){
   if(!n.apoyo) return '';
   if(n.apoyo === 'fijo') return 'apoyo fijo';
-  if(n.apoyo === 'empotrado') return 'empotrado';
   return 'apoyo móvil (' + (n.apAng===0 ? 'X' : 'Y') + ')';
 }
 
@@ -314,11 +311,11 @@ function applyReplicar(){
     orig.forEach(id=>{
       const o = nodos.find(z=>z.id===id);
       if(!o) return;
-      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>Object.assign({}, c)), nombre:'', union:o.union};
+      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>Object.assign({}, c)), nombre:''};
       nodos.push(nn); mapa[id] = nn.id; nuevosN.push(nn.id);
     });
-    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b], tipoBarra(b));
-      if(nb){ nb.cargas = cargasDeBarra(b).map(c=>Object.assign({}, c)); nb.artA = !!b.artA; nb.artB = !!b.artB; nuevasB.push(nb.id); } } });
+    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b]);
+      if(nb) nuevasB.push(nb.id); } });
   }
   reNombrar(); resultado = null;
   // Las copias quedan seleccionadas y la vista no se mueve, como en los demás
@@ -400,11 +397,9 @@ function pintarLista(){
   if(cn) cn.textContent = nodos.length;
   if(cb) cb.textContent = barras.length;
   const cargados = nodos.filter(n=>(n.cargas || []).length);
-  const barrasCargadas = barras.filter(b=>cargasDeBarra(b).length);   // bastidores (19-)
-  if(cc) cc.textContent = cargados.reduce((a,n)=>a+n.cargas.length, 0) + barrasCargadas.reduce((a,b)=>a+cargasDeBarra(b).length, 0);
-  { const mh = document.getElementById('metMarcoHint'); if(mh) mh.style.display = (typeof esMarco === 'function' && esMarco()) ? '' : 'none'; }
+  if(cc) cc.textContent = cargados.reduce((a,n)=>a+n.cargas.length, 0);
   if(bc){
-    if(!cargados.length && !barrasCargadas.length){ bc.innerHTML = '<div class="list-empty">Sin cargas todav\u00eda.</div>'; }
+    if(!cargados.length){ bc.innerHTML = '<div class="list-empty">Sin cargas todav\u00eda.</div>'; }
     else {
       let h = '';
       // Una fila por CARGA, no por pieza: el lápiz abre esa carga y la cruz la
@@ -414,17 +409,8 @@ function pintarLista(){
           const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
           h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
              + '<div class="nm">Nudo ' + n.nombre + ' \u00b7 ' + descCargaNudo(c) + '</div>'
-             + '<button class="x" title="Editar" onclick="editarCargaArm(&quot;nudo&quot;,'+n.id+','+i+')">\u270e</button>'
-             + '<button class="x" title="Quitar" onclick="borrarCargaArm(&quot;nudo&quot;,'+n.id+','+i+')">\u00d7</button></div>';
-        });
-      });
-      barrasCargadas.forEach(b=>{
-        cargasDeBarra(b).forEach((c, i)=>{
-          const marc = selBarras.indexOf(b.id) >= 0 ? ' sel' : '';
-          h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
-             + '<div class="nm">' + nombreBarra(b) + ' \u00b7 ' + descCarga(c) + '</div>'
-             + '<button class="x" title="Editar" onclick="editarCargaArm(&quot;pieza&quot;,'+b.id+','+i+')">\u270e</button>'
-             + '<button class="x" title="Quitar" onclick="borrarCargaArm(&quot;pieza&quot;,'+b.id+','+i+')">\u00d7</button></div>';
+             + '<button class="x" title="Editar" onclick="editarCargaArm('+n.id+','+i+')">\u270e</button>'
+             + '<button class="x" title="Quitar" onclick="borrarCargaArm('+n.id+','+i+')">\u00d7</button></div>';
         });
       });
       bc.innerHTML = h;
@@ -437,7 +423,6 @@ function pintarLista(){
       nodos.forEach(n=>{
         const extra = [];
         if(n.apoyo) extra.push(descApoyoCorto(n));
-        if(n.union === 'rigido') extra.push('unión rígida');
         if(!esCero(n.fx) || !esCero(n.fy)) extra.push('carga');
         const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
         h += '<div class="item-row'+marc+'"><div class="dot" style="background:#563aa8"></div>'
@@ -459,14 +444,13 @@ function pintarLista(){
         const L = Math.hypot(nb2.x-na.x, nb2.y-na.y);
         const marc = selBarras.indexOf(b.id) >= 0 ? ' sel' : '';
         let col = '#7c5cd6';
-        if(resultado && !(resultado.marco && !resultado.dosFuerzas[b.id])){
+        if(resultado){
           const f = resultado.fuerzas[b.id];
           col = esCero(f) ? '#9aa3ad' : (f>0 ? '#1d4ed8' : '#c0392b');
         }
         h += '<div class="item-row'+marc+'"><div class="dot" style="background:'+col+'"></div>'
            + '<div class="nm">' + na.nombre + nb2.nombre + ' \u00b7 L = ' + dec(L,'len') + ' ' + unitLen
-           + (esViga(b) ? ' \u00b7 viga / marco' : '')
-           + (cargasDeBarra(b).length ? ' \u00b7 ' + cargasDeBarra(b).length + ' carga(s)' : '') + '</div>'
+           + '</div>'
            + '<button class="x" title="Editar" onclick="abrirEdBarra('+b.id+')">\u270e</button>'
            + '<button class="x" onclick="borrarBarra('+b.id+')">\u00d7</button></div>';
       });

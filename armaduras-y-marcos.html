@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BSA — Armaduras y Marcos</title>
+<title>BSA — Armaduras</title>
 <!-- Icono de pestaña. Incrustado en base64 para que funcione también si
      el archivo se abre suelto desde el disco, sin servidor detrás. -->
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAABmJLR0QA/wD/AP+gvaeTAAAE80lEQVRIie1WXWxTZRh+vu+c9qw/a8c2Vsa2joVB2JyDsQ3EjbmBCEIiEIOJCSIIRsEYjYmaoImaGAM3JHqriXGJtwpuapDIymg3xspoYVugbGx23U/bdf3Z2p7+nHO8OLPUthBvuDG8ORfne9/vfZ7ve8/7PjlEkiQ8TqOPFf0JwX8xFkBwxsqHXOleRqlRqIp0hqcJVaScroWl2cCSKEnxpJhqjdqyomg0dMnaf6h9V75ak4MgwQfGLWeRq5dYTl+x+fiKimdD0XjXzfEZ/1LGBkpIXXnxe9+ctY87pjxznx19OxuESmJSRleoCjmNQX5YLh9AMhb0Oy1OX/CHqyMyuoKheQpWp1IWqDmDXrOpsmTWO20fdwC4YDbFE4ncJZLN2PiWtqQWogiAsnmhuSGXrdNQf+z7a/f5RJISsrnK0LTGIELiWAYAIYRjmS87v5XTg+Elk836QvO2hxKIySjDqlJL/epmfWnTLdd8NJ4E0FRlaNtQQci/kgVB6O7vTS1/vno5m+CRXUTIYjQOgFMw9caVGegALMM2b8APwGgoBWCyWQNLiw8lEIUcFaSEAFAwVKVks6PnzT0AdGrNF8dOAognEr8PmB9BEMuGUCQ8ACKxpD+cGY3w/KXBawAOtu1srW8oLSoGcMFseiiBkIhkxALTA8zUT5QQUZIuDU/Gk2J61GSzRmI8gFd37qGE7G/tAGC9Ozo978kgWJ6AyMJ4YPr6ovtWyG33T/VPDX030XdOCo7WFIsA3MFIp3l4aNLtWljkE0kAMlDtmrXryo0ADrZ2AJAk6RfLlXSCB5UNTA8EpgcyLqHUlLTXVC2KC05fyB+O/TniBEAIKov1B557kVMoKV3+9NXlxrqq6uGJsfPmnpP7D+UoUU4TEmEq8i83r2tZX6bhlmVDkjDpDf5oGW1vaju8a19q88HtOwCMuZwjE+MpJ4mFPcPdJwFUbftAXbhWEhKEMolowDd52TdhAiROu6pm9znKKAEEI7FFPj7hDVrvu5OiyFJ6tK1uhYaTsXyhwLZTrwuCcHzfgdOHT2TegFGoOY0hT1fOaUu1K2sqm99Z2/oRQGJLc37ncvPp1Vx5Yf7GihXbq4sAJEXxxsRcCqFIV9Dy1EYAXZZeQRSzS5Spd/rVzfrSBgDBmRvp/u6+3jfPfFyoIgA8ociUx33kq0/3n35/z4enbGN3AXgCC33D9kwCIR7O/gYqfSWAeMSbLrddfVdCkfC9ydsAEoIY5qOW27bhibF7LmcosgxywdIjv7CpzJyDFucXALCcDv8Ixaxv3npnBIBapQPAUFKo072x94A8E+Fo1D7ucLpn/xjs54/H85RpAiAk+Uz0sCfgGgCgLd6QfnxRktasKlPpygHoVFxJQeEnr51Ibfjtmvndr8+Eo1GTbXDPlhaaBud9cAlJCs5YHabPxSRPWa64endq28Xrfc/Ubd6784hc3k2VKzOO9Xzj1gJtPoBf+68ifdA8jm6PozurSKSi4cT1vxYtjjvyeuuWVwilcos0VhmMRbqMBKVC8VJLe+fFrp6bg5EYTwmjJCT3uDFKTeWWUx6u3uKYfkBIKQCWoS3ry3bUGnMmyuoUjcXmfPNEkqQl72hozgaAUJYySiERoQpVnnaVrrSRMkq70xuMxGT9UbAMQ4hOpVxfWqjOJeAp67UPCaLQ0dBMnvw6/v8J/gbSRi4xOMVDKgAAAABJRU5ErkJggg==">
@@ -18,7 +18,7 @@
 
 <div class="topbar">
   <div>
-    <div class="tb-title">Armaduras y Marcos</div>
+    <div class="tb-title">Armaduras</div>
   </div>
 </div>
 
@@ -39,15 +39,11 @@
       <svg viewBox="0 0 40 34"><line x1="8" y1="25" x2="32" y2="9" stroke="#7c5cd6" stroke-width="3"/><circle cx="8" cy="25" r="4" fill="#563aa8"/><circle cx="32" cy="9" r="4" fill="#563aa8"/></svg>
       <span>Barra</span>
     </button>
-    <button class="tool-btn" id="tViga" onclick="setTool('viga')" title="Viga o marco: elemento rígido con N, V y M; admite cargas entre sus extremos y uniones rígidas">
-      <svg viewBox="0 0 40 34"><line x1="8" y1="25" x2="32" y2="9" stroke="#7c5cd6" stroke-width="8"/><line x1="8" y1="25" x2="32" y2="9" stroke="#fff" stroke-width="1.6" opacity=".6"/><rect x="4.5" y="21.5" width="7" height="7" fill="#563aa8"/><rect x="28.5" y="5.5" width="7" height="7" fill="#563aa8"/></svg>
-      <span>Viga / marco</span>
-    </button>
     <button class="tool-btn" id="tApoyo" onclick="setTool('apoyo')">
       <svg viewBox="0 0 40 34"><circle cx="20" cy="10" r="4" fill="#563aa8"/><path d="M20 12 L11 26 L29 26 Z" fill="none" stroke="#7c5cd6" stroke-width="2.5"/><line x1="8" y1="26" x2="32" y2="26" stroke="#563aa8" stroke-width="2.5"/></svg>
       <span>Apoyo</span>
     </button>
-    <button class="tool-btn" id="tCarga" onclick="menuCargasArm(event)" title="Insertar una carga">
+    <button class="tool-btn" id="tCarga" onclick="nuevaCargaArm()" title="Poner una carga en un nudo">
       <svg viewBox="0 0 40 34"><line x1="20" y1="5" x2="20" y2="24" stroke="#c0392b" stroke-width="3"/><path d="M20 29 L14 19 L26 19 Z" fill="#c0392b"/></svg>
       <span>Carga</span>
     </button>
@@ -189,7 +185,6 @@
         <button class="mode-btn" id="metSecc" onclick="setMetodo('secciones')">Secciones</button>
       </div>
       <div class="hint-sm" id="metHint">Se resuelve nudo por nudo, en orden de resolubilidad.</div>
-      <div class="hint-sm" id="metMarcoHint" style="display:none;color:#7c5cd6">Con vigas o marcos (elementos con N, V y M) o un empotramiento la estructura es un <b>bastidor</b>: se resuelve desmembrando (§6.6) y el método elegido aquí no interviene.</div>
       <div id="cutBox" style="display:none;margin-top:8px">
         <div class="mode-row">
           <button class="mode-btn active" id="modoAuto" onclick="setModoCorte('auto')">Cortes automáticos</button>
@@ -322,72 +317,20 @@
 </div>
 
 <!-- MODAL CARGA -->
-<!-- MENÚ DE CARGAS · se elige el tipo antes de abrir la ventana, como en fuerzas internas -->
-<div class="tb-menu" id="menuCargasArm">
-  <div class="tb-menu-head">Insertar carga</div>
-  <div class="tb-menu-body">
-    <div class="menu-grid">
-      <button class="menu-btn" onclick="nuevaCargaArm('P')">
-        <svg viewBox="0 0 40 34"><line x1="20" y1="4" x2="20" y2="20" stroke="#c0392b" stroke-width="2.8"/><path d="M20 27 L14 17 L26 17 Z" fill="#c0392b"/></svg>
-        <span>Puntual</span>
-      </button>
-      <button class="menu-btn" onclick="nuevaCargaArm('U')">
-        <svg viewBox="0 0 40 34"><line x1="6" y1="8" x2="34" y2="8" stroke="#c0392b" stroke-width="2.4"/><line x1="10" y1="9" x2="10" y2="21" stroke="#c0392b" stroke-width="1.8"/><line x1="20" y1="9" x2="20" y2="21" stroke="#c0392b" stroke-width="1.8"/><line x1="30" y1="9" x2="30" y2="21" stroke="#c0392b" stroke-width="1.8"/><line x1="5" y1="25" x2="35" y2="25" stroke="#563aa8" stroke-width="2.6"/></svg>
-        <span>Uniforme</span>
-      </button>
-      <button class="menu-btn" onclick="nuevaCargaArm('T')">
-        <svg viewBox="0 0 40 34"><path d="M6 21 L34 6 L34 21 Z" fill="none" stroke="#c0392b" stroke-width="2.2"/><line x1="5" y1="25" x2="35" y2="25" stroke="#563aa8" stroke-width="2.6"/></svg>
-        <span>Triangular</span>
-      </button>
-      <button class="menu-btn" onclick="nuevaCargaArm('M')">
-        <svg viewBox="0 0 40 34"><path d="M28 18 A9 9 0 1 1 20 9" fill="none" stroke="#c0392b" stroke-width="2.6"/><path d="M20 4 L20 13 L27 9 Z" fill="#c0392b"/></svg>
-        <span>Par</span>
-      </button>
-    </div>
-    <div class="hint-sm" style="margin-top:9px">Las repartidas van sobre una viga; la puntual y el par, sobre una viga o un nudo.</div>
-  </div>
-</div>
-
+<!-- CARGA EN UN NUDO · una ventana declara UNA carga (10-modales.js) -->
 <div class="modal-ov" id="cargaModal">
-  <div class="modal" style="max-width:660px;max-height:88vh;overflow-y:auto">
-    <h3 id="cgTitulo">Carga</h3>
-    <p class="sub" id="cgSub"></p>
+  <div class="modal" style="max-width:600px;max-height:88vh;overflow-y:auto">
+    <h3 id="cgTitulo">Carga en el nudo</h3>
+    <p class="sub">En una armadura las cargas van en los nudos.</p>
     <div class="cg-cols">
       <div>
-        <div class="modal-field" id="cgFilaDestino">
-          <label>Aplicar sobre</label>
-          <select id="cgDestino" onchange="cambioDestinoCargaArm()">
-            <option value="pieza">Una viga</option>
-            <option value="nudo">Un nudo</option>
-          </select>
-        </div>
-        <div class="modal-field" id="cgFilaPieza">
-          <label>Viga</label><select id="cgPieza" onchange="cambioPiezaCargaArm()"></select>
-        </div>
-        <div class="modal-field" id="cgFilaNudo" style="display:none">
+        <div class="modal-field">
           <label>Nudo</label><select id="cgNudo" onchange="dibujarCroquisCargaArm()"></select>
         </div>
-        <div class="cg-grupo" id="cgGrupoBase">
-          <div class="cg-cap">Posición dada por</div>
-          <div class="cg-seg" id="cgSegBase">
-            <button type="button" class="seg-btn" data-v="eje" onclick="setBasePosArm('eje')">Eje</button>
-            <button type="button" class="seg-btn" data-v="coordX" onclick="setBasePosArm('coordX')">Coord. x</button>
-            <button type="button" class="seg-btn" data-v="coordY" onclick="setBasePosArm('coordY')">Coord. y</button>
-          </div>
-          <input type="hidden" id="cgBase" value="eje">
+        <div class="modal-field">
+          <label id="cgLblMag">Magnitud</label>
+          <input type="number" id="cgMag" step="any" value="10" oninput="dibujarCroquisCargaArm()">
         </div>
-        <table class="cg-tabla">
-          <thead><tr><th></th><th id="cgThIni">Aplicación</th><th id="cgThFin">Final</th></tr></thead>
-          <tbody>
-            <tr id="cgFilaDist"><th id="cgThDist">Distancia</th>
-              <td><input type="number" id="cgPos" step="any" value="0" oninput="dibujarCroquisCargaArm()"></td>
-              <td id="cgTdFin"><input type="number" id="cgFin" step="any" value="0" oninput="dibujarCroquisCargaArm()"></td></tr>
-            <tr><th id="cgThMag">Magnitud</th>
-              <td id="cgTdMag"><input type="number" id="cgMag" step="any" value="10" oninput="dibujarCroquisCargaArm()"></td>
-              <td id="cgTdMag2"><input type="number" id="cgMag2" step="any" value="0" oninput="dibujarCroquisCargaArm()"></td></tr>
-          </tbody>
-        </table>
-        <div class="hint-sm" id="cgLblPos"></div>
         <div class="cg-grupo" id="cgGrupoDir">
           <div class="cg-cap">Dirección</div>
           <div class="cg-seg" id="cgSegDir"></div>
@@ -401,7 +344,7 @@
         <div class="modal-preview" id="cgPrev"></div>
       </div>
       <div class="cg-croquis-col">
-        <div class="cg-cap" id="cgCapCroquis">Pieza y carga</div>
+        <div class="cg-cap">Nudo y carga</div>
         <div id="cgCroquis"></div>
       </div>
     </div>
@@ -421,17 +364,9 @@
     <div class="modal-field"><label>y</label><input type="number" id="edNy" step="any"></div>
     <div class="modal-field" style="align-items:center">
       <label>Cargas</label>
-      <button class="btn-sm" onclick="const _id=edNodoId; closeEdNodo(); nuevaCargaArm('P',{destino:'nudo',nudo:_id});">Añadir carga…</button>
+      <button class="btn-sm" onclick="const _id=edNodoId; closeEdNodo(); nuevaCargaArm({nudo:_id});">Añadir carga…</button>
     </div>
     <div class="hint-sm" id="edNCargasResumen"></div>
-    <div class="modal-field" style="align-items:center">
-      <label>Unión</label>
-      <div style="display:flex;gap:6px">
-        <button class="tpl-btn" id="unPas" style="padding:7px 10px" onclick="setUnionNodo('pasador')">Pasador</button>
-        <button class="tpl-btn" id="unRig" style="padding:7px 10px" onclick="setUnionNodo('rigido')">Rígida</button>
-      </div>
-    </div>
-    <div class="hint-sm">Pasador: giran libres. Rígida: transmiten momento (solo vigas).</div>
     <div class="modal-preview">Coordenadas en <b id="edNuL">m</b> · fuerzas en <b id="edNuF">kN</b></div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="closeEdNodo()">Cancelar</button>
@@ -450,29 +385,6 @@
     <div class="modal-field"><label>Extremo <b id="edBn2"></b> — x</label><input type="number" id="edBx2" step="any"></div>
     <div class="modal-field"><label>Extremo <b id="edBn2b"></b> — y</label><input type="number" id="edBy2" step="any"></div>
     <div class="modal-preview">Longitud actual: <b id="edBlen"></b></div>
-    <div class="modal-field" style="align-items:center">
-      <label>Tipo de pieza</label>
-      <div style="display:flex;gap:6px">
-        <button class="tpl-btn" id="edBtipoBarra" style="padding:7px 10px" onclick="setTipoBarra('barra')">Barra</button>
-        <button class="tpl-btn" id="edBtipoViga" style="padding:7px 10px" onclick="setTipoBarra('viga')">Viga / marco</button>
-      </div>
-    </div>
-    <div class="hint-sm" id="edBtipoHint"></div>
-    <div id="edBVigaBox">
-      <div class="modal-field" style="align-items:center">
-        <label>Cargas en la viga</label>
-        <button class="btn-sm" onclick="const _id=edBarraId; closeEdBarra(); nuevaCargaArm('P',{destino:'pieza',barra:_id});">Añadir carga…</button>
-      </div>
-      <div class="hint-sm" id="edBCargasResumen"></div>
-      <div class="modal-field" style="align-items:center">
-        <label>Extremos articulados</label>
-        <div style="display:flex;gap:12px;font-size:11px">
-          <label><input type="checkbox" id="edBartA" onchange="setArticulado('a',this.checked)"> en <b id="edBn1c"></b></label>
-          <label><input type="checkbox" id="edBartB" onchange="setArticulado('b',this.checked)"> en <b id="edBn2c"></b></label>
-        </div>
-      </div>
-      <div class="hint-sm">Solo en un nudo rígido: el extremo marcado va con pasador propio.</div>
-    </div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="closeEdBarra()">Cancelar</button>
       <button class="mbtn" onclick="applyEdBarra()">Aplicar</button>
@@ -532,7 +444,7 @@
 <div class="modal-ov" id="apoyoModal">
   <div class="modal">
     <h3>Apoyo en el nudo <span id="apNom"></span></h3>
-    <p class="sub">Fijo: 2 reacciones. Móvil: 1. Empotrado: 3 y unión rígida.</p>
+    <p class="sub">Fijo: 2 reacciones. Móvil: 1.</p>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <button class="tpl-btn" style="flex:1;padding:12px 8px" id="apbFijo" onclick="setApoyo('fijo')">
         <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="10" r="4" fill="#563aa8"/><path d="M20 12 L11 26 L29 26 Z" fill="none" stroke="#7c5cd6" stroke-width="2.5"/><line x1="8" y1="26" x2="32" y2="26" stroke="#563aa8" stroke-width="2.5"/></svg>
@@ -541,10 +453,6 @@
       <button class="tpl-btn" style="flex:1;padding:12px 8px" id="apbMovil" onclick="setApoyo('movil')">
         <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="8" r="4" fill="#563aa8"/><path d="M20 10 L12 21 L28 21 Z" fill="none" stroke="#7c5cd6" stroke-width="2.5"/><circle cx="15" cy="25" r="3" fill="none" stroke="#563aa8" stroke-width="2"/><circle cx="25" cy="25" r="3" fill="none" stroke="#563aa8" stroke-width="2"/></svg>
         Móvil
-      </button>
-      <button class="tpl-btn" style="flex:1;padding:12px 8px" id="apbEmpotrado" onclick="setApoyo('empotrado')">
-        <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><line x1="11" y1="5" x2="11" y2="29" stroke="#7c5cd6" stroke-width="2.5"/><path d="M11 8 l-5 4 M11 14 l-5 4 M11 20 l-5 4 M11 26 l-5 4" stroke="#563aa8" stroke-width="1.6"/><line x1="11" y1="17" x2="24" y2="17" stroke="#7c5cd6" stroke-width="2.5"/><circle cx="24" cy="17" r="4" fill="#563aa8"/></svg>
-        Empotrado
       </button>
       <button class="tpl-btn" style="flex:1;padding:12px 8px;border-color:#e0b4b4" id="apbQuitar" onclick="setApoyo(null)">
         <svg viewBox="0 0 40 34" style="width:38px;height:32px;display:block;margin:0 auto 4px"><circle cx="20" cy="17" r="5" fill="#c0392b"/><line x1="10" y1="27" x2="30" y2="7" stroke="#c0392b" stroke-width="2.5"/></svg>
@@ -566,7 +474,6 @@
   </div>
 </div>
 
-<!-- MODAL CARGAS SOBRE UNA BARRA (bastidores, 19-marcos.js) -->
 
 <div class="modal-ov" id="ejModal">
   <div class="modal" style="max-width:470px;max-height:88vh;overflow-y:auto">
@@ -582,7 +489,7 @@
 <script src="vendor/katex.min.js?v=20260910b"></script>
 <!-- ══ Nucleo comun a los cinco temas ══ -->
 <script src="core/comun.js?v=20260910b"></script>
-<!-- ══ Codigo del tema: Armaduras y Marcos (ver armaduras-y-marcos/LEEME.md) ══ -->
+<!-- ══ Codigo del tema: Armaduras (ver armaduras-y-marcos/LEEME.md) ══ -->
 <script src="armaduras-y-marcos/js/00-estado-inicial.js?v=20260910b"></script>
 <script src="armaduras-y-marcos/js/01-cabecera-y-estado.js?v=20260910b"></script>
 <script src="armaduras-y-marcos/js/02-dibujo.js?v=20260910b"></script>
@@ -602,7 +509,5 @@
 <script src="armaduras-y-marcos/js/16-resolutor-automatico-por-cortes.js?v=20260910b"></script>
 <script src="armaduras-y-marcos/js/17-historial-y-portal.js?v=20260910b"></script>
 <script src="armaduras-y-marcos/js/18-arranque.js?v=20260910b"></script>
-<!-- Marcos (bastidores): cargas en barras, uniones rígidas, desmembrado, N-V-M e informe -->
-<script src="armaduras-y-marcos/js/19-marcos.js?v=20260910b"></script>
 </body>
 </html>
