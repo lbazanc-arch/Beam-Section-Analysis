@@ -20,7 +20,7 @@ function resolverSistema(A, b){
   return M.map((f,i)=>f[n]/f[i][i] !== undefined ? f[n]/M[i][i] : 0).map((_,i)=>M[i][n]/M[i][i]);
 }
 
-function gradosApoyo(n){ return n.apoyo === 'fijo' ? 2 : (n.apoyo === 'movil' ? 1 : 0); }
+function gradosApoyo(n){ return n.apoyo === 'fijo' ? 2 : (n.apoyo === 'movil' ? 1 : (n.apoyo === 'empotrado' ? 3 : 0)); }
 
 // ═══════════════════════════════════════════════════════════
 //  SIMETRÍA DE LA ESTRUCTURA

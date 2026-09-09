@@ -17,7 +17,13 @@ function applyUnits(){
   const nF = document.getElementById('selFor').value;
   const kL = LEN_A_M[unitLen]/LEN_A_M[nL];
   const kF = FOR_A_KN[unitFor]/FOR_A_KN[nF];
-  nodos.forEach(n=>{ n.x *= kL; n.y *= kL; n.fx *= kF; n.fy *= kF; });
+  nodos.forEach(n=>{ n.x *= kL; n.y *= kL; n.fx *= kF; n.fy *= kF; (n.cargas||[]).forEach(c=>{ c.fx *= kF; c.fy *= kF; }); });
+  // Cargas sobre barras (19-): posiciones en longitud, fuerzas, pares y repartidas.
+  barras.forEach(b=>cargasDeBarra(b).forEach(c=>{
+    if(c.tipo === 'P'){ c.s *= kL; c.fx *= kF; c.fy *= kF; }
+    else if(c.tipo === 'M'){ c.s *= kL; c.m *= kF*kL; }
+    else { c.s1 *= kL; c.s2 *= kL; c.w1 *= kF/kL; c.w2 *= kF/kL; }
+  }));
   unitLen = nL; unitFor = nF;
   const cu = document.getElementById('chipUnits');
   if(cu) cu.textContent = nL + ' \u00b7 ' + nF;

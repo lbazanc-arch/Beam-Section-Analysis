@@ -1,0 +1,980 @@
+// ═══════════════════════════════════════════════════════════
+//  MARCOS (bastidores) · elementos de varias fuerzas (Hibbeler §6.6)
+// ═══════════════════════════════════════════════════════════
+// Una barra pasa a ser un ELEMENTO de varias fuerzas cuando lleva cargas entre
+// sus extremos o cuando algún extremo va unido rígidamente (transmite momento).
+// La armadura es el caso particular en que ninguna barra lo es: entonces
+// `resolver` sigue por el motor de nudos de siempre (06-) y solo cuando
+// esMarco() es cierto se pasa por aquí. El método es DESMEMBRAR (§6.6):
+//   · incógnitas: las componentes de la fuerza de cada pasador sobre cada
+//     pieza (y el momento, si la unión es rígida) más las reacciones;
+//   · ecuaciones: tres por pieza (ΣFx, ΣFy, ΣM respecto de su extremo a) y
+//     las del equilibrio de cada nudo (dos, o tres si es rígido), que son la
+//     tercera ley de Newton escrita para el pasador.
+// Convenio: la fuerza de extremo es la que el NUDO ejerce SOBRE la pieza, con
+// componentes positivas hacia +x y +y; los momentos son positivos antihorarios.
+// Datos nuevos del modelo (todo lo demás sigue igual que en la armadura):
+//   barra.cargas = [{tipo:'P', s, fx, fy} | {tipo:'M', s, m} |
+//                   {tipo:'w', s1, s2, w1, w2, dir:'y'|'x'|'n'}]     s desde el extremo a
+//   barra.artA / barra.artB = true si ese extremo va articulado aunque el nudo sea rígido
+//   nodo.union = 'pasador' | 'rigido'          nodo.apoyo = 'empotrado' (Rx, Ry, M)
+// Los esfuerzos internos de cada elemento (N, V, M a lo largo de s) salen del
+// equilibrio del trozo [0, s] con las fuerzas de su extremo a y las cargas que
+// caen antes del corte, con el mismo convenio de signos que fuerzas-internas:
+// N positivo a tracción, V positivo hacia −n en la cara del corte, M positivo
+// antihorario en esa cara (el que curva el elemento hacia +n).
+
+// ══ Modelo ═════════════════════════════════════════════════════════════════
+function cargasDeBarra(b){ return (b && Array.isArray(b.cargas)) ? b.cargas : []; }
+function esRigidoExtremo(b, ext){
+  const n = nodos.find(z=>z.id === (ext === 'a' ? b.a : b.b));
+  if(!n || n.union !== 'rigido') return false;
+  return ext === 'a' ? !b.artA : !b.artB;
+}
+function esElemento(b){ return cargasDeBarra(b).length > 0 || esRigidoExtremo(b,'a') || esRigidoExtremo(b,'b'); }
+function esMarco(){ return barras.some(esElemento) || nodos.some(n=>n.apoyo === 'empotrado'); }
+function geomBarra(b){
+  const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
+  const dx = nb.x-na.x, dy = nb.y-na.y, L = Math.hypot(dx,dy) || 1e-12;
+  return {na, nb, L, ux:dx/L, uy:dy/L, nx:-dy/L, ny:dx/L};
+}
+function dirCarga(g, c){ return c.dir === 'x' ? {x:1, y:0} : (c.dir === 'n' ? {x:g.nx, y:g.ny} : {x:0, y:1}); }
+// Integrales de una carga repartida lineal desde s1 hasta e (≤ s2): ∫w ds y ∫s·w ds.
+function _intW(c, e){
+  const Lw = Math.max(c.s2 - c.s1, 1e-12), k = (c.w2 - c.w1)/Lw;
+  const I0 = c.w1*(e - c.s1) + k*(e - c.s1)*(e - c.s1)/2;
+  const I1 = c.w1*(e*e - c.s1*c.s1)/2 + k*((e*e*e - c.s1*c.s1*c.s1)/3 - c.s1*(e*e - c.s1*c.s1)/2);
+  return {I0, I1};
+}
+// Resultante (Fx, Fy) y momento respecto del extremo a de las cargas de la barra;
+// con `hastaS` solo las que caen en [0, hastaS] (las repartidas, recortadas).
+function resultanteCargas(b, hastaS){
+  const g = geomBarra(b);
+  let Fx = 0, Fy = 0, Ma = 0;
+  cargasDeBarra(b).forEach(c=>{
+    if(c.tipo === 'P'){ if(hastaS !== undefined && c.s > hastaS) return; Fx += c.fx; Fy += c.fy; Ma += c.s*(g.ux*c.fy - g.uy*c.fx); }
+    else if(c.tipo === 'M'){ if(hastaS !== undefined && c.s > hastaS) return; Ma += c.m; }
+    else if(c.tipo === 'w'){
+      const e = hastaS === undefined ? c.s2 : Math.min(hastaS, c.s2);
+      if(e <= c.s1) return;
+      const d = dirCarga(g, c), I = _intW(c, e);
+      Fx += I.I0*d.x; Fy += I.I0*d.y; Ma += (g.ux*d.y - g.uy*d.x)*I.I1;
+    }
+  });
+  return {Fx, Fy, Ma};
+}
+function descCarga(c){
+  if(c.tipo === 'P') return 'Puntual (' + dec(c.fx,'f') + ', ' + dec(c.fy,'f') + ') ' + unitFor + ' en s = ' + dec(c.s,'len') + ' ' + unitLen;
+  if(c.tipo === 'M') return 'Par ' + dec(c.m,'f') + ' ' + unitFor + '·' + unitLen + ' en s = ' + dec(c.s,'len') + ' ' + unitLen;
+  const d = c.dir === 'x' ? 'horizontal' : (c.dir === 'n' ? 'normal a la barra' : 'vertical');
+  return 'Repartida ' + dec(c.w1,'f') + ' → ' + dec(c.w2,'f') + ' ' + unitFor + '/' + unitLen + ' (' + d + ') de s = ' + dec(c.s1,'len') + ' a ' + dec(c.s2,'len') + ' ' + unitLen;
+}
+// Cuántas incógnitas aporta un apoyo (amplía gradosApoyo de 06-).
+function gradosApoyoMarco(n){ return n.apoyo === 'empotrado' ? 3 : gradosApoyo(n); }
+
+// ══ Motor: desmembrado ═══════════════════════════════════════════════════════
+function analizarMarco(){
+  const j = nodos.length, m = barras.length;
+  const inc = [], idx = {};
+  const clave = (tipo, id, ext, comp) => tipo + ':' + id + ':' + ext + ':' + comp;
+  barras.forEach(b=>{
+    ['a','b'].forEach(ext=>{
+      const nid = ext === 'a' ? b.a : b.b;
+      ['x','y'].forEach(comp=>{ idx[clave('F',b.id,ext,comp)] = inc.length; inc.push({tipo:'F', barra:b, ext, comp, nodo:nid}); });
+      if(esRigidoExtremo(b, ext)){ idx[clave('F',b.id,ext,'m')] = inc.length; inc.push({tipo:'F', barra:b, ext, comp:'m', nodo:nid}); }
+    });
+  });
+  nodos.forEach(n=>{
+    const comps = n.apoyo === 'fijo' ? ['x','y'] : n.apoyo === 'movil' ? [n.apAng === 0 ? 'x' : 'y'] : n.apoyo === 'empotrado' ? ['x','y','m'] : [];
+    comps.forEach(comp=>{ idx[clave('R',n.id,'',comp)] = inc.length; inc.push({tipo:'R', nodo:n.id, comp}); });
+  });
+  const r = inc.filter(u=>u.tipo==='R').length;
+  const U = inc.length;
+  const A = [], bb = [], filas = [];
+  const fila = info => { A.push(new Array(U).fill(0)); bb.push(0); filas.push(info); return A.length-1; };
+  const set = (fi, k, v) => { if(k !== undefined) A[fi][k] += v; };
+  barras.forEach(b=>{
+    const g = geomBarra(b), rc = resultanteCargas(b);
+    const fx = fila({tipo:'pieza', barra:b, ec:'x'});
+    set(fx, idx[clave('F',b.id,'a','x')], 1); set(fx, idx[clave('F',b.id,'b','x')], 1); bb[fx] = -rc.Fx;
+    const fy = fila({tipo:'pieza', barra:b, ec:'y'});
+    set(fy, idx[clave('F',b.id,'a','y')], 1); set(fy, idx[clave('F',b.id,'b','y')], 1); bb[fy] = -rc.Fy;
+    const fm = fila({tipo:'pieza', barra:b, ec:'m'});
+    set(fm, idx[clave('F',b.id,'a','m')], 1); set(fm, idx[clave('F',b.id,'b','m')], 1);
+    set(fm, idx[clave('F',b.id,'b','y')], g.nb.x - g.na.x); set(fm, idx[clave('F',b.id,'b','x')], -(g.nb.y - g.na.y));
+    bb[fm] = -rc.Ma;
+  });
+  let nudosRigidos = 0;
+  nodos.forEach(n=>{
+    const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
+    ['x','y'].forEach(comp=>{
+      const fi = fila({tipo:'nudo', nodo:n, ec:comp});
+      conec.forEach(b=>{ const ext = b.a===n.id ? 'a' : 'b'; set(fi, idx[clave('F',b.id,ext,comp)], 1); });
+      set(fi, idx[clave('R',n.id,'',comp)], -1);
+      bb[fi] = comp === 'x' ? (n.fx||0) : (n.fy||0);
+    });
+    if(n.union === 'rigido'){
+      nudosRigidos++;
+      const fi = fila({tipo:'nudo', nodo:n, ec:'m'});
+      conec.forEach(b=>{ const ext = b.a===n.id ? 'a' : 'b'; set(fi, idx[clave('F',b.id,ext,'m')], 1); });
+      set(fi, idx[clave('R',n.id,'','m')], -1);
+      bb[fi] = 0;
+    }
+  });
+  const E = A.length;
+  const extArt = inc.filter(u=>u.tipo==='F' && u.comp==='x').length, extRig = inc.filter(u=>u.tipo==='F' && u.comp==='m').length;
+  const diag = {j, m, r, U, E, extArt, extRig, nudosRigidos, suma:U, req:E};
+  if(j < 2 || m < 1) return {error:'Hace falta al menos dos nudos y una barra.', diag, marco:true};
+  if(U < E) return {error:'inestable', diag, marco:true};
+  if(U > E) return {error:'hiperestatica', diag, marco:true};
+  const x = resolverSistema(A, bb);
+  if(!x) return {error:'singular', diag, marco:true};
+
+  const extremos = {}, reacciones = {}, fuerzas = {}, dosFuerzas = {};
+  barras.forEach(b=>{
+    const val = (ext, comp) => { const k = idx[clave('F',b.id,ext,comp)]; return k === undefined ? 0 : x[k]; };
+    extremos[b.id] = {a:{fx:val('a','x'), fy:val('a','y'), m:val('a','m')}, b:{fx:val('b','x'), fy:val('b','y'), m:val('b','m')}};
+    dosFuerzas[b.id] = !esElemento(b);
+    const g = geomBarra(b);
+    // Fuerza axial (tracción positiva): en un elemento de dos fuerzas es toda la fuerza.
+    if(dosFuerzas[b.id]) fuerzas[b.id] = -(extremos[b.id].a.fx*g.ux + extremos[b.id].a.fy*g.uy);
+  });
+  nodos.forEach(n=>{
+    const kx_ = idx[clave('R',n.id,'','x')], ky_ = idx[clave('R',n.id,'','y')], km_ = idx[clave('R',n.id,'','m')];
+    if(kx_ === undefined && ky_ === undefined && km_ === undefined) return;
+    reacciones[n.id] = {};
+    if(kx_ !== undefined) reacciones[n.id].rx = x[kx_];
+    if(ky_ !== undefined) reacciones[n.id].ry = x[ky_];
+    if(km_ !== undefined) reacciones[n.id].m = x[km_];
+  });
+  const esfuerzos = {};
+  barras.forEach(b=>{ esfuerzos[b.id] = esfuerzosElemento(b, extremos[b.id]); });
+  return {marco:true, fuerzas, reacciones, extremos, dosFuerzas, esfuerzos, diag, inc, idx, x, idxReac:[]};
+}
+
+// ══ Esfuerzos internos a lo largo de un elemento ═══════════════════════════
+function esfuerzosElemento(b, ex){
+  const g = geomBarra(b), L = g.L, Fa = ex.a, Ma = ex.a.m || 0;
+  const puntos = new Set([0, L]);
+  const NM = 60; for(let i=1;i<NM;i++) puntos.add(L*i/NM);
+  const eps = 1e-6*Math.max(L, 1);
+  cargasDeBarra(b).forEach(c=>{
+    if(c.tipo === 'w'){ puntos.add(c.s1); puntos.add(c.s2); }
+    else { puntos.add(Math.max(0, c.s - eps)); puntos.add(Math.min(L, c.s + eps)); }
+  });
+  const ss = [...puntos].filter(s=>s >= 0 && s <= L).sort((p,q)=>p-q);
+  const pts = ss.map(s=>{
+    const rc = resultanteCargas(b, s);
+    const Fx = Fa.fx + rc.Fx, Fy = Fa.fy + rc.Fy;
+    const N = -(Fx*g.ux + Fy*g.uy), V = Fx*g.nx + Fy*g.ny;
+    let M = Ma - s*(g.ux*Fa.fy - g.uy*Fa.fx);
+    cargasDeBarra(b).forEach(c=>{
+      if(c.tipo === 'P'){ if(c.s <= s) M += (c.s - s)*(g.ux*c.fy - g.uy*c.fx); }
+      else if(c.tipo === 'M'){ if(c.s <= s) M += c.m; }
+      else if(c.tipo === 'w'){ const e = Math.min(s, c.s2); if(e > c.s1){ const d = dirCarga(g, c), I = _intW(c, e); M += (g.ux*d.y - g.uy*d.x)*(I.I1 - s*I.I0); } }
+    });
+    return {s, N, V, M:-M};
+  });
+  const ext = k => pts.reduce((m,p)=>Math.abs(p[k]) > Math.abs(m[k]) ? p : m, pts[0]);
+  return {puntos:pts, L, maxN:ext('N'), maxV:ext('V'), maxM:ext('M')};
+}
+
+// ══ Cargas sobre una barra: ventana ═════════════════════════════════════════
+let cargaBarraId = null, cargaBarraFilas = [], cargaBarraAbierta = 0;
+function abrirCargaBarra(id){
+  const b = barras.find(z=>z.id===id); if(!b) return;
+  cargaBarraId = id;
+  const g = geomBarra(b);
+  document.getElementById('cargaBarraNom').textContent = nombreBarra(b);
+  document.getElementById('cargaBarraA').textContent = g.na.nombre;
+  cargaBarraFilas = cargasDeBarra(b).map(c=>Object.assign({}, c));
+  if(!cargaBarraFilas.length) cargaBarraFilas.push({tipo:'P', s:+(g.L/2).toFixed(4), fx:0, fy:-10});
+  cargaBarraAbierta = 0;
+  renderCargaBarraLista();
+  document.getElementById('cargaBarraModal').classList.add('show');
+}
+function closeCargaBarra(){ document.getElementById('cargaBarraModal').classList.remove('show'); cargaBarraId = null; }
+function _campoCB(idx, campo, valor, etiqueta, unidad){
+  return '<div class="carga-campo"><label class="carga-campo-lbl">' + etiqueta + '</label>'
+    + '<div class="carga-input-wrap"><input type="number" step="any" value="' + valor + '" oninput="actualizarCampoCargaBarra(' + idx + ',\'' + campo + '\',this.value)">'
+    + '<span class="carga-campo-unit">' + unidad + '</span></div></div>';
+}
+function renderCargaBarraLista(){
+  const b = barras.find(z=>z.id===cargaBarraId); if(!b) return;
+  const g = geomBarra(b), uw = unitFor + '/' + unitLen, um = unitFor + '·' + unitLen;
+  const lista = document.getElementById('cargaBarraLista');
+  lista.innerHTML = cargaBarraFilas.map((c, i)=>{
+    if(i !== cargaBarraAbierta)
+      return '<div class="carga-mini" onclick="cargaBarraAbierta=' + i + ';renderCargaBarraLista()"><span class="carga-mini-nom">Carga ' + (i+1) + '</span>'
+        + '<span class="carga-mini-val">' + descCarga(c) + '</span>'
+        + '<button class="carga-del" title="Quitar" onclick="event.stopPropagation();quitarCargaBarra(' + i + ')">\u00d7</button></div>';
+    let h = '<div class="carga-card"><div class="carga-card-head"><span class="carga-card-title">Carga ' + (i+1) + '</span>'
+      + '<button class="carga-del" title="Quitar" onclick="quitarCargaBarra(' + i + ')">\u00d7</button></div>'
+      + '<div class="carga-eje-row"><div class="carga-campo" style="flex:1 1 100%"><label class="carga-campo-lbl">Tipo</label>'
+      + '<select onchange="cambiarTipoCargaBarra(' + i + ',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px">'
+      + '<option value="P"' + (c.tipo==='P'?' selected':'') + '>Fuerza puntual</option>'
+      + '<option value="M"' + (c.tipo==='M'?' selected':'') + '>Par (momento)</option>'
+      + '<option value="w"' + (c.tipo==='w'?' selected':'') + '>Carga repartida</option></select></div></div>';
+    if(c.tipo === 'P'){
+      h += '<div class="carga-eje-row">' + _campoCB(i,'s',c.s,'s desde ' + g.na.nombre, unitLen) + _campoCB(i,'fx',c.fx,'F<sub>x</sub>',unitFor) + _campoCB(i,'fy',c.fy,'F<sub>y</sub>',unitFor) + '</div>';
+    } else if(c.tipo === 'M'){
+      h += '<div class="carga-eje-row">' + _campoCB(i,'s',c.s,'s desde ' + g.na.nombre, unitLen) + _campoCB(i,'m',c.m,'M (antihorario +)',um) + '</div>';
+    } else {
+      h += '<div class="carga-eje-row">' + _campoCB(i,'s1',c.s1,'desde s₁',unitLen) + _campoCB(i,'s2',c.s2,'hasta s₂',unitLen) + '</div>'
+        + '<div class="carga-eje-row">' + _campoCB(i,'w1',c.w1,'w en s₁',uw) + _campoCB(i,'w2',c.w2,'w en s₂',uw) + '</div>'
+        + '<div class="carga-eje-row"><div class="carga-campo" style="flex:1 1 100%"><label class="carga-campo-lbl">Dirección</label>'
+        + '<select onchange="actualizarCampoCargaBarra(' + i + ',\'dir\',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px">'
+        + '<option value="y"' + (c.dir==='y'?' selected':'') + '>Vertical (Y; hacia abajo es negativa)</option>'
+        + '<option value="x"' + (c.dir==='x'?' selected':'') + '>Horizontal (X)</option>'
+        + '<option value="n"' + (c.dir==='n'?' selected':'') + '>Perpendicular a la barra (hacia +n)</option></select></div></div>';
+    }
+    return h + '</div>';
+  }).join('');
+  const res = document.getElementById('cargaBarraResumen');
+  if(res) res.innerHTML = 'Barra <b>' + nombreBarra(b) + '</b> de ' + dec(g.L,'len') + ' ' + unitLen + ' (s de 0 a ' + dec(g.L,'len') + '). '
+    + cargaBarraFilas.length + ' carga(s): la barra se trata como elemento de varias fuerzas.';
+}
+function actualizarCampoCargaBarra(i, campo, valor){
+  const c = cargaBarraFilas[i]; if(!c) return;
+  c[campo] = campo === 'dir' ? valor : (parseFloat(valor) || 0);
+  if(campo === 'dir') renderCargaBarraLista();
+}
+function cambiarTipoCargaBarra(i, tipo){
+  const b = barras.find(z=>z.id===cargaBarraId); const L = b ? geomBarra(b).L : 1;
+  const c = cargaBarraFilas[i]; if(!c) return;
+  const s = c.s !== undefined ? c.s : +(L/2).toFixed(4);
+  cargaBarraFilas[i] = tipo === 'P' ? {tipo:'P', s, fx:0, fy:-10}
+                     : tipo === 'M' ? {tipo:'M', s, m:10}
+                     : {tipo:'w', s1:0, s2:+L.toFixed(4), w1:-5, w2:-5, dir:'y'};
+  renderCargaBarraLista();
+}
+function agregarCargaBarra(){
+  const b = barras.find(z=>z.id===cargaBarraId); const L = b ? geomBarra(b).L : 1;
+  cargaBarraFilas.push({tipo:'P', s:+(L/2).toFixed(4), fx:0, fy:-10});
+  cargaBarraAbierta = cargaBarraFilas.length - 1;
+  renderCargaBarraLista();
+}
+function quitarCargaBarra(i){
+  cargaBarraFilas.splice(i, 1);
+  cargaBarraAbierta = Math.max(0, Math.min(cargaBarraAbierta, cargaBarraFilas.length - 1));
+  renderCargaBarraLista();
+}
+function applyCargaBarra(){
+  const b = barras.find(z=>z.id===cargaBarraId);
+  if(b){
+    registrarCambio();
+    const L = geomBarra(b).L;
+    b.cargas = cargaBarraFilas.map(c=>{
+      const q = Object.assign({}, c);
+      if(q.tipo === 'w'){ q.s1 = Math.max(0, Math.min(L, q.s1)); q.s2 = Math.max(q.s1, Math.min(L, q.s2)); if(!q.dir) q.dir = 'y'; }
+      else q.s = Math.max(0, Math.min(L, q.s));
+      return q;
+    }).filter(c=>c.tipo === 'w' ? (c.s2 > c.s1 && (Math.abs(c.w1) > 1e-12 || Math.abs(c.w2) > 1e-12))
+                                : (c.tipo === 'M' ? Math.abs(c.m) > 1e-12 : (Math.abs(c.fx) > 1e-12 || Math.abs(c.fy) > 1e-12)));
+    resultado = null;
+  }
+  closeCargaBarra(); refrescar();
+}
+function quitarCargasBarra(id){
+  const b = barras.find(z=>z.id===id); if(!b) return;
+  registrarCambio(); b.cargas = []; resultado = null; refrescar();
+}
+// Unión del nudo (pasador / rígida) y extremos articulados de una barra.
+function setUnionNodo(u){
+  const n = nodos.find(z=>z.id===edNodoId); if(!n) return;
+  if(n.apoyo === 'empotrado' && u !== 'rigido'){ aviso('Un empotramiento fija el nudo: la unión es rígida.'); return; }
+  registrarCambio(); n.union = u; resultado = null;
+  pintarUnionNodo(n); refrescar();
+}
+function pintarUnionNodo(n){
+  const a = document.getElementById('unPas'), r = document.getElementById('unRig');
+  if(a) a.classList.toggle('active', (n.union||'pasador') !== 'rigido');
+  if(r) r.classList.toggle('active', n.union === 'rigido');
+}
+function setArticulado(ext, si){
+  const b = barras.find(z=>z.id===edBarraId); if(!b) return;
+  registrarCambio(); if(ext === 'a') b.artA = !!si; else b.artB = !!si;
+  resultado = null; refrescar();
+}
+
+// ══ Dibujo en el lienzo ═════════════════════════════════════════════════════
+function dibujarCargasBarras(){
+  barras.forEach(b=>{
+    const cargas = cargasDeBarra(b); if(!cargas.length) return;
+    const g = geomBarra(b);
+    const P = s => aPantalla(g.na.x + g.ux*s, g.na.y + g.uy*s);
+    cargas.forEach(c=>{
+      ctx.save(); ctx.strokeStyle = '#c0392b'; ctx.fillStyle = '#c0392b'; ctx.lineWidth = 2.2;
+      ctx.font = '600 10.5px Inter, sans-serif'; ctx.textAlign = 'center';
+      if(c.tipo === 'P'){
+        const [px,py] = P(c.s), mag = Math.hypot(c.fx, c.fy); if(mag < 1e-12){ ctx.restore(); return; }
+        const ux = c.fx/mag, uy = c.fy/mag, L = 42;
+        const sx = px - ux*L, sy = py + uy*L;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(px - ux*9, py + uy*9); ctx.stroke();
+        ctx.save(); ctx.translate(px - ux*8, py + uy*8); ctx.rotate(Math.atan2(-uy, ux));
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-4.5); ctx.lineTo(-10,4.5); ctx.closePath(); ctx.fill(); ctx.restore();
+        ctx.fillText(dec(mag,'f') + ' ' + unitFor, sx - ux*8, sy + uy*8 - 6);
+      } else if(c.tipo === 'M'){
+        const [px,py] = P(c.s), R = 14, ccw = c.m > 0;
+        ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, py, R, ccw ? -0.2 : Math.PI+0.2, ccw ? -Math.PI*1.3 : -Math.PI*0.3, true); ctx.stroke();
+        const ae = ccw ? -Math.PI*1.3 : -Math.PI*0.3;
+        const ex = px + R*Math.cos(ae), ey = py + R*Math.sin(ae);
+        ctx.save(); ctx.translate(ex, ey); ctx.rotate(ae + (ccw ? -Math.PI/2 : Math.PI/2));
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-9,-4); ctx.lineTo(-9,4); ctx.closePath(); ctx.fill(); ctx.restore();
+        ctx.fillText(dec(Math.abs(c.m),'f') + ' ' + unitFor + '·' + unitLen, px, py - R - 6);
+      } else {
+        const d = dirCarga(g, c), n = 6, Lmax = 34;
+        const wmax = Math.max(Math.abs(c.w1), Math.abs(c.w2), 1e-12);
+        const puntas = [];
+        for(let i=0;i<=n;i++){
+          const s = c.s1 + (c.s2 - c.s1)*i/n, w = c.w1 + (c.w2 - c.w1)*i/n;
+          const [px,py] = P(s), len = Lmax*Math.abs(w)/wmax;
+          const sg = w >= 0 ? 1 : -1;              // el vector w·d apunta hacia donde empuja
+          const ux = d.x*sg, uy = d.y*sg;           // la flecha llega a la barra con ese sentido
+          const sx = px - ux*len, sy = py + uy*len;
+          puntas.push([sx, sy]);
+          if(len < 2) continue;
+          ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(px - ux*6, py + uy*6); ctx.stroke();
+          ctx.save(); ctx.translate(px - ux*5, py + uy*5); ctx.rotate(Math.atan2(-uy, ux));
+          ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-7,-3.2); ctx.lineTo(-7,3.2); ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+        ctx.lineWidth = 1.6; ctx.beginPath(); puntas.forEach((p,i)=>{ if(i) ctx.lineTo(p[0],p[1]); else ctx.moveTo(p[0],p[1]); }); ctx.stroke();
+        const txt = (Math.abs(c.w1 - c.w2) < 1e-9 ? dec(Math.abs(c.w1),'f') : dec(Math.abs(c.w1),'f') + ' → ' + dec(Math.abs(c.w2),'f')) + ' ' + unitFor + '/' + unitLen;
+        const pm = puntas[Math.floor(n/2)];
+        ctx.fillText(txt, pm[0] - (d.x*(c.w1+c.w2) >= 0 ? -1 : 1)*0, pm[1] - 7 - (d.y ? 0 : 0));
+      }
+      ctx.restore();
+    });
+  });
+}
+function dibujarApoyoEmpotrado(n){
+  const [px,py] = aPantalla(n.x, n.y);
+  // El muro va del lado contrario a las barras que llegan al nudo.
+  const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
+  let vx = 0, vy = 0;
+  conec.forEach(b=>{ const o = nodos.find(z=>z.id===(b.a===n.id?b.b:b.a)); const dx=o.x-n.x, dy=o.y-n.y, L=Math.hypot(dx,dy)||1; vx += dx/L; vy += dy/L; });
+  let ang = (Math.abs(vx) + Math.abs(vy) < 1e-9) ? Math.PI/2 : Math.atan2(-vy, -vx);   // hacia el muro, en pantalla (y invertida)
+  ang = Math.round(ang/(Math.PI/2))*(Math.PI/2);                                       // cuatro orientaciones
+  ctx.save(); ctx.translate(px, py); ctx.rotate(ang);
+  ctx.strokeStyle = '#7c3a06'; ctx.fillStyle = '#7c3a06'; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.moveTo(6, -18); ctx.lineTo(6, 18); ctx.stroke();
+  for(let i=-3;i<=3;i++){ ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(6, i*6); ctx.lineTo(13, i*6+6); ctx.stroke(); }
+  ctx.restore();
+}
+function dibujarNudoRigido(n){
+  const [px,py] = aPantalla(n.x, n.y);
+  ctx.fillStyle = '#7c3a06'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.rect(px-6.5, py-6.5, 13, 13); ctx.fill(); ctx.stroke();
+}
+
+// ══ Resolver y presentar ════════════════════════════════════════════════════
+function resolverMarco(){
+  const res = analizarMarco();
+  const rp = document.getElementById('resultsPanel'), ra = document.getElementById('resultsArea'), hint = document.getElementById('noResultsHint');
+  if(!rp || !ra) return;
+  ra.style.display = 'block'; if(hint) hint.style.display = 'none'; rp.style.display = 'block';
+  if(res.error){
+    resultado = null;
+    rp.innerHTML = renderErrorMarco(res);
+    try{ renderKatex(rp); }catch(e){}
+    dibujar();
+    setTimeout(()=>{ try{ ra.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){} }, 120);
+    return;
+  }
+  resultado = res;
+  rp.innerHTML = renderResultadosMarco(res);
+  try{ renderKatex(rp); }catch(e){ console.warn('KaTeX:', e); }
+  dibujar();
+  setTimeout(()=>{ try{ ra.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){} }, 120);
+}
+function renderErrorMarco(res){
+  const d = res.diag;
+  let titulo, cuerpo;
+  if(res.error === 'inestable'){ titulo = 'Bastidor inestable (mecanismo)'; cuerpo = 'Hay menos incógnitas que ecuaciones: falta alguna unión rígida, barra o apoyo.'; }
+  else if(res.error === 'hiperestatica'){ titulo = 'Bastidor estáticamente indeterminado'; cuerpo = 'Hay más incógnitas que ecuaciones de equilibrio: la estática sola no basta (Análisis Estructural).'; }
+  else if(res.error === 'singular'){ titulo = 'Configuración inestable'; cuerpo = 'Las incógnitas igualan a las ecuaciones, pero la disposición no es estable (piezas alineadas o pasadores que permiten un giro).'; }
+  else { titulo = 'Faltan datos'; cuerpo = res.error; }
+  return '<div class="res-section"><div class="res-title"><div class="num">1</div>Determinación estática del bastidor</div>'
+    + '<div class="verdict bad"><div class="verdict-t">Resultado</div><b>' + titulo + '</b><br>' + cuerpo + '</div>'
+    + (d ? '<div class="proc-block"><div class="eq-row"><div class="eq-body">' + kx('\\text{Incógnitas } U = ' + d.U + ' \\qquad \\text{Ecuaciones } E = ' + d.E) + '</div></div></div>' : '')
+    + '</div>';
+}
+const _simbExt = (b, ext) => { const n = nodos.find(z=>z.id===(ext==='a'?b.a:b.b)); return n ? n.nombre : '?'; };
+function renderResultadosMarco(res){
+  const d = res.diag, f = v => dec(v,'f'), uF = unitFor, uL = unitLen, uM = unitFor + '·' + unitLen;
+  let h = '';
+  const elementos = barras.filter(b=>!res.dosFuerzas[b.id]), dosF = barras.filter(b=>res.dosFuerzas[b.id]);
+
+  // 1 · Determinación
+  h += '<div class="res-section"><div class="res-title"><div class="num">1</div>Determinación estática del bastidor</div>'
+    + '<div class="verdict ok"><div class="verdict-t">Resultado</div><b>Bastidor isostático.</b></div>'
+    + '<div class="proc-block proc-cols"><div class="proc-col"><div class="proc-sub">Incógnitas</div><div class="eq-row"><div class="eq-body">'
+    + kx('U = 2(' + d.extArt + ') + ' + d.extRig + ' + ' + d.r + ' = ' + d.U) + '</div></div>'
+    + '<div class="hint-sm">2 por extremo de pieza, + 1 por extremo unido rígidamente, + r reacciones</div></div>'
+    + '<div class="proc-col"><div class="proc-sub">Ecuaciones</div><div class="eq-row"><div class="eq-body">'
+    + kx('E = 3(' + d.m + ') + 2(' + d.j + ') + ' + d.nudosRigidos + ' = ' + d.E) + '</div></div>'
+    + '<div class="hint-sm">3 por pieza, + 2 por nudo, + 1 por nudo rígido</div></div></div></div>';
+
+  // 2 · Reacciones
+  h += '<div class="res-section"><div class="res-title"><div class="num">2</div>Reacciones en los apoyos</div>'
+    + '<table class="tabla"><thead><tr><th>Apoyo</th><th>Tipo</th><th class="r">R<sub>x</sub> (' + uF + ')</th><th class="r">R<sub>y</sub> (' + uF + ')</th><th class="r">M (' + uM + ')</th></tr></thead><tbody>';
+  nodos.forEach(n=>{ const R = res.reacciones[n.id]; if(!R) return;
+    h += '<tr><td><b>' + n.nombre + '</b></td><td>' + (n.apoyo==='fijo' ? 'Fijo (pasador)' : n.apoyo==='empotrado' ? 'Empotrado' : 'Móvil (' + (n.apAng===0?'horizontal':'vertical') + ')') + '</td>'
+      + '<td class="r">' + (R.rx!==undefined ? f(R.rx) : '—') + '</td><td class="r">' + (R.ry!==undefined ? f(R.ry) : '—') + '</td><td class="r">' + (R.m!==undefined ? f(R.m) : '—') + '</td></tr>'; });
+  h += '</tbody></table><div class="hint-sm">Signo: + hacia +x, +y y antihorario.</div></div>';
+
+  // 3 · Elementos de dos fuerzas
+  h += '<div class="res-section"><div class="res-title"><div class="num">3</div>Elementos de dos fuerzas</div>';
+  if(dosF.length){
+    h += '<table class="tabla"><thead><tr><th>Barra</th><th class="r">Fuerza (' + uF + ')</th><th>Naturaleza</th></tr></thead><tbody>'
+      + dosF.map(b=>{ const v = res.fuerzas[b.id]; return '<tr><td><b>' + nombreBarra(b) + '</b></td><td class="r"><b>' + f(Math.abs(v)) + '</b></td><td>' + (esCero(v) ? '<span class="tag z">Fuerza cero</span>' : v > 0 ? '<span class="tag t">Tracción</span>' : '<span class="tag c">Compresión</span>') + '</td></tr>'; }).join('')
+      + '</tbody></table><div class="hint-sm">Sin cargas intermedias y articuladas en los dos extremos: la fuerza va a lo largo de la barra, una sola incógnita.</div>';
+  } else h += '<div class="verdict"><div class="verdict-t">Resultado</div>Ninguna: todas las piezas son de varias fuerzas.</div>';
+  h += '</div>';
+
+  // 4 · Desmembrado: cada pieza de varias fuerzas
+  h += '<div class="res-section"><div class="res-title"><div class="num">4</div>Desmembrado: equilibrio de cada pieza</div>'
+    + '<div class="hint-sm" style="margin-bottom:8px">Fuerzas de pasador sobre la pieza supuestas hacia +x y +y (momentos antihorarios); ΣM respecto del extremo ' + 'inicial de cada pieza.</div>';
+  elementos.forEach((b, i)=>{
+    const g = geomBarra(b), ex = res.extremos[b.id], rc = resultanteCargas(b);
+    const A = _simbExt(b,'a'), B = _simbExt(b,'b');
+    const ma = esRigidoExtremo(b,'a'), mb = esRigidoExtremo(b,'b');
+    const dx = g.nb.x - g.na.x, dy = g.nb.y - g.na.y;
+    const tX = [{v:1, tex:A + '_x'}, {v:1, tex:B + '_x'}]; if(Math.abs(rc.Fx) > 1e-9) tX.push({v:rc.Fx, tex:f(Math.abs(rc.Fx))});
+    const tY = [{v:1, tex:A + '_y'}, {v:1, tex:B + '_y'}]; if(Math.abs(rc.Fy) > 1e-9) tY.push({v:rc.Fy, tex:f(Math.abs(rc.Fy))});
+    const tM = []; if(ma) tM.push({v:1, tex:'M_{' + A + '}'}); if(mb) tM.push({v:1, tex:'M_{' + B + '}'});
+    if(Math.abs(dx) > 1e-9) tM.push({v:dx, tex:dec(Math.abs(dx),'len') + '\\,' + B + '_y'});
+    if(Math.abs(dy) > 1e-9) tM.push({v:-dy, tex:dec(Math.abs(dy),'len') + '\\,' + B + '_x'});
+    if(Math.abs(rc.Ma) > 1e-9) tM.push({v:rc.Ma, tex:f(Math.abs(rc.Ma))});
+    const ecX = _sumaTexArm(tX) + ' = 0', ecY = _sumaTexArm(tY) + ' = 0', ecM = _sumaTexArm(tM) + ' = 0';
+    h += '<div class="joint-card"><div class="joint-h"><div class="joint-n">' + (i+1) + '</div>Pieza <b>' + nombreBarra(b) + '</b>'
+      + '<span style="color:var(--muted);font-weight:500;font-size:11px">L = ' + dec(g.L,'len') + ' ' + uL + ' · ' + cargasDeBarra(b).length + ' carga(s)</span></div>'
+      + '<div class="joint-body"><div>'
+      + '<div class="eq-row"><div class="eq-body">' + kx('\\xrightarrow{+}\\ \\sum F_x = 0:\\quad ' + ecX) + '</div></div>'
+      + '<div class="eq-row"><div class="eq-body">' + kx('+\\!\\uparrow\\ \\sum F_y = 0:\\quad ' + ecY) + '</div></div>'
+      + '<div class="eq-row"><div class="eq-body">' + kx('\\circlearrowleft\\!+\\ \\sum M_{' + A + '} = 0:\\quad ' + ecM) + '</div></div>'
+      + '<div class="proc-sub" style="margin-top:8px">Fuerzas de los pasadores sobre la pieza</div>'
+      + '<div class="eq-row"><div class="eq-body">' + kx(A + '_x = ' + f(ex.a.fx) + '\\quad ' + A + '_y = ' + f(ex.a.fy) + (ma ? '\\quad M_{' + A + '} = ' + f(ex.a.m) : '') + '\\ [' + uF + (ma ? ', ' + uM : '') + ']') + '</div></div>'
+      + '<div class="eq-row"><div class="eq-body">' + kx(B + '_x = ' + f(ex.b.fx) + '\\quad ' + B + '_y = ' + f(ex.b.fy) + (mb ? '\\quad M_{' + B + '} = ' + f(ex.b.m) : '') + '\\ [' + uF + (mb ? ', ' + uM : '') + ']') + '</div></div>'
+      + '</div><div>' + svgDCLPieza(b, res) + '</div></div></div>';
+  });
+  h += '</div>';
+
+  // 5 · Fuerzas en los pasadores
+  h += '<div class="res-section"><div class="res-title"><div class="num">5</div>Fuerzas en los pasadores</div>'
+    + '<table class="tabla"><thead><tr><th>Pasador</th><th>Sobre la pieza</th><th class="r">F<sub>x</sub> (' + uF + ')</th><th class="r">F<sub>y</sub> (' + uF + ')</th><th class="r">|F| (' + uF + ')</th><th class="r">M (' + uM + ')</th></tr></thead><tbody>';
+  nodos.forEach(n=>{
+    barras.filter(b=>b.a===n.id||b.b===n.id).forEach(b=>{
+      const e = res.extremos[b.id][b.a===n.id ? 'a' : 'b'];
+      const rig = esRigidoExtremo(b, b.a===n.id ? 'a' : 'b');
+      h += '<tr><td><b>' + n.nombre + '</b></td><td>' + nombreBarra(b) + '</td><td class="r">' + f(e.fx) + '</td><td class="r">' + f(e.fy) + '</td><td class="r"><b>' + f(Math.hypot(e.fx, e.fy)) + '</b></td><td class="r">' + (rig ? f(e.m) : '—') + '</td></tr>';
+    });
+  });
+  h += '</tbody></table><div class="hint-sm">Sobre la otra pieza (o sobre el apoyo) el pasador ejerce la fuerza igual y opuesta: tercera ley.</div></div>';
+
+  // 6 · Diagramas N, V, M
+  if(elementos.length){
+    h += '<div class="res-section"><div class="res-title"><div class="num">6</div>Diagramas N · V · M de cada elemento</div>'
+      + '<div class="hint-sm" style="margin-bottom:8px">s medida desde el primer extremo de la pieza; N + tracción; V y M con el convenio de vigas (M + curva el elemento hacia su lado +n, el de la izquierda al recorrerlo).</div>';
+    elementos.forEach(b=>{
+      const es = res.esfuerzos[b.id];
+      h += '<div class="proc-block" style="margin-bottom:10px"><div class="proc-sub">Elemento ' + nombreBarra(b) + ' — L = ' + dec(es.L,'len') + ' ' + uL + '</div>'
+        + svgDiagramasElemento(b, es)
+        + '<div class="hint-sm">' + kx('N_{\\max} = ' + f(es.maxN.N) + '\\ (s = ' + dec(es.maxN.s,'len') + ')\\qquad V_{\\max} = ' + f(es.maxV.V) + '\\ (s = ' + dec(es.maxV.s,'len') + ')\\qquad M_{\\max} = ' + f(es.maxM.M) + '\\ (s = ' + dec(es.maxM.s,'len') + ')') + '</div></div>';
+    });
+    h += '</div>';
+  }
+
+  // 7 · Comprobación global
+  {
+    let sx = 0, sy = 0, sm = 0;
+    nodos.forEach(n=>{ sx += n.fx||0; sy += n.fy||0; sm += n.x*(n.fy||0) - n.y*(n.fx||0);
+      const R = res.reacciones[n.id]; if(R){ sx += R.rx||0; sy += R.ry||0; sm += n.x*(R.ry||0) - n.y*(R.rx||0) + (R.m||0); } });
+    barras.forEach(b=>{ const g = geomBarra(b), rc = resultanteCargas(b);
+      sx += rc.Fx; sy += rc.Fy; sm += rc.Ma + (g.na.x*rc.Fy - g.na.y*rc.Fx); });
+    const esc0 = Math.max(1, ...Object.values(res.x).map(v=>Math.abs(v)));
+    const cero = v => Math.abs(v) < 1e-7*esc0 ? '0' : f(v);
+    h += '<div class="res-section"><div class="res-title"><div class="num">7</div>Comprobación del conjunto</div>'
+      + '<div class="proc-block"><div class="eq-row"><div class="eq-body">' + kx('\\sum F_x = ' + cero(sx) + '\\qquad \\sum F_y = ' + cero(sy) + '\\qquad \\sum M_O = ' + cero(sm) + '\\qquad\\checkmark') + '</div></div></div></div>';
+  }
+  return h;
+}
+
+// DCL de una pieza en SVG: la barra en su orientación real, sus cargas y las
+// fuerzas de pasador con su nombre (variable), en el sentido positivo supuesto.
+function svgDCLPieza(b, res){
+  const g = geomBarra(b), W2 = 300, H2 = 190, M = 58;
+  const k = (W2 - 2*M)/Math.max(g.L, 1e-9);
+  const cx = W2/2, cy = H2/2 + 8;
+  const P = s => [cx + (s - g.L/2)*g.ux*k, cy - (s - g.L/2)*g.uy*k];
+  const A = _simbExt(b,'a'), B = _simbExt(b,'b');
+  const fl = (x, y, ang, col) => '<polygon points="0,0 -9,-4 -9,4" fill="' + col + '" transform="translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')"/>';
+  let s = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;max-width:300px;height:auto;display:block"><rect width="' + W2 + '" height="' + H2 + '" fill="#fff"/>';
+  const [ax,ay] = P(0), [bx,by] = P(g.L);
+  s += '<line x1="' + ax.toFixed(1) + '" y1="' + ay.toFixed(1) + '" x2="' + bx.toFixed(1) + '" y2="' + by.toFixed(1) + '" stroke="#7c3a06" stroke-width="4" stroke-linecap="round"/>';
+  // cargas
+  cargasDeBarra(b).forEach(c=>{
+    if(c.tipo === 'P'){
+      const [px,py] = P(c.s), mag = Math.hypot(c.fx,c.fy); if(mag < 1e-12) return;
+      const ux = c.fx/mag, uy = -c.fy/mag, L = 30;
+      s += '<line x1="' + (px-ux*L).toFixed(1) + '" y1="' + (py-uy*L).toFixed(1) + '" x2="' + (px-ux*7).toFixed(1) + '" y2="' + (py-uy*7).toFixed(1) + '" stroke="#c0392b" stroke-width="2"/>' + fl(px-ux*6, py-uy*6, Math.atan2(uy,ux)*180/Math.PI, '#c0392b')
+        + '<text x="' + (px-ux*L-ux*10).toFixed(1) + '" y="' + (py-uy*L-uy*10+3).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(mag,'f') + '</text>';
+    } else if(c.tipo === 'M'){
+      const [px,py] = P(c.s);
+      s += '<path d="M' + (px+10).toFixed(1) + ' ' + py.toFixed(1) + ' A10 10 0 1 ' + (c.m > 0 ? 0 : 1) + ' ' + (px-7).toFixed(1) + ' ' + (py-7).toFixed(1) + '" fill="none" stroke="#c0392b" stroke-width="1.8"/>'
+        + '<text x="' + px.toFixed(1) + '" y="' + (py-16).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(Math.abs(c.m),'f') + '</text>';
+    } else {
+      const d = dirCarga(g, c), n = 5, wmax = Math.max(Math.abs(c.w1), Math.abs(c.w2), 1e-12), pts = [];
+      for(let i=0;i<=n;i++){
+        const sv = c.s1 + (c.s2-c.s1)*i/n, w = c.w1 + (c.w2-c.w1)*i/n, [px,py] = P(sv), len = 22*Math.abs(w)/wmax;
+        const sg = w >= 0 ? 1 : -1, ux = d.x*sg, uy = -d.y*sg;
+        pts.push([px-ux*len, py-uy*len]);
+        if(len > 2) s += '<line x1="' + (px-ux*len).toFixed(1) + '" y1="' + (py-uy*len).toFixed(1) + '" x2="' + (px-ux*5).toFixed(1) + '" y2="' + (py-uy*5).toFixed(1) + '" stroke="#c0392b" stroke-width="1.3"/>' + fl(px-ux*4, py-uy*4, Math.atan2(uy,ux)*180/Math.PI, '#c0392b');
+      }
+      s += '<polyline points="' + pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ') + '" fill="none" stroke="#c0392b" stroke-width="1.3"/>';
+      const pm = pts[Math.floor(n/2)];
+      s += '<text x="' + pm[0].toFixed(1) + '" y="' + (pm[1]-6).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + (Math.abs(c.w1-c.w2)<1e-9 ? dec(Math.abs(c.w1),'f') : dec(Math.abs(c.w1),'f') + '→' + dec(Math.abs(c.w2),'f')) + '</text>';
+    }
+  });
+  // fuerzas de pasador (sentido positivo supuesto) y momentos
+  [['a', ax, ay, A], ['b', bx, by, B]].forEach(([ext, px, py, nom])=>{
+    const col = '#15803d', L = 26;
+    s += '<line x1="' + px.toFixed(1) + '" y1="' + py.toFixed(1) + '" x2="' + (px+L).toFixed(1) + '" y2="' + py.toFixed(1) + '" stroke="' + col + '" stroke-width="2"/>' + fl(px+L+1, py, 0, col)
+      + '<text x="' + (px+L+6).toFixed(1) + '" y="' + (py+4).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="' + col + '">' + nom + 'x</text>'
+      + '<line x1="' + px.toFixed(1) + '" y1="' + py.toFixed(1) + '" x2="' + px.toFixed(1) + '" y2="' + (py-L).toFixed(1) + '" stroke="' + col + '" stroke-width="2"/>' + fl(px, py-L-1, -90, col)
+      + '<text x="' + (px+4).toFixed(1) + '" y="' + (py-L-6).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="' + col + '">' + nom + 'y</text>';
+    if(esRigidoExtremo(b, ext))
+      s += '<path d="M' + (px-12).toFixed(1) + ' ' + py.toFixed(1) + ' A12 12 0 1 1 ' + (px+8).toFixed(1) + ' ' + (py+9).toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="1.6"/>'
+        + '<text x="' + (px-14).toFixed(1) + '" y="' + (py+16).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="' + col + '" text-anchor="end">M' + nom + '</text>';
+    s += '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="5" fill="#7c3a06" stroke="#fff" stroke-width="1.5"/>'
+      + '<text x="' + (px-9).toFixed(1) + '" y="' + (py-9).toFixed(1) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24" text-anchor="middle">' + nom + '</text>';
+  });
+  s += '<text x="' + (W2/2) + '" y="' + (H2-6) + '" font-family="Inter,sans-serif" font-size="8" fill="#9aa3ad" text-anchor="middle">fuerzas de pasador supuestas hacia +x, +y · cargas con su valor</text></svg>';
+  return s;
+}
+
+// Tres diagramas (N, V, M) desarrollados sobre la longitud de la pieza.
+function svgDiagramasElemento(b, es){
+  const W2 = 720, Hd = 92, M0 = 42, gap = 6;
+  const pts = es.puntos, L = es.L || 1;
+  let s = '<svg viewBox="0 0 ' + W2 + ' ' + (3*Hd + 14) + '" style="width:100%;height:auto;display:block"><rect width="' + W2 + '" height="' + (3*Hd+14) + '" fill="#fff"/>';
+  [['N', unitFor, '#1d4ed8'], ['V', unitFor, '#b45309'], ['M', unitFor + '·' + unitLen, '#c0392b']].forEach(([k, u, col], i)=>{
+    const y0 = 8 + i*Hd, ym = y0 + Hd/2, amp = Math.max(1e-9, ...pts.map(p=>Math.abs(p[k])));
+    const X = sv => M0 + sv/L*(W2 - M0 - 20), Y = v => ym - v/amp*(Hd/2 - gap - 8);
+    s += '<line x1="' + M0 + '" y1="' + ym + '" x2="' + (W2-20) + '" y2="' + ym + '" stroke="#68727f" stroke-width="1"/>'
+      + '<text x="10" y="' + (ym+4) + '" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="' + col + '">' + k + '</text>'
+      + '<text x="10" y="' + (ym+15) + '" font-family="Inter,sans-serif" font-size="8" fill="#68727f">' + u + '</text>';
+    let d = 'M' + X(0).toFixed(1) + ',' + ym.toFixed(1);
+    pts.forEach(p=>{ d += ' L' + X(p.s).toFixed(1) + ',' + Y(p[k]).toFixed(1); });
+    d += ' L' + X(L).toFixed(1) + ',' + ym.toFixed(1) + ' Z';
+    s += '<path d="' + d + '" fill="' + col + '" fill-opacity=".14" stroke="' + col + '" stroke-width="1.6"/>';
+    const ext = es['max' + k];
+    const vals = [pts[0], ext, pts[pts.length-1]].filter((p,j,arr)=>arr.findIndex(q=>Math.abs(q.s-p.s)<1e-9)===j);
+    vals.forEach(p=>{ if(Math.abs(p[k]) < 1e-9*amp) return;
+      s += '<text x="' + X(p.s).toFixed(1) + '" y="' + (Y(p[k]) + (p[k] >= 0 ? -4 : 11)).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="' + col + '" text-anchor="middle">' + dec(p[k],'f') + '</text>'; });
+  });
+  s += '<text x="' + M0 + '" y="' + (3*Hd+11) + '" font-family="Inter,sans-serif" font-size="8" fill="#68727f">s = 0 (' + _simbExt(b,'a') + ')</text>'
+    + '<text x="' + (W2-20) + '" y="' + (3*Hd+11) + '" font-family="Inter,sans-serif" font-size="8" fill="#68727f" text-anchor="end">s = ' + dec(L,'len') + ' ' + unitLen + ' (' + _simbExt(b,'b') + ')</text></svg>';
+  return s;
+}
+
+// ══ Ejemplos de verificación (bastidores) ═══════════════════════════════════
+// Resueltos a mano por desmembrado; `esperado` lleva reacciones (por nudo),
+// fuerzas de pasador sobre una pieza (por extremo) y momentos de extremo.
+const EJEMPLOS_MARCO = [
+  {
+    id:'portico', marco:true,
+    nom:'Pórtico con pasador y rodillo (bastidor)',
+    desc:'Columnas AB y CD de 4 m y viga BC de 6 m unidas rígidamente en B y C; pasador en A y rodillo en D. 12 kN hacia abajo a mitad de BC y 6 kN horizontales en B.',
+    ref:'ΣM_A = 0: R_Dy = (12·3 + 6·4)/6 = 10 kN; R_Ay = 2, R_Ax = −6 kN. Columna AB: N = −2 (C), V = 6, M crece de 0 a 24 kN·m en B. Viga BC: M = 24 en B, 30 bajo la carga, 0 en C. CD sin momento.',
+    esperado:{R:{A:{rx:-6, ry:2}, D:{ry:10}}, ext:{AB:{b:{fx:6, fy:-2, m:24}}, BC:{a:{fx:0, fy:2, m:-24}, b:{fx:0, fy:10, m:0}}, CD:{b:{fx:0, fy:10}}}},
+    armar(){
+      const A = addNodo(0,0), B = addNodo(0,4), C = addNodo(6,4), D = addNodo(6,0);
+      const ab = addBarra(A.id,B.id), bc = addBarra(B.id,C.id), cd = addBarra(C.id,D.id);
+      A.apoyo = 'fijo'; D.apoyo = 'movil'; D.apAng = 90;
+      B.union = 'rigido'; C.union = 'rigido';
+      B.fx = 6; B.cargas = [{fx:6, fy:0}];
+      bc.cargas = [{tipo:'P', s:3, fx:0, fy:-12}];
+      void ab; void cd;
+    }
+  },
+  {
+    id:'puntal', marco:true,
+    nom:'Viga con puntal de dos fuerzas (Hibbeler ej. 6.15)',
+    desc:'Viga A–B–C de 6 m (pasador en A, extremo C libre) con 3 kN/m hacia abajo en toda su longitud, sostenida en B (a 4 m de A) por el puntal BD articulado en B y en D(1, −4). La viga es continua en B (unión rígida) y el puntal se articula ahí.',
+    ref:'Viga entera: ΣM_A = 0 → F_By = 18·3/4 = 13.5 kN; el puntal (3-4-5) empuja con S = 16.875 kN (C), S_x = 10.125. R_A = (−10.125, 4.5), R_D = (10.125, 13.5) kN. M en B = −6 kN·m; M máx = 3.375 kN·m en s = 1.5 m.',
+    esperado:{R:{A:{rx:-10.125, ry:4.5}, D:{rx:10.125, ry:13.5}}, F:{BD:-16.875}, ext:{AB:{b:{m:-6}}, BC:{a:{fy:6, m:6}}}},
+    armar(){
+      const A = addNodo(0,0), C = addNodo(4,0), B = addNodo(6,0), D = addNodo(1,-4);
+      const ac = addBarra(A.id,C.id), cb = addBarra(C.id,B.id), cd = addBarra(C.id,D.id);
+      A.apoyo = 'fijo'; D.apoyo = 'fijo'; C.union = 'rigido';
+      ac.cargas = [{tipo:'w', s1:0, s2:4, w1:-3, w2:-3, dir:'y'}];
+      cb.cargas = [{tipo:'w', s1:0, s2:2, w1:-3, w2:-3, dir:'y'}];
+      cd.artA = true;                       // el puntal va articulado en C aunque C sea rígido
+    }
+  },
+  {
+    id:'mensula', marco:true,
+    nom:'Ménsula empotrada en L',
+    desc:'Columna AB de 3 m empotrada en A, con la viga BC de 3 m unida rígidamente en B y 5 kN hacia abajo en el extremo libre C.',
+    ref:'Reacciones en A: R_x = 0, R_y = 5 kN, M_A = 15 kN·m (antihorario). M = −15 kN·m constante en AB y de −15 en B a 0 en C.',
+    esperado:{R:{A:{rx:0, ry:5, m:15}}, ext:{AB:{a:{m:15}, b:{m:-15}}, BC:{a:{fy:5, m:15}}}},
+    armar(){
+      const A = addNodo(0,0), B = addNodo(0,3), C = addNodo(3,3);
+      addBarra(A.id,B.id); addBarra(B.id,C.id);
+      A.apoyo = 'empotrado'; A.union = 'rigido'; B.union = 'rigido';
+      C.fy = -5; C.cargas = [{fx:0, fy:-5}];
+    }
+  }
+];
+function comprobarEjemploMarco(ej){
+  if(!ej || !ej.esperado || !resultado || resultado.error || !resultado.marco) return;
+  const tol = 0.006; let desvios = 0;
+  const cmp = (nombre, obt, esp) => { if(esp === undefined) return; if(!isFinite(obt) || Math.abs(obt - esp) > Math.max(tol, 1e-3*Math.abs(esp))){ console.warn('Ejemplo ' + ej.id + ': ' + nombre + ' se desvía de la referencia', {motor:obt, referencia:esp}); desvios++; } };
+  Object.keys(ej.esperado.R || {}).forEach(nom=>{ const n = nodos.find(z=>z.nombre===nom), R = n && resultado.reacciones[n.id]; if(!R){ desvios++; return; }
+    const e = ej.esperado.R[nom]; cmp('R_x' + nom, R.rx, e.rx); cmp('R_y' + nom, R.ry, e.ry); cmp('M_' + nom, R.m, e.m); });
+  Object.keys(ej.esperado.F || {}).forEach(nom=>{ const b = barras.find(x=>nombreBarra(x)===nom); cmp('F_' + nom, b ? resultado.fuerzas[b.id] : NaN, ej.esperado.F[nom]); });
+  Object.keys(ej.esperado.ext || {}).forEach(nom=>{ const b = barras.find(x=>nombreBarra(x)===nom); if(!b){ desvios++; return; }
+    ['a','b'].forEach(ext=>{ const e = ej.esperado.ext[nom][ext]; if(!e) return; const o = resultado.extremos[b.id][ext];
+      cmp(nom + '.' + ext + '.fx', o.fx, e.fx); cmp(nom + '.' + ext + '.fy', o.fy, e.fy); cmp(nom + '.' + ext + '.m', o.m, e.m); }); });
+  return desvios;
+}
+
+// ══ Informe LaTeX del bastidor ══════════════════════════════════════════════
+let _yaDichoMarco = {};
+function _porqueMarco(clave, txt){ if(_yaDichoMarco[clave]) return ''; _yaDichoMarco[clave] = true; return '\\porque{' + txt + '}\n'; }
+function _preambuloArm(subcabecera){
+  return '\\documentclass[11pt]{article}\n'
+    + '\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}\n'
+    + '\\usepackage[a4paper,margin=2.0cm]{geometry}\n\\usepackage{amsmath,amssymb}\n'
+    + '\\usepackage{tikz}\n\\usetikzlibrary{arrows.meta,calc,patterns}\n\\usepackage{xcolor}\n\\usepackage{needspace}\n\n'
+    + '\\definecolor{bsaAcc}{HTML}{B45309}\n\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n\\definecolor{bsaRoj}{HTML}{B3261E}\n'
+    + '\\definecolor{bsaVerde}{HTML}{15803D}\n\\definecolor{bsaAlerta}{HTML}{DB2777}\n\\definecolor{bsaMuted}{HTML}{6B7280}\n'
+    + '\\definecolor{bsaBarra}{HTML}{7C3A06}\n\\definecolor{bsaLogoB}{HTML}{CDA953}\n\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
+    + '\\setlength{\\parskip}{2pt}\n\\makeatletter\n\\def\\ps@bsa{%\n'
+    + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Armaduras y Marcos}\\hfill\\footnotesize\\color{bsaMuted}' + subcabecera + '}%\n'
+    + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\ \\ \\textperiodcentered\\ \\ p\\\'ag.\\ \\thepage\\hfill}%\n'
+    + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n\\makeatother\n\\pagestyle{bsa}\n\n'
+    + '\\newcommand{\\seccion}[1]{%\n  \\par\\addvspace{10pt}\\penalty-250\n  \\noindent{\\large\\bfseries\\color{bsaAcc}#1}\\par\\nopagebreak\n  \\vspace{3pt}\\nopagebreak\\hrule\\nopagebreak\\vspace{7pt}\\nopagebreak}\n'
+    + '\\newcommand{\\subpaso}[1]{\\vspace{6pt}\\noindent{\\bfseries\\color{bsaAcc2}#1}\\par\\vspace{3pt}}\n'
+    + '\\newcommand{\\porque}[1]{\\par\\vspace{3pt}\\noindent\\fcolorbox{bsaAcc2!40}{bsaAcc2!5}{%\n  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\footnotesize{\\bfseries\\color{bsaAcc2}\\textquestiondown Por qu\\\'e?}\\ #1}}\\par\\vspace{4pt}}\n'
+    + '\\newcommand{\\resultado}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaVerde!50}{bsaVerde!6}{%\n  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
+    + '\\newcommand{\\veredicto}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaAcc}{bsaAcc!7}{%\n  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
+    + '\\makeatletter\n\\newenvironment{tablacentrada}{\\par\\nopagebreak\\begingroup\\@beginparpenalty=10000\\relax\\begin{center}}{\\end{center}\\endgroup}\n\\makeatother\n'
+    + '\\raggedbottom\n\n\\begin{document}\n\n';
+}
+// Cargas sobre las barras en TikZ (para la figura general y el DCL de cada pieza).
+function _tikzCargasBarra(b, tx, ty, esc, conValor){
+  const g = geomBarra(b), F = v => v.toFixed(3), uF = escLatex(unitFor), uL = escLatex(unitLen);
+  const P = s => [parseFloat(tx(g.na.x + g.ux*s)), parseFloat(ty(g.na.y + g.uy*s))];
+  let s = '';
+  cargasDeBarra(b).forEach(c=>{
+    if(c.tipo === 'P'){
+      const [px,py] = P(c.s), mag = Math.hypot(c.fx,c.fy); if(mag < 1e-12) return;
+      const ux = c.fx/mag, uy = c.fy/mag, Lf = 1.0;
+      s += '\\draw[->, >=stealth, line width=0.85pt, bsaAcc] (' + F(px-ux*Lf) + ',' + F(py-uy*Lf) + ') -- (' + F(px-ux*0.05) + ',' + F(py-uy*0.05) + ');\n';
+      if(conValor !== false) s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt] at (' + F(px-ux*(Lf+0.32)) + ',' + F(py-uy*(Lf+0.32)) + ') {' + dec(mag,'f') + '\\,' + uF + '};\n';
+    } else if(c.tipo === 'M'){
+      const [px,py] = P(c.s), sg = c.m > 0 ? 1 : -1;
+      s += '\\draw[->, >=stealth, line width=0.85pt, bsaAcc] (' + F(px+0.32) + ',' + F(py) + ') arc [start angle=0, end angle=' + (sg*250) + ', radius=0.32];\n';
+      if(conValor !== false) s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt, above] at (' + F(px) + ',' + F(py+0.36) + ') {' + dec(Math.abs(c.m),'f') + '\\,' + uF + '$\\cdot$' + uL + '};\n';
+    } else {
+      const d = dirCarga(g, c), n = 6, wmax = Math.max(Math.abs(c.w1), Math.abs(c.w2), 1e-12), pts = [];
+      for(let i=0;i<=n;i++){
+        const sv = c.s1 + (c.s2-c.s1)*i/n, w = c.w1 + (c.w2-c.w1)*i/n, [px,py] = P(sv), len = 0.9*Math.abs(w)/wmax;
+        const sg = w >= 0 ? 1 : -1, ux = d.x*sg, uy = d.y*sg;
+        pts.push([px-ux*len, py-uy*len]);
+        if(len > 0.05) s += '\\draw[->, >=stealth, line width=0.5pt, bsaAcc] (' + F(px-ux*len) + ',' + F(py-uy*len) + ') -- (' + F(px-ux*0.04) + ',' + F(py-uy*0.04) + ');\n';
+      }
+      s += '\\draw[bsaAcc, line width=0.5pt] ' + pts.map(p=>'(' + F(p[0]) + ',' + F(p[1]) + ')').join(' -- ') + ';\n';
+      if(conValor !== false){ const pm = pts[Math.floor(n/2)];
+        s += '\\node[font=\\scriptsize, color=bsaAcc, inner sep=1pt, above] at (' + F(pm[0]) + ',' + F(pm[1]+0.05) + ') {' + (Math.abs(c.w1-c.w2)<1e-9 ? dec(Math.abs(c.w1),'f') : dec(Math.abs(c.w1),'f') + '$\\to$' + dec(Math.abs(c.w2),'f')) + '\\,' + uF + '/' + uL + '};\n'; }
+    }
+  });
+  return s;
+}
+function _tikzEmpotrado(px, py, n){
+  const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
+  let vx = 0, vy = 0;
+  conec.forEach(b=>{ const o = nodos.find(z=>z.id===(b.a===n.id?b.b:b.a)); const dx=o.x-n.x, dy=o.y-n.y, L=Math.hypot(dx,dy)||1; vx += dx/L; vy += dy/L; });
+  let ang = (Math.abs(vx)+Math.abs(vy) < 1e-9) ? -90 : Math.atan2(-vy, -vx)*180/Math.PI;
+  ang = Math.round(ang/90)*90;
+  return '\\begin{scope}[shift={(' + px + ',' + py + ')}, rotate=' + ang + ']\n'
+    + '\\draw[bsaAcc, line width=1pt] (0.12,-0.5) -- (0.12,0.5);\n'
+    + '\\foreach \\yy in {-0.5,-0.33,...,0.5}{\\draw[bsaAcc, line width=0.5pt] (0.12,\\yy) -- ++(0.18,-0.16);}\n'
+    + '\\end{scope}\n';
+}
+function tikzMarcoCompleto(opts){
+  opts = opts || {};
+  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const esc = 11.5/Math.max(maxX-minX, maxY-minY, 1e-6);
+  const tx = x => ((x-minX)*esc).toFixed(3), ty = y => ((y-minY)*esc).toFixed(3);
+  let s = '';
+  barras.forEach(b=>{ const g = geomBarra(b);
+    s += '\\draw[bsaBarra, line width=' + (opts.dosFuerzas && resultado && resultado.dosFuerzas[b.id] ? '1.1' : '1.8') + 'pt] (' + tx(g.na.x) + ',' + ty(g.na.y) + ') -- (' + tx(g.nb.x) + ',' + ty(g.nb.y) + ');\n';
+    s += _tikzCargasBarra(b, tx, ty, esc, true);
+  });
+  const genC = letrasGriegas();
+  nodos.forEach(n=>{
+    if(n.union === 'rigido') s += '\\fill[bsaBarra] (' + tx(n.x) + ',' + ty(n.y) + ') +(-0.09,-0.09) rectangle +(0.09,0.09);\n';
+    else s += '\\fill[white, draw=bsaBarra, line width=0.7pt] (' + tx(n.x) + ',' + ty(n.y) + ') circle (2pt);\n';
+    s += '\\node[font=\\tiny, above right, xshift=1pt] at (' + tx(n.x) + ',' + ty(n.y) + ') {' + escLatex(n.nombre) + '};\n';
+    if(n.apoyo === 'fijo' || n.apoyo === 'movil') s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y));
+    else if(n.apoyo === 'empotrado') s += _tikzEmpotrado(tx(n.x), ty(n.y), n);
+    if(opts.cargas !== false) s += tikzFlechaCarga(n, tx, ty, 1, null, {gen:genC, coloc:crearColocador(24,0.4), angulos:[]});
+    if(opts.reaccionesIncognita && resultado && resultado.reacciones[n.id]){
+      const rr = resultado.reacciones[n.id], px = parseFloat(tx(n.x)), py = parseFloat(ty(n.y));
+      if(rr.ry !== undefined) s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + px.toFixed(3) + ',' + (py-1.45).toFixed(3) + ') -- (' + px.toFixed(3) + ',' + (py-0.62).toFixed(3) + ') node[midway, right, font=\\scriptsize, text=bsaVerde] {$R_{y' + escLatex(n.nombre) + '}$};\n';
+      if(rr.rx !== undefined) s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + (px-1.35).toFixed(3) + ',' + py.toFixed(3) + ') -- (' + (px-0.45).toFixed(3) + ',' + py.toFixed(3) + ') node[midway, above, font=\\scriptsize, text=bsaVerde] {$R_{x' + escLatex(n.nombre) + '}$};\n';
+      if(rr.m !== undefined) s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + (px+0.55).toFixed(3) + ',' + py.toFixed(3) + ') arc [start angle=0, end angle=250, radius=0.55] node[pos=0.5, above right, font=\\scriptsize, text=bsaVerde] {$M_{' + escLatex(n.nombre) + '}$};\n';
+    }
+  });
+  if(opts.cotas) s += tikzCotas(tx, ty, minX, maxX, minY, maxY, esc);
+  return s;
+}
+// DCL de una pieza: la barra en su orientación real, cargas con valor, fuerzas
+// de pasador con su nombre en el sentido positivo supuesto y las cotas de s.
+function tikzDCLPieza(b, res){
+  const g = geomBarra(b);
+  // A lo ancho hasta 7.5 cm y a lo alto hasta 4.5 cm: una columna vertical a
+  // escala de la viga se salía de la página.
+  const esc = Math.min(7.5/Math.max(Math.abs(g.nb.x - g.na.x), 1e-6), 4.5/Math.max(Math.abs(g.nb.y - g.na.y), 1e-6));
+  const cx0 = 0, cy0 = 0;
+  const tx = x => (cx0 + (x - g.na.x)*esc).toFixed(3), ty = y => (cy0 + (y - g.na.y)*esc).toFixed(3);
+  const F = v => v.toFixed(3);
+  const A = _simbExt(b,'a'), B = _simbExt(b,'b');
+  let s = '\\draw[bsaBarra, line width=2pt] (' + tx(g.na.x) + ',' + ty(g.na.y) + ') -- (' + tx(g.nb.x) + ',' + ty(g.nb.y) + ');\n';
+  s += _tikzCargasBarra(b, tx, ty, esc, true);
+  [['a', g.na, A], ['b', g.nb, B]].forEach(([ext, n, nom])=>{
+    const px = parseFloat(tx(n.x)), py = parseFloat(ty(n.y)), col = 'bsaVerde';
+    s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + F(px) + ',' + F(py) + ') -- (' + F(px+0.9) + ',' + F(py) + ') node[right, font=\\scriptsize, text=' + col + '] {$' + nom + '_x$};\n';
+    s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + F(px) + ',' + F(py) + ') -- (' + F(px) + ',' + F(py+0.9) + ') node[above, font=\\scriptsize, text=' + col + '] {$' + nom + '_y$};\n';
+    if(esRigidoExtremo(b, ext)) s += '\\draw[->, >=stealth, ' + col + ', line width=1pt] (' + F(px-0.42) + ',' + F(py) + ') arc [start angle=180, end angle=-70, radius=0.42] node[pos=0.55, below left, font=\\scriptsize, text=' + col + '] {$M_{' + nom + '}$};\n';
+    s += '\\fill[bsaBarra] (' + F(px) + ',' + F(py) + ') circle (1.8pt);\n';
+    s += '\\node[font=\\small\\bfseries, ' + (ext === 'a' ? 'below left' : 'below right') + ', inner sep=2pt] at (' + F(px) + ',' + F(py) + ') {' + escLatex(nom) + '};\n';
+  });
+  // cotas de s de cada carga, bajo la pieza
+  const ss = [0, g.L]; cargasDeBarra(b).forEach(c=>{ if(c.tipo === 'w'){ ss.push(c.s1, c.s2); } else ss.push(c.s); });
+  const uni = [...new Set(ss.map(v=>+v.toFixed(6)))].sort((p,q)=>p-q);
+  if(uni.length > 1){
+    const off = 0.9;
+    const Pn = sv => [parseFloat(tx(g.na.x + g.ux*sv)) + g.nx*(-off), parseFloat(ty(g.na.y + g.uy*sv)) + g.ny*(-off)];
+    for(let i=0;i<uni.length-1;i++){
+      const [x1,y1] = Pn(uni[i]), [x2,y2] = Pn(uni[i+1]);
+      if(uni[i+1]-uni[i] < 1e-9) continue;
+      s += '\\draw[black!55, line width=0.4pt, <->, >=stealth] (' + F(x1) + ',' + F(y1) + ') -- (' + F(x2) + ',' + F(y2) + ') node[midway, fill=white, font=\\tiny, inner sep=1pt] {' + dec(uni[i+1]-uni[i],'len') + '\\,' + escLatex(unitLen) + '};\n';
+    }
+    uni.forEach(sv=>{ const [x1,y1] = Pn(sv); const px = parseFloat(tx(g.na.x + g.ux*sv)), py = parseFloat(ty(g.na.y + g.uy*sv));
+      s += '\\draw[black!35, line width=0.3pt, dash pattern=on 1.4pt off 1.4pt] (' + F(px) + ',' + F(py) + ') -- (' + F(x1) + ',' + F(y1) + ');\n'; });
+  }
+  return s;
+}
+// Diagramas N, V, M de un elemento, desarrollados en horizontal.
+function tikzDiagramasElemento(b, es){
+  const L = es.L || 1, W = 11, Hd = 1.25, F = v => v.toFixed(3);
+  let s = '';
+  [['N', escLatex(unitFor), 'bsaAcc2'], ['V', escLatex(unitFor), 'bsaAcc'], ['M', escLatex(unitFor) + '$\\cdot$' + escLatex(unitLen), 'bsaRoj']].forEach(([k, u, col], i)=>{
+    const y0 = -i*(2*Hd + 0.9), amp = Math.max(1e-9, ...es.puntos.map(p=>Math.abs(p[k])));
+    const X = sv => sv/L*W, Y = v => y0 + v/amp*Hd;
+    s += '\\draw[black!60, line width=0.4pt] (0,' + F(y0) + ') -- (' + W + ',' + F(y0) + ');\n';
+    s += '\\node[left, font=\\small\\bfseries, text=' + col + '] at (-0.15,' + F(y0) + ') {$' + k + '$};\n';
+    s += '\\node[right, font=\\tiny, text=bsaMuted] at (' + W + ',' + F(y0) + ') {' + u + '};\n';
+    s += '\\fill[' + col + '!15] (0,' + F(y0) + ') ' + es.puntos.map(p=>'-- (' + F(X(p.s)) + ',' + F(Y(p[k])) + ')').join(' ') + ' -- (' + W + ',' + F(y0) + ') -- cycle;\n';
+    s += '\\draw[' + col + ', line width=0.7pt] ' + es.puntos.map(p=>'(' + F(X(p.s)) + ',' + F(Y(p[k])) + ')').join(' -- ') + ';\n';
+    const ext = es['max' + k], pts = es.puntos;
+    const vals = [pts[0], ext, pts[pts.length-1]].filter((p,j,arr)=>arr.findIndex(q=>Math.abs(q.s-p.s)<1e-9)===j);
+    vals.forEach(p=>{ if(Math.abs(p[k]) < 1e-9*amp) return;
+      s += '\\node[font=\\tiny, text=' + col + ', ' + (p[k] >= 0 ? 'above' : 'below') + ', inner sep=1pt] at (' + F(X(p.s)) + ',' + F(Y(p[k])) + ') {' + dec(p[k],'f') + '};\n'; });
+  });
+  const yb = -2*(2*Hd + 0.9) - Hd - 0.35;
+  s += '\\node[font=\\tiny, text=bsaMuted, below right] at (0,' + F(yb) + ') {$s = 0$ (' + escLatex(_simbExt(b,'a')) + ')};\n';
+  s += '\\node[font=\\tiny, text=bsaMuted, below left] at (' + W + ',' + F(yb) + ') {$s = ' + dec(L,'len') + '$\\,' + escLatex(unitLen) + ' (' + escLatex(_simbExt(b,'b')) + ')};\n';
+  return s;
+}
+
+function construirLatexMarco(){
+  if(!resultado || resultado.error || !resultado.marco){ aviso('Primero resuelve el bastidor sin errores.'); return null; }
+  _yaDichoMarco = {};
+  const res = resultado, d = res.diag, uF = escLatex(unitFor), uL = escLatex(unitLen), uM = uF + '$\\cdot$' + uL;
+  const f = v => dec(v,'f'), nomN = n => escLatex(n.nombre), nomB = b => escLatex(nombreBarra(b));
+  const elementos = barras.filter(b=>!res.dosFuerzas[b.id]), dosF = barras.filter(b=>res.dosFuerzas[b.id]);
+  let figN = 0, tablaN = 0;
+  const lamina = (cuerpo, txt) => { figN++; return '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n' + cuerpo + '\\end{tikzpicture}\\par\\nopagebreak\\vspace{4pt}\n{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{center}\n\\vspace{4pt}\n'; };
+  const tablaCaption = txt => { tablaN++; return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
+  const porque = _porqueMarco;
+  const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
+
+  // Autocomprobación: cada pieza debe cerrar con las fuerzas del motor.
+  barras.forEach(b=>{
+    const g = geomBarra(b), ex = res.extremos[b.id], rc = resultanteCargas(b);
+    const r1 = ex.a.fx + ex.b.fx + rc.Fx, r2 = ex.a.fy + ex.b.fy + rc.Fy;
+    const r3 = (ex.a.m||0) + (ex.b.m||0) + (g.nb.x-g.na.x)*ex.b.fy - (g.nb.y-g.na.y)*ex.b.fx + rc.Ma;
+    const esc0 = Math.max(1, ...res.x.map(v=>Math.abs(v)));
+    if(Math.abs(r1) > 1e-6*esc0 || Math.abs(r2) > 1e-6*esc0 || Math.abs(r3) > 1e-6*esc0*Math.max(1,g.L)) console.warn('Informe LaTeX: el DCL de la pieza ' + nombreBarra(b) + ' no cierra', {r1, r2, r3});
+  });
+
+  let tex = _preambuloArm('Bastidor: desmembrado (\\S6.6)');
+  tex += '\\begin{center}\n  {\\LARGE\\bfseries\\color{bsaAcc} An\\\'alisis de un bastidor (marco)}\\\\[3pt]\n'
+    + '  {\\large\\color{bsaAcc2} Reacciones, fuerzas en los pasadores y diagramas $N$, $V$, $M$ por desmembrado}\\\\[3pt]\n'
+    + '  {\\small\\color{bsaMuted} Informe generado: ' + escLatex(dt) + '}\n\\end{center}\n\\vspace{6pt}\n\n';
+
+  // 1 · Planteamiento
+  tex += '\\seccion{1. Planteamiento del problema}\n';
+  tex += lamina(tikzMarcoCompleto({cotas:true}), 'Modelo del bastidor: nudos (cuadrado = uni\\\'on r\\\'igida, c\\\'irculo = pasador), piezas, apoyos, cargas y cotas.');
+  tex += '\\subpaso{Objetivo}\nHallar las reacciones en los apoyos, la fuerza que cada pasador ejerce sobre cada pieza'
+    + (elementos.length ? ' y los diagramas de fuerza normal, cortante y momento flector de los elementos de varias fuerzas' : '') + '.\n';
+  tex += porque('varias-fuerzas',
+    'En una armadura cada barra recibe fuerza solo en sus dos extremos y basta un n\\\'umero por barra. Aqu\\\'i hay '
+    + 'piezas que reciben cargas entre sus extremos o que van unidas r\\\'igidamente: son \\emph{elementos de varias fuerzas}, '
+    + 'la fuerza de sus extremos ya no va a lo largo de la pieza y dentro aparecen fuerza normal, cortante y momento flector. '
+    + 'El m\\\'etodo es \\textbf{desmembrar} (Hibbeler \\S6.6): separar las piezas en los pasadores y plantear el equilibrio '
+    + 'de cada una, con la fuerza del pasador igual y opuesta en las dos piezas que une (tercera ley de Newton).');
+  tex += '\\subpaso{Procedimiento de an\\\'alisis}\n\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
+    + '\\item \\textbf{Determinaci\\\'on est\\\'atica.} Se cuentan las inc\\\'ognitas (fuerzas de pasador y reacciones) y las ecuaciones (tres por pieza y las de cada nudo).\n'
+    + '\\item \\textbf{Elementos de dos fuerzas.} Las piezas sin carga intermedia y articuladas en sus dos extremos: su fuerza va a lo largo de la pieza y es una sola inc\\\'ognita.\n'
+    + '\\item \\textbf{Equilibrio del conjunto.} DCL del bastidor completo: da las reacciones cuando son tres.\n'
+    + '\\item \\textbf{Desmembrar.} DCL de cada pieza con sus cargas y las fuerzas de sus pasadores; $\\sum F_x = 0$, $\\sum F_y = 0$ y $\\sum M = 0$ en cada una, y la compatibilidad en cada pasador.\n'
+    + '\\item \\textbf{Diagramas.} Con las fuerzas de extremo conocidas, $N$, $V$ y $M$ a lo largo de cada elemento.\n'
+    + '\\item \\textbf{Comprobaci\\\'on.} Equilibrio del conjunto con todas las fuerzas halladas.\n\\end{enumerate}\n';
+  tex += '\\subpaso{Convenio}\n\\noindent La fuerza de un pasador $P$ sobre una pieza se escribe por componentes $P_x$, $P_y$, '
+    + 'supuestas hacia $+x$ y $+y$; si el resultado es negativo, act\\\'ua al rev\\\'es. En una uni\\\'on r\\\'igida hay adem\\\'as un momento '
+    + '$M_P$, positivo antihorario. Sobre la otra pieza (o sobre el apoyo) el mismo pasador ejerce la fuerza igual y opuesta. '
+    + 'En cada pieza la abscisa $s$ se mide desde su primer extremo.\n';
+
+  // 2 · Determinación
+  tex += '\\seccion{2. Paso 1 --- Determinaci\\\'on est\\\'atica}\n';
+  tex += '\\[ U = 2\\,(' + d.extArt + ') + ' + d.extRig + ' + ' + d.r + ' = ' + d.U + ' \\qquad E = 3\\,(' + d.m + ') + 2\\,(' + d.j + ') + ' + d.nudosRigidos + ' = ' + d.E + ' \\qquad ' + (d.U === d.E ? 'U = E\\;\\checkmark' : 'U \\ne E') + ' \\]\n';
+  tex += '{\\footnotesize $U$: dos componentes por extremo de pieza, una m\\\'as por extremo unido r\\\'igidamente (su momento) y $r$ reacciones. '
+    + '$E$: tres ecuaciones por pieza, dos por nudo y una m\\\'as por nudo r\\\'igido (suma de momentos en el nudo).}\\\\[3pt]\n';
+  tex += '\\veredicto{\\textbf{Bastidor isost\\\'atico}: tantas inc\\\'ognitas como ecuaciones de equilibrio, y el sistema tiene soluci\\\'on \\\'unica.}\n';
+
+  // 3 · Dos fuerzas
+  tex += '\\seccion{3. Paso 2 --- Elementos de dos fuerzas}\n';
+  if(dosF.length){
+    tex += porque('dos-fuerzas', 'Una pieza sin cargas entre sus extremos y articulada en los dos recibe fuerza en dos puntos nada m\\\'as: para '
+      + 'estar en equilibrio, esas dos fuerzas tienen que ser iguales, opuestas y \\textbf{a lo largo de la pieza}. Reconocerlo antes '
+      + 'de desmembrar reduce sus dos componentes de pasador a una sola inc\\\'ognita, la fuerza axial.');
+    tex += '\\noindent ' + dosF.map(b=>'$' + nomB(b) + '$').join(', ') + (dosF.length > 1 ? ' son elementos' : ' es un elemento') + ' de dos fuerzas. Su fuerza axial, con el resto del c\\\'alculo:\n';
+    tex += '\\[ ' + dosF.map(b=>{ const v = res.fuerzas[b.id]; return 'F_{' + nomB(b) + '} = ' + f(Math.abs(v)) + '\\,\\text{' + uF + '}\\ (' + (esCero(v) ? '0' : v > 0 ? 'T' : 'C') + ')'; }).join('\\qquad ') + ' \\]\n';
+  } else tex += '\\noindent Ninguna pieza es de dos fuerzas: todas llevan cargas intermedias o uniones r\\\'igidas.\n';
+
+  // 4 · Equilibrio del conjunto
+  tex += '\\seccion{4. Paso 3 --- Equilibrio del conjunto}\n';
+  tex += lamina(tikzMarcoCompleto({cotas:false, reaccionesIncognita:true}), 'DCL del bastidor completo: cargas y reacciones inc\\\'ognita en su sentido positivo.');
+  {
+    let sumFx = 0, sumFy = 0, sumM = 0;   // momentos de las cargas respecto de O
+    const termsM = [];
+    nodos.forEach(n=>{ if(!esCero(n.fx)||!esCero(n.fy)){ sumFx += n.fx||0; sumFy += n.fy||0; const mo = n.x*(n.fy||0) - n.y*(n.fx||0); sumM += mo; if(Math.abs(mo) > 1e-9) termsM.push({v:mo, tex:f(Math.abs(mo))}); } });
+    barras.forEach(b=>{ const g = geomBarra(b), rc = resultanteCargas(b); if(Math.abs(rc.Fx)+Math.abs(rc.Fy)+Math.abs(rc.Ma) < 1e-12) return;
+      sumFx += rc.Fx; sumFy += rc.Fy; const mo = rc.Ma + g.na.x*rc.Fy - g.na.y*rc.Fx; sumM += mo; if(Math.abs(mo) > 1e-9) termsM.push({v:mo, tex:f(Math.abs(mo))}); });
+    const R = [];
+    nodos.forEach(n=>{ const rr = res.reacciones[n.id]; if(!rr) return;
+      if(rr.rx !== undefined) R.push({tex:'R_{x' + nomN(n) + '}', val:rr.rx, cx:1, cy:0, cm:-n.y});
+      if(rr.ry !== undefined) R.push({tex:'R_{y' + nomN(n) + '}', val:rr.ry, cx:0, cy:1, cm:n.x});
+      if(rr.m !== undefined)  R.push({tex:'M_{' + nomN(n) + '}', val:rr.m, cx:0, cy:0, cm:1}); });
+    const lin = (etq, coefKey, cte) => {
+      const t = R.filter(q=>Math.abs(q[coefKey]) > 1e-9).map(q=>{ const c = q[coefKey]; return {v:c, tex:(Math.abs(Math.abs(c)-1) < 1e-9 ? '' : dec(Math.abs(c),'len') + '\\,') + q.tex}; });
+      if(Math.abs(cte) > 1e-9) t.push({v:cte, tex:f(Math.abs(cte))});
+      return etq + ' & ' + _sumaTexArm(t) + ' = 0';
+    };
+    tex += _alineadaArm([lin('\\xrightarrow{+}\\ \\sum F_x = 0:\\quad', 'cx', sumFx), lin('+\\!\\uparrow\\ \\sum F_y = 0:\\quad', 'cy', sumFy), lin('\\circlearrowleft\\!+\\ \\sum M_O = 0:\\quad', 'cm', sumM)]);
+    tex += (d.r === 3
+      ? '\\noindent Tres reacciones y tres ecuaciones: se resuelven aqu\\\'i.\n'
+      : '\\noindent Hay ' + d.r + ' reacciones y solo tres ecuaciones del conjunto: no bastan solas; se resuelven junto con el desmembrado del paso 4.\n');
+    tex += '\\[ ' + R.map(q=>q.tex + ' = ' + f(q.val)).join('\\qquad ') + ' \\]\n';
+  }
+
+  // 5 · Desmembrado
+  tex += '\\seccion{5. Paso 4 --- Desmembrado: equilibrio de cada pieza}\n';
+  tex += porque('desmembrar', 'Al separar las piezas, la fuerza del pasador aparece como acci\\\'on sobre cada una de ellas, igual y opuesta. '
+    + 'Con tres ecuaciones por pieza y la compatibilidad en cada pasador se obtiene un sistema que tiene tantas ecuaciones como '
+    + 'inc\\\'ognitas; se resuelve empezando por la pieza con menos inc\\\'ognitas y sustituyendo lo ya conocido.');
+  elementos.forEach((b, i)=>{
+    const g = geomBarra(b), ex = res.extremos[b.id], rc = resultanteCargas(b);
+    const A = nomN(g.na), B = nomN(g.nb), ma = esRigidoExtremo(b,'a'), mb = esRigidoExtremo(b,'b');
+    const dx = g.nb.x - g.na.x, dy = g.nb.y - g.na.y;
+    // Sin minipage: el bloque entero no cabía y dejaba media página en blanco.
+    // needspace solo salta de página si quedan menos de 6 cm.
+    tex += '\\needspace{6cm}\\subpaso{Pieza ' + nomB(b) + '\\ \\ {\\small\\color{bsaMuted}(L = ' + dec(g.L,'len') + ' ' + uL + ')}}\n';
+    tex += '\\begin{center}\\begin{tikzpicture}[scale=1]\n' + tikzDCLPieza(b, res) + '\\end{tikzpicture}\\end{center}\n';
+    const tX = [{v:1, tex:A + '_x'}, {v:1, tex:B + '_x'}]; if(Math.abs(rc.Fx) > 1e-9) tX.push({v:rc.Fx, tex:f(Math.abs(rc.Fx))});
+    const tY = [{v:1, tex:A + '_y'}, {v:1, tex:B + '_y'}]; if(Math.abs(rc.Fy) > 1e-9) tY.push({v:rc.Fy, tex:f(Math.abs(rc.Fy))});
+    const tM = []; if(ma) tM.push({v:1, tex:'M_{' + A + '}'}); if(mb) tM.push({v:1, tex:'M_{' + B + '}'});
+    if(Math.abs(dx) > 1e-9) tM.push({v:dx, tex:dec(Math.abs(dx),'len') + '\\,' + B + '_y'});
+    if(Math.abs(dy) > 1e-9) tM.push({v:-dy, tex:dec(Math.abs(dy),'len') + '\\,' + B + '_x'});
+    if(Math.abs(rc.Ma) > 1e-9) tM.push({v:rc.Ma, tex:f(Math.abs(rc.Ma))});
+    tex += _alineadaArm(['\\xrightarrow{+}\\ \\sum F_x = 0:\\quad & ' + _sumaTexArm(tX) + ' = 0',
+                         '+\\!\\uparrow\\ \\sum F_y = 0:\\quad & ' + _sumaTexArm(tY) + ' = 0',
+                         '\\circlearrowleft\\!+\\ \\sum M_{' + A + '} = 0:\\quad & ' + _sumaTexArm(tM) + ' = 0']);
+    tex += '\\resultado{$' + A + '_x = ' + f(ex.a.fx) + '$, $' + A + '_y = ' + f(ex.a.fy) + '$' + (ma ? ', $M_{' + A + '} = ' + f(ex.a.m) + '$' : '')
+      + '; $' + B + '_x = ' + f(ex.b.fx) + '$, $' + B + '_y = ' + f(ex.b.fy) + '$' + (mb ? ', $M_{' + B + '} = ' + f(ex.b.m) + '$' : '') + ' (' + uF + (ma||mb ? ', ' + uM : '') + ').}\n';
+    tex += '\\vspace{6pt}\n';
+  });
+  // compatibilidad en los pasadores con más de una pieza, carga o apoyo
+  const nudosC = nodos.filter(n=>barras.filter(b=>b.a===n.id||b.b===n.id).length > 1 || res.reacciones[n.id] || !esCero(n.fx) || !esCero(n.fy));
+  if(nudosC.length){
+    tex += '\\subpaso{Compatibilidad en los pasadores}\n\\noindent En cada nudo, la suma de las fuerzas que las piezas ejercen sobre \\\'el m\\\'as la reacci\\\'on y la carga aplicada es nula; con el convenio (fuerza del nudo sobre la pieza):\n';
+    const filas = [];
+    nudosC.forEach(n=>{
+      const con = barras.filter(b=>b.a===n.id||b.b===n.id), rr = res.reacciones[n.id] || {};
+      ['x','y'].forEach(comp=>{
+        const t = con.map(b=>({v:1, tex:nomN(n) + '_' + comp + '^{(' + nomB(b) + ')}'}));
+        if(rr['r'+comp] !== undefined) t.push({v:-1, tex:'R_{' + comp + nomN(n) + '}'});
+        const carga = comp === 'x' ? (n.fx||0) : (n.fy||0);
+        filas.push('\\text{nudo } ' + nomN(n) + ',\\ ' + comp + ':\\quad & ' + _sumaTexArm(t) + ' = ' + (Math.abs(carga) > 1e-9 ? f(carga) : '0'));
+      });
+      if(n.union === 'rigido'){
+        const t = con.filter(b=>esRigidoExtremo(b, b.a===n.id?'a':'b')).map(b=>({v:1, tex:'M_{' + nomN(n) + '}^{(' + nomB(b) + ')}'}));
+        if(rr.m !== undefined) t.push({v:-1, tex:'M_{' + nomN(n) + '}'});
+        if(t.length) filas.push('\\text{nudo } ' + nomN(n) + ',\\ M:\\quad & ' + _sumaTexArm(t) + ' = 0');
+      }
+    });
+    tex += '{\\small' + _alineadaArm(filas) + '}\n';
+    tex += '{\\footnotesize El super\\\'indice dice sobre qu\\\'e pieza act\\\'ua la fuerza del pasador. Con estas ecuaciones y las de cada pieza, el sistema completo queda determinado; los valores de arriba son su soluci\\\'on.}\\\\[3pt]\n';
+  }
+
+  // 6 · Fuerzas en los pasadores
+  tex += '\\seccion{6. Paso 5 --- Fuerzas en los pasadores}\n';
+  tex += tablaCaption('Fuerza de cada pasador sobre cada pieza (componentes, m\\\'odulo y momento en las uniones r\\\'igidas).');
+  tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clrrrr}\\hline\n\\textbf{Pasador} & \\textbf{Sobre la pieza} & $F_x$ (' + uF + ') & $F_y$ (' + uF + ') & $|F|$ (' + uF + ') & $M$ (' + uM + ') \\\\\\hline\n';
+  nodos.forEach(n=>{ barras.filter(b=>b.a===n.id||b.b===n.id).forEach(b=>{ const ext = b.a===n.id?'a':'b', e = res.extremos[b.id][ext];
+    tex += nomN(n) + ' & ' + nomB(b) + ' & ' + f(e.fx) + ' & ' + f(e.fy) + ' & ' + f(Math.hypot(e.fx,e.fy)) + ' & ' + (esRigidoExtremo(b,ext) ? f(e.m) : '---') + ' \\\\\n'; }); });
+  tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
+  tex += tablaCaption('Reacciones en los apoyos.');
+  tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clrrr}\\hline\n\\textbf{Apoyo} & \\textbf{Tipo} & $R_x$ (' + uF + ') & $R_y$ (' + uF + ') & $M$ (' + uM + ') \\\\\\hline\n';
+  nodos.forEach(n=>{ const rr = res.reacciones[n.id]; if(!rr) return;
+    tex += nomN(n) + ' & ' + (n.apoyo==='fijo' ? 'pasador' : n.apoyo==='empotrado' ? 'empotramiento' : 'rodillo') + ' & ' + (rr.rx!==undefined?f(rr.rx):'---') + ' & ' + (rr.ry!==undefined?f(rr.ry):'---') + ' & ' + (rr.m!==undefined?f(rr.m):'---') + ' \\\\\n'; });
+  tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
+
+  // 7 · Diagramas
+  if(elementos.length){
+    tex += '\\seccion{7. Paso 6 --- Diagramas $N$, $V$ y $M$ de cada elemento}\n';
+    tex += porque('diagramas', 'Con la fuerza y el momento de su primer extremo conocidos, se corta el elemento a una distancia $s$ y se plantea el '
+      + 'equilibrio del trozo anterior: la fuerza normal $N$ (positiva a tracci\\\'on), la cortante $V$ y el momento flector $M$ '
+      + 'del corte equilibran a la fuerza de extremo y a las cargas que quedan antes de \\\'el. El convenio es el de las vigas: '
+      + '$M$ positivo curva el elemento hacia su lado $+n$, el de la izquierda al recorrerlo de su primer extremo al segundo.');
+    elementos.forEach(b=>{
+      const es = res.esfuerzos[b.id];
+      tex += '\\needspace{9cm}\\subpaso{Elemento ' + nomB(b) + '}\n';
+      tex += '\\begin{center}\\begin{tikzpicture}[scale=0.92]\n' + tikzDiagramasElemento(b, es) + '\\end{tikzpicture}\\end{center}\n';
+      tex += '{\\footnotesize $N_{\\max} = ' + f(es.maxN.N) + '$ ' + uF + ' en $s = ' + dec(es.maxN.s,'len') + '$; $V_{\\max} = ' + f(es.maxV.V) + '$ ' + uF + ' en $s = ' + dec(es.maxV.s,'len') + '$; $M_{\\max} = ' + f(es.maxM.M) + '$ ' + uM + ' en $s = ' + dec(es.maxM.s,'len') + '$ ' + uL + '.}\n\\vspace{6pt}\n';
+    });
+  }
+
+  // 8 · Comprobación
+  tex += '\\seccion{' + (elementos.length ? 8 : 7) + '. Paso ' + (elementos.length ? 7 : 6) + ' --- Comprobaci\\\'on}\n';
+  {
+    let sx = 0, sy = 0, sm = 0;
+    nodos.forEach(n=>{ sx += n.fx||0; sy += n.fy||0; sm += n.x*(n.fy||0) - n.y*(n.fx||0); const R = res.reacciones[n.id]; if(R){ sx += R.rx||0; sy += R.ry||0; sm += n.x*(R.ry||0) - n.y*(R.rx||0) + (R.m||0); } });
+    barras.forEach(b=>{ const g = geomBarra(b), rc = resultanteCargas(b); sx += rc.Fx; sy += rc.Fy; sm += rc.Ma + g.na.x*rc.Fy - g.na.y*rc.Fx; });
+    const esc0 = Math.max(1, ...res.x.map(v=>Math.abs(v)));
+    const cero = v => Math.abs(v) < 1e-7*esc0 ? '0' : f(v);
+    tex += '\\noindent Con todas las fuerzas exteriores (cargas y reacciones halladas):\n\\[ \\sum F_x = ' + cero(sx) + ' \\qquad \\sum F_y = ' + cero(sy) + ' \\qquad \\sum M_O = ' + cero(sm) + ' \\qquad\\checkmark \\]\n';
+    tex += '\\noindent Y en cada pasador la fuerza sobre una pieza es igual y opuesta a la fuerza sobre la otra (Tabla 1).\n';
+  }
+  tex += '\\vspace{10pt}\\noindent{\\footnotesize\\color{bsaMuted}\\textbf{Referencias.} R.~C. Hibbeler, \\emph{Ingenier\\\'ia Mec\\\'anica: Est\\\'atica}, 12.\\textsuperscript{a} ed., cap.~6, \\S6.6 «Bastidores y m\\\'aquinas» (ej.~6.14--6.21) y cap.~7, \\S7.1--7.2. F.~P. Beer y E.~R. Johnston, \\emph{Mec\\\'anica vectorial para ingenieros: Est\\\'atica}, cap.~6.}\n';
+  tex += colofonLatexBSA();
+  tex += '\\end{document}\n';
+  return tex;
+}

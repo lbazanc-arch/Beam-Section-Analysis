@@ -116,7 +116,8 @@ const EJEMPLOS = [
 
 function abrirEjemplos(){
   const el = document.getElementById('ejLista');
-  if(el) el.innerHTML = EJEMPLOS.map((e,i)=>
+  const lista = EJEMPLOS.concat(typeof EJEMPLOS_MARCO !== 'undefined' ? EJEMPLOS_MARCO : []);   // bastidores (19-)
+  if(el) el.innerHTML = lista.map((e,i)=>
       '<div class="item-row" style="display:block;padding:9px 11px;margin-bottom:7px;cursor:pointer" '
     + 'onclick="cargarEjemplo(\'' + e.id + '\')">'
     + '<div style="font-weight:700;font-size:11.5px;color:var(--acc)">' + (i+1) + ' · ' + e.nom + '</div>'
@@ -148,10 +149,11 @@ function comprobarEjemplo(ej){
 
 // Sin argumento carga el primero, para no romper llamadas antiguas.
 function cargarEjemplo(id){
-  const ej = EJEMPLOS.find(e=>e.id === id) || EJEMPLOS[0];
+  const lista = EJEMPLOS.concat(typeof EJEMPLOS_MARCO !== 'undefined' ? EJEMPLOS_MARCO : []);
+  const ej = lista.find(e=>e.id === id) || EJEMPLOS[0];
   nodos = []; barras = []; nodoSeq = 0; barraSeq = 0; resultado = null;
   ej.armar();
   reNombrar(); centrar(); refrescar(); resolver();
-  comprobarEjemplo(ej);
+  if(ej.marco) comprobarEjemploMarco(ej); else comprobarEjemplo(ej);
   cerrarEjemplos();
 }

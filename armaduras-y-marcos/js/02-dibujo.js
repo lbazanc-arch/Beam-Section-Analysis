@@ -63,6 +63,7 @@ function colorBarra(f){
 }
 
 function dibujarApoyo(n){
+  if(n.apoyo === 'empotrado'){ dibujarApoyoEmpotrado(n); return; }   // 19-marcos.js
   const [px,py] = aPantalla(n.x, n.y);
   ctx.strokeStyle = '#7c3a06'; ctx.fillStyle = '#7c3a06'; ctx.lineWidth = 2;
   if(n.apoyo === 'fijo'){
@@ -220,7 +221,8 @@ function dibujarCuadroBarra(){
   const f = resultado ? resultado.fuerzas[b.id] : null;
   const L = Math.hypot(nb.x-na.x, nb.y-na.y);
   let l2, col = '#7c3a06';
-  if(f === null || f === undefined) l2 = 'Sin resolver';
+  if(resultado && resultado.marco && !resultado.dosFuerzas[b.id]) l2 = 'Elemento de varias fuerzas (N, V, M abajo)';
+  else if(f === null || f === undefined) l2 = 'Sin resolver';
   else if(esCero(f)){ l2 = 'Fuerza cero'; col = '#9aa3ad'; }
   else { l2 = dec(Math.abs(f),'f')+' '+unitFor+(f>0?'  (tracción)':'  (compresión)');
          col = f>0 ? '#1d4ed8' : '#c0392b'; }
@@ -286,6 +288,7 @@ function dibujarFuerzasBarras(){
   barras.forEach(b=>{
     const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
     if(!na || !nb) return;
+    if(resultado.marco && !resultado.dosFuerzas[b.id]) return;   // un elemento de varias fuerzas no tiene una sola fuerza
     const f = resultado.fuerzas[b.id];
     const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(nb.x, nb.y);
     const mx = (x1+x2)/2, my = (y1+y2)/2, dx = x2-x1, dy = y2-y1, L = Math.hypot(dx,dy) || 1;
@@ -447,6 +450,7 @@ function dibujar(){
 
   if(VIS.apoyos) nodos.forEach(n=>{ if(n.apoyo) dibujarApoyo(n); });
   if(VIS.cargas) nodos.forEach(n=>dibujarCarga(n));
+  if(VIS.cargas && typeof dibujarCargasBarras === 'function') dibujarCargasBarras();   // cargas sobre barras (19-)
   if(VIS.cotas) dibujarCotasArmadura();
   if(resultado && VIS.fuerzas) dibujarFuerzasBarras();
 
@@ -459,7 +463,8 @@ function dibujar(){
       ctx.fillStyle = 'rgba(180,83,9,.26)'; ctx.fill();
       ctx.strokeStyle = '#b45309'; ctx.lineWidth = 2; ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(px, py, 6.5, 0, Math.PI*2);
+    ctx.beginPath();
+    if(n.union === 'rigido') ctx.rect(px-6.5, py-6.5, 13, 13); else ctx.arc(px, py, 6.5, 0, Math.PI*2);   // cuadrado = unión rígida
     ctx.fillStyle = (selNodo===n.id) ? '#b45309' : '#7c3a06';
     ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
@@ -467,7 +472,7 @@ function dibujar(){
     ctx.fillText(n.nombre, px+10, py-8);
   });
 
-  if(resultado) dibujarOrdenNudos();
+  if(resultado && !resultado.marco) dibujarOrdenNudos();
 
   // reacciones resueltas
   if(resultado){
@@ -479,6 +484,7 @@ function dibujar(){
       let t = [];
       if(R.rx !== undefined) t.push('Rx='+dec(R.rx,'f'));
       if(R.ry !== undefined) t.push('Ry='+dec(R.ry,'f'));
+      if(R.m !== undefined) t.push('M='+dec(R.m,'f'));
       ctx.textAlign = 'center';
       ctx.fillText(t.join('  '), px, py+44);
       ctx.textAlign = 'start';

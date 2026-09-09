@@ -21,6 +21,7 @@ function setApoyo(tipo){
   if(n){
     n.apoyo = tipo;
     if(tipo === 'movil' && n.apAng === undefined) n.apAng = 90;  // vertical por defecto
+    if(tipo === 'empotrado') n.union = 'rigido';                 // el empotramiento fija el nudo (19-marcos.js)
     resultado = null;
   }
   actualizarPrevApoyo();
@@ -42,12 +43,14 @@ function setApAng(ang){
 function descApoyoLargo(n){
   if(!n.apoyo) return 'sin apoyo';
   if(n.apoyo === 'fijo') return 'apoyo fijo (2 reacciones)';
+  if(n.apoyo === 'empotrado') return 'empotramiento (3 reacciones)';
   return 'apoyo móvil (1 reacción ' + (n.apAng===0 ? 'horizontal' : 'vertical') + ')';
 }
 // Texto corto (lista de nudos).
 function descApoyoCorto(n){
   if(!n.apoyo) return '';
   if(n.apoyo === 'fijo') return 'apoyo fijo';
+  if(n.apoyo === 'empotrado') return 'empotrado';
   return 'apoyo móvil (' + (n.apAng===0 ? 'X' : 'Y') + ')';
 }
 
@@ -62,7 +65,7 @@ function manejarEsc(){
   // Antes que nada, la ventana del informe PDF: se superpone a todo lo demás.
   const pl = document.getElementById('panelLatexPDF');
   if(pl && pl.style.display !== 'none' && pl.style.display !== ''){ cerrarPanelLatex(); return; }
-  const modales = ['edNodoModal','edBarraModal','apoyoModal','repModal','cargaModal',
+  const modales = ['edNodoModal','edBarraModal','apoyoModal','repModal','cargaModal','cargaBarraModal',
                     'transModal','unitsModal','decModal','histModal','ejModal'];
   const abierto = modales.find(id=>{
     const m = document.getElementById(id);
@@ -296,10 +299,11 @@ function applyReplicar(){
     orig.forEach(id=>{
       const o = nodos.find(z=>z.id===id);
       if(!o) return;
-      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), nombre:''};
+      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), nombre:'', union:o.union};
       nodos.push(nn); mapa[id] = nn.id; nuevosN.push(nn.id);
     });
-    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b]); if(nb) nuevasB.push(nb.id); } });
+    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b]);
+      if(nb){ nb.cargas = cargasDeBarra(b).map(c=>Object.assign({}, c)); nb.artA = !!b.artA; nb.artB = !!b.artB; nuevasB.push(nb.id); } } });
   }
   reNombrar(); resultado = null;
   // Las copias quedan seleccionadas y la vista no se mueve, como en los demás
@@ -381,9 +385,11 @@ function pintarLista(){
   if(cn) cn.textContent = nodos.length;
   if(cb) cb.textContent = barras.length;
   const cargados = nodos.filter(n=>!esCero(n.fx||0) || !esCero(n.fy||0));
-  if(cc) cc.textContent = cargados.length;
+  const barrasCargadas = barras.filter(b=>cargasDeBarra(b).length);   // bastidores (19-)
+  if(cc) cc.textContent = cargados.length + barrasCargadas.length;
+  { const mh = document.getElementById('metMarcoHint'); if(mh) mh.style.display = (typeof esMarco === 'function' && esMarco()) ? '' : 'none'; }
   if(bc){
-    if(!cargados.length){ bc.innerHTML = '<div class="list-empty">Sin cargas todav\u00eda.</div>'; }
+    if(!cargados.length && !barrasCargadas.length){ bc.innerHTML = '<div class="list-empty">Sin cargas todav\u00eda.</div>'; }
     else {
       let h = '';
       cargados.forEach(n=>{
@@ -400,6 +406,13 @@ function pintarLista(){
            + '<button class="x" title="Editar carga" onclick="abrirCarga('+n.id+')">\u270e</button>'
            + '<button class="x" title="Quitar carga" onclick="quitarCarga('+n.id+')">\u00d7</button></div>';
       });
+      barrasCargadas.forEach(b=>{
+        const marc = selBarras.indexOf(b.id) >= 0 ? ' sel' : '';
+        h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
+           + '<div class="nm">Barra ' + nombreBarra(b) + ' \u00b7 ' + cargasDeBarra(b).map(descCarga).join(' ; ') + '</div>'
+           + '<button class="x" title="Editar cargas" onclick="abrirCargaBarra('+b.id+')">\u270e</button>'
+           + '<button class="x" title="Quitar cargas" onclick="quitarCargasBarra('+b.id+')">\u00d7</button></div>';
+      });
       bc.innerHTML = h;
     }
   }
@@ -410,6 +423,7 @@ function pintarLista(){
       nodos.forEach(n=>{
         const extra = [];
         if(n.apoyo) extra.push(descApoyoCorto(n));
+        if(n.union === 'rigido') extra.push('unión rígida');
         if(!esCero(n.fx) || !esCero(n.fy)) extra.push('carga');
         const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
         h += '<div class="item-row'+marc+'"><div class="dot" style="background:#7c3a06"></div>'
@@ -431,12 +445,13 @@ function pintarLista(){
         const L = Math.hypot(nb2.x-na.x, nb2.y-na.y);
         const marc = selBarras.indexOf(b.id) >= 0 ? ' sel' : '';
         let col = '#b45309';
-        if(resultado){
+        if(resultado && !(resultado.marco && !resultado.dosFuerzas[b.id])){
           const f = resultado.fuerzas[b.id];
           col = esCero(f) ? '#9aa3ad' : (f>0 ? '#1d4ed8' : '#c0392b');
         }
         h += '<div class="item-row'+marc+'"><div class="dot" style="background:'+col+'"></div>'
-           + '<div class="nm">' + na.nombre + nb2.nombre + ' \u00b7 L = ' + dec(L,'len') + ' ' + unitLen + '</div>'
+           + '<div class="nm">' + na.nombre + nb2.nombre + ' \u00b7 L = ' + dec(L,'len') + ' ' + unitLen
+           + (cargasDeBarra(b).length ? ' \u00b7 ' + cargasDeBarra(b).length + ' carga(s)' : '') + '</div>'
            + '<button class="x" title="Editar" onclick="abrirEdBarra('+b.id+')">\u270e</button>'
            + '<button class="x" onclick="borrarBarra('+b.id+')">\u00d7</button></div>';
       });

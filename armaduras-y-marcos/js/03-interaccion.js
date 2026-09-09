@@ -87,6 +87,7 @@ function onCanvasDown(e){
     if(n) abrirApoyoModal(n.id);
   } else if(tool === 'carga'){
     if(n) abrirCarga(n.id);
+    else { const bq = barraEn(mx, my); if(bq && typeof abrirCargaBarra === 'function') abrirCargaBarra(bq.id); }   // carga sobre la barra (19-)
   } else if(tool === 'pan'){
     iniciarPan(mx, my);
   } else if(tool === 'corte'){
@@ -186,7 +187,7 @@ function onCanvasUp(){
     const L = Math.hypot(corte.x2-corte.x1, corte.y2-corte.y1);
     if(L < 1e-6) corte = null;
     refrescar();
-    if(metodo === 'secciones' && resultado){
+    if(metodo === 'secciones' && resultado && !resultado.marco){
       const c = document.getElementById('corteBox');
       if(c){ c.innerHTML = renderSeccionCorte();
              try{ renderKatex(c); }catch(e){} }
@@ -283,7 +284,7 @@ function setTool(t){
     barra:'Haz clic en un nudo y luego en otro para unirlos.',
     apoyo:'Haz clic sobre un nudo y elige el tipo de apoyo, o quítalo.',
     corte:'Arrastra una línea que atraviese la armadura de lado a lado.',
-    carga:'Haz clic sobre un nudo para aplicarle una carga.',
+    carga:'Haz clic sobre un nudo para aplicarle una carga, o sobre una barra para cargarla entre sus extremos (bastidor).',
     pan:'Arrastra el lienzo para desplazar la vista.',
     sel:'Toca para seleccionar · arrastra un objeto para moverlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar varios (un arrastre rápido solo desplaza el panel) · doble clic para editar.',
     borrar:'Toca un elemento para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'
@@ -426,6 +427,7 @@ function abrirEdNodo(id){
   document.getElementById('edNy').value = n.y;
   document.getElementById('edNuL').textContent = unitLen;
   document.getElementById('edNuF').textContent = unitFor;
+  if(typeof pintarUnionNodo === 'function') pintarUnionNodo(n);
   const nCargas = (n.cargas && n.cargas.length) ? n.cargas.length : ((!esCero(n.fx||0)||!esCero(n.fy||0)) ? 1 : 0);
   const rc = document.getElementById('edNCargasResumen');
   if(rc) rc.textContent = nCargas
@@ -463,6 +465,13 @@ function abrirEdBarra(id){
   document.getElementById('edBy2').value = nb.y;
   document.getElementById('edBlen').textContent =
     dec(Math.hypot(nb.x-na.x, nb.y-na.y),'len') + ' ' + unitLen;
+  // Bastidores (19-): cargas sobre la barra y extremos articulados.
+  const nc = document.getElementById('edBCargasResumen');
+  if(nc) nc.textContent = cargasDeBarra(b).length ? cargasDeBarra(b).map(descCarga).join(' · ') : 'Sin cargas sobre la barra (elemento de dos fuerzas).';
+  const c1 = document.getElementById('edBn1c'), c2 = document.getElementById('edBn2c');
+  if(c1) c1.textContent = na.nombre; if(c2) c2.textContent = nb.nombre;
+  const ka = document.getElementById('edBartA'), kb = document.getElementById('edBartB');
+  if(ka) ka.checked = !!b.artA; if(kb) kb.checked = !!b.artB;
   document.getElementById('edBarraModal').classList.add('show');
   dibujar();
 }

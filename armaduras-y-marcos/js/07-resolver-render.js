@@ -2,6 +2,9 @@
 //  RESOLVER + RENDER
 // ═══════════════════════════════════════════════════════════
 function resolver(){
+  // Con cargas en barras, uniones rígidas o empotramientos es un bastidor:
+  // se resuelve desmembrando (19-marcos.js); si no, armadura por nudos.
+  if(typeof esMarco === 'function' && esMarco()) return resolverMarco();
   const res = analizar();
   const rp = document.getElementById('resultsPanel');
   const ra = document.getElementById('resultsArea');
