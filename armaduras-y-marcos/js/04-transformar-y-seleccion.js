@@ -349,16 +349,16 @@ function dibujarRefPlantilla(){
   const p = (x1-x0)/n;
   let s = '<rect x="0" y="0" width="260" height="132" fill="#fff"/>';
   // cuerda inferior y superior según el tipo
-  s += '<line x1="'+x0+'" y1="'+yB+'" x2="'+x1+'" y2="'+yB+'" stroke="#b45309" stroke-width="2.2"/>';
+  s += '<line x1="'+x0+'" y1="'+yB+'" x2="'+x1+'" y2="'+yB+'" stroke="#7c5cd6" stroke-width="2.2"/>';
   if(tipoTpl === 'warren'){
     for(let i=0;i<n;i++){
       const xa = x0+i*p, xm = xa+p/2, xb = xa+p;
       s += '<line x1="'+xa+'" y1="'+yB+'" x2="'+xm+'" y2="'+yT+'" stroke="#c98a3a" stroke-width="1.6"/>';
       s += '<line x1="'+xm+'" y1="'+yT+'" x2="'+xb+'" y2="'+yB+'" stroke="#c98a3a" stroke-width="1.6"/>';
-      if(i<n-1) s += '<line x1="'+xm+'" y1="'+yT+'" x2="'+(xm+p)+'" y2="'+yT+'" stroke="#b45309" stroke-width="2.2"/>';
+      if(i<n-1) s += '<line x1="'+xm+'" y1="'+yT+'" x2="'+(xm+p)+'" y2="'+yT+'" stroke="#7c5cd6" stroke-width="2.2"/>';
     }
   } else {
-    s += '<line x1="'+(x0+p)+'" y1="'+yT+'" x2="'+(x1-p)+'" y2="'+yT+'" stroke="#b45309" stroke-width="2.2"/>';
+    s += '<line x1="'+(x0+p)+'" y1="'+yT+'" x2="'+(x1-p)+'" y2="'+yT+'" stroke="#7c5cd6" stroke-width="2.2"/>';
     s += '<line x1="'+x0+'" y1="'+yB+'" x2="'+(x0+p)+'" y2="'+yT+'" stroke="#c98a3a" stroke-width="1.6"/>';
     s += '<line x1="'+(x1-p)+'" y1="'+yT+'" x2="'+x1+'" y2="'+yB+'" stroke="#c98a3a" stroke-width="1.6"/>';
     for(let i=1;i<n;i++){
@@ -383,8 +383,8 @@ function dibujarRefPlantilla(){
      + '<text x="12" y="'+((yT+yB)/2)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#1b1f24" '
      + 'text-anchor="middle" transform="rotate(-90 12 '+((yT+yB)/2)+')">Altura = '+Hh+'</text>';
   // un panel resaltado
-  s += '<rect x="'+x0+'" y="'+yT+'" width="'+p+'" height="'+(yB-yT)+'" fill="rgba(180,83,9,.10)"/>'
-     + '<text x="'+(x0+p/2)+'" y="'+(yT-6)+'" font-family="Inter,sans-serif" font-size="8.5" font-weight="700" fill="#b45309" text-anchor="middle">1 panel</text>'
+  s += '<rect x="'+x0+'" y="'+yT+'" width="'+p+'" height="'+(yB-yT)+'" fill="rgba(124,92,214,.10)"/>'
+     + '<text x="'+(x0+p/2)+'" y="'+(yT-6)+'" font-family="Inter,sans-serif" font-size="8.5" font-weight="700" fill="#7c5cd6" text-anchor="middle">1 panel</text>'
      + '<text x="'+(x0+p*2.6)+'" y="'+(yT-6)+'" font-family="Inter,sans-serif" font-size="8.5" fill="#68727f" text-anchor="middle">'+n+' paneles en total</text>';
   s += '<text x="'+x0+'" y="108" font-family="Inter,sans-serif" font-size="8" fill="#68727f" text-anchor="middle">apoyo</text>'
      + '<text x="'+x1+'" y="108" font-family="Inter,sans-serif" font-size="8" fill="#68727f" text-anchor="middle">apoyo</text>';
@@ -440,7 +440,7 @@ function pintarLista(){
         if(n.union === 'rigido') extra.push('unión rígida');
         if(!esCero(n.fx) || !esCero(n.fy)) extra.push('carga');
         const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
-        h += '<div class="item-row'+marc+'"><div class="dot" style="background:#7c3a06"></div>'
+        h += '<div class="item-row'+marc+'"><div class="dot" style="background:#563aa8"></div>'
            + '<div class="nm">' + n.nombre + ' (' + dec(n.x,'len') + ' ; ' + dec(n.y,'len') + ')'
            + (extra.length ? ' \u00b7 '+extra.join(', ') : '') + '</div>'
            + '<button class="x" title="Editar" onclick="abrirEdNodo('+n.id+')">\u270e</button>'
@@ -458,7 +458,7 @@ function pintarLista(){
         if(!na||!nb2) return;
         const L = Math.hypot(nb2.x-na.x, nb2.y-na.y);
         const marc = selBarras.indexOf(b.id) >= 0 ? ' sel' : '';
-        let col = '#b45309';
+        let col = '#7c5cd6';
         if(resultado && !(resultado.marco && !resultado.dosFuerzas[b.id])){
           const f = resultado.fuerzas[b.id];
           col = esCero(f) ? '#9aa3ad' : (f>0 ? '#1d4ed8' : '#c0392b');

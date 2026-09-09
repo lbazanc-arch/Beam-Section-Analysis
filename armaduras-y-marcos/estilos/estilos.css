@@ -2,7 +2,7 @@
 :root{--mf:'STIX Two Text','Times New Roman',Georgia,serif;}
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  --acc:#b45309; --acc2:#7c3a06; --acc-l:#fdf1e3;
+  --acc:#7c5cd6; --acc2:#563aa8; --acc-l:#f2eefc;
   --bg:#f2f3f5; --card:#ffffff; --border:#e2e5ea; --border2:#cfd4dc;
   --text:#1b1f24; --muted:#68727f;
   --ten:#1d4ed8;   /* tracción  */

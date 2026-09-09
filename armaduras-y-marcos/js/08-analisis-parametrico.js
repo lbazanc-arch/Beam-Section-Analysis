@@ -225,12 +225,12 @@ function evaluarCapacidad(){
     + '<th>Estado</th></tr></thead><tbody>';
   filas.forEach(x=>{
     const pct = x.u*100;
-    const col = pct > 100 ? '#c0392b' : (pct > 85 ? '#b45309' : '#15803d');
+    const col = pct > 100 ? '#c0392b' : (pct > 85 ? '#7c5cd6' : '#15803d');
     let tag;
     if(esCero(x.f)) tag = '<span class="tag z">Fuerza cero</span>';
     else if(x.f > 0) tag = '<span class="tag t">Tracción</span>';
     else tag = '<span class="tag c">Compresión</span>';
-    h += '<tr'+(x.b.id===gob.b.id?' style="background:#fdf1e3"':'')+'>'
+    h += '<tr'+(x.b.id===gob.b.id?' style="background:#f2eefc"':'')+'>'
       + '<td><b>'+nombreBarra(x.b)+'</b>'+(x.b.id===gob.b.id?' ◀':'')+'</td>'
       + '<td class="r">'+dec(Math.abs(x.f),'f')+'</td><td>'+tag+'</td>'
       + '<td class="r">'+dec(x.adm,'f')+'</td>'

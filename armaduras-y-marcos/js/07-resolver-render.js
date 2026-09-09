@@ -327,7 +327,7 @@ function renderTablaFinal(res){
     + '<select id="simNodo" onchange="prepararSim()" style="padding:6px 9px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px"></select>'
     + '<span style="font-size:11px;color:var(--muted);font-weight:700">Módulo</span>'
     + '<input type="range" id="simRange" min="0" max="1" value="0" step="0.01" '
-    + 'style="flex:1;min-width:160px;accent-color:#b45309" oninput="simular()">'
+    + 'style="flex:1;min-width:160px;accent-color:#7c5cd6" oninput="simular()">'
     + '<span id="simVal" style="font-family:var(--mf);font-weight:700;color:var(--acc);min-width:86px"></span>'
     + '</div>'
     + '<div id="simCrit"></div>'

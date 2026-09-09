@@ -268,9 +268,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 /* APPS SECTION */
 .apps-section{margin-bottom:16px;}
 .apps-title{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;}
-.app-card.amber{border-color:rgba(180,83,9,.30);background:rgba(180,83,9,.06);}
-.app-card.amber:hover{border-color:#b45309;box-shadow:0 0 20px rgba(180,83,9,.28);}
-.app-card.amber .app-card-name{color:#d98324;}
+/* La clase se llama `amber` por historia: el color de Armaduras y Marcos es
+   morado desde el 2026-09-10. Renombrarla exigiría tocar temas.clase en Supabase. */
+.app-card.amber{border-color:rgba(124,92,214,.30);background:rgba(124,92,214,.06);}
+.app-card.amber:hover{border-color:#7c5cd6;box-shadow:0 0 20px rgba(124,92,214,.28);}
+.app-card.amber .app-card-name{color:#9b7ce8;}
 .app-card.teal{border-color:rgba(15,92,86,.32);background:rgba(15,92,86,.07);}
 .app-card.teal:hover{border-color:#0f5c56;box-shadow:0 0 20px rgba(15,92,86,.3);}
 .app-card.teal .app-card-name{color:#3aa79c;}
@@ -373,7 +375,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 #app-ov{display:none;position:fixed;inset:0;z-index:900;flex-direction:column;background:var(--bg);}
 #app-ov.on{display:flex;}
 .atbar{display:flex;align-items:center;padding:7px 18px;gap:10px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
-.atbar.amber-bar{border-bottom-color:rgba(180,83,9,.4);}
+.atbar.amber-bar{border-bottom-color:rgba(124,92,214,.4);}
 .atbar.blue-bar{border-bottom-color:rgba(79,127,255,.3);}
 .atbar.red-bar{border-bottom-color:rgba(217,79,92,.3);}
 .atbar.green-bar{border-bottom-color:rgba(228,172,23,.4);}

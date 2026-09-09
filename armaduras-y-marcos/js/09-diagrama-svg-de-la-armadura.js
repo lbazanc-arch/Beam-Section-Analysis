@@ -129,7 +129,7 @@ function svgArmadura(opts){
       col = colorUtil(u);
       gw = 2.6 + Math.min(u,1.4)*2.4;
     } else {
-      col = (f===undefined||f===null) ? '#7c3a06'
+      col = (f===undefined||f===null) ? '#563aa8'
           : (esCero(f) ? '#9aa3ad' : (f>0 ? '#1d4ed8' : '#c0392b'));
       if(esCero(f)) gw = 2;
     }
@@ -166,17 +166,17 @@ function svgArmadura(opts){
   nodos.forEach(n=>{
     const [px,py] = P(n.x,n.y);
     if(n.apoyo === 'fijo'){
-      s += '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+18)+' L'+(px+11)+' '+(py+18)+' Z" fill="none" stroke="#7c3a06" stroke-width="1.8"/>'
-         + '<line x1="'+(px-16)+'" y1="'+(py+18)+'" x2="'+(px+16)+'" y2="'+(py+18)+'" stroke="#7c3a06" stroke-width="1.8"/>';
+      s += '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+18)+' L'+(px+11)+' '+(py+18)+' Z" fill="none" stroke="#563aa8" stroke-width="1.8"/>'
+         + '<line x1="'+(px-16)+'" y1="'+(py+18)+'" x2="'+(px+16)+'" y2="'+(py+18)+'" stroke="#563aa8" stroke-width="1.8"/>';
     } else if(n.apoyo === 'movil'){
       const horizontal = n.apAng === 0;
       const abre = horizontal ? '<g transform="rotate(-90 '+px+' '+py+')">' : '';
       const cierra = horizontal ? '</g>' : '';
       s += abre
-         + '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+15)+' L'+(px+11)+' '+(py+15)+' Z" fill="none" stroke="#7c3a06" stroke-width="1.8"/>'
-         + '<circle cx="'+(px-6)+'" cy="'+(py+19)+'" r="3.4" fill="none" stroke="#7c3a06" stroke-width="1.6"/>'
-         + '<circle cx="'+(px+6)+'" cy="'+(py+19)+'" r="3.4" fill="none" stroke="#7c3a06" stroke-width="1.6"/>'
-         + '<line x1="'+(px-16)+'" y1="'+(py+23)+'" x2="'+(px+16)+'" y2="'+(py+23)+'" stroke="#7c3a06" stroke-width="1.8"/>'
+         + '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+15)+' L'+(px+11)+' '+(py+15)+' Z" fill="none" stroke="#563aa8" stroke-width="1.8"/>'
+         + '<circle cx="'+(px-6)+'" cy="'+(py+19)+'" r="3.4" fill="none" stroke="#563aa8" stroke-width="1.6"/>'
+         + '<circle cx="'+(px+6)+'" cy="'+(py+19)+'" r="3.4" fill="none" stroke="#563aa8" stroke-width="1.6"/>'
+         + '<line x1="'+(px-16)+'" y1="'+(py+23)+'" x2="'+(px+16)+'" y2="'+(py+23)+'" stroke="#563aa8" stroke-width="1.8"/>'
          + cierra;
     }
     // Las cargas se pueden sustituir para el dibujo (módulo dinámico), así la
@@ -195,7 +195,7 @@ function svgArmadura(opts){
   });
   nodos.forEach(n=>{
     const [px,py] = P(n.x,n.y);
-    s += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="5" fill="#7c3a06" stroke="#fff" stroke-width="1.6"/>'
+    s += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="5" fill="#563aa8" stroke="#fff" stroke-width="1.6"/>'
        + '<text x="'+(px+8).toFixed(1)+'" y="'+(py-8).toFixed(1)+'" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">'+n.nombre+'</text>';
   });
   s += '</svg>';
@@ -281,7 +281,7 @@ function dibujarDCL(svgId, n, incognitas){
     }
   }
 
-  s += '<circle cx="'+cx+'" cy="'+cy+'" r="6" fill="#7c3a06"/>';
+  s += '<circle cx="'+cx+'" cy="'+cy+'" r="6" fill="#563aa8"/>';
   s += '<text x="'+(cx+11)+'" y="'+(cy-9)+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="#1b1f24">'+n.nombre+'</text>';
 
   // pie: incógnitas de este nudo

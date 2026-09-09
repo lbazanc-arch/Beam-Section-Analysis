@@ -744,7 +744,7 @@ function dibujarCroquisCargaArm(){
       const k = 52/Math.max(esc, 1e-9);
       con.forEach(b=>{ const o = nodos.find(z=>z.id===(b.a===n.id?b.b:b.a)); if(!o) return;
         s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + F(cx+(o.x-n.x)*k) + '" y2="' + F(cy-(o.y-n.y)*k)
-           + '" stroke="#7c3a06" stroke-width="' + (esViga(b) ? 5 : 2.6) + '" stroke-linecap="round" opacity=".55"/>'; });
+           + '" stroke="#563aa8" stroke-width="' + (esViga(b) ? 5 : 2.6) + '" stroke-linecap="round" opacity=".55"/>'; });
     }
     if(esPar){
       const ccw = mag >= 0;
@@ -757,7 +757,7 @@ function dibujarCroquisCargaArm(){
          + '<polygon points="0,0 -9,-4 -9,4" fill="#c0392b" transform="translate(' + F(cx-ux*8) + ',' + F(cy-uy*8) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>'
          + '<text x="' + F(cx-ux*(L+12)) + '" y="' + F(cy-uy*(L+12)+3) + '" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(Math.abs(mag),'f') + '</text>';
     }
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#7c3a06" stroke="#fff" stroke-width="2"/>';
+    s += '<circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#563aa8" stroke="#fff" stroke-width="2"/>';
     if(n) s += '<text x="' + (cx+11) + '" y="' + (cy-10) + '" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="#1b1f24">' + n.nombre + '</text>';
     cont.innerHTML = s + '</svg>'; return;
   }
@@ -785,8 +785,8 @@ function dibujarCroquisCargaArm(){
   let am = Math.atan2(by-ay, bx-ax); if(am > Math.PI/2 || am < -Math.PI/2) am += Math.PI;
   s += '<g transform="translate(' + F((ax+bx)/2+cxo) + ',' + F((ay+by)/2+cyo) + ') rotate(' + (am*180/Math.PI).toFixed(1) + ')">'
      + '<text y="-4" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#1b1f24" text-anchor="middle">L = ' + dec(g.L,'len') + ' ' + unitLen + '</text></g>'
-     + '<line x1="' + F(ax) + '" y1="' + F(ay) + '" x2="' + F(bx) + '" y2="' + F(by) + '" stroke="#7c3a06" stroke-width="5" stroke-linecap="round"/>'
-     + '<circle cx="' + F(ax) + '" cy="' + F(ay) + '" r="4" fill="#7c3a06"/><circle cx="' + F(bx) + '" cy="' + F(by) + '" r="4" fill="#7c3a06"/>'
+     + '<line x1="' + F(ax) + '" y1="' + F(ay) + '" x2="' + F(bx) + '" y2="' + F(by) + '" stroke="#563aa8" stroke-width="5" stroke-linecap="round"/>'
+     + '<circle cx="' + F(ax) + '" cy="' + F(ay) + '" r="4" fill="#563aa8"/><circle cx="' + F(bx) + '" cy="' + F(by) + '" r="4" fill="#563aa8"/>'
      + '<text x="' + F(ax+nx*13-ex*8) + '" y="' + F(ay+ny*13-ey*8+4) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24" text-anchor="middle">' + g.na.nombre + '</text>'
      + '<text x="' + F(bx+nx*13+ex*8) + '" y="' + F(by+ny*13+ey*8+4) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24" text-anchor="middle">' + g.nb.nombre + '</text>';
   const base = (document.getElementById('cgBase') || {}).value || 'eje';
@@ -892,14 +892,14 @@ function dibujarApoyoEmpotrado(n){
   const Lm = Math.hypot(sx, sy);
   const mx = Lm < 1e-6 ? 0 : -sx/Lm, my = Lm < 1e-6 ? 1 : -sy/Lm;   // sin piezas: muro debajo
   ctx.save(); ctx.translate(px, py); ctx.rotate(Math.atan2(my, mx));   // +x local mira al muro
-  ctx.strokeStyle = '#7c3a06'; ctx.fillStyle = '#7c3a06'; ctx.lineWidth = 2.4;
+  ctx.strokeStyle = '#563aa8'; ctx.fillStyle = '#563aa8'; ctx.lineWidth = 2.4;
   ctx.beginPath(); ctx.moveTo(6, -18); ctx.lineTo(6, 18); ctx.stroke();
   for(let i=-3;i<=3;i++){ ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(6, i*6); ctx.lineTo(13, i*6+6); ctx.stroke(); }
   ctx.restore();
 }
 function dibujarNudoRigido(n){
   const [px,py] = aPantalla(n.x, n.y);
-  ctx.fillStyle = '#7c3a06'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+  ctx.fillStyle = '#563aa8'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.rect(px-6.5, py-6.5, 13, 13); ctx.fill(); ctx.stroke();
 }
 
@@ -1047,7 +1047,7 @@ function svgDCLPieza(b, res){
   const fl = (x, y, ang, col) => '<polygon points="0,0 -9,-4 -9,4" fill="' + col + '" transform="translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')"/>';
   let s = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;max-width:300px;height:auto;display:block"><rect width="' + W2 + '" height="' + H2 + '" fill="#fff"/>';
   const [ax,ay] = P(0), [bx,by] = P(g.L);
-  s += '<line x1="' + ax.toFixed(1) + '" y1="' + ay.toFixed(1) + '" x2="' + bx.toFixed(1) + '" y2="' + by.toFixed(1) + '" stroke="#7c3a06" stroke-width="4" stroke-linecap="round"/>';
+  s += '<line x1="' + ax.toFixed(1) + '" y1="' + ay.toFixed(1) + '" x2="' + bx.toFixed(1) + '" y2="' + by.toFixed(1) + '" stroke="#563aa8" stroke-width="4" stroke-linecap="round"/>';
   // cargas
   cargasDeBarra(b).forEach(c=>{
     if(c.tipo === 'P'){
@@ -1083,7 +1083,7 @@ function svgDCLPieza(b, res){
     if(esRigidoExtremo(b, ext))
       s += '<path d="M' + (px-12).toFixed(1) + ' ' + py.toFixed(1) + ' A12 12 0 1 1 ' + (px+8).toFixed(1) + ' ' + (py+9).toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="1.6"/>'
         + '<text x="' + (px-14).toFixed(1) + '" y="' + (py+16).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="' + col + '" text-anchor="end">M' + nom + '</text>';
-    s += '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="5" fill="#7c3a06" stroke="#fff" stroke-width="1.5"/>'
+    s += '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="5" fill="#563aa8" stroke="#fff" stroke-width="1.5"/>'
       + '<text x="' + (px-9).toFixed(1) + '" y="' + (py-9).toFixed(1) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24" text-anchor="middle">' + nom + '</text>';
   });
   s += '<text x="' + (W2/2) + '" y="' + (H2-6) + '" font-family="Inter,sans-serif" font-size="8" fill="#9aa3ad" text-anchor="middle">fuerzas de pasador supuestas hacia +x, +y · cargas con su valor</text></svg>';
@@ -1095,7 +1095,7 @@ function svgDiagramasElemento(b, es){
   const W2 = 720, Hd = 92, M0 = 42, gap = 6;
   const pts = es.puntos, L = es.L || 1;
   let s = '<svg viewBox="0 0 ' + W2 + ' ' + (3*Hd + 14) + '" style="width:100%;height:auto;display:block"><rect width="' + W2 + '" height="' + (3*Hd+14) + '" fill="#fff"/>';
-  [['N', unitFor, '#1d4ed8'], ['V', unitFor, '#b45309'], ['M', unitFor + '·' + unitLen, '#c0392b']].forEach(([k, u, col], i)=>{
+  [['N', unitFor, '#1d4ed8'], ['V', unitFor, '#7c5cd6'], ['M', unitFor + '·' + unitLen, '#c0392b']].forEach(([k, u, col], i)=>{
     const y0 = 8 + i*Hd, ym = y0 + Hd/2, amp = Math.max(1e-9, ...pts.map(p=>Math.abs(p[k])));
     const X = sv => M0 + sv/L*(W2 - M0 - 20), Y = v => ym - v/amp*(Hd/2 - gap - 8);
     s += '<line x1="' + M0 + '" y1="' + ym + '" x2="' + (W2-20) + '" y2="' + ym + '" stroke="#68727f" stroke-width="1"/>'
@@ -1185,9 +1185,9 @@ function _preambuloArm(subcabecera){
     + '\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}\n'
     + '\\usepackage[a4paper,margin=2.0cm]{geometry}\n\\usepackage{amsmath,amssymb}\n'
     + '\\usepackage{tikz}\n\\usetikzlibrary{arrows.meta,calc,patterns}\n\\usepackage{xcolor}\n\\usepackage{needspace}\n\n'
-    + '\\definecolor{bsaAcc}{HTML}{B45309}\n\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n\\definecolor{bsaRoj}{HTML}{B3261E}\n'
+    + '\\definecolor{bsaAcc}{HTML}{7C5CD6}\n\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n\\definecolor{bsaRoj}{HTML}{B3261E}\n'
     + '\\definecolor{bsaVerde}{HTML}{15803D}\n\\definecolor{bsaAlerta}{HTML}{DB2777}\n\\definecolor{bsaMuted}{HTML}{6B7280}\n'
-    + '\\definecolor{bsaBarra}{HTML}{7C3A06}\n\\definecolor{bsaLogoB}{HTML}{CDA953}\n\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
+    + '\\definecolor{bsaBarra}{HTML}{563AA8}\n\\definecolor{bsaLogoB}{HTML}{CDA953}\n\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
     + '\\setlength{\\parskip}{2pt}\n\\makeatletter\n\\def\\ps@bsa{%\n'
     + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Armaduras y Marcos}\\hfill\\footnotesize\\color{bsaMuted}' + subcabecera + '}%\n'
     + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\ \\ \\textperiodcentered\\ \\ p\\\'ag.\\ \\thepage\\hfill}%\n'

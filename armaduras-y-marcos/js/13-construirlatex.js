@@ -104,13 +104,13 @@ function construirLatex(){
     + '\\usepackage{tikz}\n'
     + '\\usetikzlibrary{arrows.meta,calc}\n'
     + '\\usepackage{xcolor}\n\n'
-    + '\\definecolor{bsaAcc}{HTML}{B45309}\n'
+    + '\\definecolor{bsaAcc}{HTML}{7C5CD6}\n'
     + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
     + '\\definecolor{bsaRoj}{HTML}{B3261E}\n'
     + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
     + '\\definecolor{bsaAlerta}{HTML}{DB2777}\n'
     + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
-    + '\\definecolor{bsaBarra}{HTML}{7C3A06}\n'   // barras como en el panel de dibujo
+    + '\\definecolor{bsaBarra}{HTML}{563AA8}\n'   // barras como en el panel de dibujo
     + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
     + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
     + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'

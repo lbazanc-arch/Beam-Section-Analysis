@@ -57,15 +57,15 @@ function dibujarEjes(){
 // calcular; el signo está en el panel de resultados y en el informe. Solo las
 // de fuerza cero se distinguen (gris y a trazos), que no es un color de T/C.
 function colorBarra(f){
-  if(f === undefined || f === null) return '#7c3a06';
+  if(f === undefined || f === null) return '#563aa8';
   if(esCero(f)) return '#9aa3ad';
-  return '#7c3a06';
+  return '#563aa8';
 }
 
 function dibujarApoyo(n){
   if(n.apoyo === 'empotrado'){ dibujarApoyoEmpotrado(n); return; }   // 19-marcos.js
   const [px,py] = aPantalla(n.x, n.y);
-  ctx.strokeStyle = '#7c3a06'; ctx.fillStyle = '#7c3a06'; ctx.lineWidth = 2;
+  ctx.strokeStyle = '#563aa8'; ctx.fillStyle = '#563aa8'; ctx.lineWidth = 2;
   if(n.apoyo === 'fijo'){
     ctx.beginPath();
     ctx.moveTo(px, py+2); ctx.lineTo(px-13, py+21); ctx.lineTo(px+13, py+21); ctx.closePath();
@@ -195,7 +195,7 @@ function dibujarCuadroNodo(){
     : 'Sin carga aplicada';
   const l4 = n.apoyo ? (descApoyoLargo(n)[0].toUpperCase() + descApoyoLargo(n).slice(1)) : 'Sin apoyo';
   const l5 = 'Doble clic para editar';
-  const col = '#7c3a06';
+  const col = '#563aa8';
   ctx.font = '800 12px Inter, sans-serif';
   let w = ctx.measureText(l1).width;
   ctx.font = '600 11.5px Inter, sans-serif';
@@ -235,7 +235,7 @@ function dibujarCuadroBarra(){
   const mx = (x1+x2)/2, my = (y1+y2)/2;
   const f = resultado ? resultado.fuerzas[b.id] : null;
   const L = Math.hypot(nb.x-na.x, nb.y-na.y);
-  let l2, col = '#7c3a06';
+  let l2, col = '#563aa8';
   if(esViga(b)) l2 = (resultado && resultado.marco) ? 'Viga / marco: N, V y M en los resultados' : 'Viga / marco (N, V, M) · sin resolver';
   else if(f === null || f === undefined) l2 = 'Sin resolver';
   else if(esCero(f)){ l2 = 'Fuerza cero'; col = '#9aa3ad'; }
@@ -321,8 +321,8 @@ function dibujarOrdenNudos(){
     const [px,py] = aPantalla(p.nodo.x, p.nodo.y);
     const cx = px - 14, cy = py - 14;
     ctx.beginPath(); ctx.arc(cx, cy, 7.5, 0, Math.PI*2);
-    ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#b45309'; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.font = '700 9px Inter, sans-serif'; ctx.fillStyle = '#b45309';
+    ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#7c5cd6'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.font = '700 9px Inter, sans-serif'; ctx.fillStyle = '#7c5cd6';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(String(i+1), cx, cy + 0.5);
   });
@@ -442,9 +442,9 @@ function dibujar(){
     if(esViga(b)){
       // viga o marco (19-marcos.js): banda clara con el eje encima, para
       // distinguirla de la barra de armadura
-      ctx.strokeStyle = 'rgba(124,58,6,.20)'; ctx.lineWidth = 10;
+      ctx.strokeStyle = 'rgba(86,58,168,.20)'; ctx.lineWidth = 10;
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      ctx.strokeStyle = '#7c3a06'; ctx.lineWidth = 3;
+      ctx.strokeStyle = '#563aa8'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
     } else {
       ctx.strokeStyle = colorBarra(f);
@@ -456,7 +456,7 @@ function dibujar(){
     // Resalte de la barra seleccionada. Los valores ya NO se rotulan todos a la
     // vez: se encabalgaban. Solo se muestra el recuadro de la barra elegida.
     if(selBarra === b.id || selBarras.indexOf(b.id) >= 0){
-      ctx.strokeStyle = 'rgba(180,83,9,.30)'; ctx.lineWidth = 12;
+      ctx.strokeStyle = 'rgba(124,92,214,.30)'; ctx.lineWidth = 12;
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
     }
   });
@@ -467,7 +467,7 @@ function dibujar(){
     const na = nodos.find(n=>n.id===selNodo);
     if(na && mouseW){
       const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(mouseW[0], mouseW[1]);
-      ctx.strokeStyle = 'rgba(180,83,9,.45)'; ctx.lineWidth = tool==='viga' ? 6 : 2.4; ctx.setLineDash([7,5]);
+      ctx.strokeStyle = 'rgba(124,92,214,.45)'; ctx.lineWidth = tool==='viga' ? 6 : 2.4; ctx.setLineDash([7,5]);
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
     }
   }
@@ -484,12 +484,12 @@ function dibujar(){
     // halo de selección múltiple
     if(selNodos.indexOf(n.id) >= 0){
       ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(180,83,9,.26)'; ctx.fill();
-      ctx.strokeStyle = '#b45309'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = 'rgba(124,92,214,.26)'; ctx.fill();
+      ctx.strokeStyle = '#7c5cd6'; ctx.lineWidth = 2; ctx.stroke();
     }
     ctx.beginPath();
     if(n.union === 'rigido') ctx.rect(px-6.5, py-6.5, 13, 13); else ctx.arc(px, py, 6.5, 0, Math.PI*2);   // cuadrado = unión rígida
-    ctx.fillStyle = (selNodo===n.id) ? '#b45309' : '#7c3a06';
+    ctx.fillStyle = (selNodo===n.id) ? '#7c5cd6' : '#563aa8';
     ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
     ctx.font = '700 10.5px Inter, sans-serif'; ctx.fillStyle = '#1b1f24';

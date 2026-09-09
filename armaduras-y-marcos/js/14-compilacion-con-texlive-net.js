@@ -29,7 +29,7 @@ function _panelLatexPDF(){
     +   'height:92vh; display:flex; flex-direction:column; overflow:hidden; position:relative;">'
     +   '<div style="display:flex; align-items:center; justify-content:space-between; '
     +     'padding:10px 14px; border-bottom:1px solid #e5d9c8;">'
-    +     '<strong style="color:#B45309">Reporte PDF (LaTeX)</strong>'
+    +     '<strong style="color:#7c5cd6">Reporte PDF (LaTeX)</strong>'
     +     '<button onclick="cerrarPanelLatex()" title="Cerrar" aria-label="Cerrar" '
     +       'style="border:none;background:none;font-size:22px;cursor:pointer;line-height:1;'
     +       'color:#6B7280;padding:0 4px;">&times;</button>'
@@ -157,7 +157,7 @@ function downloadPDF(){
     *{box-sizing:border-box;margin:0;padding:0;}
     :root{--math:'STIX Two Text','Times New Roman',Georgia,serif;
           --sans:Inter,'Helvetica Neue',Arial,sans-serif;
-          --acc:#b45309;--acc2:#7c3a06;--card:#fdf1e3;--border:#e7d3ba;
+          --acc:#7c5cd6;--acc2:#563aa8;--card:#f2eefc;--border:#e7d3ba;
           --text:#1a1a1a;--muted:#6b5c4a;}
     body{font-family:var(--sans);font-size:10.5px;background:#fff;color:var(--text);
       padding:12mm 9mm 14mm;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
@@ -230,15 +230,15 @@ function downloadPDF(){
 
   const wmSeal = '<div class="wm-seal"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">'
     + '<defs><path id="stp" d="M 26,100 A 74,74 0 0 1 174,100"/><path id="sbt" d="M 26,100 A 74,74 0 0 0 174,100"/></defs>'
-    + '<circle cx="100" cy="100" r="94" fill="none" stroke="#7c3a06" stroke-width="2.5"/>'
-    + '<circle cx="100" cy="100" r="80" fill="none" stroke="#7c3a06" stroke-width="1"/>'
-    + '<text font-family="Inter,sans-serif" font-size="9" font-weight="800" fill="#7c3a06" letter-spacing="1">'
+    + '<circle cx="100" cy="100" r="94" fill="none" stroke="#563aa8" stroke-width="2.5"/>'
+    + '<circle cx="100" cy="100" r="80" fill="none" stroke="#563aa8" stroke-width="1"/>'
+    + '<text font-family="Inter,sans-serif" font-size="9" font-weight="800" fill="#563aa8" letter-spacing="1">'
     + '<textPath href="#stp" startOffset="50%" text-anchor="middle">BEAM &amp; SECTION ANALYSIS</textPath></text>'
-    + '<text font-family="Inter,sans-serif" font-size="10.5" font-weight="600" fill="#7c3a06" letter-spacing="1">'
+    + '<text font-family="Inter,sans-serif" font-size="10.5" font-weight="600" fill="#563aa8" letter-spacing="1">'
     + '<textPath href="#sbt" startOffset="50%" text-anchor="middle">by Luis Alejandro Bazán Campos</textPath></text>'
-    + '<text x="100" y="106" font-family="Inter,sans-serif" font-size="16" font-weight="800" fill="#7c3a06" text-anchor="middle">BSA</text>'
-    + '<line x1="62" y1="118" x2="138" y2="118" stroke="#7c3a06" stroke-width="1"/>'
-    + '<text x="100" y="133" font-family="Inter,sans-serif" font-size="9" fill="#7c3a06" text-anchor="middle" letter-spacing="1">EST\u00c1TICA</text>'
+    + '<text x="100" y="106" font-family="Inter,sans-serif" font-size="16" font-weight="800" fill="#563aa8" text-anchor="middle">BSA</text>'
+    + '<line x1="62" y1="118" x2="138" y2="118" stroke="#563aa8" stroke-width="1"/>'
+    + '<text x="100" y="133" font-family="Inter,sans-serif" font-size="9" fill="#563aa8" text-anchor="middle" letter-spacing="1">EST\u00c1TICA</text>'
     + '</svg></div>';
 
   let html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">';
@@ -251,7 +251,7 @@ function downloadPDF(){
         + '<div class="pdf-date">Generado: '+dt+'</div></div>';
   if(img){
     html += '<div style="margin-bottom:12px;page-break-inside:avoid;">'
-      + '<h3 style="font-size:11px;font-weight:700;color:#b45309;margin-bottom:5px;'
+      + '<h3 style="font-size:11px;font-weight:700;color:#7c5cd6;margin-bottom:5px;'
       + 'font-family:Inter,sans-serif;text-transform:uppercase;letter-spacing:.5px;">Armadura analizada</h3>'
       + '<img src="'+img+'" style="max-width:100%;width:auto;height:auto;max-height:290px;'
       + 'border-radius:8px;border:1px solid #e7d3ba;display:block;margin:6px auto;"></div>';

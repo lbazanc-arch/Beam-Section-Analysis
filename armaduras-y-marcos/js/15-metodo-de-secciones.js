@@ -214,7 +214,7 @@ function svgPorcion(info, sol){
     const L = 62;
     const ex = px+ux*L, ey = py+uy*L;
     const val = sol.pasos[i] ? sol.pasos[i].val : null;
-    const col = (val!==null && isFinite(val)) ? (val>0 ? '#1d4ed8' : '#c0392b') : '#b45309';
+    const col = (val!==null && isFinite(val)) ? (val>0 ? '#1d4ed8' : '#c0392b') : '#7c5cd6';
     s += '<line x1="'+px.toFixed(1)+'" y1="'+py.toFixed(1)+'" x2="'+ex.toFixed(1)+'" y2="'+ey.toFixed(1)
        + '" stroke="'+col+'" stroke-width="2.6"/>'
        + '<polygon points="0,0 -10,-4.5 -10,4.5" fill="'+col+'" transform="translate('+ex.toFixed(1)+','+ey.toFixed(1)
@@ -243,7 +243,7 @@ function svgPorcion(info, sol){
     const [px,py] = P(n.x,n.y);
     const dentro = enLado(n.id);
     s += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+(dentro?5:3.5)+'" fill="'
-       + (dentro?'#7c3a06':'#dfe3e8')+'" stroke="#fff" stroke-width="1.5"/>';
+       + (dentro?'#563aa8':'#dfe3e8')+'" stroke="#fff" stroke-width="1.5"/>';
     if(dentro) s += '<text x="'+(px+8).toFixed(1)+'" y="'+(py-8).toFixed(1)
        + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">'+n.nombre+'</text>';
   });
@@ -252,7 +252,7 @@ function svgPorcion(info, sol){
     if(p.tipo !== 'momento' || !p.centro) return;
     const [px,py] = P(p.centro.x, p.centro.y);
     if(px < -60 || px > W2+60 || py < -60 || py > H2+60) return;
-    s += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4" fill="none" stroke="#7c3a06" stroke-width="1.6" stroke-dasharray="2,2"/>';
+    s += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4" fill="none" stroke="#563aa8" stroke-width="1.6" stroke-dasharray="2,2"/>';
   });
   s += '</svg>';
   return s;
