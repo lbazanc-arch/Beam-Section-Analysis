@@ -40,6 +40,133 @@ function cerrarPanelLatex(){
 //  el visor del propio sistema. En el ordenador no cambia nada.
 // ==========================================================================
 // ==========================================================================
+//  EJERCICIOS GUARDADOS EN ESTE EQUIPO
+//  Por que existe: en el telefono, entregar un ARCHIVO desde el iframe del
+//  portal no es fiable. La hoja de compartir exige activacion reciente del
+//  usuario y la pierde en la cadena de awaits; y la descarga por URL data:
+//  desde un subframe la restringe Chrome en Android, que fue lo que dejaba el
+//  archivo en 0 B. La solucion no es cambiar de formato: es no depender del
+//  sistema de archivos. El ejercicio se guarda en el almacenamiento del
+//  navegador de este equipo, sin servidor y sin base de datos, y el Historial
+//  lo vuelve a abrir. Para llevarselo a otro equipo esta bsaAbrirEnPestana.
+//  Limites que hay que decir al alumno: vive en ESE navegador y en ESE
+//  equipo, y se pierde si borra los datos del sitio.
+// ==========================================================================
+const BSA_CLAVE_EJ = 'bsa:ejercicios:';
+const BSA_MAX_EJ = 20;                       // por tema
+
+function _bsaAlmacen(app){
+  try{ const v = JSON.parse(localStorage.getItem(BSA_CLAVE_EJ + app) || '[]'); return Array.isArray(v) ? v : []; }
+  catch(e){ return []; }
+}
+function _bsaEscribirAlmacen(app, lista){
+  try{ localStorage.setItem(BSA_CLAVE_EJ + app, JSON.stringify(lista)); return true; }
+  catch(e){ return false; }                  // cuota llena o almacenamiento bloqueado
+}
+function bsaListaGuardados(app){
+  return _bsaAlmacen(app).map(e=>({id:e.id, titulo:e.titulo, fecha:e.fecha}));
+}
+function bsaLeerGuardado(app, id){
+  const e = _bsaAlmacen(app).find(x=>x.id === id);
+  return e ? e.texto : null;
+}
+function bsaBorrarGuardado(app, id){
+  _bsaEscribirAlmacen(app, _bsaAlmacen(app).filter(x=>x.id !== id));
+}
+// Guarda y devuelve {ok, motivo}. Un titulo repetido REEMPLAZA al anterior, que
+// es lo que espera quien guarda dos veces el mismo ejercicio. Si no cabe, se
+// van soltando los mas antiguos antes de rendirse.
+function bsaGuardarEnEquipo(app, titulo, texto){
+  const lista = _bsaAlmacen(app).filter(e=>e.titulo !== titulo);
+  lista.unshift({id:'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+                 titulo: titulo, fecha: new Date().toISOString(), texto: texto});
+  while(lista.length > BSA_MAX_EJ) lista.pop();
+  while(lista.length > 1 && !_bsaEscribirAlmacen(app, lista)) lista.pop();
+  if(!_bsaEscribirAlmacen(app, lista)) return {ok:false, motivo:'sin espacio'};
+  return {ok:true, id:lista[0].id};
+}
+function bsaFechaCorta(iso){
+  try{ return new Date(iso).toLocaleString('es-PE', {dateStyle:'short', timeStyle:'short'}); }
+  catch(e){ return ''; }
+}
+function _bsaEsc(t){
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+// Lista para el modal de Historial. Los dos onclick los define cada tema.
+function bsaHtmlGuardados(app){
+  const l = bsaListaGuardados(app);
+  if(!l.length) return '<div class="bsa-guardados-vacio">Todavia no has guardado ningun ejercicio en este equipo.</div>';
+  return '<div class="bsa-guardados">' + l.map(e=>
+      '<div class="bsa-guardado">'
+    + '<button type="button" class="bsa-guardado-abrir" onclick="abrirEjercicioGuardado(&quot;' + e.id + '&quot;)">'
+    +   '<span class="bsa-guardado-nom">' + _bsaEsc(e.titulo) + '</span>'
+    +   '<span class="bsa-guardado-fecha">' + _bsaEsc(bsaFechaCorta(e.fecha)) + '</span>'
+    + '</button>'
+    + '<button type="button" class="bsa-guardado-x" title="Quitar de este equipo" '
+    +   'onclick="borrarEjercicioGuardado(&quot;' + e.id + '&quot;)">&times;</button>'
+    + '</div>').join('') + '</div>';
+}
+
+// ── Llevarse el ejercicio a otro equipo, sin nube ──
+// Se abre en una PESTANA propia. Ahi el documento es de nivel superior y el
+// toque del alumno es un gesto nuevo, asi que descargar y compartir se
+// comportan con normalidad; es el mismo truco que ya usa el informe PDF.
+function bsaAbrirEnPestana(texto, nombre){
+  const w = window.open('', '_blank');
+  if(!w) return false;
+  const n = _bsaEsc(nombre || 'ejercicio.txt');
+  const datos = String(texto).replace(/<\//g, '<\\/');
+  w.document.write(
+      '<!doctype html><html lang="es"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>' + n + '</title><style>'
+    + 'body{margin:0;padding:16px;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1b1f24;background:#f1f3f5}'
+    + 'h1{font-size:16px;margin:0 0 4px}p{margin:0 0 14px;color:#66727e;font-size:12.5px}'
+    + '.b{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}'
+    + 'button{flex:1;min-width:120px;padding:12px 14px;border-radius:9px;border:1px solid #ccd2d8;'
+    + 'background:#fff;font:inherit;font-weight:700;cursor:pointer}'
+    + 'button.p{background:#0d3a8f;border-color:#0d3a8f;color:#fff}'
+    + 'pre{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e0e4e8;'
+    + 'border-radius:9px;padding:12px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;max-height:52vh;overflow:auto}'
+    + '#ok{color:#15803d;font-weight:700;font-size:12.5px;min-height:18px}'
+    + '</style></head><body>'
+    + '<h1>' + n + '</h1>'
+    + '<p>Tu ejercicio. Guardalo con el boton, compartelo, o copia el texto y pegalo donde quieras.</p>'
+    + '<div class="b"><button class="p" id="d">Descargar</button>'
+    + '<button id="s" style="display:none">Compartir</button>'
+    + '<button id="c">Copiar</button></div>'
+    + '<div id="ok"></div>'
+    + '<pre id="t"></pre>'
+    + '<script type="application/json" id="j">' + datos + '<\/script>'
+    + '<script>(function(){'
+    + 'var txt=document.getElementById("j").textContent, nom=' + JSON.stringify(nombre || 'ejercicio.txt') + ';'
+    + 'document.getElementById("t").textContent=txt;'
+    + 'var ok=document.getElementById("ok");'
+    + 'document.getElementById("d").onclick=function(){'
+    + 'var b=new Blob([txt],{type:"text/plain"}),u=URL.createObjectURL(b),a=document.createElement("a");'
+    + 'a.href=u;a.download=nom;document.body.appendChild(a);a.click();document.body.removeChild(a);'
+    + 'setTimeout(function(){URL.revokeObjectURL(u);},4000);ok.textContent="Descargado.";};'
+    + 'if(navigator.share&&navigator.canShare){var f=new File([txt],nom,{type:"text/plain"});'
+    + 'if(navigator.canShare({files:[f]})){var sb=document.getElementById("s");sb.style.display="";'
+    + 'sb.onclick=function(){navigator.share({files:[new File([txt],nom,{type:"text/plain"})],title:nom})'
+    + '.then(function(){ok.textContent="Compartido.";}).catch(function(){});};}}'
+    + 'document.getElementById("c").onclick=function(){'
+    + 'if(navigator.clipboard){navigator.clipboard.writeText(txt).then(function(){ok.textContent="Copiado.";});}'
+    + 'else{var r=document.createRange();r.selectNodeContents(document.getElementById("t"));'
+    + 'var s=getSelection();s.removeAllRanges();s.addRange(r);ok.textContent="Selecciona y copia.";}};'
+    + '})();<\/script></body></html>');
+  w.document.close();
+  return true;
+}
+// Reenvia el ultimo ejercicio guardado. Lo llama el boton de la ventana Guardar.
+let bsaUltimoTextoGuardado = '';
+function bsaEnviarUltimo(){
+  if(!bsaUltimoTextoGuardado){ return false; }
+  return bsaAbrirEnPestana(bsaUltimoTextoGuardado, bsaUltimoNombreGuardado || 'ejercicio.txt');
+}
+
+// ==========================================================================
 //  ARCHIVOS DE EJERCICIO EN CUALQUIER EQUIPO
 //  Los ejercicios se guardan como .json con el tema en el nombre
 //  (centroide-ejercicio-1.json) en el ordenador, y como .txt con el mismo
@@ -69,6 +196,7 @@ let bsaUltimoNombreGuardado = '';
 async function bsaGuardarArchivo(texto, nombreArchivo, tipo){
   tipo = tipo || 'application/json';
   bsaUltimoNombreGuardado = nombreArchivo;
+  bsaUltimoTextoGuardado = texto;
   if(bsaEsMovil()){
     const nombreTxt = String(nombreArchivo).replace(/\.json$/i, '') + '.txt';
     bsaUltimoNombreGuardado = nombreTxt;

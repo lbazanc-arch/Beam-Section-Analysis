@@ -83,6 +83,7 @@ function nombreArchivoSeguro(nombre){
 }
 
 function abrirGuardar(){
+  ['guardadoAviso','guardadoAcciones'].forEach(i=>{ const e = document.getElementById(i); if(e) e.style.display = 'none'; });
   const m=document.getElementById('guardarModal'); if(!m) return;
   document.getElementById('nombreProyecto').value='';
   m.classList.add('show');
@@ -127,6 +128,12 @@ async function guardarProyecto(){
   }
 
   // ── Reserva: descarga normal a la carpeta de descargas ──
+  // Siempre queda una copia en ESTE equipo (core/comun.js): sin servidor y sin
+  // archivos. Es lo que hace que guardar funcione en el teléfono.
+  const enEquipo = bsaGuardarEnEquipo(BSA_FORMATO, nombre, texto);
+  bsaUltimoTextoGuardado = texto;
+  bsaUltimoNombreGuardado = archivo;
+  if(bsaEsMovil()){ mostrarGuardadoEnEquipo(enEquipo, nombre); return; }
   const como = await bsaGuardarArchivo(texto, archivo);
   cerrarGuardar();
   // En el móvil el archivo sale como .txt (ver bsaGuardarArchivo): se avisa
@@ -140,21 +147,18 @@ async function guardarProyecto(){
 // en Safari, donde el navegador decide la carpeta.
 
 function abrirHistorial(){
+  pintarGuardadosEnEquipo();
   const el = document.getElementById('histLista');
   if(el) el.innerHTML = '';
   document.getElementById('histModal').classList.add('show');
 }
 function cerrarHistorial(){ document.getElementById('histModal').classList.remove('show'); }
 
-function onArchivoElegido(ev){
-  const file = ev.target.files && ev.target.files[0];
-  ev.target.value = '';           // permite volver a elegir el mismo archivo
-  if(!file) return;
-  const lector = new FileReader();
-  lector.onerror = () => aviso('No se pudo leer el archivo.', 'error');
-  lector.onload = () => {
+// Carga un ejercicio a partir de su TEXTO, venga de un archivo o de lo que
+// haya guardado en este equipo.
+function _cargarEjercicioTexto(texto, nombre){
     let datos;
-    try { datos = JSON.parse(lector.result); }
+    try { datos = JSON.parse(texto); }
     catch(e){ aviso('El archivo no es un ejercicio válido (JSON dañado).', 'error'); return; }
     // Aviso, no bloqueo: un archivo de otro capítulo podría en principio
     // compartir la forma {nodos,tramos,cargas} y cargar igual, pero avisamos
@@ -162,9 +166,52 @@ function onArchivoElegido(ev){
     if(datos.bsaApp && datos.bsaApp !== BSA_FORMATO)
       aviso('Este archivo parece ser de otro capítulo (' + datos.bsaApp + '). Se intentará abrir de todos modos.', 'error');
     const estado = datos.estado || datos;   // admite también el JSON "pelado" del estado
-    cargarEstadoDesdeArchivo(estado, file.name);
-  };
+    cargarEstadoDesdeArchivo(estado, nombre);
+}
+function onArchivoElegido(ev){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';                    // permite reelegir el mismo archivo
+  if(!file) return;
+  const lector = new FileReader();
+  lector.onerror = () => aviso('No se pudo leer el archivo.', 'error');
+  lector.onload = () => _cargarEjercicioTexto(lector.result, file.name);
   lector.readAsText(file);
+}
+
+// ── Guardado en ESTE equipo y salida sin nube (core/comun.js) ──
+// En el teléfono no se intenta escribir un archivo: entregarlo desde el iframe
+// del portal no es fiable. Se guarda aquí y se ofrece llevárselo en una pestaña
+// propia, donde el gesto y el documento sí son de nivel superior.
+function mostrarGuardadoEnEquipo(res, nombre){
+  const av = document.getElementById('guardadoAviso');
+  const ac = document.getElementById('guardadoAcciones');
+  if(av){
+    av.innerHTML = res.ok
+      ? 'Guardado <b>' + nombre + '</b> en este equipo. Lo vuelves a abrir desde <b>Historial</b>.'
+      : 'No se pudo guardar en este equipo: el almacenamiento está lleno o bloqueado. Usa «Enviar o descargar».';
+    av.style.display = '';
+  }
+  if(ac) ac.style.display = '';
+  if(res.ok) aviso('Guardado en este equipo.');
+}
+function enviarEjercicio(){
+  if(!bsaEnviarUltimo()) aviso('El navegador bloqueó la pestaña. Permítela y vuelve a intentarlo.', 'error');
+}
+// Abrir y quitar lo guardado en este equipo. Los llama bsaHtmlGuardados.
+function abrirEjercicioGuardado(id){
+  const t = bsaLeerGuardado(BSA_FORMATO, id);
+  if(!t){ aviso('Ese ejercicio ya no está en este equipo.', 'error'); return; }
+  const e = bsaListaGuardados(BSA_FORMATO).find(x=>x.id === id);
+  _cargarEjercicioTexto(t, (e && e.titulo) || 'ejercicio');
+  cerrarHistorial();
+}
+function borrarEjercicioGuardado(id){
+  bsaBorrarGuardado(BSA_FORMATO, id);
+  pintarGuardadosEnEquipo();
+}
+function pintarGuardadosEnEquipo(){
+  const c = document.getElementById('histGuardados');
+  if(c) c.innerHTML = bsaHtmlGuardados(BSA_FORMATO);
 }
 
 function cargarEstadoDesdeArchivo(e, nombreArchivo){
