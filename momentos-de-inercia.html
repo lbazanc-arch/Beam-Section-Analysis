@@ -202,7 +202,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1.4 13H7.4Z"/><path d="M4 7h16M10 4h4"/></svg>
         <span>Limpiar</span>
       </button>
-      <button class="rail-btn accion" onclick="loadExampleSection()">
+      <button class="rail-btn accion" onclick="abrirEjemplosIn()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19V5h9l5 5v9z"/><path d="M9 12h6M9 15h4"/></svg>
         <span>Ejemplo</span>
       </button>
@@ -236,6 +236,7 @@
           <label class="vis-item"><input type="checkbox" id="visEjes" checked onchange="setVis('ejes',this.checked)"><span>Ejes</span></label>
           <label class="vis-item"><input type="checkbox" id="visCotas" checked onchange="setVis('cotas',this.checked)"><span>Cotas</span></label>
           <label class="vis-item"><input type="checkbox" id="visCentroide" checked onchange="setVis('centroide',this.checked)"><span>Resultados</span></label>
+          <label class="vis-item"><input type="checkbox" id="visRadios" checked onchange="setVis('radios',this.checked)"><span>Radios de giro</span></label>
         </div>
         <div class="cfg-hint">Oculta lo que no necesites ver en el panel de dibujo. No afecta al cálculo.</div>
         </div>
@@ -316,6 +317,19 @@
 <div id="tooltip"></div>
 
 <!-- ══ Nucleo comun a los cinco temas ══ -->
+<div class="modal-ov" id="ejModal">
+  <div class="modal" style="max-width:470px;max-height:88vh;overflow-y:auto">
+    <h3>Ejemplos de verificación</h3>
+    <p class="sub">Casos resueltos a mano (Hibbeler cap. 10, reformulados con datos propios). Al cargarlos,
+      el programa contrasta las inercias centroidales con el valor de referencia y avisa por consola si se
+      desvía más del 0.1 %.</p>
+    <div id="ejLista"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="cerrarEjemplosIn()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script src="core/comun.js"></script>
 <!-- ══ Datos extraidos del codigo ══ -->
 <script src="core/datos/perfiles-acero.js"></script>

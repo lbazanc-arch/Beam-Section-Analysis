@@ -527,13 +527,20 @@ function construirLatex(){
     tex += '\\begin{minipage}[t]{0.36\\textwidth}\n\\vspace{0pt}\n\\begin{center}\n';
     // El croquis acotado de siempre (con el giro β si lo hay) y, en un perfil,
     // debajo la ficha con la notación de la tabla: las dos cosas, porque sin el
-    // croquis no se reconoce la figura ni se ve cómo está girada.
-    tex += tikzCroquisFigura(f, 3.6) + '\n\n\\vspace{3pt}\n';
-    tex += '{\\scriptsize\\color{bsaMuted}Croquis acotado en ' + utexto(u1)
-         + (girada ? ', girado $\\beta = ' + decP(giro,'ang') + '^\\circ$' : '') + '}\n';
-    if(tb){
-      tex += '\\\\[8pt]\n' + _tikzFichaPerfil(f.type) + '\n\n\\vspace{3pt}\n'
-           + '{\\scriptsize\\color{bsaMuted}Notación de la tabla, según Beer \\& Johnston, Apéndice C}\n';
+    // croquis no se reconoce la figura ni se ve cómo está girada. Un rectángulo
+    // alineado con los ejes, en una sección de muchas partes, repite la lámina
+    // general: se omite (propuesta 3, 2026-09-08).
+    const sinCroquis = (f.type === 'rect' && !girada && f.sign > 0 && !tb && st.length >= 6);
+    if(sinCroquis){
+      tex += '{\\scriptsize\\color{bsaMuted}Rect\\\'angulo alineado con los ejes: sus medidas est\\\'an en la l\\\'amina general.}\n';
+    } else {
+      tex += tikzCroquisFigura(f, 3.6) + '\n\n\\vspace{3pt}\n';
+      tex += '{\\scriptsize\\color{bsaMuted}Croquis acotado en ' + utexto(u1)
+           + (girada ? ', girado $\\beta = ' + decP(giro,'ang') + '^\\circ$' : '') + '}\n';
+      if(tb){
+        tex += '\\\\[8pt]\n' + _tikzFichaPerfil(f.type) + '\n\n\\vspace{3pt}\n'
+             + '{\\scriptsize\\color{bsaMuted}Notación de la tabla, según Beer \\& Johnston, Apéndice C}\n';
+      }
     }
     tex += '\\end{center}\n\\end{minipage}\n\\end{minipage}\n\n\\vspace{4pt}\n';
   });
@@ -606,6 +613,11 @@ function construirLatex(){
   // despachan en una línea: mismas Ix e Iy, producto opuesto.
   const espejoDe = {};
   grupos.forEach(g=>{ if(g.simetria) g.idx.slice(1).forEach(i=>{ espejoDe[i] = {de:g.idx[0], eje:g.simetria}; }); });
+  // Partes iguales a otra ya desarrollada (mismo grupo, sin espejo): una sola
+  // línea con sus distancias y su aporte, que la tabla detalla (propuesta 3,
+  // 2026-09-08: el informe de 18 figuras pasaba de 17 páginas).
+  const repetidaDe = {};
+  grupos.forEach(g=>{ if(!g.simetria) g.idx.slice(1).forEach(i=>{ repetidaDe[i] = g.idx[0]; }); });
   let primera = true;
   st.forEach((s,i)=>{
     const k = i+1, f = s.fig;
@@ -622,6 +634,13 @@ function construirLatex(){
                                  : '$d_{y_' + k + '} = -d_{y_' + k0 + '} = ' + dyS + '$ y el mismo $d_{x}$')
         + ', así que $\\bar{I}_{x_' + k + '} = \\bar{I}_{x_' + k0 + '}$, $\\bar{I}_{y_' + k + '} = \\bar{I}_{y_' + k0
         + '}$ y $\\bar{P}_{xy_' + k + '} = -\\bar{P}_{xy_' + k0 + '} = ' + ftex(s.Ixy_f) + U4 + '$.}\\\\[2pt]\n';
+      return;
+    }
+    if(repetidaDe[i] !== undefined){
+      const k0 = repetidaDe[i] + 1;
+      tex += '\\quad{\\small igual que la parte ' + k0 + ', con $d_{x_' + k + '} = ' + dxS + '$ y $d_{y_' + k + '} = ' + dyS + U1
+        + '$; la misma sustituci\\\'on da $\\bar{I}_{x_' + k + '} = ' + ftex(s.Ix_f) + '$, $\\bar{I}_{y_' + k + '} = ' + ftex(s.Iy_f)
+        + '$ y $\\bar{P}_{xy_' + k + '} = ' + ftex(s.Ixy_f) + U4 + '$ (detalle en la tabla).}\\\\[2pt]\n';
       return;
     }
     tex += '\\quad{\\small $d_{x_' + k + '} = ' + decP(f.cx,'len') + ' - ' + decP(results.xbar,'len') + ' = ' + dxS + U1
@@ -698,6 +717,19 @@ function construirLatex(){
       + ftex(sPropIx) + ' + ' + ftex(sStIx) + ' = ' + ftex(results.Ix) + U4 + ' \\]\n';
     tex += '\\[ \\bar{I}_y = \\sum \\left(\\bar{I}_{y}\' + A_i\\,d_{x_i}^{2}\\right) = '
       + ftex(sPropIy) + ' + ' + ftex(sStIy) + ' = ' + ftex(results.Iy) + U4 + ' \\]\n';
+    // Dónde está la rigidez (propuesta 2, 2026-09-08): la parte que más aporta
+    // a Ix y cuánto de ese aporte es traslado. Una frase, una vez.
+    if(st.length > 1 && Math.abs(results.Ix) > 1e-12 && _primeraVezIn('rigidez')){
+      let mayor = null, pctMayor = -Infinity;
+      st.forEach((s,i)=>{ const p = s.Ix_f/results.Ix; if(p > pctMayor){ pctMayor = p; mayor = {s, i}; } });
+      if(mayor){
+        const tras = mayor.s.fig.sign*mayor.s.a*mayor.s.dy*mayor.s.dy;
+        const q = Math.abs(mayor.s.Ix_f) > 1e-12 ? tras/mayor.s.Ix_f*100 : 0;
+        tex += '\\noindent{\\footnotesize La parte ' + (mayor.i+1) + ' aporta el ' + (pctMayor*100).toFixed(1) + '\\,\\% de $\\bar{I}_x$'
+          + (q > 60 ? ', casi todo por el traslado $A\\,d_y^{2}$: la rigidez la da el material \\textbf{lejos} del eje, que es la raz\\\'on de que un perfil I ponga las alas lejos del alma.'
+                    : (q > 0 ? ', y el ' + q.toFixed(0) + '\\,\\% de ese aporte es el traslado $A\\,d_y^{2}$.' : '.')) + '}\\\\[3pt]\n';
+      }
+    }
     tex += '\\[ \\bar{P}_{xy} = \\sum \\left(\\bar{P}_{xy}\' + A_i\\,d_{x_i}d_{y_i}\\right) = '
       + ftex(sPropIxy) + ' + ' + ftex(sStIxy) + ' = ' + ftex(results.Ixy) + U4 + ' \\]\n';
     tex += '\\subpaso{Momento polar y radios de giro}\n';
@@ -770,6 +802,13 @@ function construirLatex(){
 
   // ══ 6. Paso 5: círculo de Mohr ══
   tex += '\\seccion{6. Paso 5 --- Círculo de Mohr de inercia}\n';
+  // Por qué el círculo gira el doble (propuesta 1, 2026-09-08): una sola vez.
+  tex += porque('dos-theta',
+    'El \\\'angulo que se lee en el c\\\'irculo es $2\\theta$, el doble del giro de los ejes en la secci\\\'on, porque '
+    + '$I_u$ y $P_{uv}$ dependen de $\\cos 2\\theta$ y $\\sen 2\\theta$, no de $\\theta$: $I_u = \\tfrac{I_x+I_y}{2} + '
+    + '\\tfrac{I_x-I_y}{2}\\cos 2\\theta - P_{xy}\\sen 2\\theta$. Girar los ejes $\\theta$ en la secci\\\'on recorre '
+    + '$2\\theta$ sobre el c\\\'irculo, en el mismo sentido; y en $\\theta_p$ el punto cae sobre el eje horizontal, donde '
+    + '$P_{uv} = 0$: por eso los principales son los ejes sin producto de inercia.');
   tex += porque('mohr',
     'Elevando al cuadrado y sumando las ecuaciones de $I_u$ y $P_{uv}$ del paso 4 desaparece $\\theta$ y queda '
     + '$\\left(I_u - \\tfrac{\\bar{I}_x+\\bar{I}_y}{2}\\right)^{2} + P_{uv}^{2} = R^{2}$: en el plano $(I, P)$, todos los '

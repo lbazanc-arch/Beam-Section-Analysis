@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 // Se detiene en lo primero que aplica, para que una sola pulsación no deshaga
 // dos cosas a la vez.
-const MODALES_ESC = ['edFigModal','guardarModal','unitsModal','decModal','histModal','catModal',
+const MODALES_ESC = ['edFigModal','guardarModal','unitsModal','decModal','histModal','catModal','ejModal',
                      'transModal','repModal'];
 function manejarEsc(){
   // 0) La ventana del informe PDF, que se superpone a todo
@@ -317,6 +317,18 @@ function renderResults(res, u4, u2, u1){
   </div>`;
 
 
+  // ¿mm y m mezclados? (propuesta 4): en I el error se eleva a la cuarta.
+  {
+    const vals = [];
+    figures.forEach(fg=>{ Object.keys(fg.dims||{}).forEach(k=>{ const v = fg.dims[k]; if(typeof v==='number' && v > 0 && !/alpha|ang|theta/i.test(k)) vals.push(v); }); });
+    if(vals.length > 1){
+      const mx = Math.max(...vals), mn = Math.min(...vals);
+      if(mx/mn > 1000)
+        html += `<div class="verdict bad" style="margin-bottom:12px"><div class="verdict-t">¿Unidades mezcladas?</div>
+          Hay medidas de ${decFix(mn,'len')} y de ${decFix(mx,'len')} ${esc(u1)} en la misma sección: un factor ${Math.round(mx/mn)}.
+          Si una parte está en mm y otra en m, el error en las inercias <b>se eleva a la cuarta potencia</b>. Revisa que todas las cotas estén en ${esc(u1)}.</div>`;
+    }
+  }
   html += `<div class="res-section">
     <div class="res-section-title"><div class="num" style="background:#041d56"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg></div>Sección compuesta — visualización con cotas</div>
     <canvas id="compositeCanvas" style="width:100%;max-width:860px;height:420px;display:block;margin:0 auto;border-radius:10px;border:1px solid var(--border);background:#ffffff;"></canvas>
@@ -548,6 +560,18 @@ function renderResults(res, u4, u2, u1){
       <div class="summary-box highlight"><div class="s-lbl">P<sub>xyG</sub></div><div class="s-val">${f(res.Ixy)}</div><div class="s-unit">${u4}</div></div>
       <div class="summary-box"><div class="s-lbl">kₓ (radio giro)</div><div class="s-val">${n4(res.kx)}</div><div class="s-unit">${u1}</div></div>
     </div>
+    ${htmlRigidez(res)}
+    <div class="verdict" style="margin-top:10px"><div class="verdict-t">Signo de P<sub>xy</sub></div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <svg viewBox="0 0 96 96" style="width:84px;height:84px;flex:none"><line x1="8" y1="48" x2="88" y2="48" stroke="#66727e" stroke-width="1.2"/><line x1="48" y1="8" x2="48" y2="88" stroke="#66727e" stroke-width="1.2"/>
+          <text x="66" y="30" font-size="14" font-weight="800" fill="#0d3a8f" text-anchor="middle">+</text><text x="30" y="30" font-size="14" font-weight="800" fill="#c0392b" text-anchor="middle">−</text>
+          <text x="30" y="76" font-size="14" font-weight="800" fill="#0d3a8f" text-anchor="middle">+</text><text x="66" y="76" font-size="14" font-weight="800" fill="#c0392b" text-anchor="middle">−</text>
+          <text x="90" y="45" font-size="8" fill="#66727e">x</text><text x="51" y="12" font-size="8" fill="#66727e">y</text></svg>
+        <div style="flex:1;min-width:220px;font-size:11.5px">P<sub>xy</sub> es <b>positivo</b> cuando el material queda en los cuadrantes 1 y 3 respecto de los ejes centroidales,
+          <b>negativo</b> en los cuadrantes 2 y 4, y <b>cero</b> si la sección tiene un eje de simetría (cada elemento en (x, y) tiene su pareja en (−x, y)).
+          Aquí P<sub>xyG</sub> = ${f(res.Ixy)} ${u4}${Math.abs(res.Ixy) < 1e-9*Math.max(1,Math.abs(res.Ix),Math.abs(res.Iy)) ? ': hay simetría' : (res.Ixy > 0 ? ': pesa más el material de los cuadrantes 1 y 3' : ': pesa más el material de los cuadrantes 2 y 4')}.</div>
+      </div>
+    </div>
   </div>`;
 
   // ══════════════════════════════════════════════════
@@ -581,6 +605,18 @@ function renderResults(res, u4, u2, u1){
     </div>
     <div style="padding:8px 0 4px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Círculo de Mohr de Inercia</div>
     <canvas id="mohrCanvas" class="mohr-full"></canvas>
+    <div class="proc-block" style="margin-top:8px">
+      <div class="proc-subtitle">Gira los ejes y mira el círculo</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Al girar los ejes <b>u, v</b> un ángulo θ sobre la sección, el punto U recorre el círculo un ángulo <b>2θ</b>
+        en el <b>mismo sentido</b>. En θ<sub>p</sub> la asimetría desaparece: P<sub>uv</sub> = 0 e I<sub>u</sub> es I<sub>máx</sub> (o I<sub>mín</sub>).</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <input type="range" id="mohrSlider" min="-90" max="90" step="0.5" value="${decFix(mohrTheta,'ang')}" oninput="mohrGirar(this.value)" style="flex:1;min-width:180px">
+        <span id="mohrSliderVal" style="font-family:var(--mf);font-size:12.5px;min-width:70px">θ = ${decFix(mohrTheta,'ang')}°</span>
+        <button class="btn-sm" style="margin:0" onclick="mohrGirar(${res.thetaP})">θ = θ<sub>p</sub></button>
+        <button class="btn-sm" style="margin:0" onclick="mohrGirar(0)">θ = 0</button>
+      </div>
+      <div id="mohrValores" class="eq-row" style="margin-top:6px"></div>
+    </div>
   </div>`;
 
   // ── ANÁLISIS EN OTRO PUNTO (Sección 6) ──
@@ -684,6 +720,68 @@ function renderResults(res, u4, u2, u1){
   rp.innerHTML = html;
   renderKatex(rp);
   drawMohr({Ix:res.Ix,Iy:res.Iy,Ixy:res.Ixy}, "mohrCanvas");
+  if(Math.abs(mohrTheta) > 1e-9) mohrGirar(mohrTheta);
   if(ep) drawMohr({Ix:ep.IxP,Iy:ep.IyP,Ixy:ep.IxyP}, "mohrCanvasP", ep.rot?{rot:ep.rot}:undefined);
   setTimeout(()=>drawCompositeFigure('compositeCanvas'),80);
+}
+
+// ── Círculo de Mohr interactivo (propuesta 1, 2026-09-08) ──
+// El deslizador gira los ejes u, v: se redibuja el círculo con el punto U y
+// el arco 2θ, la sección con los ejes girados, y se escriben Iu, Iv y Puv.
+function mohrGirar(v){
+  mohrTheta = parseFloat(v) || 0;
+  const sl = document.getElementById('mohrSlider'); if(sl && parseFloat(sl.value) !== mohrTheta) sl.value = mohrTheta;
+  const lab = document.getElementById('mohrSliderVal'); if(lab) lab.textContent = 'θ = ' + decFix(mohrTheta,'ang') + '°';
+  if(!results) return;
+  const rt = rotateInertia(results.Ix, results.Iy, results.Ixy, mohrTheta);
+  rt.ang = mohrTheta;
+  drawMohr({Ix:results.Ix, Iy:results.Iy, Ixy:results.Ixy}, 'mohrCanvas', Math.abs(mohrTheta) > 1e-9 ? {rot:rt} : undefined);
+  const vals = document.getElementById('mohrValores');
+  if(vals){
+    const u4 = currentU4;
+    const enP = Math.abs(rt.Iuv) < 1e-6*Math.max(1, Math.abs(results.Ix), Math.abs(results.Iy));
+    vals.innerHTML = '<div class="eq-body">' + kx('I_u = ' + ftex(rt.Iu) + '\\,' + utex(u4) + '\\qquad I_v = ' + ftex(rt.Iv) + '\\,' + utex(u4) + '\\qquad P_{uv} = ' + ftex(rt.Iuv) + '\\,' + utex(u4)) + '</div>'
+      + (enP ? '<div style="font-size:11px;color:#15803d;font-weight:700;margin-top:3px">θ = θp: la asimetría desaparece (P<sub>uv</sub> = 0) y los ejes u, v son los principales.</div>' : '');
+    try{ renderKatex(vals); }catch(e){}
+  }
+  render();
+}
+
+// ── «Dónde está la rigidez» (propuesta 2): cuánto aporta cada parte a Ix e Iy,
+//    partido en inercia propia y traslado A·d², con huecos en negativo. Al pasar
+//    el ratón por una barra se resalta la parte en el lienzo. ──
+function htmlRigidez(res){
+  const filas = res.steps.map((s,i)=>{
+    const g = s.fig.sign;
+    return {i, fig:s.fig, nom:s.fig.name, color:s.fig.color,
+      pIx:g*s.Ixc, tIx:g*s.a*s.dy*s.dy, pIy:g*s.Iyc, tIy:g*s.a*s.dx*s.dx};
+  });
+  const maxAbs = Math.max(1e-12, ...filas.map(r=>Math.max(Math.abs(r.pIx)+Math.abs(r.tIx), Math.abs(r.pIy)+Math.abs(r.tIy))));
+  const barra = (prop, tras, total) => {
+    const wP = Math.abs(prop)/maxAbs*100, wT = Math.abs(tras)/maxAbs*100;
+    const pct = Math.abs(total) > 1e-12 ? ((prop+tras)/total*100) : 0;
+    return '<div style="display:flex;align-items:center;gap:6px">'
+      + '<div style="flex:1;height:10px;background:#eef2fb;border-radius:3px;overflow:hidden;display:flex">'
+      + '<div title="inercia propia" style="width:'+wP.toFixed(1)+'%;background:'+(prop<0?'#c0392b':'#0d3a8f')+';opacity:.55"></div>'
+      + '<div title="traslado A·d²" style="width:'+wT.toFixed(1)+'%;background:'+(tras<0?'#c0392b':'#0d3a8f')+'"></div></div>'
+      + '<span style="font-size:10px;color:var(--muted);min-width:44px;text-align:right">'+pct.toFixed(1)+' %</span></div>';
+  };
+  let mayor = filas[0], mayorPct = -1;
+  filas.forEach(r=>{ const pct = Math.abs(res.Ix) > 1e-12 ? (r.pIx+r.tIx)/res.Ix : 0; if(pct > mayorPct){ mayorPct = pct; mayor = r; } });
+  const qTras = mayor && Math.abs(mayor.pIx+mayor.tIx) > 1e-12 ? mayor.tIx/(mayor.pIx+mayor.tIx)*100 : 0;
+  return '<div class="proc-block" style="margin-top:12px">'
+    + '<div class="proc-subtitle">Dónde está la rigidez</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Aporte de cada parte a Ī<sub>xG</sub> e Ī<sub>yG</sub>: la franja clara es la inercia propia Ī y la oscura el traslado A·d² (en rojo si resta). Pasa el ratón para ver la parte en el lienzo.</div>'
+    + '<table class="tabla" style="width:100%"><thead><tr><th>Parte</th><th style="width:38%">Ī<sub>xG</sub></th><th style="width:38%">Ī<sub>yG</sub></th></tr></thead><tbody>'
+    + filas.map(r=>'<tr onmouseenter="resaltarFigura('+r.fig.id+')" onmouseleave="resaltarFigura(null)" style="cursor:default">'
+      + '<td style="white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+r.color+';margin-right:5px;vertical-align:middle"></span>'+(r.i+1)+' · '+esc(r.nom)+(r.fig.sign<0?' (hueco)':'')+'</td>'
+      + '<td>'+barra(r.pIx, r.tIx, res.Ix)+'</td><td>'+barra(r.pIy, r.tIy, res.Iy)+'</td></tr>').join('')
+    + '</tbody></table>'
+    + (mayor ? '<div style="font-size:11px;margin-top:6px">La parte <b>'+(mayor.i+1)+'</b> aporta el <b>'+(mayorPct*100).toFixed(1)+' %</b> de Ī<sub>xG</sub>'
+       + (qTras > 60 ? ', casi todo por el traslado A·d²: el material lejos del eje es el que da rigidez (por eso un perfil I pone las alas lejos del alma).' : (qTras > 0 ? ', y el '+qTras.toFixed(0)+' % de ese aporte es traslado A·d².' : '.')) + '</div>' : '')
+    + '</div>';
+}
+function resaltarFigura(id){
+  _figResaltada = id;
+  render();
 }

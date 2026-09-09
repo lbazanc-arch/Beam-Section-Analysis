@@ -554,8 +554,110 @@ function resetAll(){
   document.getElementById('resultsPanel').style.display='none';
   render();
 }
-function loadExampleSection(){
+// ═══════════════════════════════════════════════════════════
+//  EJEMPLOS DE VERIFICACIÓN (propuesta 6, 2026-09-08)
+//  Hibbeler 10.4–10.8 reformulados con datos propios y resueltos a mano.
+//  `esperado` trae Ix, Iy, Pxy centroidales (y θp si procede); al cargar el
+//  ejemplo se contrasta con el motor y avisa por consola si se desvía más
+//  del 0.1 %.
+// ═══════════════════════════════════════════════════════════
+const EJEMPLOS_IN = [
+  {
+    id:'seccion', nom:'Sección compuesta de 18 figuras',
+    desc:'La sección de siempre: rectángulos girados, triángulos, sectores y semicírculos, con dos huecos. Sin valor a mano; el informe se autocomprueba contra Steiner.',
+    ref:'Consola limpia y sumas de la tabla iguales a las inercias.',
+    armar(F){
+      figures = [
+        F('rect', {b:220,h:352.15}, 110, 176.07, 0, +1, 'Rectángulo'),
+        F('rect', {b:140,h:160.39}, 110, 432.35, 0, +1, 'Rectángulo'),
+        F('rect', {b:120,h:75}, 290.07, 279.85, -24, +1, 'Rectángulo'),
+        F('rect', {b:120,h:75}, -70.07, 279.85, 24, +1, 'Rectángulo'),
+        F('rect', {b:75,h:160}, 397.66, 369.49, 0, +1, 'Rectángulo'),
+        F('rect', {b:75,h:160}, -106.64, 132.71, 27, +1, 'Rectángulo'),
+        F('rtriangle', {b:75,h:33.53}, -10.13, 320.22, -66, +1, 'Triáng. Rectángulo'),
+        F('rtriangle2', {b:75,h:33.53}, 230.13, 320.22, 66, +1, 'Triáng. Rect. \u2461'),
+        F('rtriangle', {b:50.7,h:25.56}, 443.68, 432.59, -90, +1, 'Triáng. Rectángulo'),
+        F('rtriangle2', {b:50.7,h:25.56}, 351.64, 432.17, 90, +1, 'Triáng. Rect. \u2461'),
+        F('rtriangle', {b:50.7,h:25.56}, -118.54, 55.54, 117, +1, 'Triáng. Rectángulo'),
+        F('rtriangle2', {b:50.7,h:25.56}, -36.65, 97.56, -63, +1, 'Triáng. Rect. \u2461'),
+        F('circle', {r:25}, 110, 446.93, 0, -1, 'Círculo'),
+        F('semicircle', {r:47.61}, 110, 390.71, 180, -1, 'Semicírculo'),
+        F('sector', {r:75,alpha:57}, 383.12, 254.14, -147, +1, 'Sector Circular', true),
+        F('semicircle', {r:63.06}, 397.66, 476.25, 0, +1, 'Semicírculo'),
+        F('sector', {r:75,alpha:46.5}, -151.68, 235.94, 70.5, +1, 'Sector Circular', true),
+        F('semicircle', {r:63.06}, -57.61, 37.71, -153, +1, 'Semicírculo')
+      ];
+    }
+  },
+  {
+    id:'te', nom:'Sección en T (Steiner, Hibbeler ej. 10.4)',
+    desc:'Ala de 100 × 20 sobre un alma de 20 × 100 (mm). Un eje de simetría: P_xy = 0.',
+    ref:'ȳ = 80 mm; Ī_x = 100·20³/12 + 2000·30² + 20·100³/12 + 2000·30² = 5 333 333 mm⁴; Ī_y = 1 733 333 mm⁴; P_xy = 0.',
+    esperado:{Ix:5333333.3, Iy:1733333.3, Ixy:0},
+    armar(F){
+      figures = [
+        F('rect', {b:100,h:20}, 50, 110, 0, +1, 'Rectángulo'),
+        F('rect', {b:20,h:100}, 50, 50,  0, +1, 'Rectángulo')
+      ];
+    }
+  },
+  {
+    id:'zeta', nom:'Sección en Z (producto de inercia, Hibbeler ej. 10.8)',
+    desc:'Alma de 10 × 100 centrada en el origen y dos alas de 50 × 10 en las esquinas opuestas (cuadrantes 1 y 3). P_xy positivo.',
+    ref:'Ī_x = 2 866 667; Ī_y = 1 116 667; P_xy = 2·500·30·45 = +1 350 000 mm⁴; θp = −28.53°; I_máx = 3 600 417.',
+    esperado:{Ix:2866666.7, Iy:1116666.7, Ixy:1350000, thetaP:-28.53},
+    armar(F){
+      figures = [
+        F('rect', {b:10,h:100},  0,   0, 0, +1, 'Rectángulo'),
+        F('rect', {b:50,h:10},  30,  45, 0, +1, 'Rectángulo'),
+        F('rect', {b:50,h:10}, -30, -45, 0, +1, 'Rectángulo')
+      ];
+    }
+  },
+  {
+    id:'ele', nom:'Ángulo en L de alas iguales (ejes principales a 45°)',
+    desc:'Ala horizontal de 100 × 20 y ala vertical de 20 × 80 en la esquina inferior izquierda (mm). Material en los cuadrantes 2 y 4: P_xy negativo.',
+    ref:'C = (32.22, 32.22); Ī_x = Ī_y = 3 142 222; P_xy = −1 777 778 mm⁴; θp = +45°; I_máx = 4 920 000; I_mín = 1 364 444.',
+    esperado:{Ix:3142222.2, Iy:3142222.2, Ixy:-1777777.8, thetaP:45},
+    armar(F){
+      figures = [
+        F('rect', {b:100,h:20}, 50, 10, 0, +1, 'Rectángulo'),
+        F('rect', {b:20,h:80},  10, 60, 0, +1, 'Rectángulo')
+      ];
+    }
+  }
+];
+function abrirEjemplosIn(){
+  const el = document.getElementById('ejLista');
+  if(el) el.innerHTML = EJEMPLOS_IN.map((e,i)=>
+      '<div class="item-row" style="display:block;padding:9px 11px;margin-bottom:7px;cursor:pointer" '
+    + 'onclick="loadExampleSection(\'' + e.id + '\')">'
+    + '<div style="font-weight:700;font-size:11.5px;color:var(--acc)">' + (i+1) + ' · ' + e.nom + '</div>'
+    + '<div class="hint-sm" style="margin-top:3px">' + e.desc + '</div>'
+    + '<div class="hint-sm" style="margin-top:3px;color:var(--acc2)"><b>Referencia:</b> ' + e.ref + '</div>'
+    + '</div>').join('');
+  const m = document.getElementById('ejModal'); if(m) m.classList.add('show');
+}
+function cerrarEjemplosIn(){ const m = document.getElementById('ejModal'); if(m) m.classList.remove('show'); }
+function comprobarEjemploIn(ej){
+  if(!ej || !ej.esperado || !results) return;
+  const esc0 = Math.max(1, Math.abs(ej.esperado.Ix), Math.abs(ej.esperado.Iy));
+  ['Ix','Iy','Ixy'].forEach(k=>{
+    if(ej.esperado[k] === undefined) return;
+    if(Math.abs(results[k] - ej.esperado[k]) > 1e-3*esc0)
+      console.warn('Ejemplo ' + ej.id + ': ' + k + ' se desvía de la referencia', {esperado:ej.esperado[k], obtenido:results[k]});
+  });
+  if(ej.esperado.thetaP !== undefined){
+    const d = Math.abs((((results.thetaP - ej.esperado.thetaP) % 90) + 90) % 90);
+    if(Math.min(d, 90-d) > 0.05) console.warn('Ejemplo ' + ej.id + ': thetaP se desvía de la referencia', {esperado:ej.esperado.thetaP, obtenido:results.thetaP});
+  }
+}
+
+// Sin argumento carga la sección de 18 figuras, para no romper llamadas antiguas.
+function loadExampleSection(id){
+  const ej = EJEMPLOS_IN.find(e=>e.id === id) || EJEMPLOS_IN[0];
   resetAll();
+  mohrTheta = 0;
   // Sección compuesta de ejemplo (cotas en mm). El ángulo de los sectores se
   // introduce como ángulo TOTAL: angleMode='total' y dims.alpha guarda el
   // SEMIÁNGULO, que es lo que consume el solucionador.
@@ -566,26 +668,9 @@ function loadExampleSection(){
     angleMode: total ? 'total' : 'semi'
   });
   colorIdx = 0;
-  figures = [
-    F('rect', {b:220,h:352.15}, 110, 176.07, 0, +1, 'Rectángulo'),
-    F('rect', {b:140,h:160.39}, 110, 432.35, 0, +1, 'Rectángulo'),
-    F('rect', {b:120,h:75}, 290.07, 279.85, -24, +1, 'Rectángulo'),
-    F('rect', {b:120,h:75}, -70.07, 279.85, 24, +1, 'Rectángulo'),
-    F('rect', {b:75,h:160}, 397.66, 369.49, 0, +1, 'Rectángulo'),
-    F('rect', {b:75,h:160}, -106.64, 132.71, 27, +1, 'Rectángulo'),
-    F('rtriangle', {b:75,h:33.53}, -10.13, 320.22, -66, +1, 'Triáng. Rectángulo'),
-    F('rtriangle2', {b:75,h:33.53}, 230.13, 320.22, 66, +1, 'Triáng. Rect. \u2461'),
-    F('rtriangle', {b:50.7,h:25.56}, 443.68, 432.59, -90, +1, 'Triáng. Rectángulo'),
-    F('rtriangle2', {b:50.7,h:25.56}, 351.64, 432.17, 90, +1, 'Triáng. Rect. \u2461'),
-    F('rtriangle', {b:50.7,h:25.56}, -118.54, 55.54, 117, +1, 'Triáng. Rectángulo'),
-    F('rtriangle2', {b:50.7,h:25.56}, -36.65, 97.56, -63, +1, 'Triáng. Rect. \u2461'),
-    F('circle', {r:25}, 110, 446.93, 0, -1, 'Círculo'),
-    F('semicircle', {r:47.61}, 110, 390.71, 180, -1, 'Semicírculo'),
-    F('sector', {r:75,alpha:57}, 383.12, 254.14, -147, +1, 'Sector Circular', true),
-    F('semicircle', {r:63.06}, 397.66, 476.25, 0, +1, 'Semicírculo'),
-    F('sector', {r:75,alpha:46.5}, -151.68, 235.94, 70.5, +1, 'Sector Circular', true),
-    F('semicircle', {r:63.06}, -57.61, 37.71, -153, +1, 'Semicírculo')
-  ];
+  ej.armar(F);
   setUnit('mm');
   renderFigList(); fitView(); calculate();
+  comprobarEjemploIn(ej);
+  cerrarEjemplosIn();
 }

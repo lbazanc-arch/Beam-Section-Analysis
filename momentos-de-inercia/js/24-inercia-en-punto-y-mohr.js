@@ -278,6 +278,12 @@ function drawMohr(data, target, override){
     box('2θ = '+decFix(2*rt.ang,'ang')+'°', lx2, ly2);
     cx2.font='bold 12px Inter'; cx2.textAlign='right'; cx2.fillStyle='#c0392b';
     cx2.fillText('Ejes girados θ = '+decFix(rt.ang,'ang')+'°', ox+cw, H-8);
+    // En θp el radio C→U cae sobre el eje I: la asimetría desaparece (Puv = 0)
+    // y el punto U es Imax o Imin (propuesta 1, 2026-09-08).
+    if(Math.abs(rt.Iuv) < 1e-6*Math.max(R, 1)){
+      cx2.fillStyle='#15803d'; cx2.textAlign='left';
+      cx2.fillText('θ = θp: Puv = 0, los ejes u, v son los principales (Iu, Iv = Imax, Imin)', ox-8, PAD/2+12);
+    }
   }
 
   // Center dot

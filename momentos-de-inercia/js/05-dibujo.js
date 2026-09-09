@@ -21,7 +21,7 @@ function render(){
   for(const fig of figures){
     // Una figura se resalta si es la activa O si está marcada con la
     // herramienta Mover / editar.
-    drawFigure(fig, fig.id === selectedFigId || selFiguras.indexOf(fig.id) >= 0);
+    drawFigure(fig, fig.id === selectedFigId || selFiguras.indexOf(fig.id) >= 0 || fig.id === _figResaltada);
   }
 
   // Ghost (figure being placed)
@@ -220,6 +220,56 @@ function drawResultsOverlay(){
   }
   ctx.setLineDash([]);
   ctx.restore();
+
+  // ── Radios de giro (propuesta 5): toda el área concentrada a esa distancia
+  //    del centroide daría la misma inercia ──
+  if(VIS.radios && results.kx > 0){
+    ctx.save();
+    [[results.kx, '#0d3a8f', 'kₓ'], [results.ky, '#8b5cf6', 'k_y']].forEach(([k, col, nom], i)=>{
+      const rpx = k*viewScale;
+      if(rpx < 6 || rpx > Math.max(W,H)) return;
+      ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.setLineDash([2,4]);
+      ctx.beginPath(); ctx.arc(sp.x, sp.y, rpx, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+      const a = i === 0 ? -Math.PI/4 : -3*Math.PI/4;
+      const lx = sp.x + rpx*Math.cos(a), ly = sp.y + rpx*Math.sin(a);
+      const txt = (i === 0 ? 'kx = ' : 'ky = ') + decFix(k,'len') + ' ' + unit;
+      ctx.font = 'bold 10px Inter'; ctx.textAlign = 'center';
+      const w = ctx.measureText(txt).width + 8;
+      ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fillRect(lx-w/2, ly-13, w, 15);
+      ctx.fillStyle = col; ctx.fillText(txt, lx, ly-2);
+    });
+    ctx.restore();
+  }
+
+  // ── Ejes u, v girados θ con el deslizador del círculo de Mohr (propuesta 1) ──
+  if(typeof mohrTheta === 'number' && Math.abs(mohrTheta) > 1e-9){
+    const thR = mohrTheta*Math.PI/180;
+    const enPrincipal = Math.abs(((mohrTheta - results.thetaP) % 90 + 90) % 90) < 0.5 || Math.abs(((mohrTheta - results.thetaP) % 90 + 90) % 90 - 90) < 0.5;
+    ctx.save();
+    ctx.translate(sp.x, sp.y);
+    ctx.strokeStyle = enPrincipal ? '#15803d' : '#c0392b'; ctx.lineWidth = 2;
+    for(const [ang,lab] of [[thR,'u'],[thR+Math.PI/2,'v']]){
+      ctx.beginPath();
+      ctx.moveTo(-len*0.7*Math.cos(ang), len*0.7*Math.sin(ang));
+      ctx.lineTo( len*0.7*Math.cos(ang),-len*0.7*Math.sin(ang));
+      ctx.stroke();
+      const lx=120*Math.cos(ang), ly=-120*Math.sin(ang);
+      ctx.font='bold 13px Inter'; ctx.textAlign='center';
+      ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fillRect(lx-9, ly-11, 18, 16);
+      ctx.fillStyle = enPrincipal ? '#15803d' : '#c0392b'; ctx.fillText(lab, lx, ly+1);
+    }
+    const ra=44;
+    ctx.beginPath(); ctx.arc(0,0,ra, 0, -thR, thR>0); ctx.stroke();
+    const am=-thR/2;
+    ctx.font='bold 12px Inter'; ctx.textAlign='left';
+    const tx='θ = '+decFix(mohrTheta,'ang')+'°' + (enPrincipal ? '  (= θp: ejes principales)' : '');
+    const wt=ctx.measureText(tx).width+8;
+    ctx.fillStyle='rgba(255,255,255,.92)';
+    ctx.fillRect((ra+8)*Math.cos(am)-3, (ra+8)*Math.sin(am)-11, wt, 16);
+    ctx.fillStyle = enPrincipal ? '#15803d' : '#c0392b'; ctx.fillText(tx, (ra+8)*Math.cos(am), (ra+8)*Math.sin(am));
+    ctx.restore();
+  }
 
   // ── Punto de análisis P y sus ejes principales (color cian) ──
   const ep = computeExtraPoint(results);
