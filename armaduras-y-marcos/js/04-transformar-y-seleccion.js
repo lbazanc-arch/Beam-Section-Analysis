@@ -77,7 +77,7 @@ function manejarEsc(){
   // Antes que nada, la ventana del informe PDF: se superpone a todo lo demás.
   const pl = document.getElementById('panelLatexPDF');
   if(pl && pl.style.display !== 'none' && pl.style.display !== ''){ cerrarPanelLatex(); return; }
-  const modales = ['edNodoModal','edBarraModal','apoyoModal','repModal','cargaModal','cargaBarraModal',
+  const modales = ['edNodoModal','edBarraModal','apoyoModal','repModal','cargaModal',
                     'transModal','unitsModal','decModal','histModal','ejModal'];
   const abierto = modales.find(id=>{
     const m = document.getElementById(id);
@@ -89,7 +89,7 @@ function manejarEsc(){
     if(abierto==='edNodoModal') edNodoId = null;
     else if(abierto==='edBarraModal') edBarraId = null;
     else if(abierto==='apoyoModal') apoyoNodoId = null;
-    else if(abierto==='cargaModal') nodoCarga = null;
+    else if(abierto==='cargaModal') edCargaArm = null;
     return;
   }
   // Esc corta la cadena de construcción antes que nada: es lo que se espera
@@ -314,7 +314,7 @@ function applyReplicar(){
     orig.forEach(id=>{
       const o = nodos.find(z=>z.id===id);
       if(!o) return;
-      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>({dir:c.dir, mag:c.mag, ang:c.ang})), nombre:'', union:o.union};
+      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>Object.assign({}, c)), nombre:'', union:o.union};
       nodos.push(nn); mapa[id] = nn.id; nuevosN.push(nn.id);
     });
     barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b], tipoBarra(b));
@@ -399,34 +399,33 @@ function pintarLista(){
   const cc = document.getElementById('cntCargas');
   if(cn) cn.textContent = nodos.length;
   if(cb) cb.textContent = barras.length;
-  const cargados = nodos.filter(n=>!esCero(n.fx||0) || !esCero(n.fy||0));
+  const cargados = nodos.filter(n=>(n.cargas || []).length);
   const barrasCargadas = barras.filter(b=>cargasDeBarra(b).length);   // bastidores (19-)
-  if(cc) cc.textContent = cargados.length + barrasCargadas.length;
+  if(cc) cc.textContent = cargados.reduce((a,n)=>a+n.cargas.length, 0) + barrasCargadas.reduce((a,b)=>a+cargasDeBarra(b).length, 0);
   { const mh = document.getElementById('metMarcoHint'); if(mh) mh.style.display = (typeof esMarco === 'function' && esMarco()) ? '' : 'none'; }
   if(bc){
     if(!cargados.length && !barrasCargadas.length){ bc.innerHTML = '<div class="list-empty">Sin cargas todav\u00eda.</div>'; }
     else {
       let h = '';
+      // Una fila por CARGA, no por pieza: el lápiz abre esa carga y la cruz la
+      // quita, como en fuerzas internas.
       cargados.forEach(n=>{
-        // Con varias fuerzas se lista cada una por separado (F1, F2...) y al
-        // final la resultante del nudo; con una sola, solo sus componentes.
-        const lista = (n.cargas && n.cargas.length) ? n.cargas : _cargasNudoDeComponentes(n.fx||0, n.fy||0);
-        const detalle = lista.length > 1
-          ? lista.map((c,i)=>'F'+(i+1)+' = '+descCargaNudo(c)).join(' , ')
-            + ' \u00b7 resultante Fx=' + dec(n.fx,'f') + ', Fy=' + dec(n.fy,'f') + ' ' + unitFor
-          : (lista.length ? descCargaNudo(lista[0]) : '');
-        const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
-        h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
-           + '<div class="nm">Nudo ' + n.nombre + ' \u00b7 ' + detalle + '</div>'
-           + '<button class="x" title="Editar carga" onclick="abrirCarga('+n.id+')">\u270e</button>'
-           + '<button class="x" title="Quitar carga" onclick="quitarCarga('+n.id+')">\u00d7</button></div>';
+        (n.cargas || []).forEach((c, i)=>{
+          const marc = selNodos.indexOf(n.id) >= 0 ? ' sel' : '';
+          h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
+             + '<div class="nm">Nudo ' + n.nombre + ' \u00b7 ' + descCargaNudo(c) + '</div>'
+             + '<button class="x" title="Editar" onclick="editarCargaArm(&quot;nudo&quot;,'+n.id+','+i+')">\u270e</button>'
+             + '<button class="x" title="Quitar" onclick="borrarCargaArm(&quot;nudo&quot;,'+n.id+','+i+')">\u00d7</button></div>';
+        });
       });
       barrasCargadas.forEach(b=>{
-        const marc = selBarras.indexOf(b.id) >= 0 ? ' sel' : '';
-        h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
-           + '<div class="nm">Barra ' + nombreBarra(b) + ' \u00b7 ' + cargasDeBarra(b).map(descCarga).join(' ; ') + '</div>'
-           + '<button class="x" title="Editar cargas" onclick="abrirCargaBarra('+b.id+')">\u270e</button>'
-           + '<button class="x" title="Quitar cargas" onclick="quitarCargasBarra('+b.id+')">\u00d7</button></div>';
+        cargasDeBarra(b).forEach((c, i)=>{
+          const marc = selBarras.indexOf(b.id) >= 0 ? ' sel' : '';
+          h += '<div class="item-row'+marc+'"><div class="dot" style="background:#c0392b"></div>'
+             + '<div class="nm">' + nombreBarra(b) + ' \u00b7 ' + descCarga(c) + '</div>'
+             + '<button class="x" title="Editar" onclick="editarCargaArm(&quot;pieza&quot;,'+b.id+','+i+')">\u270e</button>'
+             + '<button class="x" title="Quitar" onclick="borrarCargaArm(&quot;pieza&quot;,'+b.id+','+i+')">\u00d7</button></div>';
+        });
       });
       bc.innerHTML = h;
     }

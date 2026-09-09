@@ -480,13 +480,13 @@ body{
 }
 
 /* ── Ventana de cargas: misma forma que en fuerzas internas ──
-   Dos columnas (campos y croquis), grupos segmentados para el tipo y la
-   dirección, y matriz de doble entrada para posición y magnitud. Los colores
-   son los del tema; la geometría es la misma en los dos. */
-#cargaModal .cg-cols, #cargaBarraModal .cg-cols{
+   Dos columnas (campos y croquis), grupos segmentados para el modo de posición
+   y la dirección, y matriz de doble entrada para posición y magnitud. Los
+   colores son los del tema; la geometría es la misma en los dos temas. */
+#cargaModal .cg-cols{
   display:grid; grid-template-columns:1fr 240px; gap:14px; align-items:start;
 }
-#cargaModal .cg-cols > *, #cargaBarraModal .cg-cols > *{min-width:0;}
+#cargaModal .cg-cols > *{min-width:0;}
 .cg-cap{font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;
   letter-spacing:.5px; margin-bottom:5px;}
 .cg-grupo{margin:9px 0 8px;}
@@ -508,8 +508,8 @@ body{
 .cg-tabla input:focus{outline:none; border-color:var(--acc);}
 .cg-croquis-col{border:1px solid var(--border2); border-radius:11px; padding:9px 10px; background:#fbfbfc;}
 @media (max-width:640px){
-  #cargaModal .cg-cols, #cargaBarraModal .cg-cols{grid-template-columns:1fr; gap:8px;}
-  #cargaModal .cg-croquis-col, #cargaBarraModal .cg-croquis-col{order:-1;}
+  #cargaModal .cg-cols{grid-template-columns:1fr; gap:8px;}
+  #cargaModal .cg-croquis-col{order:-1;}
   .cg-tabla tbody th{font-size:10px;}
   .cg-tabla input{padding:5px 6px; font-size:11.5px;}
 }
@@ -556,6 +556,23 @@ body{
 }
 .bsa-guardado-x:hover{border-color:#c0392b; background:#fef2f2;}
 .bsa-guardados-vacio{font-size:11px; color:var(--muted); padding:8px 2px 12px;}
+
+/* ── Menú desplegable de la barra (Insertar carga) ──
+   Misma geometría que en fuerzas internas; los colores son los del tema. */
+.tb-menu{position:fixed; top:0; left:0; z-index:70; width:300px; max-width:calc(100vw - 24px);
+  background:#fff; border:1px solid var(--border2); border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18); display:none; overflow:hidden;}
+.tb-menu.abierto{display:block;}
+.tb-menu-head{background:var(--acc); color:#fff; font-size:11.5px; font-weight:800;
+  letter-spacing:.4px; text-transform:uppercase; padding:8px 12px;}
+.tb-menu-body{padding:10px 12px 14px;}
+.menu-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:7px;}
+.menu-btn{position:relative; border:1px solid var(--border2); border-radius:9px; background:#fff;
+  cursor:pointer; padding:8px 4px 6px; display:flex; flex-direction:column; align-items:center;
+  gap:3px; font-family:inherit; transition:all .15s;}
+.menu-btn:hover{border-color:var(--acc); background:var(--acc-l);}
+.menu-btn svg{width:30px; height:26px;}
+.menu-btn span{font-size:9.5px; font-weight:700; text-align:center; line-height:1.15; color:var(--text);}
 
 /* ══════════════════════════════════════════════════════════════════════
    DISPOSICIÓN COMÚN A LOS CINCO TEMAS

@@ -90,9 +90,6 @@ function onCanvasDown(e){
     refrescar();
   } else if(tool === 'apoyo'){
     if(n) abrirApoyoModal(n.id);
-  } else if(tool === 'carga'){
-    if(n) abrirCarga(n.id);
-    else { const bq = barraEn(mx, my); if(bq) cargarSobreBarra(bq.id); }   // solo una viga admite carga entre extremos (19-)
   } else if(tool === 'pan'){
     iniciarPan(mx, my);
   } else if(tool === 'corte'){
@@ -278,7 +275,7 @@ function segmentosCruzan(ax,ay,bx,by, cx,cy,dx,dy){
 
 function setTool(t){
   tool = t; selNodo = null;
-  ['barra','viga','apoyo','carga','corte','sel','pan'].forEach(k=>{
+  ['barra','viga','apoyo','corte','sel','pan'].forEach(k=>{
     const el = document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
@@ -289,7 +286,6 @@ function setTool(t){
     viga:'Viga o marco: elemento rígido con N, V y M. Cada clic coloca un nudo y lo une al anterior; Esc corta la cadena.',
     apoyo:'Haz clic sobre un nudo y elige el tipo de apoyo, o quítalo.',
     corte:'Arrastra una línea que atraviese la armadura de lado a lado.',
-    carga:'Haz clic sobre un nudo para aplicarle una carga, o sobre una viga o marco para cargarla entre sus extremos.',
     pan:'Arrastra el lienzo para desplazar la vista.',
     sel:'Toca para seleccionar · arrastra un objeto para moverlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar varios (un arrastre rápido solo desplaza el panel) · doble clic para editar.',
     borrar:'Toca un elemento para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'

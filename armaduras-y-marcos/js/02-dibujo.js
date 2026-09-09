@@ -99,6 +99,20 @@ function dibujarCarga(n){
   const [px,py] = aPantalla(n.x, n.y);
   const L = 46;
   lista.forEach(c=>{
+    // Par aplicado en el nudo: arco con su valor.
+    if(typeof esParNudo === 'function' && esParNudo(c)){
+      if(esCero(c.mag || 0)) return;
+      const R = 16, ccw = c.mag > 0;
+      ctx.strokeStyle = '#c0392b'; ctx.fillStyle = '#c0392b'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, py, R, ccw ? -0.2 : Math.PI+0.2, ccw ? -Math.PI*1.3 : -Math.PI*0.3, true); ctx.stroke();
+      const ae = ccw ? -Math.PI*1.3 : -Math.PI*0.3;
+      ctx.save(); ctx.translate(px + R*Math.cos(ae), py + R*Math.sin(ae)); ctx.rotate(ae + (ccw ? -Math.PI/2 : Math.PI/2));
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-9,-4); ctx.lineTo(-9,4); ctx.closePath(); ctx.fill(); ctx.restore();
+      ctx.font = '600 11px Inter, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(dec(Math.abs(c.mag),'f') + ' ' + unitFor + '\u00b7' + unitLen, px, py - R - 7);
+      ctx.textAlign = 'start';
+      return;
+    }
     const q = compCargaNudo(c);
     if(esCero(q.fx) && esCero(q.fy)) return;
     const mag = Math.hypot(q.fx, q.fy);

@@ -57,7 +57,7 @@ const MAX_HISTORIAL = 60;
 function instantanea(){
   return JSON.stringify({
     nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre, apoyo:n.apoyo,
-                          apAng:n.apAng, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>({dir:c.dir, mag:c.mag, ang:c.ang})), tope:n.tope, union:n.union})),
+                          apAng:n.apAng, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope, union:n.union})),
     barras: barras.map(b=>({id:b.id, a:b.a, b:b.b, tipo:tipoBarra(b), cargas:cargasDeBarra(b).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB})),
     nodoSeq, barraSeq
   });
@@ -109,7 +109,7 @@ function actualizarBotonesHistorial(){
 function estadoActual(){
   return {
     nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, apoyo:n.apoyo, apAng:n.apAng, fx:n.fx, fy:n.fy,
-                          cargas:(n.cargas||[]).map(c=>({dir:c.dir, mag:c.mag, ang:c.ang})), union:n.union||'pasador'})),
+                          cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), union:n.union||'pasador'})),
     barras: barras.map(b=>({id:b.id, a:b.a, b:b.b, tipo:tipoBarra(b), cargas:cargasDeBarra(b).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB})),
     unidades: {len: unitLen, fuerza: unitFor},
     decimales: DEC,
