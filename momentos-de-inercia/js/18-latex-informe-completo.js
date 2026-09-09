@@ -356,10 +356,18 @@ function construirLatex(){
   // ══ 2. Paso 1: propiedades de cada parte ══
   tex += '\\seccion{2. Paso 1 --- Propiedades de cada parte}\n';
   tex += '\\noindent Cada parte se trata como una figura aislada: área, centroide propio, inercias propias y '
-    + 'posición desde $O$. El croquis acotado va al costado de su desarrollo.\n';
+    + 'posición desde $O$. El croquis acotado va al costado de su desarrollo. Se desarrolla la \\textbf{primera '
+    + 'parte de cada tipo de figura}; las demás del mismo tipo repiten ese desarrollo con sus medidas, que se '
+    + 'listan al final, y entran con sus valores en las tablas de los pasos 2 y 3.\n';
+  // Una parte desarrollada por tipo (2026-09-09): la clave distingue perfiles
+  // por su designación y los huecos de las partes llenas (llevan su «¿Por qué?»).
+  const tiposHechos = {}, omitidas = [];
   grupos.forEach((g, gi)=>{
     const i0 = g.idx[0], s0 = st[i0], f = s0.fig;
     const nums = g.idx.map(i=>i+1);
+    const claveTipo = (f.perfil ? 'perfil:' + f.perfil.nom : f.type) + (f.sign < 0 ? '|hueco' : '');
+    if(tiposHechos[claveTipo]){ g.idx.forEach(i=>omitidas.push(i)); return; }
+    tiposHechos[claveTipo] = true;
     const fa = formulaArea(f);
     const fi = formulaInercia(f);
     const cl = centroideLocalTex(f);
@@ -544,6 +552,46 @@ function construirLatex(){
     }
     tex += '\\end{center}\n\\end{minipage}\n\\end{minipage}\n\n\\vspace{4pt}\n';
   });
+
+  // Las partes de un tipo ya desarrollado: solo sus medidas (lo único que no
+  // está en las tablas); sus valores entran en las Tablas de los pasos 2 y 3.
+  if(omitidas.length){
+    omitidas.sort((a,b)=>a-b);
+    const medidasDe = fg => {
+      const def = FIG_DEFS[fg.type];
+      if(fg.perfil) return 'valores tabulados';
+      return def.dims.map(d=>{
+        if(d.id === 'alpha') return '$\\theta = ' + decP(fg.dims.alpha,'ang') + '^\\circ$ (semiángulo)';
+        const m = String(d.label).match(/\(([^)]+)\)/);
+        const simb = m ? m[1] : d.id;
+        return '$' + simb + ' = ' + decP(fg.dims[d.id],'len') + '$';
+      }).join(', ') + '\\,' + utexto(u1);
+    };
+    tex += '\\vspace{10pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{8pt}\n\n';
+    tex += '\\noindent{\\bfseries\\color{bsaAcc} Partes ' + listaNums(omitidas.map(i=>i+1)) + '}\\ \\ '
+         + '{\\small\\color{bsaMuted}(mismo desarrollo que la primera parte de su tipo)}\\\\[3pt]\n';
+    tex += '{\\footnotesize Cada una repite, con sus propias medidas, el desarrollo ya escrito para su tipo de figura. '
+         + 'Sus áreas y posiciones están en la Tabla 1 y sus inercias, ya giradas a ejes paralelos a $x$ e $y$ cuando '
+         + '$\\beta \\ne 0$, en la Tabla 2.}\n';
+    if(omitidas.some(i=>Math.abs(st[i].fig.rotation||0) >= 0.005) && !_yaDichoIn['giro-formulas']){
+      tex += porque('giro',
+        'Las inercias propias de la tabla están referidas a los ejes de la figura. Si la figura está colocada '
+        + 'girada un ángulo $\\beta$, antes de trasladarlas hay que llevarlas a ejes paralelos a $x$ e $y$ con las '
+        + 'ecuaciones de transformación (las mismas que giran los ejes en el paso 4, con $\\beta$ en lugar de '
+        + '$\\theta$). El giro no cambia $\\bar{I}_x + \\bar{I}_y$: solo reparte la inercia entre los dos ejes.');
+      if(_primeraVezIn('giro-formulas'))
+        tex += '\\[ \\bar{I}_{x}\' = \\dfrac{\\bar{I}_x+\\bar{I}_y}{2} + \\dfrac{\\bar{I}_x-\\bar{I}_y}{2}\\cos 2\\beta + \\bar{P}_{xy}\\sen 2\\beta \\]\n'
+             + '\\[ \\bar{I}_{y}\' = \\dfrac{\\bar{I}_x+\\bar{I}_y}{2} - \\dfrac{\\bar{I}_x-\\bar{I}_y}{2}\\cos 2\\beta - \\bar{P}_{xy}\\sen 2\\beta \\]\n'
+             + '\\[ \\bar{P}_{xy}\' = -\\dfrac{\\bar{I}_x-\\bar{I}_y}{2}\\sen 2\\beta + \\bar{P}_{xy}\\cos 2\\beta \\]\n';
+    }
+    tex += '\\begin{itemize}\\setlength{\\itemsep}{0pt}\\small\n';
+    omitidas.forEach(i=>{
+      const fg = st[i].fig, rot = fg.rotation || 0;
+      tex += '\\item \\textbf{Parte ' + (i+1) + '} --- ' + nombreDe(fg) + (fg.sign < 0 ? ' (hueco)' : '') + ': '
+           + medidasDe(fg) + (Math.abs(rot) >= 0.005 ? ', $\\beta = ' + decP(rot,'ang') + '^\\circ$' : '') + '\n';
+    });
+    tex += '\\end{itemize}\n';
+  }
 
   // ══ 3. Paso 2: centroide de la sección ══
   tex += '\\seccion{3. Paso 2 --- Centroide de la sección}\n';
