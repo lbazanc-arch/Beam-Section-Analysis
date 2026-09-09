@@ -58,7 +58,7 @@ function instantanea(){
   return JSON.stringify({
     nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre, apoyo:n.apoyo,
                           apAng:n.apAng, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), tope:n.tope, union:n.union})),
-    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b, cargas:cargasDeBarra(b).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB})),
+    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b, tipo:tipoBarra(b), cargas:cargasDeBarra(b).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB})),
     nodoSeq, barraSeq
   });
 }
@@ -76,7 +76,8 @@ function restaurarInstantanea(txt){
   nodos = e.nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre||'',
             apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:90), fx:n.fx||0, fy:n.fy||0,
             cargas:(n.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), tope:n.tope||null, union:n.union||'pasador'}));
-  barras = e.barras.map(b=>({id:b.id, a:b.a, b:b.b, cargas:(b.cargas||[]).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB}));
+  barras = e.barras.map(b=>({id:b.id, a:b.a, b:b.b, tipo:b.tipo, cargas:(b.cargas||[]).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB}));
+  normalizarTiposBarra();
   nodoSeq = e.nodoSeq; barraSeq = e.barraSeq;
   // La selección puede apuntar a elementos que ya no existen tras restaurar.
   selNodos = selNodos.filter(id=>nodos.some(n=>n.id===id));
@@ -109,7 +110,7 @@ function estadoActual(){
   return {
     nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, apoyo:n.apoyo, apAng:n.apAng, fx:n.fx, fy:n.fy,
                           cargas:(n.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), union:n.union||'pasador'})),
-    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b, cargas:cargasDeBarra(b).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB})),
+    barras: barras.map(b=>({id:b.id, a:b.a, b:b.b, tipo:tipoBarra(b), cargas:cargasDeBarra(b).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB})),
     unidades: {len: unitLen, fuerza: unitFor},
     decimales: DEC,
     metodo: (typeof metodo !== 'undefined') ? metodo : 'nudos'
@@ -169,7 +170,8 @@ function cargarProyecto(id){
     nodos = (e.nodos||[]).map(n=>({id:n.id, x:n.x, y:n.y, nombre:'',
               apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:90), fx:n.fx||0, fy:n.fy||0,
               cargas:(n.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), tope:null, union:n.union||'pasador'}));
-    barras = (e.barras||[]).map(b=>({id:b.id, a:b.a, b:b.b, cargas:(b.cargas||[]).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB}));
+    barras = (e.barras||[]).map(b=>({id:b.id, a:b.a, b:b.b, tipo:b.tipo, cargas:(b.cargas||[]).map(c=>Object.assign({},c)), artA:!!b.artA, artB:!!b.artB}));
+    normalizarTiposBarra();          // archivos sin `tipo` (anteriores al 2026-09-09)
     nodoSeq = nodos.reduce((m,n)=>Math.max(m,n.id), 0);
     barraSeq = barras.reduce((m,b)=>Math.max(m,b.id), 0);
     if(e.unidades){ unitLen = e.unidades.len || unitLen; unitFor = e.unidades.fuerza || unitFor; }

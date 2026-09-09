@@ -302,7 +302,7 @@ function applyReplicar(){
       const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>({fx:c.fx,fy:c.fy})), nombre:'', union:o.union};
       nodos.push(nn); mapa[id] = nn.id; nuevosN.push(nn.id);
     });
-    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b]);
+    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b], tipoBarra(b));
       if(nb){ nb.cargas = cargasDeBarra(b).map(c=>Object.assign({}, c)); nb.artA = !!b.artA; nb.artB = !!b.artB; nuevasB.push(nb.id); } } });
   }
   reNombrar(); resultado = null;
@@ -451,6 +451,7 @@ function pintarLista(){
         }
         h += '<div class="item-row'+marc+'"><div class="dot" style="background:'+col+'"></div>'
            + '<div class="nm">' + na.nombre + nb2.nombre + ' \u00b7 L = ' + dec(L,'len') + ' ' + unitLen
+           + (esViga(b) ? ' \u00b7 viga / marco' : '')
            + (cargasDeBarra(b).length ? ' \u00b7 ' + cargasDeBarra(b).length + ' carga(s)' : '') + '</div>'
            + '<button class="x" title="Editar" onclick="abrirEdBarra('+b.id+')">\u270e</button>'
            + '<button class="x" onclick="borrarBarra('+b.id+')">\u00d7</button></div>';

@@ -26,13 +26,66 @@
 
 // ══ Modelo ═════════════════════════════════════════════════════════════════
 function cargasDeBarra(b){ return (b && Array.isArray(b.cargas)) ? b.cargas : []; }
+// El tipo lo elige el usuario al dibujar (herramientas Barra y Viga / marco) o
+// en Editar barra. 'barra' = barra de armadura, dos fuerzas, siempre articulada
+// (solo N); 'viga' = elemento rígido con N, V y M, que recibe cargas entre sus
+// extremos y puede ir unido rígidamente. Sin `tipo` (archivos anteriores al
+// 2026-09-09) se deduce en normalizarTiposBarra.
+function tipoBarra(b){ return (b && b.tipo === 'viga') ? 'viga' : 'barra'; }
+function esViga(b){ return tipoBarra(b) === 'viga'; }
+function normalizarTiposBarra(){
+  barras.forEach(b=>{
+    if(b.tipo === 'viga' || b.tipo === 'barra') return;
+    const na = nodos.find(z=>z.id===b.a), nb = nodos.find(z=>z.id===b.b);
+    const rig = (na && na.union === 'rigido' && !b.artA) || (nb && nb.union === 'rigido' && !b.artB);
+    b.tipo = (cargasDeBarra(b).length || rig) ? 'viga' : 'barra';
+  });
+}
 function esRigidoExtremo(b, ext){
+  if(!esViga(b)) return false;                 // una barra de armadura siempre va articulada
   const n = nodos.find(z=>z.id === (ext === 'a' ? b.a : b.b));
   if(!n || n.union !== 'rigido') return false;
   return ext === 'a' ? !b.artA : !b.artB;
 }
-function esElemento(b){ return cargasDeBarra(b).length > 0 || esRigidoExtremo(b,'a') || esRigidoExtremo(b,'b'); }
-function esMarco(){ return barras.some(esElemento) || nodos.some(n=>n.apoyo === 'empotrado'); }
+function esElemento(b){ return esViga(b); }
+function esMarco(){ return barras.some(esViga) || nodos.some(n=>n.apoyo === 'empotrado'); }
+// Donde dos vigas se encuentran, la unión queda rígida (una viga continua o la
+// esquina de un pórtico); el usuario la vuelve pasador en Editar nudo si hace
+// falta. Solo se aplica al dibujar a mano: los ejemplos y los archivos ya traen
+// la unión de cada nudo.
+function unirVigasEnNudo(nid, nueva){
+  const n = nodos.find(z=>z.id===nid); if(!n || n.union === 'rigido') return;
+  if(!barras.some(b=>b !== nueva && esViga(b) && (b.a===nid || b.b===nid))) return;
+  n.union = 'rigido';
+  aviso('Nudo ' + n.nombre + ': dos vigas se encuentran y la unión queda rígida (cuadrado). Si ahí va un pasador, cámbialo en Editar nudo.');
+}
+// Herramienta Carga sobre una pieza: solo las vigas reciben cargas entre sus extremos.
+function cargarSobreBarra(id){
+  const b = barras.find(z=>z.id===id); if(!b) return;
+  if(esViga(b)){ abrirCargaBarra(id); return; }
+  aviso('La barra ' + nombreBarra(b) + ' es de armadura (dos fuerzas) y solo recibe cargas en sus nudos. Para cargarla entre sus extremos, dibújala con Viga / marco o cambia su tipo en Editar barra.', 'error');
+}
+// Tipo de la pieza desde Editar barra.
+function setTipoBarra(t){
+  const b = barras.find(z=>z.id===edBarraId); if(!b || tipoBarra(b) === t) return;
+  if(t === 'barra' && cargasDeBarra(b).length){ aviso('Quita primero las cargas de la viga: una barra de armadura solo recibe cargas en sus nudos.', 'error'); return; }
+  registrarCambio(); b.tipo = t;
+  if(t === 'barra'){ b.artA = false; b.artB = false; }
+  else { unirVigasEnNudo(b.a, b); unirVigasEnNudo(b.b, b); }
+  resultado = null; pintarTipoBarra(b); refrescar();
+}
+function pintarTipoBarra(b){
+  const viga = esViga(b);
+  const bb = document.getElementById('edBtipoBarra'), bv = document.getElementById('edBtipoViga');
+  if(bb) bb.classList.toggle('active', !viga); if(bv) bv.classList.toggle('active', viga);
+  const caja = document.getElementById('edBVigaBox'); if(caja) caja.style.display = viga ? '' : 'none';
+  const h = document.getElementById('edBtipoHint');
+  if(h) h.textContent = viga
+    ? 'Viga o marco: elemento rígido con N, V y M. Recibe cargas entre sus extremos y, en un nudo de unión rígida, transmite momento.'
+    : 'Barra de armadura: dos fuerzas, siempre articulada en sus extremos; solo trabaja a tracción o compresión y sus cargas van en los nudos.';
+  const nc = document.getElementById('edBCargasResumen');
+  if(nc) nc.textContent = viga ? (cargasDeBarra(b).length ? cargasDeBarra(b).map(descCarga).join(' · ') : 'Sin cargas entre sus extremos.') : '';
+}
 function geomBarra(b){
   const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
   const dx = nb.x-na.x, dy = nb.y-na.y, L = Math.hypot(dx,dy) || 1e-12;
@@ -349,13 +402,19 @@ function dibujarCargasBarras(){
 }
 function dibujarApoyoEmpotrado(n){
   const [px,py] = aPantalla(n.x, n.y);
-  // El muro va del lado contrario a las barras que llegan al nudo.
-  const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
-  let vx = 0, vy = 0;
-  conec.forEach(b=>{ const o = nodos.find(z=>z.id===(b.a===n.id?b.b:b.a)); const dx=o.x-n.x, dy=o.y-n.y, L=Math.hypot(dx,dy)||1; vx += dx/L; vy += dy/L; });
-  let ang = (Math.abs(vx) + Math.abs(vy) < 1e-9) ? Math.PI/2 : Math.atan2(-vy, -vx);   // hacia el muro, en pantalla (y invertida)
-  ang = Math.round(ang/(Math.PI/2))*(Math.PI/2);                                       // cuatro orientaciones
-  ctx.save(); ctx.translate(px, py); ctx.rotate(ang);
+  // El muro va del lado contrario a las piezas que llegan al nudo, como en
+  // fuerzas-internas: se promedian las direcciones EN PANTALLA (y invertida)
+  // y el símbolo gira con ellas, sin redondear a 90°. Antes se promediaba en
+  // coordenadas del modelo y el muro de una columna salía encima del nudo.
+  let sx = 0, sy = 0;
+  barras.filter(b=>b.a===n.id||b.b===n.id).forEach(b=>{
+    const o = nodos.find(z=>z.id===(b.a===n.id?b.b:b.a)); if(!o) return;
+    const [ox,oy] = aPantalla(o.x, o.y), L = Math.hypot(ox-px, oy-py) || 1;
+    sx += (ox-px)/L; sy += (oy-py)/L;
+  });
+  const Lm = Math.hypot(sx, sy);
+  const mx = Lm < 1e-6 ? 0 : -sx/Lm, my = Lm < 1e-6 ? 1 : -sy/Lm;   // sin piezas: muro debajo
+  ctx.save(); ctx.translate(px, py); ctx.rotate(Math.atan2(my, mx));   // +x local mira al muro
   ctx.strokeStyle = '#7c3a06'; ctx.fillStyle = '#7c3a06'; ctx.lineWidth = 2.4;
   ctx.beginPath(); ctx.moveTo(6, -18); ctx.lineTo(6, 18); ctx.stroke();
   for(let i=-3;i<=3;i++){ ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(6, i*6); ctx.lineTo(13, i*6+6); ctx.stroke(); }
@@ -428,8 +487,8 @@ function renderResultadosMarco(res){
   if(dosF.length){
     h += '<table class="tabla"><thead><tr><th>Barra</th><th class="r">Fuerza (' + uF + ')</th><th>Naturaleza</th></tr></thead><tbody>'
       + dosF.map(b=>{ const v = res.fuerzas[b.id]; return '<tr><td><b>' + nombreBarra(b) + '</b></td><td class="r"><b>' + f(Math.abs(v)) + '</b></td><td>' + (esCero(v) ? '<span class="tag z">Fuerza cero</span>' : v > 0 ? '<span class="tag t">Tracción</span>' : '<span class="tag c">Compresión</span>') + '</td></tr>'; }).join('')
-      + '</tbody></table><div class="hint-sm">Sin cargas intermedias y articuladas en los dos extremos: la fuerza va a lo largo de la barra, una sola incógnita.</div>';
-  } else h += '<div class="verdict"><div class="verdict-t">Resultado</div>Ninguna: todas las piezas son de varias fuerzas.</div>';
+      + '</tbody></table><div class="hint-sm">Barras de armadura: sin cargas intermedias y articuladas en los dos extremos, la fuerza va a lo largo de la barra, una sola incógnita.</div>';
+  } else h += '<div class="verdict"><div class="verdict-t">Resultado</div>Ninguna: todas las piezas son vigas o marcos.</div>';
   h += '</div>';
 
   // 4 · Desmembrado: cada pieza de varias fuerzas
@@ -447,7 +506,7 @@ function renderResultadosMarco(res){
     if(Math.abs(dy) > 1e-9) tM.push({v:-dy, tex:dec(Math.abs(dy),'len') + '\\,' + B + '_x'});
     if(Math.abs(rc.Ma) > 1e-9) tM.push({v:rc.Ma, tex:f(Math.abs(rc.Ma))});
     const ecX = _sumaTexArm(tX) + ' = 0', ecY = _sumaTexArm(tY) + ' = 0', ecM = _sumaTexArm(tM) + ' = 0';
-    h += '<div class="joint-card"><div class="joint-h"><div class="joint-n">' + (i+1) + '</div>Pieza <b>' + nombreBarra(b) + '</b>'
+    h += '<div class="joint-card"><div class="joint-h"><div class="joint-n">' + (i+1) + '</div>Viga / marco <b>' + nombreBarra(b) + '</b>'
       + '<span style="color:var(--muted);font-weight:500;font-size:11px">L = ' + dec(g.L,'len') + ' ' + uL + ' · ' + cargasDeBarra(b).length + ' carga(s)</span></div>'
       + '<div class="joint-body"><div>'
       + '<div class="eq-row"><div class="eq-body">' + kx('\\xrightarrow{+}\\ \\sum F_x = 0:\\quad ' + ecX) + '</div></div>'
@@ -474,11 +533,11 @@ function renderResultadosMarco(res){
 
   // 6 · Diagramas N, V, M
   if(elementos.length){
-    h += '<div class="res-section"><div class="res-title"><div class="num">6</div>Diagramas N · V · M de cada elemento</div>'
+    h += '<div class="res-section"><div class="res-title"><div class="num">6</div>Diagramas N · V · M de cada viga o marco</div>'
       + '<div class="hint-sm" style="margin-bottom:8px">s medida desde el primer extremo de la pieza; N + tracción; V y M con el convenio de vigas (M + curva el elemento hacia su lado +n, el de la izquierda al recorrerlo).</div>';
     elementos.forEach(b=>{
       const es = res.esfuerzos[b.id];
-      h += '<div class="proc-block" style="margin-bottom:10px"><div class="proc-sub">Elemento ' + nombreBarra(b) + ' — L = ' + dec(es.L,'len') + ' ' + uL + '</div>'
+      h += '<div class="proc-block" style="margin-bottom:10px"><div class="proc-sub">Viga / marco ' + nombreBarra(b) + ' — L = ' + dec(es.L,'len') + ' ' + uL + '</div>'
         + svgDiagramasElemento(b, es)
         + '<div class="hint-sm">' + kx('N_{\\max} = ' + f(es.maxN.N) + '\\ (s = ' + dec(es.maxN.s,'len') + ')\\qquad V_{\\max} = ' + f(es.maxV.V) + '\\ (s = ' + dec(es.maxV.s,'len') + ')\\qquad M_{\\max} = ' + f(es.maxM.M) + '\\ (s = ' + dec(es.maxM.s,'len') + ')') + '</div></div>';
     });
@@ -585,12 +644,12 @@ const EJEMPLOS_MARCO = [
   {
     id:'portico', marco:true,
     nom:'Pórtico con pasador y rodillo (bastidor)',
-    desc:'Columnas AB y CD de 4 m y viga BC de 6 m unidas rígidamente en B y C; pasador en A y rodillo en D. 12 kN hacia abajo a mitad de BC y 6 kN horizontales en B.',
+    desc:'Columnas AB y CD de 4 m y viga BC de 6 m, las tres dibujadas como Viga / marco y unidas rígidamente en B y C; pasador en A y rodillo en D. 12 kN hacia abajo a mitad de BC y 6 kN horizontales en B.',
     ref:'ΣM_A = 0: R_Dy = (12·3 + 6·4)/6 = 10 kN; R_Ay = 2, R_Ax = −6 kN. Columna AB: N = −2 (C), V = 6, M crece de 0 a 24 kN·m en B. Viga BC: M = 24 en B, 30 bajo la carga, 0 en C. CD sin momento.',
     esperado:{R:{A:{rx:-6, ry:2}, D:{ry:10}}, ext:{AB:{b:{fx:6, fy:-2, m:24}}, BC:{a:{fx:0, fy:2, m:-24}, b:{fx:0, fy:10, m:0}}, CD:{b:{fx:0, fy:10}}}},
     armar(){
       const A = addNodo(0,0), B = addNodo(0,4), C = addNodo(6,4), D = addNodo(6,0);
-      const ab = addBarra(A.id,B.id), bc = addBarra(B.id,C.id), cd = addBarra(C.id,D.id);
+      const ab = addBarra(A.id,B.id,'viga'), bc = addBarra(B.id,C.id,'viga'), cd = addBarra(C.id,D.id,'viga');
       A.apoyo = 'fijo'; D.apoyo = 'movil'; D.apAng = 90;
       B.union = 'rigido'; C.union = 'rigido';
       B.fx = 6; B.cargas = [{fx:6, fy:0}];
@@ -601,27 +660,27 @@ const EJEMPLOS_MARCO = [
   {
     id:'puntal', marco:true,
     nom:'Viga con puntal de dos fuerzas (Hibbeler ej. 6.15)',
-    desc:'Viga A–B–C de 6 m (pasador en A, extremo C libre) con 3 kN/m hacia abajo en toda su longitud, sostenida en B (a 4 m de A) por el puntal BD articulado en B y en D(1, −4). La viga es continua en B (unión rígida) y el puntal se articula ahí.',
+    desc:'Viga A–B–C de 6 m (pasador en A, extremo C libre) con 3 kN/m hacia abajo en toda su longitud, sostenida en B (a 4 m de A) por el puntal BD, una barra de dos fuerzas, con D en (1, −4). La viga es continua en B (unión rígida) y la barra se articula ahí por ser barra.',
     ref:'Viga entera: ΣM_A = 0 → F_By = 18·3/4 = 13.5 kN; el puntal (3-4-5) empuja con S = 16.875 kN (C), S_x = 10.125. R_A = (−10.125, 4.5), R_D = (10.125, 13.5) kN. M en B = −6 kN·m; M máx = 3.375 kN·m en s = 1.5 m.',
     esperado:{R:{A:{rx:-10.125, ry:4.5}, D:{rx:10.125, ry:13.5}}, F:{BD:-16.875}, ext:{AB:{b:{m:-6}}, BC:{a:{fy:6, m:6}}}},
     armar(){
       const A = addNodo(0,0), C = addNodo(4,0), B = addNodo(6,0), D = addNodo(1,-4);
-      const ac = addBarra(A.id,C.id), cb = addBarra(C.id,B.id), cd = addBarra(C.id,D.id);
+      const ac = addBarra(A.id,C.id,'viga'), cb = addBarra(C.id,B.id,'viga'), cd = addBarra(C.id,D.id,'barra');
       A.apoyo = 'fijo'; D.apoyo = 'fijo'; C.union = 'rigido';
       ac.cargas = [{tipo:'w', s1:0, s2:4, w1:-3, w2:-3, dir:'y'}];
       cb.cargas = [{tipo:'w', s1:0, s2:2, w1:-3, w2:-3, dir:'y'}];
-      cd.artA = true;                       // el puntal va articulado en C aunque C sea rígido
+      void cd;                              // el puntal es barra: va articulado en C aunque C sea rígido
     }
   },
   {
     id:'mensula', marco:true,
     nom:'Ménsula empotrada en L',
-    desc:'Columna AB de 3 m empotrada en A, con la viga BC de 3 m unida rígidamente en B y 5 kN hacia abajo en el extremo libre C.',
+    desc:'Columna AB de 3 m empotrada en A y viga BC de 3 m, las dos como Viga / marco, unidas rígidamente en B; 5 kN hacia abajo en el extremo libre C.',
     ref:'Reacciones en A: R_x = 0, R_y = 5 kN, M_A = 15 kN·m (antihorario). M = −15 kN·m constante en AB y de −15 en B a 0 en C.',
     esperado:{R:{A:{rx:0, ry:5, m:15}}, ext:{AB:{a:{m:15}, b:{m:-15}}, BC:{a:{fy:5, m:15}}}},
     armar(){
       const A = addNodo(0,0), B = addNodo(0,3), C = addNodo(3,3);
-      addBarra(A.id,B.id); addBarra(B.id,C.id);
+      addBarra(A.id,B.id,'viga'); addBarra(B.id,C.id,'viga');
       A.apoyo = 'empotrado'; A.union = 'rigido'; B.union = 'rigido';
       C.fy = -5; C.cargas = [{fx:0, fy:-5}];
     }
@@ -697,9 +756,10 @@ function _tikzEmpotrado(px, py, n){
   const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
   let vx = 0, vy = 0;
   conec.forEach(b=>{ const o = nodos.find(z=>z.id===(b.a===n.id?b.b:b.a)); const dx=o.x-n.x, dy=o.y-n.y, L=Math.hypot(dx,dy)||1; vx += dx/L; vy += dy/L; });
-  let ang = (Math.abs(vx)+Math.abs(vy) < 1e-9) ? -90 : Math.atan2(-vy, -vx)*180/Math.PI;
-  ang = Math.round(ang/90)*90;
-  return '\\begin{scope}[shift={(' + px + ',' + py + ')}, rotate=' + ang + ']\n'
+  // Mismo criterio que en el lienzo: el muro mira al lado contrario de las
+  // piezas y gira con ellas (aquí en coordenadas del modelo, y hacia arriba).
+  const ang = (Math.abs(vx)+Math.abs(vy) < 1e-9) ? -90 : Math.atan2(-vy, -vx)*180/Math.PI;
+  return '\\begin{scope}[shift={(' + px + ',' + py + ')}, rotate=' + ang.toFixed(2) + ']\n'
     + '\\draw[bsaAcc, line width=1pt] (0.12,-0.5) -- (0.12,0.5);\n'
     + '\\foreach \\yy in {-0.5,-0.33,...,0.5}{\\draw[bsaAcc, line width=0.5pt] (0.12,\\yy) -- ++(0.18,-0.16);}\n'
     + '\\end{scope}\n';
@@ -712,7 +772,10 @@ function tikzMarcoCompleto(opts){
   const tx = x => ((x-minX)*esc).toFixed(3), ty = y => ((y-minY)*esc).toFixed(3);
   let s = '';
   barras.forEach(b=>{ const g = geomBarra(b);
-    s += '\\draw[bsaBarra, line width=' + (opts.dosFuerzas && resultado && resultado.dosFuerzas[b.id] ? '1.1' : '1.8') + 'pt] (' + tx(g.na.x) + ',' + ty(g.na.y) + ') -- (' + tx(g.nb.x) + ',' + ty(g.nb.y) + ');\n';
+    const seg = '(' + tx(g.na.x) + ',' + ty(g.na.y) + ') -- (' + tx(g.nb.x) + ',' + ty(g.nb.y) + ');\n';
+    // viga o marco: banda clara con el eje encima; barra de armadura: trazo fino
+    if(esViga(b)) s += '\\draw[bsaBarra!22, line width=4.5pt] ' + seg + '\\draw[bsaBarra, line width=1.6pt] ' + seg;
+    else s += '\\draw[bsaBarra, line width=1.2pt] ' + seg;
     s += _tikzCargasBarra(b, tx, ty, esc, true);
   });
   const genC = letrasGriegas();
@@ -821,13 +884,14 @@ function construirLatexMarco(){
 
   // 1 · Planteamiento
   tex += '\\seccion{1. Planteamiento del problema}\n';
-  tex += lamina(tikzMarcoCompleto({cotas:true}), 'Modelo del bastidor: nudos (cuadrado = uni\\\'on r\\\'igida, c\\\'irculo = pasador), piezas, apoyos, cargas y cotas.');
+  tex += lamina(tikzMarcoCompleto({cotas:true}), 'Modelo del bastidor: vigas o marcos (trazo grueso), barras de dos fuerzas (trazo fino), nudos (cuadrado = uni\\\'on r\\\'igida, c\\\'irculo = pasador), apoyos, cargas y cotas.');
   tex += '\\subpaso{Objetivo}\nHallar las reacciones en los apoyos, la fuerza que cada pasador ejerce sobre cada pieza'
     + (elementos.length ? ' y los diagramas de fuerza normal, cortante y momento flector de los elementos de varias fuerzas' : '') + '.\n';
   tex += porque('varias-fuerzas',
     'En una armadura cada barra recibe fuerza solo en sus dos extremos y basta un n\\\'umero por barra. Aqu\\\'i hay '
-    + 'piezas que reciben cargas entre sus extremos o que van unidas r\\\'igidamente: son \\emph{elementos de varias fuerzas}, '
-    + 'la fuerza de sus extremos ya no va a lo largo de la pieza y dentro aparecen fuerza normal, cortante y momento flector. '
+    + 'piezas dibujadas como \\emph{viga o marco}: elementos r\\\'igidos que reciben cargas entre sus extremos o van unidos '
+    + 'r\\\'igidamente, es decir, \\emph{elementos de varias fuerzas}; la fuerza de sus extremos ya no va a lo largo de la pieza '
+    + 'y dentro aparecen fuerza normal, cortante y momento flector. '
     + 'El m\\\'etodo es \\textbf{desmembrar} (Hibbeler \\S6.6): separar las piezas en los pasadores y plantear el equilibrio '
     + 'de cada una, con la fuerza del pasador igual y opuesta en las dos piezas que une (tercera ley de Newton).');
   tex += '\\subpaso{Procedimiento de an\\\'alisis}\n\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
@@ -857,7 +921,7 @@ function construirLatexMarco(){
       + 'de desmembrar reduce sus dos componentes de pasador a una sola inc\\\'ognita, la fuerza axial.');
     tex += '\\noindent ' + dosF.map(b=>'$' + nomB(b) + '$').join(', ') + (dosF.length > 1 ? ' son elementos' : ' es un elemento') + ' de dos fuerzas. Su fuerza axial, con el resto del c\\\'alculo:\n';
     tex += '\\[ ' + dosF.map(b=>{ const v = res.fuerzas[b.id]; return 'F_{' + nomB(b) + '} = ' + f(Math.abs(v)) + '\\,\\text{' + uF + '}\\ (' + (esCero(v) ? '0' : v > 0 ? 'T' : 'C') + ')'; }).join('\\qquad ') + ' \\]\n';
-  } else tex += '\\noindent Ninguna pieza es de dos fuerzas: todas llevan cargas intermedias o uniones r\\\'igidas.\n';
+  } else tex += '\\noindent Ninguna pieza es de dos fuerzas: todas son vigas o marcos.\n';
 
   // 4 · Equilibrio del conjunto
   tex += '\\seccion{4. Paso 3 --- Equilibrio del conjunto}\n';
@@ -896,7 +960,7 @@ function construirLatexMarco(){
     const dx = g.nb.x - g.na.x, dy = g.nb.y - g.na.y;
     // Sin minipage: el bloque entero no cabía y dejaba media página en blanco.
     // needspace solo salta de página si quedan menos de 6 cm.
-    tex += '\\needspace{6cm}\\subpaso{Pieza ' + nomB(b) + '\\ \\ {\\small\\color{bsaMuted}(L = ' + dec(g.L,'len') + ' ' + uL + ')}}\n';
+    tex += '\\needspace{6cm}\\subpaso{Viga / marco ' + nomB(b) + '\\ \\ {\\small\\color{bsaMuted}(L = ' + dec(g.L,'len') + ' ' + uL + ')}}\n';
     tex += '\\begin{center}\\begin{tikzpicture}[scale=1]\n' + tikzDCLPieza(b, res) + '\\end{tikzpicture}\\end{center}\n';
     const tX = [{v:1, tex:A + '_x'}, {v:1, tex:B + '_x'}]; if(Math.abs(rc.Fx) > 1e-9) tX.push({v:rc.Fx, tex:f(Math.abs(rc.Fx))});
     const tY = [{v:1, tex:A + '_y'}, {v:1, tex:B + '_y'}]; if(Math.abs(rc.Fy) > 1e-9) tY.push({v:rc.Fy, tex:f(Math.abs(rc.Fy))});
@@ -956,7 +1020,7 @@ function construirLatexMarco(){
       + '$M$ positivo curva el elemento hacia su lado $+n$, el de la izquierda al recorrerlo de su primer extremo al segundo.');
     elementos.forEach(b=>{
       const es = res.esfuerzos[b.id];
-      tex += '\\needspace{9cm}\\subpaso{Elemento ' + nomB(b) + '}\n';
+      tex += '\\needspace{9cm}\\subpaso{Viga / marco ' + nomB(b) + '}\n';
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.92]\n' + tikzDiagramasElemento(b, es) + '\\end{tikzpicture}\\end{center}\n';
       tex += '{\\footnotesize $N_{\\max} = ' + f(es.maxN.N) + '$ ' + uF + ' en $s = ' + dec(es.maxN.s,'len') + '$; $V_{\\max} = ' + f(es.maxV.V) + '$ ' + uF + ' en $s = ' + dec(es.maxV.s,'len') + '$; $M_{\\max} = ' + f(es.maxM.M) + '$ ' + uM + ' en $s = ' + dec(es.maxM.s,'len') + '$ ' + uL + '.}\n\\vspace{6pt}\n';
     });

@@ -39,9 +39,13 @@
       <svg viewBox="0 0 40 34"><circle cx="20" cy="17" r="6" fill="#b45309"/></svg>
       <span>Nudo</span>
     </button>
-    <button class="tool-btn" id="tBarra" onclick="setTool('barra')">
+    <button class="tool-btn" id="tBarra" onclick="setTool('barra')" title="Barra de armadura: dos fuerzas, solo tracción o compresión">
       <svg viewBox="0 0 40 34"><line x1="8" y1="25" x2="32" y2="9" stroke="#b45309" stroke-width="3"/><circle cx="8" cy="25" r="4" fill="#7c3a06"/><circle cx="32" cy="9" r="4" fill="#7c3a06"/></svg>
       <span>Barra</span>
+    </button>
+    <button class="tool-btn" id="tViga" onclick="setTool('viga')" title="Viga o marco: elemento rígido con N, V y M; admite cargas entre sus extremos y uniones rígidas">
+      <svg viewBox="0 0 40 34"><line x1="8" y1="25" x2="32" y2="9" stroke="#b45309" stroke-width="8"/><line x1="8" y1="25" x2="32" y2="9" stroke="#fff" stroke-width="1.6" opacity=".6"/><rect x="4.5" y="21.5" width="7" height="7" fill="#7c3a06"/><rect x="28.5" y="5.5" width="7" height="7" fill="#7c3a06"/></svg>
+      <span>Viga / marco</span>
     </button>
     <button class="tool-btn" id="tApoyo" onclick="setTool('apoyo')">
       <svg viewBox="0 0 40 34"><circle cx="20" cy="10" r="4" fill="#7c3a06"/><path d="M20 12 L11 26 L29 26 Z" fill="none" stroke="#b45309" stroke-width="2.5"/><line x1="8" y1="26" x2="32" y2="26" stroke="#7c3a06" stroke-width="2.5"/></svg>
@@ -189,7 +193,7 @@
         <button class="mode-btn" id="metSecc" onclick="setMetodo('secciones')">Secciones</button>
       </div>
       <div class="hint-sm" id="metHint">Se resuelve nudo por nudo, en orden de resolubilidad.</div>
-      <div class="hint-sm" id="metMarcoHint" style="display:none;color:#b45309">Con cargas en las barras, uniones rígidas o un empotramiento la estructura es un <b>bastidor</b>: se resuelve desmembrando (§6.6) y el método elegido aquí no interviene.</div>
+      <div class="hint-sm" id="metMarcoHint" style="display:none;color:#b45309">Con vigas o marcos (elementos con N, V y M) o un empotramiento la estructura es un <b>bastidor</b>: se resuelve desmembrando (§6.6) y el método elegido aquí no interviene.</div>
       <div id="cutBox" style="display:none;margin-top:8px">
         <div class="mode-row">
           <button class="mode-btn active" id="modoAuto" onclick="setModoCorte('auto')">Cortes automáticos</button>
@@ -353,7 +357,7 @@
         <button class="tpl-btn" id="unRig" style="padding:7px 10px" onclick="setUnionNodo('rigido')">Rígida</button>
       </div>
     </div>
-    <div class="hint-sm">Pasador: las barras giran libres (armadura). Rígida: las barras quedan unidas y transmiten momento (bastidor, §6.6).</div>
+    <div class="hint-sm">Pasador: las piezas giran libres (armadura). Rígida: las vigas o marcos que llegan quedan unidos y transmiten momento (bastidor, §6.6); las barras de armadura van articuladas de todos modos.</div>
     <div class="modal-preview">Coordenadas en <b id="edNuL">m</b> · fuerzas en <b id="edNuF">kN</b></div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="closeEdNodo()">Cancelar</button>
@@ -373,18 +377,28 @@
     <div class="modal-field"><label>Extremo <b id="edBn2b"></b> — y</label><input type="number" id="edBy2" step="any"></div>
     <div class="modal-preview">Longitud actual: <b id="edBlen"></b></div>
     <div class="modal-field" style="align-items:center">
-      <label>Cargas en la barra</label>
-      <button class="btn-sm" onclick="const _id=edBarraId; closeEdBarra(); abrirCargaBarra(_id);">Editar cargas…</button>
-    </div>
-    <div class="hint-sm" id="edBCargasResumen"></div>
-    <div class="modal-field" style="align-items:center">
-      <label>Extremos articulados</label>
-      <div style="display:flex;gap:12px;font-size:11px">
-        <label><input type="checkbox" id="edBartA" onchange="setArticulado('a',this.checked)"> en <b id="edBn1c"></b></label>
-        <label><input type="checkbox" id="edBartB" onchange="setArticulado('b',this.checked)"> en <b id="edBn2c"></b></label>
+      <label>Tipo de pieza</label>
+      <div style="display:flex;gap:6px">
+        <button class="tpl-btn" id="edBtipoBarra" style="padding:7px 10px" onclick="setTipoBarra('barra')">Barra</button>
+        <button class="tpl-btn" id="edBtipoViga" style="padding:7px 10px" onclick="setTipoBarra('viga')">Viga / marco</button>
       </div>
     </div>
-    <div class="hint-sm">Solo cuenta en un nudo de unión rígida: el extremo marcado se une con su propio pasador (un puntal articulado a una viga continua).</div>
+    <div class="hint-sm" id="edBtipoHint"></div>
+    <div id="edBVigaBox">
+      <div class="modal-field" style="align-items:center">
+        <label>Cargas en la viga</label>
+        <button class="btn-sm" onclick="const _id=edBarraId; closeEdBarra(); abrirCargaBarra(_id);">Editar cargas…</button>
+      </div>
+      <div class="hint-sm" id="edBCargasResumen"></div>
+      <div class="modal-field" style="align-items:center">
+        <label>Extremos articulados</label>
+        <div style="display:flex;gap:12px;font-size:11px">
+          <label><input type="checkbox" id="edBartA" onchange="setArticulado('a',this.checked)"> en <b id="edBn1c"></b></label>
+          <label><input type="checkbox" id="edBartB" onchange="setArticulado('b',this.checked)"> en <b id="edBn2c"></b></label>
+        </div>
+      </div>
+      <div class="hint-sm">Solo cuenta en un nudo de unión rígida: el extremo marcado se une con su propio pasador (una viga articulada a otra continua). Las barras de armadura van siempre articuladas.</div>
+    </div>
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="closeEdBarra()">Cancelar</button>
       <button class="mbtn" onclick="applyEdBarra()">Aplicar</button>
@@ -481,8 +495,8 @@
 <!-- MODAL CARGAS SOBRE UNA BARRA (bastidores, 19-marcos.js) -->
 <div class="modal-ov" id="cargaBarraModal">
   <div class="modal" style="max-height:88vh;overflow-y:auto">
-    <h3>Cargas sobre la barra <span id="cargaBarraNom"></span></h3>
-    <p class="sub">Una barra con cargas entre sus extremos es un <b>elemento de varias fuerzas</b>: la estructura se resuelve como bastidor (§6.6).
+    <h3>Cargas sobre la viga <span id="cargaBarraNom"></span></h3>
+    <p class="sub">Una viga o marco recibe cargas entre sus extremos (<b>elemento de varias fuerzas</b>): la estructura se resuelve como bastidor (§6.6).
       La distancia <i>s</i> se mide desde el extremo <b id="cargaBarraA"></b>. Positivo: X a la derecha, Y hacia arriba, pares antihorarios.</p>
     <div id="cargaBarraLista"></div>
     <button class="btn-sm" style="width:100%;margin:2px 0 10px" onclick="agregarCargaBarra()">+ Añadir otra carga</button>

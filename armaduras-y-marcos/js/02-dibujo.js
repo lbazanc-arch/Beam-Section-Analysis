@@ -221,12 +221,12 @@ function dibujarCuadroBarra(){
   const f = resultado ? resultado.fuerzas[b.id] : null;
   const L = Math.hypot(nb.x-na.x, nb.y-na.y);
   let l2, col = '#7c3a06';
-  if(resultado && resultado.marco && !resultado.dosFuerzas[b.id]) l2 = 'Elemento de varias fuerzas (N, V, M abajo)';
+  if(esViga(b)) l2 = (resultado && resultado.marco) ? 'Viga / marco: N, V y M en los resultados' : 'Viga / marco (N, V, M) · sin resolver';
   else if(f === null || f === undefined) l2 = 'Sin resolver';
   else if(esCero(f)){ l2 = 'Fuerza cero'; col = '#9aa3ad'; }
   else { l2 = dec(Math.abs(f),'f')+' '+unitFor+(f>0?'  (tracción)':'  (compresión)');
          col = f>0 ? '#1d4ed8' : '#c0392b'; }
-  const l1 = 'Barra ' + nombreBarra(b);
+  const l1 = (esViga(b) ? 'Viga / marco ' : 'Barra ') + nombreBarra(b);
   const l3 = 'L = '+dec(L,'len')+' '+unitLen;
   ctx.font = '800 12px Inter, sans-serif';
   let w = ctx.measureText(l1).width;
@@ -288,7 +288,7 @@ function dibujarFuerzasBarras(){
   barras.forEach(b=>{
     const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
     if(!na || !nb) return;
-    if(resultado.marco && !resultado.dosFuerzas[b.id]) return;   // un elemento de varias fuerzas no tiene una sola fuerza
+    if(resultado.marco && !resultado.dosFuerzas[b.id]) return;   // una viga o marco no tiene una sola fuerza
     const f = resultado.fuerzas[b.id];
     const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(nb.x, nb.y);
     const mx = (x1+x2)/2, my = (y1+y2)/2, dx = x2-x1, dy = y2-y1, L = Math.hypot(dx,dy) || 1;
@@ -424,11 +424,20 @@ function dibujar(){
     if(!na || !nb) return;
     const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(nb.x, nb.y);
     const f = resultado ? resultado.fuerzas[b.id] : null;
-    ctx.strokeStyle = colorBarra(f);
-    ctx.lineWidth = resultado ? (esCero(f) ? 2 : 3.4) : 3;
-    if(resultado && esCero(f)) ctx.setLineDash([6,4]);
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-    ctx.setLineDash([]);
+    if(esViga(b)){
+      // viga o marco (19-marcos.js): banda clara con el eje encima, para
+      // distinguirla de la barra de armadura
+      ctx.strokeStyle = 'rgba(124,58,6,.20)'; ctx.lineWidth = 10;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.strokeStyle = '#7c3a06'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    } else {
+      ctx.strokeStyle = colorBarra(f);
+      ctx.lineWidth = resultado ? (esCero(f) ? 2 : 3.4) : 3;
+      if(resultado && esCero(f)) ctx.setLineDash([6,4]);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     // Resalte de la barra seleccionada. Los valores ya NO se rotulan todos a la
     // vez: se encabalgaban. Solo se muestra el recuadro de la barra elegida.
     if(selBarra === b.id || selBarras.indexOf(b.id) >= 0){
@@ -438,12 +447,12 @@ function dibujar(){
   });
   dibujarCorte();
 
-  // barra en curso
-  if(tool==='barra' && selNodo!==null){
+  // barra o viga en curso (la viga, más gruesa)
+  if((tool==='barra' || tool==='viga') && selNodo!==null){
     const na = nodos.find(n=>n.id===selNodo);
     if(na && mouseW){
       const [x1,y1] = aPantalla(na.x, na.y), [x2,y2] = aPantalla(mouseW[0], mouseW[1]);
-      ctx.strokeStyle = 'rgba(180,83,9,.45)'; ctx.lineWidth = 2.4; ctx.setLineDash([7,5]);
+      ctx.strokeStyle = 'rgba(180,83,9,.45)'; ctx.lineWidth = tool==='viga' ? 6 : 2.4; ctx.setLineDash([7,5]);
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
     }
   }

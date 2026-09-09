@@ -41,11 +41,12 @@ function addNodo(x, y){
   nodos.push(n); reNombrar(); return n;
 }
 
-function addBarra(a, b){
+// tipo: 'barra' (armadura, dos fuerzas) o 'viga' (viga o marco, con N, V y M); ver 19-marcos.js.
+function addBarra(a, b, tipo){
   if(a===b) return null;
   if(barras.some(m=>(m.a===a&&m.b===b)||(m.a===b&&m.b===a))) return null;
   registrarCambio();
-  const m = {id:++barraSeq, a, b};
+  const m = {id:++barraSeq, a, b, tipo: tipo === 'viga' ? 'viga' : 'barra'};
   barras.push(m); return m;
 }
 
@@ -77,17 +78,22 @@ function onCanvasDown(e){
   if(tool === 'nodo'){
     if(!n) addNodo(wx, wy);
     resultado = null; refrescar();
-  } else if(tool === 'barra'){
+  } else if(tool === 'barra' || tool === 'viga'){
     if(n){
       if(selNodo === null){ selNodo = n.id; }
-      else { addBarra(selNodo, n.id); selNodo = null; resultado = null; }
+      else {
+        const nb = addBarra(selNodo, n.id, tool);
+        // dos vigas en un nudo: unión rígida por defecto (19-marcos.js)
+        if(nb && tool === 'viga'){ unirVigasEnNudo(nb.a, nb); unirVigasEnNudo(nb.b, nb); }
+        selNodo = null; resultado = null;
+      }
       refrescar();
     } else { selNodo = null; dibujar(); }
   } else if(tool === 'apoyo'){
     if(n) abrirApoyoModal(n.id);
   } else if(tool === 'carga'){
     if(n) abrirCarga(n.id);
-    else { const bq = barraEn(mx, my); if(bq && typeof abrirCargaBarra === 'function') abrirCargaBarra(bq.id); }   // carga sobre la barra (19-)
+    else { const bq = barraEn(mx, my); if(bq) cargarSobreBarra(bq.id); }   // solo una viga admite carga entre extremos (19-)
   } else if(tool === 'pan'){
     iniciarPan(mx, my);
   } else if(tool === 'corte'){
@@ -177,7 +183,7 @@ function onCanvasMove(e){
     }
   }
 
-  if(dragNodo !== null || (tool==='barra' && selNodo!==null)) dibujar();
+  if(dragNodo !== null || ((tool==='barra' || tool==='viga') && selNodo!==null)) dibujar();
 }
 function onCanvasUp(){
   soltarPan();
@@ -273,7 +279,7 @@ function segmentosCruzan(ax,ay,bx,by, cx,cy,dx,dy){
 
 function setTool(t){
   tool = t; selNodo = null;
-  ['nodo','barra','apoyo','carga','corte','sel','pan'].forEach(k=>{
+  ['nodo','barra','viga','apoyo','carga','corte','sel','pan'].forEach(k=>{
     const el = document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
@@ -281,10 +287,11 @@ function setTool(t){
   if(bd) bd.classList.toggle('active', t==='borrar');
   const hints = {
     nodo:'Haz clic en el lienzo para colocar un nudo.',
-    barra:'Haz clic en un nudo y luego en otro para unirlos.',
+    barra:'Barra de armadura (dos fuerzas, solo N): haz clic en un nudo y luego en otro. Sus cargas van en los nudos.',
+    viga:'Viga o marco (elemento rígido con N, V y M): haz clic en un nudo y luego en otro. Recibe cargas entre sus extremos con Carga; donde dos vigas se encuentran, la unión queda rígida.',
     apoyo:'Haz clic sobre un nudo y elige el tipo de apoyo, o quítalo.',
     corte:'Arrastra una línea que atraviese la armadura de lado a lado.',
-    carga:'Haz clic sobre un nudo para aplicarle una carga, o sobre una barra para cargarla entre sus extremos (bastidor).',
+    carga:'Haz clic sobre un nudo para aplicarle una carga, o sobre una viga o marco para cargarla entre sus extremos.',
     pan:'Arrastra el lienzo para desplazar la vista.',
     sel:'Toca para seleccionar · arrastra un objeto para moverlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar varios (un arrastre rápido solo desplaza el panel) · doble clic para editar.',
     borrar:'Toca un elemento para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'
@@ -465,9 +472,8 @@ function abrirEdBarra(id){
   document.getElementById('edBy2').value = nb.y;
   document.getElementById('edBlen').textContent =
     dec(Math.hypot(nb.x-na.x, nb.y-na.y),'len') + ' ' + unitLen;
-  // Bastidores (19-): cargas sobre la barra y extremos articulados.
-  const nc = document.getElementById('edBCargasResumen');
-  if(nc) nc.textContent = cargasDeBarra(b).length ? cargasDeBarra(b).map(descCarga).join(' · ') : 'Sin cargas sobre la barra (elemento de dos fuerzas).';
+  // Bastidores (19-): tipo de pieza, cargas sobre la viga y extremos articulados.
+  pintarTipoBarra(b);
   const c1 = document.getElementById('edBn1c'), c2 = document.getElementById('edBn2c');
   if(c1) c1.textContent = na.nombre; if(c2) c2.textContent = nb.nombre;
   const ka = document.getElementById('edBartA'), kb = document.getElementById('edBartB');
