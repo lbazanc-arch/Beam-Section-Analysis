@@ -446,7 +446,7 @@
 <div class="modal-ov" id="guardarModal">
   <div class="modal-box">
     <div class="modal-h">Guardar ejercicio</div>
-    <p class="modal-note">Se descarga un archivo <code>.json</code>. En el ordenador
+    <p class="modal-note">Se descarga un archivo <code>.json</code> (en el móvil, un <code>.txt</code> con el mismo contenido). En el ordenador
       podrás <b>elegir la carpeta</b>; en el móvil se abre la hoja de compartir para guardarlo o enviarlo. Para
       retomarlo más tarde, ábrelo desde <b>Historial</b>.</p>
     <div class="modal-field"><label>Nombre</label>
@@ -521,10 +521,10 @@
 <div class="modal-ov" id="histModal">
   <div class="modal-box">
     <div class="modal-h">Abrir ejercicio</div>
-    <p class="modal-note">Elige un archivo <code>.json</code> que hayas guardado
+    <p class="modal-note">Elige un archivo <code>.json</code> (o <code>.txt</code>, si lo guardaste desde el móvil) que hayas guardado
       antes. No se guarda nada en este navegador ni en el portal: el archivo
       es tuyo y se abre desde donde lo tengas.</p>
-    <input type="file" id="archivoAbrir" accept=".json,application/json" data-bsa-relajar="1"
+    <input type="file" id="archivoAbrir" accept=".json,.txt,application/json,text/plain" data-bsa-relajar="1"
            style="display:none" onchange="onArchivoElegido(event)">
     <div class="modal-actions">
       <button class="mbtn ghost" onclick="cerrarHistorial()">Cancelar</button>

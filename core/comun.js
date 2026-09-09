@@ -42,28 +42,53 @@ function cerrarPanelLatex(){
 // ==========================================================================
 //  ARCHIVOS DE EJERCICIO EN CUALQUIER EQUIPO
 //  Los ejercicios se guardan como .json con el tema en el nombre
-//  (centroide-ejercicio-1.json). Antes llevaban doble extension
-//  (.bsa9.json): en Android el selector de archivos no la reconocia y los
-//  dejaba en gris, y en iPhone la descarga por enlace es poco fiable. Ahora,
-//  en el movil, guardar abre la HOJA DE COMPARTIR del sistema (Archivos,
-//  Drive, WhatsApp...) y abrir no filtra por extension: el contenido se
-//  valida por su campo bsaApp, no por el nombre.
+//  (centroide-ejercicio-1.json) en el ordenador, y como .txt con el mismo
+//  contenido en el telefono y la tableta (ver bsaGuardarArchivo). Antes
+//  llevaban doble extension (.bsa9.json): en Android el selector de archivos
+//  no la reconocia y los dejaba en gris, y en iPhone la descarga por enlace
+//  es poco fiable. En el movil, guardar abre la HOJA DE COMPARTIR del
+//  sistema (Archivos, Drive, WhatsApp...) y abrir no filtra por extension:
+//  el contenido se valida por su campo bsaApp, no por el nombre.
 // ==========================================================================
 function bsaEsMovil(){ return !bsaPdfEnIframe(); }
 
+// Nombre con el que se guardo de verdad el ultimo archivo (en el movil cambia
+// la extension). Lo leen los temas para el aviso de "Guardado como...".
+let bsaUltimoNombreGuardado = '';
+
+// ── Por que en el movil el archivo sale como .txt ──
+// Chrome en Android solo comparte archivos de una lista cerrada de tipos
+// (texto plano, CSV, HTML, PDF, imagen, audio, video). Un .json de tipo
+// application/json NO esta en ella: canShare devolvia false y el guardado
+// caia a la descarga por enlace, y esa descarga desde dentro del iframe del
+// portal dejaba un archivo de 0 B (2026-09-08, probado en un telefono real).
+// Solucion: el MISMO contenido JSON se comparte como texto plano con
+// extension .txt, que si esta admitida; y si no hay hoja de compartir, la
+// descarga va por una URL data:, que Android si escribe entera. Abrir no
+// mira la extension: valida el campo bsaApp del contenido.
 async function bsaGuardarArchivo(texto, nombreArchivo, tipo){
   tipo = tipo || 'application/json';
-  if(bsaEsMovil() && navigator.share && navigator.canShare){
-    try{
-      const archivo = new File([texto], nombreArchivo, {type: tipo});
-      if(navigator.canShare({files:[archivo]})){
-        await navigator.share({files:[archivo], title: nombreArchivo});
-        return 'compartido';
+  bsaUltimoNombreGuardado = nombreArchivo;
+  if(bsaEsMovil()){
+    const nombreTxt = String(nombreArchivo).replace(/\.json$/i, '') + '.txt';
+    bsaUltimoNombreGuardado = nombreTxt;
+    if(navigator.share && navigator.canShare){
+      try{
+        const archivo = new File([texto], nombreTxt, {type: 'text/plain'});
+        if(navigator.canShare({files:[archivo]})){
+          await navigator.share({files:[archivo], title: nombreTxt});
+          return 'compartido';
+        }
+      }catch(err){
+        // Cancelar la hoja no es un error; cualquier otro fallo cae a la descarga.
+        if(err && err.name === 'AbortError') return 'cancelado';
       }
-    }catch(err){
-      // Cancelar la hoja no es un error; cualquier otro fallo cae a la descarga.
-      if(err && err.name === 'AbortError') return 'cancelado';
     }
+    const a = document.createElement('a');
+    a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(texto);
+    a.download = nombreTxt;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    return 'descargado';
   }
   const blob = new Blob([texto], {type: tipo});
   const url  = URL.createObjectURL(blob);

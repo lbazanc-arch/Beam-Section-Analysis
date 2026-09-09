@@ -129,8 +129,11 @@ async function guardarProyecto(){
   // ── Reserva: descarga normal a la carpeta de descargas ──
   const como = await bsaGuardarArchivo(texto, archivo);
   cerrarGuardar();
-  if(como === 'compartido') aviso('Guardado "' + archivo + '" donde elegiste.');
-  else if(como === 'descargado') aviso('Descargando "' + archivo + '". Búscalo en tu carpeta de descargas.');
+  // En el móvil el archivo sale como .txt (ver bsaGuardarArchivo): se avisa
+  // con el nombre real, que es el que el alumno verá en Archivos.
+  const guardadoComo = bsaUltimoNombreGuardado || archivo;
+  if(como === 'compartido') aviso('Guardado "' + guardadoComo + '" donde elegiste.');
+  else if(como === 'descargado') aviso('Descargando "' + guardadoComo + '". Búscalo en tu carpeta de descargas.');
 }
 
 // Descarga clásica por enlace. Es lo único disponible en móvil, en Firefox y
