@@ -618,6 +618,10 @@ function construirLatex(){
   // 2026-09-08: el informe de 18 figuras pasaba de 17 páginas).
   const repetidaDe = {};
   grupos.forEach(g=>{ if(!g.simetria) g.idx.slice(1).forEach(i=>{ repetidaDe[i] = g.idx[0]; }); });
+  // Y, con seis o más partes, el desarrollo completo solo la PRIMERA vez que
+  // aparece cada situación (parte normal, parte girada, hueco): las demás
+  // repiten la misma sustitución y la tabla las detalla (R1).
+  const situacionVista = {};
   let primera = true;
   st.forEach((s,i)=>{
     const k = i+1, f = s.fig;
@@ -636,13 +640,17 @@ function construirLatex(){
         + '}$ y $\\bar{P}_{xy_' + k + '} = -\\bar{P}_{xy_' + k0 + '} = ' + ftex(s.Ixy_f) + U4 + '$.}\\\\[2pt]\n';
       return;
     }
-    if(repetidaDe[i] !== undefined){
-      const k0 = repetidaDe[i] + 1;
-      tex += '\\quad{\\small igual que la parte ' + k0 + ', con $d_{x_' + k + '} = ' + dxS + '$ y $d_{y_' + k + '} = ' + dyS + U1
+    const situacion = (girada ? 'girada' : 'normal') + (f.sign > 0 ? '' : '-hueco');
+    const compacta = (repetidaDe[i] !== undefined) || (st.length >= 6 && situacionVista[situacion] !== undefined);
+    if(compacta){
+      const k0 = (repetidaDe[i] !== undefined ? repetidaDe[i] : situacionVista[situacion]) + 1;
+      tex += '\\quad{\\small ' + (repetidaDe[i] !== undefined ? 'igual que la parte ' + k0 : 'como la parte ' + k0)
+        + ', con $d_{x_' + k + '} = ' + dxS + '$ y $d_{y_' + k + '} = ' + dyS + U1
         + '$; la misma sustituci\\\'on da $\\bar{I}_{x_' + k + '} = ' + ftex(s.Ix_f) + '$, $\\bar{I}_{y_' + k + '} = ' + ftex(s.Iy_f)
         + '$ y $\\bar{P}_{xy_' + k + '} = ' + ftex(s.Ixy_f) + U4 + '$ (detalle en la tabla).}\\\\[2pt]\n';
       return;
     }
+    situacionVista[situacion] = i;
     tex += '\\quad{\\small $d_{x_' + k + '} = ' + decP(f.cx,'len') + ' - ' + decP(results.xbar,'len') + ' = ' + dxS + U1
       + '$, \\ $d_{y_' + k + '} = ' + decP(f.cy,'len') + ' - ' + decP(results.ybar,'len') + ' = ' + dyS + U1 + '$}\\\\[2pt]\n';
     // Cada línea empieza diciendo QUÉ se calcula: tres paréntesis seguidos no
