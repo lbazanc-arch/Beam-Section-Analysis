@@ -80,6 +80,9 @@ function manejarEsc(){
     else if(abierto==='cargaModal') nodoCarga = null;
     return;
   }
+  // Esc corta la cadena de construcción antes que nada: es lo que se espera
+  // mientras se está dibujando nudo a nudo (03-interaccion.js).
+  if(selNodo !== null){ selNodo = null; refrescar(); return; }
   if(selNodos.length || selBarras.length || selNodoInfo!==null || selBarra!==null){
     selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null;
     gesto = null;

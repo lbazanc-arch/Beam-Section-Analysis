@@ -75,20 +75,19 @@ function onCanvasDown(e){
   const n = nodoEn(mx, my);
   const [wx, wy] = aMundo(mx, my);
 
-  if(tool === 'nodo'){
-    if(!n) addNodo(wx, wy);
-    resultado = null; refrescar();
-  } else if(tool === 'barra' || tool === 'viga'){
-    if(n){
-      if(selNodo === null){ selNodo = n.id; }
-      else {
-        const nb = addBarra(selNodo, n.id, tool);
-        // dos vigas en un nudo: unión rígida por defecto (19-marcos.js)
-        if(nb && tool === 'viga'){ unirVigasEnNudo(nb.a, nb); unirVigasEnNudo(nb.b, nb); }
-        selNodo = null; resultado = null;
-      }
-      refrescar();
-    } else { selNodo = null; dibujar(); }
+  if(tool === 'barra' || tool === 'viga'){
+    // Construcción NUDO A NUDO, como en fuerzas-internas: cada clic coloca un
+    // nudo —o reutiliza el que haya debajo— y lo une al anterior, encadenando.
+    // No hay herramienta de nudo suelto: un nudo existe porque es el extremo de
+    // una pieza. La cadena se corta al cambiar de herramienta o con Esc.
+    const nn = n || addNodo(wx, wy);
+    if(selNodo !== null && selNodo !== nn.id){
+      const nb = addBarra(selNodo, nn.id, tool);
+      // dos vigas en un nudo: unión rígida por defecto (19-marcos.js)
+      if(nb && tool === 'viga'){ unirVigasEnNudo(nb.a, nb); unirVigasEnNudo(nb.b, nb); }
+    }
+    selNodo = nn.id; resultado = null;
+    refrescar();
   } else if(tool === 'apoyo'){
     if(n) abrirApoyoModal(n.id);
   } else if(tool === 'carga'){
@@ -279,16 +278,15 @@ function segmentosCruzan(ax,ay,bx,by, cx,cy,dx,dy){
 
 function setTool(t){
   tool = t; selNodo = null;
-  ['nodo','barra','viga','apoyo','carga','corte','sel','pan'].forEach(k=>{
+  ['barra','viga','apoyo','carga','corte','sel','pan'].forEach(k=>{
     const el = document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
   const bd = document.getElementById('btnDel');
   if(bd) bd.classList.toggle('active', t==='borrar');
   const hints = {
-    nodo:'Haz clic en el lienzo para colocar un nudo.',
-    barra:'Barra de armadura (dos fuerzas, solo N): haz clic en un nudo y luego en otro. Sus cargas van en los nudos.',
-    viga:'Viga o marco (elemento rígido con N, V y M): haz clic en un nudo y luego en otro. Recibe cargas entre sus extremos con Carga; donde dos vigas se encuentran, la unión queda rígida.',
+    barra:'Barra de armadura: dos fuerzas, solo N. Cada clic coloca un nudo y lo une al anterior; Esc corta la cadena.',
+    viga:'Viga o marco: elemento rígido con N, V y M. Cada clic coloca un nudo y lo une al anterior; Esc corta la cadena.',
     apoyo:'Haz clic sobre un nudo y elige el tipo de apoyo, o quítalo.',
     corte:'Arrastra una línea que atraviese la armadura de lado a lado.',
     carga:'Haz clic sobre un nudo para aplicarle una carga, o sobre una viga o marco para cargarla entre sus extremos.',
