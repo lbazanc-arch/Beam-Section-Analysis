@@ -399,6 +399,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .bcy{background:var(--yellow);color:#0a0d14;}
 .bcr{background:var(--red2);color:#fff;}
 .bcn{background:var(--bg);border:1px solid var(--border2);color:var(--muted);}
+.bpeligro{background:#c0392b;color:#fff;}
 .dlscroll{overflow-y:auto;flex:1;margin-bottom:3px;max-height:250px;}
 .dlcount{font-size:10px;color:var(--red2);font-weight:700;margin-bottom:7px;min-height:13px;}
 .dlitem{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 11px;margin-bottom:4px;cursor:pointer;transition:border-color .15s;}
@@ -503,6 +504,17 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   border:1px solid var(--border2);border-radius:8px;background:var(--bg2);
   color:var(--text);font-size:11.5px;font-family:inherit;}
 .pc-busca:focus{outline:none;border-color:var(--blue2);}
+.pc-filtros{display:flex;gap:8px;align-items:center;}
+.pc-filtros .pc-busca{flex:1;min-width:0;}
+.pc-filtro{flex:0 0 190px;font-family:inherit;}
+.llog-inactivos{font-size:11px;color:var(--muted);line-height:1.5;margin-top:8px;}
+.llog-inactivos b{color:#b45309;}
+.uso-semanas{display:flex;align-items:flex-end;gap:6px;height:74px;padding:6px 4px 0;margin:6px 0 10px;border-bottom:1px solid var(--border);}
+.uso-sem{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:9px;color:var(--muted);}
+.uso-sem-b{width:100%;max-width:38px;background:linear-gradient(180deg,#5b8def,var(--blue2));border-radius:4px 4px 0 0;min-height:2px;}
+.uso-sem-v{font-weight:700;color:var(--blue2);margin-bottom:2px;}
+.uso-sem-l{margin-top:3px;white-space:nowrap;}
+@media(max-width:820px){ .pc-filtros{flex-direction:column;align-items:stretch;} .pc-filtro{flex:0 0 auto;} }
 /* Barra de páginas */
 .pag-barra{display:flex;align-items:center;justify-content:center;gap:10px;
   padding:9px 0 2px;}
@@ -597,6 +609,16 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   color:#fff;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;}
 .mbtn.ghost{background:#fff;color:var(--text);border-color:var(--border2);}
 .mbtn:hover{filter:brightness(1.06);}
+/* Foco visible al navegar con el teclado (propuesta 7, 2026-09-08) */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+.tema:focus-visible{outline:2px solid var(--blue2);outline-offset:2px;}
+
+/* ══ Guía del primer ingreso ══ */
+.guia-inicio{background:#fff;border:1px solid var(--border);border-left:4px solid var(--blue2);border-radius:12px;
+  padding:14px 16px;margin:0 0 16px;font-size:12.5px;line-height:1.55;}
+.guia-inicio .guia-t{font-weight:800;color:var(--blue);margin-bottom:6px;}
+.guia-inicio ol{margin:0 0 10px 18px;padding:0;}
+.guia-inicio li{margin:3px 0;}
 
 /* ══ COLUMNA DEL ALUMNO ══
    Barra fija a la izquierda con las secciones. En móvil no cabe una columna
@@ -692,6 +714,7 @@ body.con-sidebar .scr.on .stu-wrap{margin-left:92px;max-width:960px;}
 .tema-txt b{display:block;font-size:15px;color:var(--blue);margin-bottom:3px;}
 .tema-txt i{display:block;font-style:normal;font-size:11.5px;color:var(--muted);line-height:1.45;}
 .tema-lock{display:none;}
+.tema-meta{display:block;margin-top:7px;font-size:10.5px;color:var(--blue2);font-weight:700;}
 /* Un tema deshabilitado por el profesor se ve, pero no se abre: ocultarlo
    dejaría al alumno sin saber que existe. */
 .tema.bloq{opacity:.55;cursor:not-allowed;}
@@ -933,7 +956,6 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
       <div class="sbtns" style="gap:8px;align-items:center;">
         <button onclick="abrirHorarios()" style="background:var(--blue2);color:#fff;border:none;padding:7px 15px;
   border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🕗 Gestionar horarios</button>
-        <button onclick="openClavesModal()" style="display:none;background:var(--blue2);color:#fff;border:none;padding:7px 15px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🔑 Contraseñas individuales</button>
       </div>
     </div>
     <div class="pgrid">
@@ -944,7 +966,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
             <button onclick="exportUsuarios()" class="pc-xls" style="border:1px solid #3ecf8e;color:#3ecf8e;padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;background:none;">📥 Excel</button>
             <button onclick="openAddModal()" style="background:var(--blue);color:#fff;border:none;padding:5px 11px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">＋ Agregar</button>
             <button onclick="openDelModal()" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;">🗑 Eliminar</button>
-            <button onclick="refreshPanel()" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 9px;border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">↻</button>
+            <button onclick="refreshPanel()" aria-label="Actualizar" title="Actualizar" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 9px;border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">↻</button>
           </div>
         </div>
         <div style="overflow-x:auto;">
@@ -961,9 +983,12 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
             <tbody id="ulist"></tbody>
           </table>
           <div class="pag-barra" id="pagUsr"></div>
+          <div class="pc-filtros">
           <input type="search" id="buscaUsr" class="pc-busca"
                  placeholder="Buscar por código, nombre, correo u horario…"
                  autocomplete="off">
+          <select id="filtroHorUsr" class="pc-busca pc-filtro" aria-label="Filtrar por horario" onchange="_pagUsr=1;renderUsers()"><option value="">Todos los horarios</option></select>
+          </div>
           <div class="empty" id="ulist-empty" style="display:none">Sin usuarios registrados</div>
         </div>
         <div class="aerr" id="aerr"></div>
@@ -984,6 +1009,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
           <button class="uso-per" data-per="todo">Todo</button>
         </div>
         <div class="uso-cifras" id="usoCifras"></div>
+        <div class="uso-semanas" id="usoSemanas"></div>
         <div class="uso-sub">Por tema</div>
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:10px;min-width:420px;">
@@ -1022,12 +1048,15 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
           <div class="pc-acts">
             <button onclick="exportExcel()" class="pc-xls" style="border:1px solid #3ecf8e;color:#3ecf8e;padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;background:none;">📥 Excel</button>
             <button onclick="openLogDelModal()" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;">🗑 Eliminar</button>
-            <button onclick="refreshPanel()" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 9px;border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">↻</button>
+            <button onclick="refreshPanel()" aria-label="Actualizar" title="Actualizar" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 9px;border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">↻</button>
           </div>
         </div>
+        <div class="pc-filtros">
         <input type="search" id="buscaLog" class="pc-busca"
                placeholder="Buscar por código, nombre, correo u horario…"
                autocomplete="off">
+        <select id="filtroHorLog" class="pc-busca pc-filtro" aria-label="Filtrar por horario" onchange="_pagLog=1;renderLogs()"><option value="">Todos los horarios</option></select>
+        </div>
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:10px;min-width:420px;">
             <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted);text-transform:uppercase;font-size:9px;">
@@ -1042,6 +1071,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
           </table>
           <div class="pag-barra" id="pagLog"></div>
           <div class="empty" id="llog-empty" style="display:none">Sin registros aún</div>
+          <div class="llog-inactivos" id="llog-inactivos"></div>
         </div>
       </div>
     </div>
@@ -1362,6 +1392,15 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
   <iframe id="appf" title="BSA App"></iframe>
 </div>
 
+<!-- CONFIRMACIÓN PROPIA (sustituye a confirm) -->
+<div class="ovl" id="ovl-confirmar">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="conf-t">
+    <h3 id="conf-t">Confirmar</h3>
+    <p id="conf-x"></p>
+    <div class="mbtns"><button class="bcn" onclick="confirmarBSAResolver(false)">Cancelar</button><button class="bcy" id="conf-ok" onclick="confirmarBSAResolver(true)">Aceptar</button></div>
+  </div>
+</div>
+
 <!-- MODAL DISABLE -->
 <div class="ovl" id="ovl-dis">
   <div class="modal">
@@ -1473,33 +1512,6 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
     </button>
 
     <button class="bback" id="reg-cancelar" style="margin-top:14px;" onclick="regCancelar()">← Cancelar</button>
-  </div>
-</div>
-<div class="ovl" id="ovl-claves">
-  <div class="ovl-box" style="max-width:640px;">
-    <div class="ovl-h">Contraseñas individuales</div>
-    <p style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:14px;">
-      Cada alumno tendrá su propia contraseña, de modo que los registros de acceso
-      reflejen quién entró realmente. Se guardan cifradas: <b>solo se muestran una vez</b>,
-      así que cópialas o descárgalas antes de cerrar esta ventana.
-    </p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-      <button class="ovl-btn ok" onclick="generarClaves(true)">Generar solo a quienes no tienen</button>
-      <button class="ovl-btn" style="background:#c0392b;color:#fff;border-color:#c0392b;" onclick="generarClaves(false)">Regenerar TODAS</button>
-    </div>
-    <div id="claves-msg" style="font-size:11.5px;margin-bottom:10px;"></div>
-    <div id="claves-box" style="display:none;">
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <button class="ovl-btn" onclick="copiarClaves()">Copiar</button>
-        <button class="ovl-btn" onclick="descargarClaves()">Descargar CSV</button>
-      </div>
-      <textarea id="claves-txt" readonly style="width:100%;height:220px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:11.5px;padding:10px;"></textarea>
-      <div style="font-size:10.5px;color:#e05c5c;margin-top:8px;font-weight:600;">
-        ⚠ Al cerrar esta ventana ya no podrás volver a ver estas contraseñas.
-        Si alguien la olvida, podrás generarle una nueva, pero no consultarla.
-      </div>
-    </div>
-    <div class="ovl-actions"><button class="ovl-btn" onclick="closeOvl()">Cerrar</button></div>
   </div>
 </div>
 <div class="ovl" id="ovl-add">
@@ -2144,9 +2156,7 @@ async function api(action, body={}, timeoutMs=12000){
                      : {ok:true, borradas:(data||[]).length};
       }
 
-      // ── Ya no aplican: Supabase gestiona las contraseñas ──
-      case 'generarClaves':
-        return {ok:false, error:'Ahora cada alumno crea su propia contraseña al registrarse.'};
+      // ── Restablecer contraseña: Supabase envía el enlace al correo ──
       case 'restablecerClave': {
         await SB.auth.resetPasswordForEmail(String(body.email||'').toLowerCase());
         return {ok:true, email:body.email, modo:'correo'};
@@ -2256,7 +2266,30 @@ function aviso(msg){
 function showLoading(el,msg='Cargando...'){if(el)el.innerHTML=`<li style="color:var(--muted);font-size:11px;text-align:center;padding:12px">${msg}</li>`;}
 
 
+// ── Primer ingreso guiado (propuesta 1, 2026-09-08) ──
+// La primera vez que el alumno llega a «Mis temas», tres pasos sobre la
+// pantalla: elige un tema → pulsa Ejemplo → pulsa Resolver. Se recuerda en
+// el navegador que ya lo vio.
+function mostrarGuiaInicio(){
+  try{ if(localStorage.getItem('bsa_guia_vista')) return; }catch(e){ return; }
+  if(document.getElementById('guia-inicio')) return;
+  const grid = document.querySelector('#s-student .tema-grid');
+  if(!grid) return;
+  const g = document.createElement('div');
+  g.className = 'guia-inicio'; g.id = 'guia-inicio';
+  g.innerHTML = '<div class="guia-t">¿Primera vez? Tres pasos</div>'
+    + '<ol><li><b>Elige un tema</b> en las tarjetas de abajo.</li>'
+    + '<li>Dentro, pulsa <b>Ejemplo</b> en la columna de la izquierda: carga un caso resuelto a mano.</li>'
+    + '<li>Pulsa <b>Resolver</b> (o <b>Calcular</b>) y baja: verás el desarrollo paso a paso; con <b>LaTeX</b> sale el informe en PDF.</li></ol>'
+    + '<button class="mbtn" type="button" onclick="cerrarGuiaInicio()">Entendido</button>';
+  grid.parentNode.insertBefore(g, grid);
+}
+function cerrarGuiaInicio(){
+  try{ localStorage.setItem('bsa_guia_vista', '1'); }catch(e){}
+  const g = document.getElementById('guia-inicio'); if(g) g.remove();
+}
 function showScreen(id){
+  if(id === 's-student') setTimeout(mostrarGuiaInicio, 0);
   // Nunca se llega a un formulario de acceso con credenciales escritas de
   // una sesión anterior: en una página única los campos sobreviven ocultos.
   if(id==='s-elogin' || id==='s-plogin' || id==='s-land' || id==='s-role'){
@@ -2521,7 +2554,9 @@ function renderUsers(){
   }
   if(empty)empty.style.display='none';
   const q = (document.getElementById('buscaUsr')||{}).value || '';
-  const filtradas = filtrarFilas(s, q, ['codigo','nombre','email','horario']);
+  poblarFiltroHorario('filtroHorUsr', s);
+  const hSel = (document.getElementById('filtroHorUsr')||{}).value || '';
+  const filtradas = filtrarFilas(s, q, ['codigo','nombre','email','horario']).filter(x=>!hSel || String(x.horario||'—')===hSel);
   const base = (_pagUsr-1)*FILAS_POR_PAG;
   paginar('ulist', filtradas, _pagUsr, (x,i)=>
     `<tr style="border-bottom:1px solid var(--border)">`
@@ -2533,12 +2568,36 @@ function renderUsers(){
     + `<td style="padding:5px 8px;text-align:center">${(String(x.cambio||'No').trim().toLowerCase().charAt(0)==='s')?'<span style="color:var(--green);font-weight:700">Sí</span>':'<span style="color:var(--muted)">No</span>'}</td>`
     // El correo viaja en un data- y no dentro de una cadena JavaScript
     // incrustada en el atributo: escapar para HTML no protege ese contexto.
-    + `<td style="padding:5px 8px;text-align:right"><button class="btn-clave" data-correo="${esc(x.email)}" title="Borrar su contraseña: deberá crear una nueva" style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:3px 8px;border-radius:6px;font-size:10px;cursor:pointer;font-family:inherit">🔑</button></td>`
+    + `<td style="padding:5px 8px;text-align:right"><button class="btn-clave" data-correo="${esc(x.email)}" aria-label="Restablecer la contraseña de ${esc(x.email)}" title="Borrar su contraseña: deberá crear una nueva" style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:3px 8px;border-radius:6px;font-size:10px;cursor:pointer;font-family:inherit">🔑</button></td>`
     + `</tr>`, p=>{_pagUsr=p; renderUsers();}, 'pagUsr');
 
   document.querySelectorAll('#ulist .btn-clave').forEach(b=>{
     b.addEventListener('click', ()=>restablecerClave(b.dataset.correo));
   });
+}
+// ── Filtro por horario (propuesta 2, 2026-09-08) ──
+// Las opciones salen de los propios datos; se respeta la elegida.
+function poblarFiltroHorario(id, filas){
+  const sel = document.getElementById(id); if(!sel) return;
+  const hs = [...new Set(filas.map(x=>String(x.horario||'—')))].sort();
+  const firma = hs.join('|');
+  if(sel.dataset.firma === firma) return;
+  const actual = sel.value;
+  sel.innerHTML = '<option value="">Todos los horarios</option>' + hs.map(h=>'<option value="'+esc(h)+'">'+esc(h)+'</option>').join('');
+  sel.value = hs.indexOf(actual) >= 0 ? actual : '';
+  sel.dataset.firma = firma;
+}
+// ── Alumnos sin actividad en los últimos 14 días ──
+function pintarInactivos(todos){
+  const el = document.getElementById('llog-inactivos'); if(!el) return;
+  const lim = Date.now() - 14*86400000;
+  const inact = todos.filter(x=>!x.time || new Date(x.time).getTime() < lim);
+  if(!todos.length || !inact.length){ el.innerHTML = ''; return; }
+  const lista = inact.slice(0, 40).map(x=>{
+    const nom = (x.nombre && x.nombre!=='—') ? x.nombre : '';
+    return nom ? esc(nom) + ' &lt;' + esc(x.email||'') + '&gt;' : esc(x.email||'—');
+  }).join(', ');
+  el.innerHTML = '<b>Sin actividad en 14 días (' + inact.length + '):</b> ' + lista + (inact.length > 40 ? '…' : '');
 }
 function renderLogs(){
   const tbody=document.getElementById('llog'),empty=document.getElementById('llog-empty');
@@ -2551,7 +2610,10 @@ function renderLogs(){
   // Los totales ya vienen calculados del servidor: aquí solo se filtra,
   // se ordena por actividad reciente y se pinta la página visible.
   const q = (document.getElementById('buscaLog')||{}).value || '';
-  const filtradas = filtrarFilas(logs, q, ['codigo','nombre','email','horario']);
+  poblarFiltroHorario('filtroHorLog', logs);
+  const hSel = (document.getElementById('filtroHorLog')||{}).value || '';
+  const filtradas = filtrarFilas(logs, q, ['codigo','nombre','email','horario']).filter(x=>!hSel || String(x.horario||'—')===hSel);
+  pintarInactivos(ls.get('access_logs')||[]);
   filtradas.sort((a,b)=> new Date(b.time||0) - new Date(a.time||0));
   paginar('llog', filtradas, _pagLog, (x)=>
     `<tr style="border-bottom:1px solid var(--border)">`
@@ -2607,6 +2669,7 @@ async function cargarUso(){
     pintarUsoCifras(totales.data && totales.data[0]);
     pintarUsoTemas(temas.data || []);
     pintarUsoHorarios(horarios.data || []);
+    cargarUsoSemanal();
   }catch(e){
     console.warn('Uso:', e);
     usoSinDatos('No se pudo consultar el uso');
@@ -2621,6 +2684,32 @@ function usoSinDatos(msg){
   const c = document.getElementById('usoCifras'); if(c) c.innerHTML = '';
 }
 
+// ── Uso semanal (propuesta 2): ingresos de cada una de las últimas ocho
+//    semanas, con las mismas RPC de totales (acumulado desde el lunes de
+//    cada semana; la diferencia entre dos acumulados es la semana). ──
+async function cargarUsoSemanal(){
+  const c = document.getElementById('usoSemanas'); if(!c || !SB) return;
+  const N = 8, lunes = [];
+  const d = new Date(); d.setHours(0,0,0,0);
+  const dow = (d.getDay() + 6) % 7;                       // lunes = 0
+  d.setDate(d.getDate() - dow);
+  for(let i=0;i<=N;i++){ const x = new Date(d); x.setDate(d.getDate() - 7*i); lunes.push(x); }
+  try{
+    const rs = await Promise.all(lunes.map(x=>SB.rpc('uso_totales', {desde:x.toISOString()})));
+    if(rs.some(r=>r.error)){ c.innerHTML = ''; return; }
+    const acum = rs.map(r=>Number((r.data && r.data[0] && r.data[0].ingresos) || 0));
+    const semanas = [];
+    for(let i=N-1;i>=0;i--){ semanas.push({desde:lunes[i], n: Math.max(0, acum[i] - (i>0 ? acum[i-1] : 0))}); }
+    // la semana en curso es la primera (i = 0): acumulado desde su lunes
+    semanas[semanas.length-1].n = acum[0];
+    const mx = Math.max(1, ...semanas.map(x=>x.n));
+    c.innerHTML = semanas.map(x=>'<div class="uso-sem" title="Semana del '+x.desde.toLocaleDateString('es-PE')+'">'
+      + '<span class="uso-sem-v">'+x.n+'</span>'
+      + '<span class="uso-sem-b" style="height:'+Math.round(100*x.n/mx)+'%"></span>'
+      + '<span class="uso-sem-l">'+x.desde.getDate()+'/'+(x.desde.getMonth()+1)+'</span></div>').join('')
+      + '<div style="align-self:center;font-size:9.5px;color:var(--muted);writing-mode:vertical-rl;transform:rotate(180deg);margin-left:4px">ingresos por semana</div>';
+  }catch(e){ c.innerHTML = ''; }
+}
 function pintarUsoCifras(t){
   const c = document.getElementById('usoCifras');
   if(!c) return;
@@ -2885,7 +2974,8 @@ async function activarHorario(cod,activo){
   await api('guardarHorario',{codigo:cod, nombre:h.nombre||'', activo:activo, orden:h.orden||0});
 }
 async function borrarHorario(cod){
-  if(!confirm('¿Eliminar el horario '+cod+'?\n\nLos alumnos ya registrados en él no se ven afectados.')) return;
+  const ok = await confirmarBSA({titulo:'Eliminar horario', texto:'¿Eliminar el horario <b>'+esc(cod)+'</b>? Los alumnos ya registrados en él no se ven afectados.', boton:'Eliminar', peligro:true});
+  if(!ok) return;
   await api('borrarHorario',{codigo:cod});
   await pintarHorarios();
 }
@@ -3066,50 +3156,12 @@ async function entrarConGoogle(){
   }catch(e){ alert('No se pudo abrir el ingreso con Google.'); }
 }
 
-// ═══ PUNTO 5 · CONTRASEÑAS INDIVIDUALES ═══// ═══ PUNTO 5 · CONTRASEÑAS INDIVIDUALES ═══
-let _clavesGeneradas=[];
-function openClavesModal(){
-  _clavesGeneradas=[];
-  document.getElementById('claves-msg').textContent='';
-  document.getElementById('claves-box').style.display='none';
-  document.getElementById('ovl-claves').classList.add('on');
-}
-async function generarClaves(soloNuevos){
-  const msg=document.getElementById('claves-msg');
-  if(!soloNuevos && !confirm('Se generará una contraseña NUEVA para TODOS los alumnos.\nLas actuales dejarán de funcionar. ¿Continuar?')) return;
-  msg.style.color='var(--muted)'; msg.textContent='Generando…';
-  let r=null;
-  try{ r=await api('generarClaves',{soloNuevos:!!soloNuevos},20000); }catch(_){}
-  if(!r||!r.ok){ msg.style.color='#e05c5c'; msg.textContent='⚠ '+((r&&r.error)||'No se pudo generar. Revisa tu conexión.'); return; }
-  _clavesGeneradas=r.claves||[];
-  if(!_clavesGeneradas.length){
-    msg.style.color='var(--muted)';
-    msg.textContent='Todos los alumnos ya tienen contraseña propia. Usa "Regenerar TODAS" si quieres cambiarlas.';
-    document.getElementById('claves-box').style.display='none'; return;
-  }
-  msg.style.color='var(--green)';
-  msg.textContent='✓ '+_clavesGeneradas.length+' contraseña'+(_clavesGeneradas.length===1?'':'s')+' generada'+(_clavesGeneradas.length===1?'':'s')+'. Cópialas ahora.';
-  document.getElementById('claves-txt').value=
-    _clavesGeneradas.map(c=>[c.codigo||'',c.nombre||'',c.email,c.pass].join('\t')).join('\n');
-  document.getElementById('claves-box').style.display='block';
-}
-function copiarClaves(){
-  const ta=document.getElementById('claves-txt');
-  ta.select();
-  try{ document.execCommand('copy'); aviso('Contraseñas copiadas al portapapeles.'); }
-  catch(e){ aviso('Selecciona el texto y cópialo manualmente.'); }
-}
-function descargarClaves(){
-  const filas=[['codigo','nombre','correo','contrasena']]
-    .concat(_clavesGeneradas.map(c=>[c.codigo||'',c.nombre||'',c.email,c.pass]));
-  const csv=filas.map(f=>f.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download='BSA_Contrasenas_'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-}
+// ═══ RESTABLECER CONTRASEÑA ═══
+// (Las «contraseñas individuales» generadas por el profesor se retiraron el
+// 2026-09-08: desde agosto cada alumno crea la suya en Supabase.)
 async function restablecerClave(email){
-  if(!confirm('¿Enviar a '+email+' un enlace para restablecer su contraseña?')) return;
+  const ok = await confirmarBSA({titulo:'Restablecer contraseña', texto:'Se enviará a <b>'+esc(email)+'</b> un enlace para crear una contraseña nueva. La actual dejará de funcionar cuando la cambie.', boton:'Enviar enlace'});
+  if(!ok) return;
   let r=null;
   try{ r=await api('restablecerClave',{email}); }catch(_){}
   if(r&&r.ok) aviso('Enlace enviado a '+email+'. El alumno podrá crear una contraseña nueva desde su correo.');
@@ -3331,7 +3383,31 @@ function exportExcel(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-function closeOvl(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'));}
+function closeOvl(){document.querySelectorAll('.ovl').forEach(o=>o.classList.remove('on'));if(_confirmarResolver){const r=_confirmarResolver;_confirmarResolver=null;r(false);}}
+
+// ── Confirmación propia (propuesta 3, 2026-09-08) ──
+// Sustituye a confirm(): misma ventana que el resto del panel, dos botones,
+// el peligroso en rojo. Devuelve una promesa con true/false; Esc o cerrar
+// resuelven false.
+let _confirmarResolver = null;
+function confirmarBSA(o){
+  o = o || {};
+  const ov = document.getElementById('ovl-confirmar');
+  if(!ov) return Promise.resolve(window.confirm((o.texto||'').replace(/<[^>]+>/g,'')));
+  document.getElementById('conf-t').textContent = o.titulo || 'Confirmar';
+  document.getElementById('conf-x').innerHTML = o.texto || '';
+  const b = document.getElementById('conf-ok');
+  b.textContent = o.boton || 'Aceptar';
+  b.className = o.peligro ? 'bpeligro' : 'bcy';
+  ov.classList.add('on');
+  setTimeout(()=>b.focus(), 60);
+  return new Promise(res=>{ _confirmarResolver = res; });
+}
+function confirmarBSAResolver(v){
+  const r = _confirmarResolver; _confirmarResolver = null;
+  const ov = document.getElementById('ovl-confirmar'); if(ov) ov.classList.remove('on');
+  if(r) r(!!v);
+}
 function openApp(appKey){
   // Un tema bloqueado no se abre para estudiantes, ni siquiera llamando
   // directamente a esta función: el control no puede quedarse solo en la vista.
@@ -3344,6 +3420,8 @@ function openApp(appKey){
   if(!ruta){ console.warn('Tema desconocido:', appKey); return; }
   document.getElementById('appf').src = ruta;
   document.getElementById('app-ov').classList.add('on');
+  // La primera vez que se abre un tema, el recordatorio de la guía.
+  try{ if(role === 'est' && !localStorage.getItem('bsa_guia_app')){ localStorage.setItem('bsa_guia_app','1'); setTimeout(()=>aviso('Prueba primero «Ejemplo» y luego «Resolver»: así ves un caso completo.'), 900); } }catch(e){}
   document.body.style.overflow='hidden';
   const topbar=document.getElementById('app-topbar');
   const closeBtn=document.getElementById('app-close-btn');
@@ -3433,7 +3511,26 @@ function sidebarVisible(mostrar){
   document.body.classList.toggle('con-sidebar', !!mostrar);
 }
 
+// ── Tiempo y última visita en cada tarjeta de tema (propuesta 4, 2026-09-08) ──
+// Con lo registrado en este navegador (sesionesGet): convierte la portada en
+// un panel de progreso. La barra inferior del móvil ya la da el CSS.
+function haceCuanto(ts){
+  const dias = Math.floor((Date.now() - new Date(ts).getTime())/86400000);
+  if(dias <= 0) return 'hoy'; if(dias === 1) return 'ayer'; if(dias < 30) return 'hace ' + dias + ' días';
+  const meses = Math.floor(dias/30); return 'hace ' + meses + (meses === 1 ? ' mes' : ' meses');
+}
+function pintarMetaTemas(){
+  const uso = (typeof usoGet === 'function') ? usoGet() : {};
+  document.querySelectorAll('#s-student .tema[data-appkey]').forEach(b=>{
+    const k = b.dataset.appkey, u = uso[k];
+    let m = b.querySelector('.tema-meta');
+    if(!u || !u.seg){ if(m) m.remove(); return; }
+    if(!m){ m = document.createElement('span'); m.className = 'tema-meta'; const t = b.querySelector('.tema-txt'); if(t) t.appendChild(m); else return; }
+    m.textContent = fmtDuracion(u.seg) + ' · ' + (u.veces||0) + (u.veces === 1 ? ' visita' : ' visitas') + (u.ultima ? ' · ' + haceCuanto(u.ultima) : '');
+  });
+}
 function pintarCabecera(){
+  try{ pintarMetaTemas(); }catch(e){}
   const f = miFicha() || {};
   const n = document.getElementById('wel-email');
   const m = document.getElementById('wel-meta');
@@ -4106,7 +4203,12 @@ setTimeout(iniciarTrasIntro, 600);
 
 document.addEventListener('keydown',e=>{
   if(e.key==='Enter'){const a=document.querySelector('.scr.on');if(a?.id==='s-plogin')loginProf();if(a?.id==='s-elogin')loginEst();}
-  if(e.key==='Escape')closeApp();
+  if(e.key==='Escape'){
+    // Primero la ventana abierta, luego el menú de usuario y por último el tema.
+    if(document.querySelector('.ovl.on')){ closeOvl(); return; }
+    cerrarMenuUsuario();
+    closeApp();
+  }
 });
 
 </script>
