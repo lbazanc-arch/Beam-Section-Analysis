@@ -340,9 +340,13 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
   transition:all .13s;
 }
 .tpl-btn:hover{border-color:var(--acc); background:var(--acc-l); color:var(--acc);}
-.tpl-btn.active{background:var(--acc); border-color:var(--acc); color:#fff;}
-.tpl-btn.active svg [fill]:not([fill="none"]){fill:#fff;}
-.tpl-btn.active svg [stroke]:not([stroke="none"]){stroke:#fff;}
+.tpl-btn{position:relative;}
+.tpl-btn.active{
+  border-color:var(--acc); border-width:2px; background:var(--acc-l); color:var(--acc);
+  box-shadow:0 0 0 3px var(--acc-l);
+}
+.tpl-btn.active::after{content:''; position:absolute; top:5px; right:6px; width:7px; height:7px;
+  border-radius:50%; background:var(--acc);}
 
 :root{--ej-acc:var(--acc); --ej-acc2:var(--acc2); --ej-suave:var(--acc-l);}
 /* ── Ventana de ejemplos: una tarjeta por caso, con el acento del tema ──

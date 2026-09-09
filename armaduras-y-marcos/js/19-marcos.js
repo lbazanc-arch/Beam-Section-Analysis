@@ -16,8 +16,8 @@
 // Datos nuevos del modelo (todo lo demás sigue igual que en la armadura):
 //   barra.cargas = [{tipo:'P', s, fx, fy} | {tipo:'M', s, m} |
 //                   {tipo:'U'|'T', s1, s2, dir, mag, mag2}]        s desde el extremo a
-//                   la puntual lleva SUS DOS COMPONENTES: {marco:'plano', magY, magX}
-//                   o, referida al eje de la pieza, {marco:'eje', magP, magA}
+//                   la puntual es {tipo:'P', s, dir, mag, ang}: una magnitud y una
+//                   dirección ('y' | 'x' | 'perp' | 'axial' | 'ang' con su ángulo)
 //   barra.artA / barra.artB = true si ese extremo va articulado aunque el nudo sea rígido
 //   nodo.union = 'pasador' | 'rigido'          nodo.apoyo = 'empotrado' (Rx, Ry, M)
 // Los esfuerzos internos de cada elemento (N, V, M a lo largo de s) salen del
@@ -103,13 +103,16 @@ function geomBarra(b){
 // Un par es positivo antihorario. Las componentes (fx, fy) siguen siendo lo que
 // consume el motor, con +y hacia arriba, pero ya no las escribe el usuario.
 const DIR_CARGA_ARM = {
-  y:     {nom:'Vertical (Y)',   ico:'\u2193', ayuda:'Vertical del plano, positiva hacia abajo.'},
-  x:     {nom:'Horizontal (X)', ico:'\u2192', ayuda:'Horizontal del plano, positiva hacia la derecha.'},
-  perp:  {nom:'Perpendicular',  ico:'\u21e3', ayuda:'Perpendicular al eje de la pieza, positiva «contra» ella.'},
-  axial: {nom:'Axial',          ico:'\u21e2', ayuda:'Paralela al eje de la pieza, en su sentido de avance.'}
+  y:     {nom:'Vertical',       ico:'\u2193', ayuda:'Vertical, positiva hacia abajo.'},
+  x:     {nom:'Horizontal',     ico:'\u2192', ayuda:'Horizontal, positiva hacia la derecha.'},
+  perp:  {nom:'Perpendicular',  ico:'\u21e3', ayuda:'Perpendicular a la pieza, positiva «contra» ella.'},
+  axial: {nom:'Axial',          ico:'\u21e2', ayuda:'A lo largo de la pieza, en su sentido de avance.'},
+  ang:   {nom:'Inclinada',      ico:'\u2220', ayuda:'\u00c1ngulo desde la horizontal, antihorario: 0\u00b0 derecha, 90\u00b0 arriba, \u221290\u00b0 abajo.'}
 };
-// Vector unitario en el que actúa una magnitud POSITIVA.
-function vectorCarga(dir, g){
+// Vector unitario en el que actúa una magnitud POSITIVA. Una carga inclinada
+// se da como magnitud y ángulo (desde +x, antihorario), como en clase.
+function vectorCarga(dir, g, ang){
+  if(dir === 'ang'){ const a = (+ang || 0)*Math.PI/180; return {x:Math.cos(a), y:Math.sin(a)}; }
   if(dir === 'x') return {x:1, y:0};
   if(dir === 'axial') return g ? {x:g.ux, y:g.uy} : {x:1, y:0};
   if(dir === 'perp'){
@@ -131,25 +134,20 @@ function esRepartida(c){ return c.tipo === 'U' || c.tipo === 'T'; }
 // horizontal (positiva a la derecha); en el marco 'eje', la perpendicular a la
 // pieza y la axial. Las repartidas conservan una única dirección.
 function compCargaPuntual(c, g){
-  if(c.marco === 'eje'){
-    const vp = vectorCarga('perp', g), va = vectorCarga('axial', g);
-    const mp = +c.magP || 0, ma = +c.magA || 0;
-    return {fx: mp*vp.x + ma*va.x, fy: mp*vp.y + ma*va.y};
-  }
-  return {fx: +c.magX || 0, fy: -(+c.magY || 0)};      // vertical positiva hacia abajo
+  const v = vectorCarga(c.dir || 'y', g, c.ang), m = +c.mag || 0;
+  return {fx: m*v.x, fy: m*v.y};
 }
 // Una carga de nudo es una puntual del plano: no hay eje de pieza al que referirla.
-function compCargaNudo(c){ return {fx: +c.magX || 0, fy: -(+c.magY || 0)}; }
-// Las dos componentes con su nombre y su flecha, para los rótulos.
-function partesPuntual(c){
-  return c.marco === 'eje'
-    ? [{k:'magP', v:+c.magP || 0, ico:'\u21e3', nom:'perpendicular'}, {k:'magA', v:+c.magA || 0, ico:'\u21e2', nom:'axial'}]
-    : [{k:'magY', v:+c.magY || 0, ico:'\u2193', nom:'vertical'},      {k:'magX', v:+c.magX || 0, ico:'\u2192', nom:'horizontal'}];
+function compCargaNudo(c){
+  const v = vectorCarga(c.dir || 'y', null, c.ang), m = +c.mag || 0;
+  return {fx: m*v.x, fy: m*v.y};
 }
-function descComponentes(c){
-  const hay = partesPuntual(c).filter(q=>Math.abs(q.v) > 1e-12);
-  if(!hay.length) return '0';
-  return hay.map(q=>q.ico + ' ' + dec(q.v,'f')).join('  ');
+// Las dos componentes con su nombre y su flecha, para los rótulos.
+// Texto corto de una puntual: «10.00 kN ↓» o «10.00 kN a 30°».
+function descPuntual(c){
+  const m = dec(+c.mag || 0, 'f');
+  if((c.dir || 'y') === 'ang') return m + ' ' + unitFor + ' a ' + dec(+c.ang || 0, 'ang') + '\u00b0';
+  return m + ' ' + unitFor + ' ' + (DIR_CARGA_ARM[c.dir || 'y'] || DIR_CARGA_ARM.y).ico;
 }
 // La resultante del nudo es lo que lee el motor de equilibrio (06-).
 function recomponerCargaNudo(n){
@@ -159,27 +157,31 @@ function recomponerCargaNudo(n){
   return n;
 }
 // Deja en el nudo una única fuerza con sus dos componentes. La usan los ejemplos.
+// Deja en el nudo una única fuerza dada por sus componentes (positiva hacia
+// abajo y hacia la derecha). La usan los ejemplos: si tiene las dos, se guarda
+// como inclinada, con su magnitud y su ángulo.
 function ponerCargaNudo(n, magY, magX){
-  n.cargas = (Math.abs(magY) > 1e-12 || Math.abs(magX) > 1e-12) ? [{magY:magY || 0, magX:magX || 0}] : [];
+  n.cargas = _cargasNudoDeComponentes(+magX || 0, -(+magY || 0));
   return recomponerCargaNudo(n);
 }
 // ── Lectura de los archivos anteriores al convenio único (2026-09-09) ──
 // Antes una carga se guardaba por COMPONENTES (fx, fy con +y hacia arriba) y
 // una repartida con w1/w2 firmadas sobre el eje de su dirección. Se convierte al
 // abrir; al guardar de nuevo, el archivo ya sale en el modelo nuevo.
+// Una fuerza a partir de sus componentes del motor (+y arriba).
 function _cargasNudoDeComponentes(fx, fy){
-  return (Math.abs(fx) > 1e-12 || Math.abs(fy) > 1e-12) ? [{magY:-fy, magX:fx}] : [];
+  if(Math.abs(fx) < 1e-12 && Math.abs(fy) < 1e-12) return [];
+  if(Math.abs(fx) < 1e-12) return [{dir:'y', mag:-fy}];
+  if(Math.abs(fy) < 1e-12) return [{dir:'x', mag:fx}];
+  return [{dir:'ang', mag:Math.hypot(fx, fy), ang:+(Math.atan2(fy, fx)*180/Math.PI).toFixed(2)}];
 }
 function normalizarCargasNodo(n){
   const out = [];
   (n.cargas || []).forEach(c=>{
     if(!c) return;
-    if(c.magY !== undefined || c.magX !== undefined){ out.push({magY:+c.magY || 0, magX:+c.magX || 0}); return; }
-    // formato de la primera entrega del convenio: una dirección por fuerza
-    if(c.dir && c.mag !== undefined){
-      out.push(c.dir === 'x' ? {magY:0, magX:+c.mag || 0} : {magY:+c.mag || 0, magX:0});
-      return;
-    }
+    if(c.dir && c.mag !== undefined){ out.push({dir:c.dir, mag:+c.mag || 0, ang:+c.ang || 0}); return; }
+    // formatos anteriores: {magY, magX} y {fx, fy}
+    if(c.magY !== undefined || c.magX !== undefined){ _cargasNudoDeComponentes(+c.magX || 0, -(+c.magY || 0)).forEach(q=>out.push(q)); return; }
     _cargasNudoDeComponentes(+c.fx || 0, +c.fy || 0).forEach(q=>out.push(q));
   });
   if(!out.length && (Math.abs(n.fx || 0) > 1e-12 || Math.abs(n.fy || 0) > 1e-12))
@@ -193,15 +195,18 @@ function normalizarCargasBarra(b){
   b.cargas = cargasDeBarra(b).map(c=>{
     if(c.tipo === 'M') return {tipo:'M', s:+c.s || 0, mag:+(c.mag !== undefined ? c.mag : c.m) || 0};
     if(c.tipo === 'P'){
-      if(c.magY !== undefined || c.magX !== undefined || c.magP !== undefined || c.magA !== undefined)
-        return Object.assign({tipo:'P', s:+c.s || 0, marco:c.marco || 'plano'}, c, {tipo:'P'});
-      if(c.mag !== undefined){         // una dirección por carga (primera entrega del convenio)
-        const m = +c.mag || 0;
-        return (c.dir === 'perp' || c.dir === 'axial')
-          ? {tipo:'P', s:+c.s || 0, marco:'eje',   magP:(c.dir === 'perp' ? m : 0), magA:(c.dir === 'axial' ? m : 0)}
-          : {tipo:'P', s:+c.s || 0, marco:'plano', magY:(c.dir === 'x' ? 0 : m),    magX:(c.dir === 'x' ? m : 0)};
+      const s0 = +c.s || 0;
+      if(c.dir && c.mag !== undefined) return {tipo:'P', s:s0, dir:c.dir, mag:+c.mag || 0, ang:+c.ang || 0};
+      // formatos anteriores: componentes en el plano o en el eje de la pieza, y (fx, fy)
+      if(c.marco === 'eje'){
+        const vp = vectorCarga('perp', g), va = vectorCarga('axial', g), mp = +c.magP || 0, ma = +c.magA || 0;
+        const q = _cargasNudoDeComponentes(mp*vp.x + ma*va.x, mp*vp.y + ma*va.y)[0];
+        return Object.assign({tipo:'P', s:s0, dir:'y', mag:0}, q || {});
       }
-      return {tipo:'P', s:+c.s || 0, marco:'plano', magY:-(+c.fy || 0), magX:+c.fx || 0};
+      const fx = (c.magX !== undefined || c.magY !== undefined) ? (+c.magX || 0) : (+c.fx || 0);
+      const fy = (c.magX !== undefined || c.magY !== undefined) ? -(+c.magY || 0) : (+c.fy || 0);
+      const q = _cargasNudoDeComponentes(fx, fy)[0];
+      return Object.assign({tipo:'P', s:s0, dir:'y', mag:0}, q || {});
     }
     if(c.mag !== undefined && esRepartida(c)) return c;
     // repartida antigua ('w'): w1/w2 firmadas sobre el eje de la dirección vieja
@@ -254,15 +259,13 @@ function resultanteCargas(b, hastaS){
 }
 function nomDir(dir){ return (DIR_CARGA_ARM[dir] || DIR_CARGA_ARM.y).nom.toLowerCase(); }
 function descCarga(c){
-  if(c.tipo === 'P') return 'Puntual ' + descComponentes(c) + ' ' + unitFor + ' en ' + dec(c.s,'len') + ' ' + unitLen;
+  if(c.tipo === 'P') return 'Puntual ' + descPuntual(c) + ' en ' + dec(c.s,'len') + ' ' + unitLen;
   if(c.tipo === 'M') return 'Par ' + dec(c.mag,'f') + ' ' + unitFor + '·' + unitLen + ' (antihorario +) en s = ' + dec(c.s,'len') + ' ' + unitLen;
   const val = c.tipo === 'U' ? dec(wIni(c),'f') : dec(wIni(c),'f') + ' → ' + dec(wFin(c),'f');
   return 'Repartida ' + val + ' ' + unitFor + '/' + unitLen + ' ' + nomDir(c.dir) + ' de s = ' + dec(c.s1,'len') + ' a ' + dec(c.s2,'len') + ' ' + unitLen;
 }
 // Descripción de una carga de nudo, en el mismo convenio.
-function descCargaNudo(c){
-  return descComponentes(c) + ' ' + unitFor;
-}
+function descCargaNudo(c){ return descPuntual(c); }
 // Cuántas incógnitas aporta un apoyo (amplía gradosApoyo de 06-).
 function gradosApoyoMarco(n){ return n.apoyo === 'empotrado' ? 3 : gradosApoyo(n); }
 
@@ -401,7 +404,7 @@ function _celdaCB(idx, campo, valor, colspan){
 // Valores de partida de cada tipo, ya en el convenio (positivo hacia abajo).
 function cargaBarraPorDefecto(tipo, L){
   const s = +(L/2).toFixed(4), fin = +L.toFixed(4);
-  return tipo === 'P' ? {tipo:'P', s, marco:'plano', magY:10, magX:0}
+  return tipo === 'P' ? {tipo:'P', s, dir:'y', mag:10, ang:0}
        : tipo === 'M' ? {tipo:'M', s, mag:10}
        : tipo === 'T' ? {tipo:'T', s1:0, s2:fin, dir:'y', mag:0, mag2:5}
        :                {tipo:'U', s1:0, s2:fin, dir:'y', mag:5};
@@ -423,41 +426,31 @@ function renderCargaBarraLista(){
     let h = '<div class="carga-card"><div class="carga-card-head"><span class="carga-card-title">Carga ' + (i+1) + '</span>'
       + '<button class="carga-del" title="Quitar" onclick="quitarCargaBarra(' + i + ')">\u00d7</button></div>'
       + '<div class="cg-grupo"><div class="cg-cap">Tipo</div><div class="cg-seg">' + tipos + '</div></div>';
-    // Matriz de doble entrada. En la puntual las dos columnas son sus DOS
-    // componentes, que van juntas en la misma carga: una inclinada es una sola.
+    // Matriz de doble entrada, como en fuerzas internas: columnas Inicio y
+    // Final en las repartidas, una sola en la puntual y en el par.
     const uMag = esPar ? um : (rep2 ? uw : unitFor);
-    const pp = partesPuntual(c);
-    const cab = (c.tipo === 'P') ? [pp[0].ico + ' ' + pp[0].nom.slice(0,1).toUpperCase() + pp[0].nom.slice(1),
-                                    pp[1].ico + ' ' + pp[1].nom.slice(0,1).toUpperCase() + pp[1].nom.slice(1)]
-              : rep2 ? ['Inicio', 'Final'] : ['Valor', ''];
-    h += '<table class="cg-tabla"><thead><tr><th></th><th>' + cab[0] + '</th>'
-       + ((rep2 || c.tipo === 'P') ? '<th>' + cab[1] + '</th>' : '') + '</tr></thead><tbody>'
+    h += '<table class="cg-tabla"><thead><tr><th></th><th>' + (rep2 ? 'Inicio' : 'Aplicaci\u00f3n') + '</th>'
+       + (rep2 ? '<th>Final</th>' : '') + '</tr></thead><tbody>'
        + '<tr><th>Posici\u00f3n (' + unitLen + ')</th>'
-       + (rep2 ? _celdaCB(i,'s1',c.s1) + _celdaCB(i,'s2',c.s2) : _celdaCB(i,'s',c.s, c.tipo === 'P' ? 2 : 0))
+       + (rep2 ? _celdaCB(i,'s1',c.s1) + _celdaCB(i,'s2',c.s2) : _celdaCB(i,'s',c.s))
        + '</tr><tr><th>' + (esPar ? 'Momento' : 'Magnitud') + ' (' + uMag + ')</th>'
-       + (c.tipo === 'P' ? _celdaCB(i,pp[0].k,pp[0].v) + _celdaCB(i,pp[1].k,pp[1].v)
-        : c.tipo === 'T' ? _celdaCB(i,'mag',c.mag) + _celdaCB(i,'mag2',c.mag2)
+       + (c.tipo === 'T' ? _celdaCB(i,'mag',c.mag) + _celdaCB(i,'mag2',c.mag2)
                          : _celdaCB(i,'mag',c.mag, rep2 ? 2 : 0))
        + '</tr></tbody></table>';
     if(esPar){
       h += '<div class="hint-sm">Positivo antihorario.</div>';
-    } else if(c.tipo === 'P'){
-      // El marco decide a qué se refieren las dos componentes.
-      const marco = c.marco || 'plano';
-      const bm = [['plano','Plano X, Y'], ['eje','Eje de la pieza']]
-        .map(([v,t])=>segCargaArm(marco===v, v, t,
-            v === 'plano' ? 'Vertical positiva hacia abajo y horizontal hacia la derecha'
-                          : 'Perpendicular «contra» la pieza y axial en su sentido de avance',
-            'actualizarCampoCargaBarra(' + i + ',&quot;marco&quot;,&quot;' + v + '&quot;)')).join('');
-      h += '<div class="cg-grupo"><div class="cg-cap">Componentes referidas a</div><div class="cg-seg">' + bm + '</div>'
-        + '<div class="hint-sm">Las dos van en la misma carga: una carga inclinada es una sola.</div></div>';
     } else {
+      // Una sola dirección, como en fuerzas internas. La puntual admite además
+      // «Inclinada»: magnitud y ángulo, que es como se enuncia en clase.
       const dir = c.dir || 'y';
-      const bot = [['y','\u2193 Vert.'], ['x','\u2192 Horiz.'], ['perp','\u21e3 Perp.'], ['axial','\u21e2 Axial']]
-        .map(([v,t])=>segCargaArm(dir===v, v, t, DIR_CARGA_ARM[v].ayuda,
+      const dirs = [['y','\u2193 Vert.'], ['x','\u2192 Horiz.'], ['perp','\u21e3 Perp.'], ['axial','\u21e2 Axial']];
+      if(c.tipo === 'P') dirs.push(['ang','\u2220 Inclinada']);
+      const bot = dirs.map(([v,t])=>segCargaArm(dir===v, v, t, DIR_CARGA_ARM[v].ayuda,
             'actualizarCampoCargaBarra(' + i + ',&quot;dir&quot;,&quot;' + v + '&quot;)')).join('');
-      h += '<div class="cg-grupo"><div class="cg-cap">Direcci\u00f3n</div><div class="cg-seg">' + bot + '</div>'
-        + '<div class="hint-sm">' + DIR_CARGA_ARM[dir].ayuda + '</div></div>';
+      h += '<div class="cg-grupo"><div class="cg-cap">Direcci\u00f3n</div><div class="cg-seg">' + bot + '</div>';
+      if(dir === 'ang')
+        h += '<div class="carga-eje-row" style="margin-top:8px">' + _campoCB(i,'ang',c.ang || 0,'\u00c1ngulo desde la horizontal','\u00b0') + '</div>';
+      h += '<div class="hint-sm">' + DIR_CARGA_ARM[dir].ayuda + '</div></div>';
     }
     return h + '</div>';
   }).join('');
@@ -475,76 +468,80 @@ function dibujarCroquisBarra(){
   const b = barras.find(z=>z.id===cargaBarraId);
   if(!b){ cont.innerHTML = '<div style="font-size:10.5px;color:#66727e;padding:14px 6px">Sin pieza.</div>'; return; }
   const g = geomBarra(b);
-  const W2 = 220, M = 30, H2max = 200;
+  const W2 = 220, M = 40, H2max = 210;
   const dx = g.nb.x - g.na.x, dy = g.nb.y - g.na.y;
-  const k = Math.min((W2-2*M)/Math.max(Math.abs(dx),1e-6), (H2max-2*M-26)/Math.max(Math.abs(dy),1e-6), 90);
-  const H2 = Math.max(110, Math.min(H2max, Math.abs(dy)*k + 2*M + 26));
-  const cx = W2/2, cy = H2/2 - 4;
+  const k = Math.min((W2-2*M)/Math.max(Math.abs(dx),1e-6), (H2max-2*M-16)/Math.max(Math.abs(dy),1e-6), 90);
+  const H2 = Math.max(120, Math.min(H2max, Math.abs(dy)*k + 2*M + 16));
+  const cx = W2/2, cy = H2/2;
   const ax = cx - dx*k/2, ay = cy + dy*k/2, bx = cx + dx*k/2, by = cy - dy*k/2;
+  const F = v => v.toFixed(1);
+  // eje de la pieza en pantalla y su normal
+  const Lp = Math.hypot(bx-ax, by-ay) || 1, ex = (bx-ax)/Lp, ey = (by-ay)/Lp;
+  let nx = -ey, ny = ex;
+  // la carga abierta, para saber de qué lado llega su flecha
+  const c = cargaBarraFilas[cargaBarraAbierta];
+  let ux = 0, uy = 0, hayFlecha = false;
+  if(c && c.tipo !== 'M'){
+    const q = (c.tipo === 'P') ? compCargaPuntual(c, g) : (()=>{ const d = vectorCarga(c.dir, g); const sg = (+c.mag || 0) >= 0 ? 1 : -1; return {fx:d.x*sg, fy:d.y*sg}; })();
+    const m = Math.hypot(q.fx, q.fy);
+    if(m > 1e-12){ ux = q.fx/m; uy = -q.fy/m; hayFlecha = true; }   // en pantalla la y va invertida
+  }
+  // La flecha LLEGA a la pieza desde el lado -u. Los rótulos van al lado
+  // contrario (+n elegido hacia +u) y la cota de longitud al lado de la
+  // flecha, más allá de su cola. Así nada se monta sobre la pieza.
+  if(hayFlecha && (nx*ux + ny*uy) < 0){ nx = -nx; ny = -ny; }
+  const ladoRot = 14, ladoCota = hayFlecha ? 46 : 24;
   let s = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;height:auto;display:block">'
         + '<rect width="' + W2 + '" height="' + H2 + '" fill="#fff"/>';
-  s += '<line x1="' + ax.toFixed(1) + '" y1="' + ay.toFixed(1) + '" x2="' + bx.toFixed(1) + '" y2="' + by.toFixed(1) + '" stroke="#7c3a06" stroke-width="5" stroke-linecap="round"/>'
-     + '<circle cx="' + ax.toFixed(1) + '" cy="' + ay.toFixed(1) + '" r="4" fill="#7c3a06"/>'
-     + '<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="4" fill="#7c3a06"/>'
-     + '<text x="' + (ax-9).toFixed(1) + '" y="' + (ay+4).toFixed(1) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">' + g.na.nombre + '</text>'
-     + '<text x="' + (bx+5).toFixed(1) + '" y="' + (by+4).toFixed(1) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">' + g.nb.nombre + '</text>';
-  // cota de la longitud, por el lado opuesto a la carga
-  const ox = -(by-ay), oy = (bx-ax), on = Math.hypot(ox,oy) || 1;
-  const px = ox/on*24, py = oy/on*24;      // holgado, para no chocar con el rotulo de la posicion
-  s += '<line x1="' + (ax+px).toFixed(1) + '" y1="' + (ay+py).toFixed(1) + '" x2="' + (bx+px).toFixed(1) + '" y2="' + (by+py).toFixed(1) + '" stroke="#1b1f24" stroke-width="1"/>';
-  let am = Math.atan2((by)-(ay), (bx)-(ax));
-  if(am > Math.PI/2 || am < -Math.PI/2) am += Math.PI;
-  s += '<g transform="translate(' + ((ax+bx)/2+px).toFixed(1) + ',' + ((ay+by)/2+py).toFixed(1) + ') rotate(' + (am*180/Math.PI).toFixed(1) + ')">'
+  // cota de longitud, del lado de la flecha
+  const cxo = -nx*ladoCota, cyo = -ny*ladoCota;
+  s += '<line x1="' + F(ax+cxo) + '" y1="' + F(ay+cyo) + '" x2="' + F(bx+cxo) + '" y2="' + F(by+cyo) + '" stroke="#1b1f24" stroke-width="1"/>'
+     + '<line x1="' + F(ax) + '" y1="' + F(ay) + '" x2="' + F(ax+cxo) + '" y2="' + F(ay+cyo) + '" stroke="#ccd2d8" stroke-width="1" stroke-dasharray="3,3"/>'
+     + '<line x1="' + F(bx) + '" y1="' + F(by) + '" x2="' + F(bx+cxo) + '" y2="' + F(by+cyo) + '" stroke="#ccd2d8" stroke-width="1" stroke-dasharray="3,3"/>';
+  let am = Math.atan2(by-ay, bx-ax); if(am > Math.PI/2 || am < -Math.PI/2) am += Math.PI;
+  s += '<g transform="translate(' + F((ax+bx)/2+cxo) + ',' + F((ay+by)/2+cyo) + ') rotate(' + (am*180/Math.PI).toFixed(1) + ')">'
      + '<text y="-4" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#1b1f24" text-anchor="middle">L = ' + dec(g.L,'len') + ' ' + unitLen + '</text></g>';
-  // la carga abierta
-  const c = cargaBarraFilas[cargaBarraAbierta];
+  // la pieza y sus nudos
+  s += '<line x1="' + F(ax) + '" y1="' + F(ay) + '" x2="' + F(bx) + '" y2="' + F(by) + '" stroke="#7c3a06" stroke-width="5" stroke-linecap="round"/>'
+     + '<circle cx="' + F(ax) + '" cy="' + F(ay) + '" r="4" fill="#7c3a06"/><circle cx="' + F(bx) + '" cy="' + F(by) + '" r="4" fill="#7c3a06"/>'
+     + '<text x="' + F(ax+nx*13-ex*8) + '" y="' + F(ay+ny*13-ey*8+4) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24" text-anchor="middle">' + g.na.nombre + '</text>'
+     + '<text x="' + F(bx+nx*13+ex*8) + '" y="' + F(by+ny*13+ey*8+4) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24" text-anchor="middle">' + g.nb.nombre + '</text>';
   if(c){
-    const F = s0 => Math.max(0, Math.min(1, s0/(g.L || 1)));
+    const Fr = s0 => Math.max(0, Math.min(1, s0/(g.L || 1)));
     const Pt = f => [ax + (bx-ax)*f, ay + (by-ay)*f];
     if(esRepartida(c)){
-      const f1 = F(c.s1), f2 = F(c.s2);
-      const [q1x,q1y] = Pt(f1), [q2x,q2y] = Pt(f2);
+      const f1 = Fr(c.s1), f2 = Fr(c.s2), [q1x,q1y] = Pt(f1), [q2x,q2y] = Pt(f2);
       if(Math.abs(f2-f1) > 1e-6){
-        s += '<line x1="' + q1x.toFixed(1) + '" y1="' + q1y.toFixed(1) + '" x2="' + q2x.toFixed(1) + '" y2="' + q2y.toFixed(1) + '" stroke="#c0392b" stroke-width="7" stroke-linecap="round" opacity=".55"/>'
-           + '<text x="' + ((q1x+q2x)/2-px).toFixed(1) + '" y="' + ((q1y+q2y)/2-py).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">cargado ' + dec(Math.abs(c.s2-c.s1),'len') + '</text>';
+        s += '<line x1="' + F(q1x) + '" y1="' + F(q1y) + '" x2="' + F(q2x) + '" y2="' + F(q2y) + '" stroke="#c0392b" stroke-width="7" stroke-linecap="round" opacity=".5"/>';
+        // flechas repartidas desde el lado -u, altura según la magnitud
+        const n = 5, wmax = Math.max(Math.abs(wIni(c)), Math.abs(wFin(c)), 1e-12);
+        for(let j=0;j<=n;j++){
+          const f = f1 + (f2-f1)*j/n, w = wIni(c) + (wFin(c)-wIni(c))*j/n, [px,py] = Pt(f), len = 26*Math.abs(w)/wmax;
+          if(len < 2 || !hayFlecha) continue;
+          s += '<line x1="' + F(px-ux*len) + '" y1="' + F(py-uy*len) + '" x2="' + F(px-ux*6) + '" y2="' + F(py-uy*6) + '" stroke="#c0392b" stroke-width="1.6"/>'
+             + '<polygon points="0,0 -7,-3 -7,3" fill="#c0392b" transform="translate(' + F(px-ux*5) + ',' + F(py-uy*5) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>';
+        }
+        s += '<text x="' + F((q1x+q2x)/2+nx*ladoRot) + '" y="' + F((q1y+q2y)/2+ny*ladoRot+3) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(c.s1,'len') + ' a ' + dec(c.s2,'len') + '</text>';
       }
     } else {
-      const f1 = F(c.s), [qx,qy] = Pt(f1);
-      // El rótulo de la posición va al lado CONTRARIO de la flecha; si no, la
-      // punta de la carga se le monta encima.
-      const qF = (c.tipo === 'P') ? compCargaPuntual(c, g) : null;
-      const mF = qF ? Math.hypot(qF.fx, qF.fy) : 0;
-      const dx0 = mF > 1e-12 ? qF.fx/mF*15 : 0;
-      const dy0 = mF > 1e-12 ? -qF.fy/mF*15 : -11;
-      s += '<circle cx="' + qx.toFixed(1) + '" cy="' + qy.toFixed(1) + '" r="5" fill="#c0392b"/>'
-         + '<text x="' + (qx+dx0).toFixed(1) + '" y="' + (qy+dy0+3).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(c.s,'len') + '</text>';
-    }
-    // sentido en el que empuja la magnitud escrita
-    const qC = (c.tipo === 'P') ? compCargaPuntual(c, g) : null;
-    const magC = qC ? Math.hypot(qC.fx, qC.fy) : Math.abs(c.mag);
-    if(c.tipo !== 'M' && magC > 1e-12){
-      let ux, uy;
-      if(qC){ ux = qC.fx/magC; uy = -qC.fy/magC; }
-      else { const v = vectorCarga(c.dir, g), sg = c.mag >= 0 ? 1 : -1; ux = v.x*sg; uy = -v.y*sg; }
-      const f0 = esRepartida(c) ? (F(c.s1)+F(c.s2))/2 : F(c.s);
-      const [mx0,my0] = Pt(f0);
-      s += '<line x1="' + (mx0-ux*30).toFixed(1) + '" y1="' + (my0-uy*30).toFixed(1) + '" x2="' + (mx0-ux*8).toFixed(1) + '" y2="' + (my0-uy*8).toFixed(1) + '" stroke="#c0392b" stroke-width="2"/>'
-         + '<polygon points="0,0 -8,-3.6 -8,3.6" fill="#c0392b" transform="translate(' + (mx0-ux*7).toFixed(1) + ',' + (my0-uy*7).toFixed(1) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>';
+      const [qx,qy] = Pt(Fr(c.s));
+      s += '<circle cx="' + F(qx) + '" cy="' + F(qy) + '" r="5" fill="#c0392b"/>'
+         + '<text x="' + F(qx+nx*ladoRot) + '" y="' + F(qy+ny*ladoRot+3) + '" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(c.s,'len') + '</text>';
+      if(c.tipo === 'M'){
+        const ccw = (+c.mag || 0) >= 0;
+        s += '<path d="M' + F(qx+11) + ' ' + F(qy) + ' A11 11 0 1 ' + (ccw ? 0 : 1) + ' ' + F(qx-8) + ' ' + F(qy-7.5) + '" fill="none" stroke="#c0392b" stroke-width="1.8"/>';
+      } else if(hayFlecha){
+        s += '<line x1="' + F(qx-ux*32) + '" y1="' + F(qy-uy*32) + '" x2="' + F(qx-ux*8) + '" y2="' + F(qy-uy*8) + '" stroke="#c0392b" stroke-width="2"/>'
+           + '<polygon points="0,0 -8,-3.6 -8,3.6" fill="#c0392b" transform="translate(' + F(qx-ux*7) + ',' + F(qy-uy*7) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>';
+      }
     }
   }
   cont.innerHTML = s + '</svg>';
 }
 function actualizarCampoCargaBarra(i, campo, valor){
   const c = cargaBarraFilas[i]; if(!c) return;
-  if(campo === 'dir' || campo === 'marco'){
-    if(campo === 'marco' && c.marco !== valor){
-      // al cambiar de marco las componentes anteriores dejan de tener sentido
-      c.marco = valor;
-      if(valor === 'eje'){ c.magP = 0; c.magA = 0; delete c.magY; delete c.magX; }
-      else { c.magY = 0; c.magX = 0; delete c.magP; delete c.magA; }
-    } else c[campo] = valor;
-    renderCargaBarraLista();
-  } else { c[campo] = parseFloat(valor) || 0; dibujarCroquisBarra(); }
+  if(campo === 'dir'){ c.dir = valor; if(valor === 'ang' && c.ang === undefined) c.ang = -90; renderCargaBarraLista(); }
+  else { c[campo] = parseFloat(valor) || 0; dibujarCroquisBarra(); }
 }
 function cambiarTipoCargaBarra(i, tipo){
   const b = barras.find(z=>z.id===cargaBarraId); const L = b ? geomBarra(b).L : 1;
@@ -576,11 +573,10 @@ function applyCargaBarra(){
     b.cargas = cargaBarraFilas.map(c=>{
       const q = Object.assign({}, c);
       if(esRepartida(q)){ q.s1 = Math.max(0, Math.min(L, q.s1)); q.s2 = Math.max(q.s1, Math.min(L, q.s2)); if(!q.dir) q.dir = 'y'; }
-      else { q.s = Math.max(0, Math.min(L, q.s)); if(q.tipo === 'P' && !q.marco) q.marco = 'plano'; }
+      else { q.s = Math.max(0, Math.min(L, q.s)); if(q.tipo === 'P' && !q.dir) q.dir = 'y'; }
       return q;
     }).filter(c=>esRepartida(c) ? (c.s2 > c.s1 && (Math.abs(wIni(c)) > 1e-12 || Math.abs(wFin(c)) > 1e-12))
-             : (c.tipo === 'M' ? Math.abs(c.mag) > 1e-12
-                               : partesPuntual(c).some(q=>Math.abs(q.v) > 1e-12)));
+                                : Math.abs(c.mag) > 1e-12);
     resultado = null;
   }
   closeCargaBarra(); refrescar();
@@ -912,7 +908,7 @@ const EJEMPLOS_MARCO = [
       A.apoyo = 'fijo'; D.apoyo = 'movil'; D.apAng = 90;
       B.union = 'rigido'; C.union = 'rigido';
       ponerCargaNudo(B, 0, 6);                                       // 6 kN hacia la derecha
-      bc.cargas = [{tipo:'P', s:3, marco:'plano', magY:12, magX:0}];  // 12 kN hacia abajo
+      bc.cargas = [{tipo:'P', s:3, dir:'y', mag:12}];                 // 12 kN hacia abajo
       void ab; void cd;
     }
   },

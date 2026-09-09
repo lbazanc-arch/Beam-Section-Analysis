@@ -35,12 +35,9 @@ function renderCargasEdit(){
       lista.forEach((c, i)=>{
         h += '<div style="display:flex;gap:8px;align-items:center;margin:4px 0 4px 14px;flex-wrap:wrap">'
           + '<span style="font-size:11px;color:var(--acc2);font-weight:800;min-width:58px">Fuerza ' + (i+1) + '</span>'
-          + '<label style="font-size:11px;color:var(--muted)" title="Positiva hacia abajo">\u2193</label>'
-          + '<input type="number" step="any" id="vc-my-' + n.id + '-' + i + '" value="' + (c.magY||0) + '" '
-          + 'style="width:80px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
-          + '<label style="font-size:11px;color:var(--muted)" title="Positiva hacia la derecha">\u2192</label>'
-          + '<input type="number" step="any" id="vc-mx-' + n.id + '-' + i + '" value="' + (c.magX||0) + '" '
-          + 'style="width:80px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
+          + '<label style="font-size:11px;color:var(--muted)">' + (DIR_CARGA_ARM[c.dir||'y']||DIR_CARGA_ARM.y).ico + (c.dir==='ang' ? ' ' + dec(c.ang||0,'ang') + '\u00b0' : '') + '</label>'
+          + '<input type="number" step="any" id="vc-mag-' + n.id + '-' + i + '" value="' + (c.mag||0) + '" '
+          + 'style="width:96px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
           + '<span style="font-size:11px;color:var(--muted)">' + unitFor + '</span></div>';
       });
     } else {
@@ -80,10 +77,9 @@ function cargasDeLosCampos(){
     if(modo === 'separado' && lista && lista.length > 1){
       let sfx = 0, sfy = 0, tocado = false;
       lista.forEach((c, i)=>{
-        const ey = document.getElementById('vc-my-'+n.id+'-'+i), ex = document.getElementById('vc-mx-'+n.id+'-'+i);
-        if(ey || ex) tocado = true;
-        const q = compCargaNudo({magY: ey ? (parseFloat(ey.value)||0) : c.magY,
-                                 magX: ex ? (parseFloat(ex.value)||0) : c.magX});
+        const em = document.getElementById('vc-mag-'+n.id+'-'+i);
+        if(em) tocado = true;
+        const q = compCargaNudo({dir:c.dir, ang:c.ang, mag: em ? (parseFloat(em.value)||0) : c.mag});
         sfx += q.fx; sfy += q.fy;
       });
       if(tocado) m[n.id] = {fx:sfx, fy:sfy};
@@ -109,8 +105,8 @@ function escalarCargas(k){
     const lista = (n.cargas && n.cargas.length) ? n.cargas : null;
     if(modo === 'separado' && lista && lista.length > 1){
       lista.forEach((c, i)=>{
-        ['vc-my-', 'vc-mx-'].forEach(pre=>{ const e = document.getElementById(pre+n.id+'-'+i);
-          if(e) e.value = (parseFloat(e.value)||0)*k; });
+        const em = document.getElementById('vc-mag-'+n.id+'-'+i);
+        if(em) em.value = (parseFloat(em.value)||0)*k;
       });
     } else {
       const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);
@@ -127,9 +123,8 @@ function restaurarCargas(){
     const lista = (n.cargas && n.cargas.length) ? n.cargas : null;
     if(modo === 'separado' && lista && lista.length > 1){
       lista.forEach((c, i)=>{
-        const ey = document.getElementById('vc-my-'+n.id+'-'+i), ex = document.getElementById('vc-mx-'+n.id+'-'+i);
-        if(ey) ey.value = c.magY || 0;
-        if(ex) ex.value = c.magX || 0;
+        const em = document.getElementById('vc-mag-'+n.id+'-'+i);
+        if(em) em.value = c.mag || 0;
       });
     } else {
       const ex = document.getElementById('vc-fx-'+n.id), ey = document.getElementById('vc-fy-'+n.id);

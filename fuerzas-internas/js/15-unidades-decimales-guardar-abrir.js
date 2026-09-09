@@ -90,7 +90,13 @@ function abrirGuardar(){
 }
 function cerrarGuardar(){ document.getElementById('guardarModal').classList.remove('show'); }
 
+// Cualquier fallo al guardar se dice con su mensaje: antes moría en la consola
+// y en el teléfono parecía que «no pasaba nada».
 async function guardarProyecto(){
+  try{ await _guardarProyectoSinRed(); }
+  catch(err){ aviso('No se pudo guardar: ' + (err && err.message ? err.message : err), 'error'); }
+}
+async function _guardarProyectoSinRed(){
   const inp=document.getElementById('nombreProyecto');
   const nombre=(inp.value||'').trim();
   if(!nombre){ aviso('Ponle un nombre al ejercicio antes de guardarlo.', 'error'); inp.focus(); return; }

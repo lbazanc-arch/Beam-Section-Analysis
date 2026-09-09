@@ -226,7 +226,13 @@ body{
   font-size:10.5px; font-weight:700; color:var(--text); cursor:pointer; font-family:inherit;
 }
 .tpl-btn:hover{border-color:var(--acc); background:var(--acc-l); color:var(--acc);}
-.tpl-btn.active{background:var(--acc); border-color:var(--acc); color:#fff;}
+.tpl-btn{position:relative;}
+.tpl-btn.active{
+  border-color:var(--acc); border-width:2px; background:var(--acc-l); color:var(--acc);
+  box-shadow:0 0 0 3px var(--acc-l);
+}
+.tpl-btn.active::after{content:''; position:absolute; top:5px; right:6px; width:7px; height:7px;
+  border-radius:50%; background:var(--acc);}
 .num-row{display:flex; gap:6px; align-items:center; margin-top:5px;}
 .num-row label{font-size:10px; color:var(--muted); font-weight:600; min-width:52px;}
 .num-row input{
