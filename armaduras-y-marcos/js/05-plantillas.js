@@ -67,7 +67,7 @@ const EJEMPLOS = [
       addBarra(A.id,D.id); addBarra(D.id,E.id); addBarra(E.id,C.id);
       addBarra(D.id,B.id); addBarra(E.id,B.id);
       A.apoyo = 'fijo'; C.apoyo = 'movil';
-      ponerCargaNudo(B, 'y', 20);
+      ponerCargaNudo(B, 20, 0);
     }
   },
   {
@@ -80,7 +80,7 @@ const EJEMPLOS = [
       const A = addNodo(0,0), B = addNodo(4,0), C = addNodo(8,0), D = addNodo(4,3);
       addBarra(A.id,B.id); addBarra(B.id,C.id); addBarra(A.id,D.id); addBarra(D.id,C.id); addBarra(D.id,B.id);
       A.apoyo = 'fijo'; C.apoyo = 'movil';
-      ponerCargaNudo(D, 'y', 10);
+      ponerCargaNudo(D, 10, 0);
     }
   },
   {
@@ -94,7 +94,7 @@ const EJEMPLOS = [
       addBarra(A.id,B.id); addBarra(B.id,C.id); addBarra(A.id,D.id); addBarra(D.id,E.id); addBarra(E.id,C.id);
       addBarra(D.id,B.id); addBarra(E.id,B.id);
       A.apoyo = 'fijo'; C.apoyo = 'movil';
-      ponerCargaNudo(B, 'y', 15); ponerCargaNudo(E, 'y', 10);
+      ponerCargaNudo(B, 15, 0); ponerCargaNudo(E, 10, 0);
     }
   },
   {
@@ -109,7 +109,7 @@ const EJEMPLOS = [
       addBarra(A.id,E.id); addBarra(E.id,F.id); addBarra(F.id,D.id);
       addBarra(B.id,E.id); addBarra(C.id,F.id); addBarra(E.id,C.id);
       A.apoyo = 'fijo'; D.apoyo = 'movil';
-      ponerCargaNudo(B, 'y', 20);
+      ponerCargaNudo(B, 20, 0);
     }
   }
 ];

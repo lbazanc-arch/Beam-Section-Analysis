@@ -17,10 +17,10 @@ function applyUnits(){
   const nF = document.getElementById('selFor').value;
   const kL = LEN_A_M[unitLen]/LEN_A_M[nL];
   const kF = FOR_A_KN[unitFor]/FOR_A_KN[nF];
-  nodos.forEach(n=>{ n.x *= kL; n.y *= kL; n.fx *= kF; n.fy *= kF; (n.cargas||[]).forEach(c=>{ c.mag *= kF; }); });
+  nodos.forEach(n=>{ n.x *= kL; n.y *= kL; n.fx *= kF; n.fy *= kF; (n.cargas||[]).forEach(c=>{ c.magY = (c.magY||0)*kF; c.magX = (c.magX||0)*kF; }); });
   // Cargas sobre barras (19-): posiciones en longitud, fuerzas, pares y repartidas.
   barras.forEach(b=>cargasDeBarra(b).forEach(c=>{
-    if(c.tipo === 'P'){ c.s *= kL; c.mag *= kF; }
+    if(c.tipo === 'P'){ c.s *= kL; ['magY','magX','magP','magA'].forEach(k=>{ if(c[k] !== undefined) c[k] *= kF; }); }
     else if(c.tipo === 'M'){ c.s *= kL; c.mag *= kF*kL; }
     else { c.s1 *= kL; c.s2 *= kL; c.mag *= kF/kL; if(c.mag2 !== undefined) c.mag2 *= kF/kL; }
   }));
@@ -87,8 +87,8 @@ function abrirCarga(id){
   // Semilla de filas: las cargas ya guardadas, o si el nudo viene de un
   // formato antiguo sin ese arreglo, una sola fila con su resultante actual.
   const base = (n.cargas && n.cargas.length) ? n.cargas
-             : ((!esCero(n.fx||0) || !esCero(n.fy||0)) ? _cargasNudoDeComponentes(n.fx||0, n.fy||0) : [{dir:'y', mag:10}]);
-  cargaFilasData = (base.length ? base : [{dir:'y', mag:10}]).map(c=>({dir:c.dir||'y', mag:+c.mag||0}));
+             : ((!esCero(n.fx||0) || !esCero(n.fy||0)) ? _cargasNudoDeComponentes(n.fx||0, n.fy||0) : [{magY:10, magX:0}]);
+  cargaFilasData = (base.length ? base : [{magY:10, magX:0}]).map(c=>({magY:+c.magY||0, magX:+c.magX||0}));
   cargaExpandidoIdx = 0;
   renderCargaLista();
   document.getElementById('cargaModal').classList.add('show');
@@ -112,32 +112,24 @@ function segCargaArm(activo, valor, texto, ayuda, alPulsar){
     + ' title="' + ayuda + '" onclick="' + alPulsar + '">' + texto + '</button>';
 }
 
-// Una fuerza de nudo solo admite las dos direcciones del plano: en un nudo
-// concurren varias piezas y «perpendicular» no tendría a cuál referirse.
+// Una fuerza de nudo lleva sus DOS componentes en el mismo registro: una carga
+// inclinada es una sola fuerza, no dos que haya que sumar a mano.
 function htmlFilaExpandida(c, idx){
-  const dir = c.dir || 'y';
-  const bot = [['y','\u2193 Vert.'], ['x','\u2192 Horiz.']]
-    .map(([v,t])=>segCargaArm(dir===v, v, t, DIR_CARGA_ARM[v].ayuda,
-        'actualizarCampoCarga(' + idx + ',&quot;dir&quot;,&quot;' + v + '&quot;)')).join('');
+  const campo = (k, etq, val) =>
+      '<div class="carga-campo"><label class="carga-campo-lbl">' + etq + '</label>'
+    + '<div class="carga-input-wrap">'
+    + '<input type="number" step="any" value="' + val + '" oninput="actualizarCampoCarga(' + idx + ',&quot;' + k + '&quot;,this.value)">'
+    + '<span class="carga-campo-unit">' + unitFor + '</span></div></div>';
   return '<div class="carga-card">'
     + '<div class="carga-card-head">'
     +   '<span class="carga-card-title">Fuerza ' + (idx+1) + '</span>'
     +   '<button class="carga-del" title="Quitar esta fuerza" onclick="quitarFilaCarga(' + idx + ')">\u00d7</button>'
     + '</div>'
     + '<div class="carga-eje-row">'
-    +   '<div class="carga-campo">'
-    +     '<label class="carga-campo-lbl">Magnitud</label>'
-    +     '<div class="carga-input-wrap">'
-    +       '<input type="number" step="any" value="'+c.mag+'" '
-    +         'oninput="actualizarCampoCarga(' + idx + ',&quot;mag&quot;,this.value)">'
-    +       '<span class="carga-campo-unit">' + unitFor + '</span>'
-    +     '</div>'
-    +   '</div>'
+    +   campo('magY', '\u2193 Vertical', c.magY)
+    +   campo('magX', '\u2192 Horizontal', c.magX)
     + '</div>'
-    + '<div class="cg-grupo"><div class="cg-cap">Direcci\u00f3n</div>'
-    +   '<div class="cg-seg">' + bot + '</div>'
-    +   '<div class="hint-sm">' + DIR_CARGA_ARM[dir].ayuda + '</div>'
-    + '</div>'
+    + '<div class="hint-sm">Vertical positiva hacia abajo; horizontal, hacia la derecha.</div>'
     + '</div>';
 }
 
@@ -182,16 +174,16 @@ function dibujarCroquisNudo(){
     });
   }
   // las fuerzas escritas ahora mismo en la ventana
-  const filas = leerFilasCarga().filter(c=>Math.abs(c.mag) > 1e-12);
-  const mx = Math.max(1e-9, ...filas.map(c=>Math.abs(c.mag)));
-  filas.forEach(c=>{
-    const v = vectorCarga(c.dir), sg = c.mag >= 0 ? 1 : -1;
-    const ux = v.x*sg, uy = -v.y*sg;                       // en pantalla la y va invertida
-    const L = 30 + 34*Math.abs(c.mag)/mx;
+  const filas = leerFilasCarga().map(c=>compCargaNudo(c)).filter(q=>Math.hypot(q.fx,q.fy) > 1e-12);
+  const mx = Math.max(1e-9, ...filas.map(q=>Math.hypot(q.fx,q.fy)));
+  filas.forEach(q=>{
+    const m = Math.hypot(q.fx, q.fy);
+    const ux = q.fx/m, uy = -q.fy/m;                       // en pantalla la y va invertida
+    const L = 30 + 34*m/mx;
     const sx = cx - ux*L, sy = cy - uy*L;
     s += '<line x1="' + sx.toFixed(1) + '" y1="' + sy.toFixed(1) + '" x2="' + (cx-ux*9).toFixed(1) + '" y2="' + (cy-uy*9).toFixed(1) + '" stroke="#c0392b" stroke-width="2.2"/>'
        + '<polygon points="0,0 -9,-4 -9,4" fill="#c0392b" transform="translate(' + (cx-ux*8).toFixed(1) + ',' + (cy-uy*8).toFixed(1) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>'
-       + '<text x="' + sx.toFixed(1) + '" y="' + (sy - 6).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(Math.abs(c.mag),'f') + '</text>';
+       + '<text x="' + sx.toFixed(1) + '" y="' + (sy - 6).toFixed(1) + '" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(m,'f') + '</text>';
   });
   s += '<circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#7c3a06" stroke="#fff" stroke-width="2"/>';
   if(n) s += '<text x="' + (cx+10) + '" y="' + (cy-9) + '" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="#1b1f24">' + n.nombre + '</text>';
@@ -205,20 +197,20 @@ function expandirFilaCarga(idx){
 }
 
 function agregarFilaCarga(){
-  cargaFilasData.push({dir:'y', mag:10});
+  cargaFilasData.push({magY:10, magX:0});
   cargaExpandidoIdx = cargaFilasData.length - 1;   // la nueva fuerza se abre expandida
   renderCargaLista();
 }
 
 function quitarFilaCarga(idx){
   cargaFilasData.splice(idx, 1);
-  if(!cargaFilasData.length){ cargaFilasData.push({dir:'y', mag:0}); }
+  if(!cargaFilasData.length){ cargaFilasData.push({magY:0, magX:0}); }
   cargaExpandidoIdx = Math.min(cargaExpandidoIdx, cargaFilasData.length - 1);
   renderCargaLista();
 }
 
 function leerFilasCarga(){
-  return cargaFilasData.map(c=>({dir:c.dir||'y', mag:c.mag||0}));
+  return cargaFilasData.map(c=>({magY:c.magY||0, magX:c.magX||0}));
 }
 function actualizarPreviewCarga(){
   const filas = leerFilasCarga();
@@ -230,7 +222,7 @@ function actualizarPreviewCarga(){
     ? 'Resultante de las ' + filas.length + ' fuerzas: ' + dec(Math.abs(sFx),'f') + ' ' + unitFor
       + (sFx >= 0 ? ' hacia la derecha' : ' hacia la izquierda') + ' y ' + dec(Math.abs(sFy),'f') + ' ' + unitFor
       + (sFy <= 0 ? ' hacia abajo' : ' hacia arriba')
-    : 'Una magnitud negativa invierte el sentido: en vertical, \u2212' + dec(Math.abs(filas.length ? filas[0].mag : 0),'f') + ' empuja hacia arriba.';
+    : 'Una magnitud negativa invierte el sentido: en vertical, un valor negativo empuja hacia arriba.';
 }
 function quitarCarga(id){
   const n = nodos.find(z=>z.id===id); if(!n) return;
@@ -244,7 +236,7 @@ function applyCarga(){
   const n = nodos.find(z=>z.id===nodoCarga);
   if(n){
     registrarCambio();
-    n.cargas = leerFilasCarga().filter(c=>Math.abs(c.mag) > 1e-12);
+    n.cargas = leerFilasCarga().filter(c=>Math.abs(c.magY) > 1e-12 || Math.abs(c.magX) > 1e-12);
     recomponerCargaNudo(n);          // la resultante es lo que lee el motor (06-)
     resultado = null;
   }
