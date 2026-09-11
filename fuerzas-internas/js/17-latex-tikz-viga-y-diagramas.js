@@ -43,8 +43,11 @@ function tikzViga(conReacciones, sel){
       // lienzo. El criterio anterior solo distinguía izquierda y derecha, y en
       // una columna el muro salía montado sobre la propia viga.
       const emp = (n.apoyo === 'empotrado');
-      out += tikzApoyo(x, y, n.apoyo, 1, emp ? anguloEmpotramiento(n) : undefined);
-      if(emp) tzOcupar(x-0.45, y-0.45, x+0.45, y+0.45);
+      const aAp = anguloApoyo(n);
+      out += tikzApoyo(x, y, n.apoyo, 1, emp ? anguloEmpotramiento(n) : undefined, aAp);
+      // Si el símbolo gira, su hueco deja de ser la banda de debajo del nudo y
+      // pasa a ser un cuadrado alrededor, como el del empotramiento.
+      if(emp || Math.abs(aAp - 90) > 0.01) tzOcupar(x-0.45, y-0.45, x+0.45, y+0.45);
       else tzOcupar(x-0.42, y-0.62, x+0.42, y+0.02);
     }
   });

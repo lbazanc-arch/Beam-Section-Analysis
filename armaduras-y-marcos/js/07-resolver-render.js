@@ -138,14 +138,20 @@ function renderResultados(res){
     + kx('\\text{Cargas aplicadas:}\\; \\sum F_{x,\\text{ext}} = ' + f(sFx)
        + '\\;' + uF + ',\\quad \\sum F_{y,\\text{ext}} = ' + f(sFy) + '\\;' + uF)
     + '</div></div></div>';
+  // Un rodillo inclinado es UNA inc\u00f3gnita con direcci\u00f3n: se muestran su
+  // magnitud y su \u00e1ngulo adem\u00e1s de las dos componentes con las que se suma.
   h += '<table class="tabla"><thead><tr><th>Apoyo</th><th>Tipo</th>'
-    + '<th class="r">R<sub>x</sub> ('+uF+')</th><th class="r">R<sub>y</sub> ('+uF+')</th></tr></thead><tbody>';
+    + '<th class="r">R<sub>x</sub> ('+uF+')</th><th class="r">R<sub>y</sub> ('+uF+')</th>'
+    + '<th class="r">|R| ('+uF+')</th><th class="r">\u03b8 (\u00b0)</th></tr></thead><tbody>';
   nodos.forEach(n=>{
     const R = res.reacciones[n.id];
     if(!R) return;
-    h += '<tr><td><b>'+n.nombre+'</b></td><td>'+(n.apoyo==='fijo'?'Fijo (pasador)':('M\u00f3vil (rodillo, '+(n.apAng===0?'horizontal':'vertical')+')'))+'</td>'
+    const rx = R.rx || 0, ry = R.ry || 0, mag = Math.hypot(rx, ry);
+    h += '<tr><td><b>'+n.nombre+'</b></td><td>'+(n.apoyo==='fijo'?'Fijo (pasador)':('M\u00f3vil (rodillo, '+descDirApoyo(anguloReaccionApoyo(n))+')'))+'</td>'
       + '<td class="r">'+(R.rx!==undefined ? f(R.rx) : '—')+'</td>'
-      + '<td class="r">'+(R.ry!==undefined ? f(R.ry) : '—')+'</td></tr>';
+      + '<td class="r">'+(R.ry!==undefined ? f(R.ry) : '—')+'</td>'
+      + '<td class="r">'+f(mag)+'</td>'
+      + '<td class="r">'+(esCero(mag) ? '—' : dec(Math.atan2(ry, rx)*180/Math.PI,'f'))+'</td></tr>';
   });
   h += '</tbody></table></div>';
 
@@ -214,8 +220,16 @@ function renderResultados(res){
       if(Math.abs(cy) > 1e-9) exFy.push(fmtCoef(cy) + 'F_{'+nb+'}');
     });
     const R = res.reacciones[n.id];
-    if(R && R.rx !== undefined) exFx.push('R_{x'+n.nombre+'}');
-    if(R && R.ry !== undefined) exFy.push('R_{y'+n.nombre+'}');
+    if(R && R.inclinado){
+      // Un rodillo inclinado aporta UNA incógnita: entra en cada suma por su
+      // componente, no como dos reacciones independientes.
+      const ar = R.ang*Math.PI/180;
+      exFx.push(fmtCoef(Math.cos(ar)) + 'R_{'+n.nombre+'}');
+      exFy.push(fmtCoef(Math.sin(ar)) + 'R_{'+n.nombre+'}');
+    } else {
+      if(R && R.rx !== undefined) exFx.push('R_{x'+n.nombre+'}');
+      if(R && R.ry !== undefined) exFy.push('R_{y'+n.nombre+'}');
+    }
     if(!esCero(n.fx)) exFx.push(fmtNum(n.fx));
     if(!esCero(n.fy)) exFy.push(fmtNum(n.fy));
 

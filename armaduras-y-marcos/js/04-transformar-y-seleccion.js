@@ -8,6 +8,23 @@ function marcarApoyoArm(n){
   });
   const q = document.getElementById('apbQuitar');
   if(q) q.classList.toggle('active', !n.apoyo);
+  pintarAtajosApoyo(n);
+}
+// Atajos de ángulo de la ventana de apoyo. Se generan aquí, con la marca ya
+// puesta, para que no puedan desincronizarse del dato (como segCargaArm).
+const ATAJOS_AP_MOVIL = [90, 0, 45, -45];
+const ATAJOS_AP_FIJO  = [90, 0, 180, -90];
+function pintarAtajosApoyo(n){
+  const cont = document.getElementById('apDirAtajos');
+  if(!cont) return;
+  if(!n || !n.apoyo){ cont.innerHTML = ''; return; }
+  const esMovil = n.apoyo === 'movil';
+  const actual = esMovil ? anguloReaccionApoyo(n) : anguloDibujoApoyo(n);
+  cont.innerHTML = (esMovil ? ATAJOS_AP_MOVIL : ATAJOS_AP_FIJO).map(a=>{
+    const puesto = Math.abs(normalizarAnguloArm(a - actual)) < 0.01;
+    return '<button type="button" class="tpl-btn' + (puesto ? ' active' : '') + '"'
+      + ' onclick="setApAng(' + a + ')">' + a + '°</button>';
+  }).join('');
 }
 function actualizarPrevApoyo(){
   const n = nodos.find(z=>z.id===apoyoNodoId);
@@ -15,13 +32,17 @@ function actualizarPrevApoyo(){
   const dirBox = document.getElementById('apDirBox');
   if(!el || !n) return;
   marcarApoyoArm(n);
-  const esMovil = n.apoyo === 'movil';
-  if(dirBox) dirBox.style.display = esMovil ? '' : 'none';
-  if(esMovil){
-    const horiz = n.apAng === 0;
-    const bV = document.getElementById('apDirV'), bH = document.getElementById('apDirH');
-    if(bV) bV.classList.toggle('active', !horiz);
-    if(bH) bH.classList.toggle('active', horiz);
+  const esMovil = n.apoyo === 'movil', esFijo = n.apoyo === 'fijo';
+  if(dirBox) dirBox.style.display = (esMovil || esFijo) ? '' : 'none';
+  if(esMovil || esFijo){
+    const tit = document.getElementById('apDirTit');
+    const hint = document.getElementById('apDirHint');
+    const campo = document.getElementById('apAng');
+    if(tit) tit.textContent = esMovil ? 'Dirección de la reacción' : 'Giro del dibujo';
+    if(hint) hint.textContent = esMovil
+      ? 'Ángulo desde +x, antihorario: 90° rodillo sobre el suelo, 0° contra un muro.'
+      : 'Solo presentación: un pasador restringe las dos direcciones se dibuje como se dibuje.';
+    if(campo) campo.value = esMovil ? anguloReaccionApoyo(n) : anguloDibujoApoyo(n);
   }
   const r = nodos.reduce((s2,z)=>s2+gradosApoyo(z), 0);
   el.innerHTML = 'Ahora: <b>' + descApoyoLargo(n)
@@ -32,35 +53,50 @@ function setApoyo(tipo){
   const n = nodos.find(z=>z.id===apoyoNodoId);
   if(n){
     n.apoyo = tipo;
-    if(tipo === 'movil' && n.apAng === undefined) n.apAng = 90;  // vertical por defecto
+    if(tipo === 'movil' && n.apAng === undefined) n.apAng = AP_ANG_POR_DEFECTO;
+    if(tipo === 'fijo' && n.apAngDib === undefined) n.apAngDib = AP_ANG_POR_DEFECTO;
     resultado = null;
   }
   actualizarPrevApoyo();
   refrescar();
 }
-// Cambia la dirección de la única reacción de un apoyo móvil: 90 = vertical
-// (restringe Y, el caso habitual de un rodillo sobre el suelo), 0 = horizontal
-// (restringe X, el rodillo apoyado contra una superficie vertical).
+// Ángulo del apoyo, desde +x y antihorario. En un apoyo MÓVIL es la dirección
+// de su única reacción y ENTRA EN EL CÁLCULO: 90 = rodillo sobre el suelo,
+// 0 = contra un muro, cualquier otro = plano inclinado. En un apoyo FIJO gira
+// solo el dibujo, porque un pasador restringe las dos direcciones igual; por
+// eso ahí no se invalida el resultado ya calculado.
 function setApAng(ang){
   const n = nodos.find(z=>z.id===apoyoNodoId);
-  if(!n || n.apoyo !== 'movil') return;
+  if(!n || !n.apoyo) return;
+  const v = parseFloat(ang);
+  if(!isFinite(v)) return;
+  const a = normalizarAnguloArm(v);
   registrarCambio();
-  n.apAng = ang;
-  resultado = null;
+  if(n.apoyo === 'movil'){ n.apAng = a; resultado = null; }
+  else { n.apAngDib = a; }
   actualizarPrevApoyo();
   refrescar();
+}
+// Cómo se nombra una dirección de reacción: se conservan las palabras de los
+// dos casos de siempre, y cualquier otra dirección se dice con su ángulo.
+function descDirApoyo(a){
+  const v = normalizarAnguloArm(a);
+  if(Math.abs(v - 90) < 0.01) return 'vertical';
+  if(Math.abs(v) < 0.01) return 'horizontal';
+  return 'a ' + dec(v,'f') + '°';
 }
 // Texto largo (modal, caja de información del nudo).
 function descApoyoLargo(n){
   if(!n.apoyo) return 'sin apoyo';
   if(n.apoyo === 'fijo') return 'apoyo fijo (2 reacciones)';
-  return 'apoyo móvil (1 reacción ' + (n.apAng===0 ? 'horizontal' : 'vertical') + ')';
+  return 'apoyo móvil (1 reacción ' + descDirApoyo(anguloReaccionApoyo(n)) + ')';
 }
 // Texto corto (lista de nudos).
 function descApoyoCorto(n){
   if(!n.apoyo) return '';
   if(n.apoyo === 'fijo') return 'apoyo fijo';
-  return 'apoyo móvil (' + (n.apAng===0 ? 'X' : 'Y') + ')';
+  const d = descDirApoyo(anguloReaccionApoyo(n));
+  return 'apoyo móvil (' + (d === 'vertical' ? 'Y' : (d === 'horizontal' ? 'X' : d)) + ')';
 }
 
 // (editarSeleccion() se retiró: quedó sin ninguna llamada tras introducir
@@ -265,6 +301,17 @@ function applyTransformar(){
   // giro de 37° llegó a cambiar una barra de 6 a 6.10). Mismo criterio que
   // los demás temas.
   t.destinos.forEach(d=>{ const n = nodos.find(z=>z.id===d.id); if(n){ n.x = d.x; n.y = d.y; } });
+  // Al GIRAR, el apoyo gira con la armadura. Si no, un rodillo seguiria
+  // reaccionando en la direccion de antes —resultado incorrecto, no solo feo—
+  // y el simbolo del pasador quedaria torcido respecto a lo que sostiene.
+  if(transModo === 'girar'){
+    t.destinos.forEach(d=>{
+      const n = nodos.find(z=>z.id===d.id);
+      if(!n || !n.apoyo) return;
+      if(n.apoyo === 'movil') n.apAng    = normalizarAnguloArm(anguloReaccionApoyo(n) + t.ang);
+      else                    n.apAngDib = normalizarAnguloArm(anguloDibujoApoyo(n)  + t.ang);
+    });
+  }
   resultado = null;
   closeTransformar();
   refrescar();
@@ -311,7 +358,7 @@ function applyReplicar(){
     orig.forEach(id=>{
       const o = nodos.find(z=>z.id===id);
       if(!o) return;
-      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>Object.assign({}, c)), nombre:''};
+      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, apAngDib:o.apAngDib, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>Object.assign({}, c)), nombre:''};
       nodos.push(nn); mapa[id] = nn.id; nuevosN.push(nn.id);
     });
     barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b]);

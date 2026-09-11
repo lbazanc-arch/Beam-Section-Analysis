@@ -101,6 +101,17 @@ function applyTransformar(){
   // El giro NUNCA se engancha a la rejilla: redondear cada nudo alteraría las
   // distancias entre ellos y deformaría la viga.
   t.destinos.forEach(d=>{ const n=nodo(d.id); if(n){ n.x=d.x; n.y=d.y; } });
+  // Al GIRAR, el apoyo gira con la viga: el movil porque su reaccion es real y
+  // entra en el calculo, y el simple para que su simbolo no quede torcido.
+  if(transModo === 'girar'){
+    const norm = a => { const v = ((a % 360) + 360) % 360; return v > 180 ? v - 360 : v; };
+    t.destinos.forEach(d=>{
+      const n = nodo(d.id);
+      if(!n) return;
+      if(n.apoyo === 'movil')       n.apAng    = norm(anguloApoyo(n) + t.ang);
+      else if(n.apoyo === 'simple') n.apAngDib = norm(anguloApoyo(n) + t.ang);
+    });
+  }
   R = null;
   closeTransformar(); refrescar();
 }

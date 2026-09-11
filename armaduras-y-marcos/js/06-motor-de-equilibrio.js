@@ -100,8 +100,12 @@ function analizarSimetria(res){
              + m.nombre + (m.apoyo?' sí lo tiene':' no lo tiene') + '.'};
     }
     if(n.apoyo === 'movil' && m.apoyo === 'movil' && n.id !== m.id){
-      const hn = n.apAng === 0, hm = m.apAng === 0;
-      if(hn !== hm){
+      // Al reflejarse en un eje vertical, una reacción a α queda a 180 − α. Se
+      // comparan LÍNEAS de acción (módulo 180°): que la reacción salga positiva
+      // o negativa lo decide el cálculo, no la dirección con que se declaró.
+      const linea = a => ((normalizarAnguloArm(a) % 180) + 180) % 180;
+      const d = Math.abs(linea(-anguloReaccionApoyo(n)) - linea(anguloReaccionApoyo(m)));
+      if(Math.min(d, 180 - d) > 0.01){
         return {simetrica:false, fase:'apoyos',
           motivo:'Los apoyos móviles de ' + n.nombre + ' y ' + m.nombre + ' no tienen la misma dirección de reacción.'};
       }
@@ -159,10 +163,17 @@ function analizar(){
   if(m + r > 2*j)  return {error:'hiperestatica', diag};
 
   // Incógnitas: [fuerzas de barra (m)] + [reacciones (r)]
-  const idxReac = [];   // {nodo, comp:'x'|'y'}
+  // El apoyo fijo aporta sus dos componentes. El móvil aporta UNA sola
+  // incógnita, la magnitud de su reacción en la dirección que tenga declarada
+  // (cos α, sen α): con α = 90 o α = 0 los cosenos valen 1 y 0 exactos y el
+  // sistema queda idéntico al de siempre.
+  const idxReac = [];   // {nodo, comp:'x'|'y'|'dir', ...}
   nodos.forEach(n=>{
     if(n.apoyo === 'fijo'){ idxReac.push({nodo:n.id, comp:'x'}); idxReac.push({nodo:n.id, comp:'y'}); }
-    else if(n.apoyo === 'movil'){ idxReac.push({nodo:n.id, comp: (n.apAng===0 ? 'x' : 'y')}); }
+    else if(n.apoyo === 'movil'){
+      const c = cosenosApoyo(n);
+      idxReac.push({nodo:n.id, comp:'dir', ang:anguloReaccionApoyo(n), cx:c.cx, cy:c.cy});
+    }
   });
   const N = m + idxReac.length;
   const A = Array.from({length:2*j}, ()=>new Array(N).fill(0));
@@ -183,8 +194,9 @@ function analizar(){
     });
     idxReac.forEach((R, k)=>{
       if(R.nodo !== n.id) return;
-      if(R.comp === 'x') A[2*i][m+k] += 1;
-      else               A[2*i+1][m+k] += 1;
+      if(R.comp === 'x')      A[2*i][m+k]   += 1;
+      else if(R.comp === 'y') A[2*i+1][m+k] += 1;
+      else { A[2*i][m+k] += R.cx; A[2*i+1][m+k] += R.cy; }   // una incógnita, dos coeficientes
     });
     b[2*i]   = -(n.fx || 0);
     b[2*i+1] = -(n.fy || 0);
@@ -195,9 +207,20 @@ function analizar(){
 
   const fuerzas = {}, reacciones = {};
   barras.forEach((br,k)=>{ fuerzas[br.id] = x[k]; });
+  // Del apoyo móvil se guardan la magnitud y el ángulo (que es lo que se ha
+  // resuelto) y TAMBIÉN las componentes rx/ry, para que el dibujo, el informe y
+  // la comprobación del equilibrio global sigan leyendo lo de siempre. Con la
+  // reacción sobre un eje se deja solo esa componente, exactamente como antes.
   idxReac.forEach((R,k)=>{
     if(!reacciones[R.nodo]) reacciones[R.nodo] = {};
-    reacciones[R.nodo][R.comp === 'x' ? 'rx' : 'ry'] = x[m+k];
+    const rr = reacciones[R.nodo], v = x[m+k];
+    if(R.comp === 'x')      rr.rx = v;
+    else if(R.comp === 'y') rr.ry = v;
+    else {
+      rr.mag = v; rr.ang = R.ang; rr.inclinado = (R.cx !== 0 && R.cy !== 0);
+      if(R.cx !== 0) rr.rx = v*R.cx;
+      if(R.cy !== 0) rr.ry = v*R.cy;
+    }
   });
   return {fuerzas, reacciones, diag, idxReac};
 }

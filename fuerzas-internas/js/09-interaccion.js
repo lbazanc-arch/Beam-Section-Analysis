@@ -475,34 +475,45 @@ function elegirApoyo(tipo){
   n.apoyo=tipo;
   // Un móvil recién puesto desliza en horizontal, o sea reacción vertical.
   if(tipo === 'movil' && n.apAng === undefined) n.apAng = AP_ANG_DEF;
+  // El simple arranca dibujado debajo del nudo. Es un ángulo de DIBUJO y por
+  // eso va en otra propiedad: el cálculo le da sus dos reacciones siempre.
+  if(tipo === 'simple' && n.apAngDib === undefined) n.apAngDib = AP_ANG_DEF;
   R=null;
   marcarApoyo(); sincroApAng(); actualizarPrevApoyo(); refrescar();
 }
-// Solo el apoyo móvil tiene orientación: los demás no dejan grado de
-// libertad que orientar.
+// El móvil y el simple llevan ángulo, pero NO significan lo mismo:
+//   móvil  → dirección de su única reacción; es física y entra en el cálculo.
+//   simple → giro del símbolo; es presentación y no toca el cálculo.
+// El empotrado no lo lleva: su muro se orienta solo, con los tramos que llegan
+// al nudo, y el libre no tiene nada que orientar.
 function sincroApAng(){
   const n = nodo(edApoyo);
   const bloque = document.getElementById('apBloqueAng');
   if(!bloque) return;
-  // Solo el móvil deja un grado de libertad que orientar.
-  const esMovil = !!(n && n.apoyo === 'movil');
-  bloque.style.display = esMovil ? '' : 'none';
-  if(!esMovil) return;
-  const a = (n.apAng === undefined) ? AP_ANG_DEF : n.apAng;
+  const tipo = n && n.apoyo;
+  const conAng = (tipo === 'movil' || tipo === 'simple');
+  bloque.style.display = conAng ? '' : 'none';
+  if(!conAng) return;
+  const a = anguloApoyo(n);
   const campo = document.getElementById('apAngVal');
   if(campo && document.activeElement !== campo) campo.value = a;
+  const lbl = document.getElementById('apAngLbl');
+  if(lbl) lbl.textContent = (tipo === 'movil') ? 'Ángulo de la reacción' : 'Giro del símbolo';
   const h = document.getElementById('apAngHint');
-  if(h) h.textContent = 'Es la dirección hacia la que cuelga el apoyo desde el nudo '
-    + '(−90° = hacia abajo, la posición habitual). La reacción actúa en sentido '
-    + 'contrario, a ' + ((+a + 180) % 360) + '°.';
+  if(h) h.textContent = (tipo === 'movil')
+    ? 'Dirección de la reacción, desde +x y antihoraria: 90° es el rodillo de siempre.'
+    : 'Solo presentación: el pasador sujeta las dos direcciones se dibuje como se dibuje.';
 }
 function setApAng(v){
   const n = nodo(edApoyo);
-  if(!n || n.apoyo !== 'movil') return;
+  if(!n || (n.apoyo !== 'movil' && n.apoyo !== 'simple')) return;
   const a = parseFloat(v);
   if(!isFinite(a)) return;
   registrarCambio();
-  n.apAng = a; R = null;
+  // Cada tipo guarda en SU propiedad. Mezclarlas metería en el cálculo un
+  // ángulo que en el pasador es solo dibujo; por eso el simple tampoco anula R.
+  if(n.apoyo === 'movil'){ n.apAng = a; R = null; }
+  else n.apAngDib = a;
   const campo = document.getElementById('apAngVal');
   if(campo && document.activeElement !== campo) campo.value = a;
   sincroApAng(); actualizarPrevApoyo(); refrescar();

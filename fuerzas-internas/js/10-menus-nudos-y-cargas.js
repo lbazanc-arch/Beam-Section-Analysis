@@ -11,8 +11,7 @@ function abrirCargaModal(tipo, c){
   document.getElementById('cgTitulo').textContent = tit[tipo]||'Carga';
   document.getElementById('cgSub').textContent = distrib
     ? 'Indica dónde empieza y dónde acaba dentro del tramo, y en qué dirección actúa.'
-    : 'Puede ir sobre un tramo, a una distancia de su inicio, o directamente sobre un nudo. '
-      + 'La dirección se elige abajo: ya no hay una carga puntual para cada eje.';
+    : 'Sobre un tramo, a una distancia de su inicio, o sobre un nudo.';
 
   const selT=document.getElementById('cgTramo');
   selT.innerHTML = tramos.map(t=>'<option value="'+t.id+'">Tramo '+nomTramo(t)+'</option>').join('');
@@ -66,6 +65,10 @@ function abrirCargaModal(tipo, c){
   const _o = document.getElementById('cgDir');
   const _dirIni = c ? dirDeCarga(c) : (tipo === 'PX' ? 'x' : 'y');
   if(_o) _o.value = _dirIni;
+  // Ángulo de la carga inclinada. Por defecto −90° (hacia abajo), que es el
+  // sentido positivo de la vertical: elegir «Inclinada» no mueve la carga.
+  const _a = document.getElementById('cgAng');
+  if(_a) _a.value = (c && c.ang !== undefined) ? c.ang : -90;
   const _b = document.getElementById('cgBase');
   if(_b) _b.value = (c && c.basePos) || 'eje';
   // Se fija el modo de partida ANTES de refrescar etiquetas, para que al
@@ -221,6 +224,9 @@ function setDirCarga(v){
   }
   h.value = v;
   marcarSeg('cgSegDir', v);
+  // El campo del ángulo solo tiene sentido en la inclinada.
+  const filaAng = document.getElementById('cgFilaAng');
+  if(filaAng) filaAng.style.display = (v === 'ang') ? '' : 'none';
   const t = tramos.find(z=>z.id===parseInt(document.getElementById('cgTramo').value,10));
   const g = t && geoTramo(t);
   const recto = !g || Math.abs(g.ang) < 0.05;
@@ -228,13 +234,16 @@ function setDirCarga(v){
   const distrib2 = edCarga && (edCarga.tipo==='U'||edCarga.tipo==='T');
   if(hint){
     let txt = (DIR_CARGA[v] ? DIR_CARGA[v].ayuda : '');
-    if(_marcoDeDir(v) === 'local'){
+    // La inclinada es global, y su ayuda ya dice desde dónde se mide el ángulo:
+    // añadirle la coletilla del marco la partiría en dos líneas.
+    if(v === 'ang'){ /* la ayuda basta */ }
+    else if(_marcoDeDir(v) === 'local'){
       txt += ' Las coordenadas se miden entonces desde el nudo inicial del tramo.';
       if(recto) txt += ' En un tramo horizontal, «Perpendicular» coincide con «Vertical».';
     } else {
       txt += ' Las coordenadas son las del plano.';
     }
-    if(distrib2 && (v === 'x' || v === 'y'))
+    if(distrib2 && (v === 'x' || v === 'y' || v === 'ang'))
       txt += ' La intensidad se reparte sobre la <b>longitud real del eje</b> del tramo, '
            + 'no sobre su proyección.';
     hint.innerHTML = txt;
@@ -314,6 +323,9 @@ function aplicarCarga(){
   const _dir = (edCarga.tipo === 'M') ? null : _dirModal();
   const datos = {
     dir: _dir,
+    // Se guarda siempre, aunque la dirección no sea la inclinada: así el
+    // alumno que vuelve a «Inclinada» reencuentra el ángulo que había puesto.
+    ang: parseFloat((document.getElementById('cgAng')||{}).value) || 0,
     // El marco de las coordenadas va con la dirección; se guarda aparte
     // porque es lo que leen las funciones de posición.
     orient: _dir ? _marcoDeDir(_dir) : 'global',

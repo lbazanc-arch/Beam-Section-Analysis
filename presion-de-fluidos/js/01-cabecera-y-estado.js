@@ -42,6 +42,7 @@ function renderKatex(root){
 //  y fuerza de los topes.
 // ═══════════════════════════════════════════════════════════
 let nodos = [];     // {id,x,y,nombre,apoyo:null|'fijo'|'movil',apAng,apModo:'angulo'|'normal',
+                    //  apAngFijo (giro del apoyo fijo: SOLO dibujo, nunca cálculo),
                     //  rotula:bool,tope:null|{ang,modo:'normal'|'angulo',lado:1|2}}
 let tramos = [];    // {id,a,b,tipo:'recto'|'arco',flecha,activo,invertir}
 let nodoSeq = 0, tramoSeq = 0;
@@ -294,6 +295,16 @@ function normalCompuertaEnNudo(n, lado){
   const m = Math.hypot(sx, sy);
   if(m < 1e-9) return null;
   return {x:sx/m, y:sy/m};
+}
+
+// Ángulo con el que se DIBUJA el apoyo fijo. Es presentación y nada más: un
+// pasador restringe las dos direcciones se dibuje como se dibuje, así que este
+// ángulo no entra en ninguna ecuación. Compárese con apAng, que sí es la
+// dirección de la reacción del apoyo móvil y sí entra en el cálculo.
+// Se mide desde el eje x, antihorario; 90° deja el triángulo debajo del nudo.
+function anguloDibujoApoyoFijo(n){
+  const a = n && n.apAngFijo;
+  return (typeof a === 'number' && isFinite(a)) ? a : 90;
 }
 
 // ── Incógnitas: nombre, dirección y sentido ──

@@ -57,7 +57,7 @@ const MAX_HISTORIAL = 60;
 function instantanea(){
   return JSON.stringify({
     nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre, apoyo:n.apoyo,
-                          apAng:n.apAng, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope})),
+                          apAng:n.apAng, apAngDib:n.apAngDib, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope})),
     barras: barras.map(b=>({id:b.id, a:b.a, b:b.b})),
     nodoSeq, barraSeq
   });
@@ -74,7 +74,8 @@ function registrarCambio(){
 function restaurarInstantanea(txt){
   const e = JSON.parse(txt);
   nodos = e.nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre||'',
-            apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:90), fx:n.fx||0, fy:n.fy||0,
+            apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:AP_ANG_POR_DEFECTO),
+            apAngDib:(n.apAngDib!==undefined?n.apAngDib:AP_ANG_POR_DEFECTO), fx:n.fx||0, fy:n.fy||0,
             cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope||null}));
   barras = e.barras.map(b=>({id:b.id, a:b.a, b:b.b}));
   normalizarCargasArm();
@@ -108,7 +109,8 @@ function actualizarBotonesHistorial(){
 
 function estadoActual(){
   return {
-    nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, apoyo:n.apoyo, apAng:n.apAng, fx:n.fx, fy:n.fy,
+    nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, apoyo:n.apoyo, apAng:n.apAng, apAngDib:n.apAngDib,
+                          fx:n.fx, fy:n.fy,
                           cargas:(n.cargas||[]).map(c=>Object.assign({}, c))})),
     barras: barras.map(b=>({id:b.id, a:b.a, b:b.b})),
     unidades: {len: unitLen, fuerza: unitFor},
@@ -178,8 +180,12 @@ function cargarProyecto(id){
   if(!it || !it.estado){ aviso('Ese ejercicio no tiene datos para abrir.', 'error'); return; }
   const e = it.estado;
   try{
+    // apAng ya significaba «dirección de la reacción» en los archivos antiguos
+    // (solo guardaban 0 o 90), así que se lee tal cual. apAngDib es nuevo y
+    // solo afecta al dibujo: si falta, el apoyo se dibuja como siempre.
     nodos = (e.nodos||[]).map(n=>({id:n.id, x:n.x, y:n.y, nombre:'',
-              apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:90), fx:n.fx||0, fy:n.fy||0,
+              apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:AP_ANG_POR_DEFECTO),
+              apAngDib:(n.apAngDib!==undefined?n.apAngDib:AP_ANG_POR_DEFECTO), fx:n.fx||0, fy:n.fy||0,
               cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:null}));
     barras = (e.barras||[]).map(b=>({id:b.id, a:b.a, b:b.b}));
     _avisarRestosDeMarco(e);

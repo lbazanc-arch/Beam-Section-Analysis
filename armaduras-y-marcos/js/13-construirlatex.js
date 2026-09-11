@@ -86,9 +86,9 @@ function construirLatex(){
 
   const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
   const j = nodos.length, m = barras.length;
-  const r = Object.keys(resultado.reacciones)
-    .reduce((s,id)=> s + (resultado.reacciones[id].rx !== undefined ? 1 : 0)
-                       + (resultado.reacciones[id].ry !== undefined ? 1 : 0), 0);
+  // Se cuenta por GRADOS del apoyo, no por componentes: un rodillo inclinado
+  // deja rx y ry, pero sigue siendo una sola incógnita.
+  const r = nodos.reduce((s,n)=> s + (resultado.reacciones[n.id] ? gradosApoyo(n) : 0), 0);
   const usaSecciones = (typeof metodo !== 'undefined') && metodo === 'secciones';
   const nombreMetodo = !usaSecciones ? 'M\\\'etodo de nudos'
     : (modoCorte === 'auto' ? 'M\\\'etodo de secciones (autom\\\'atico)' : 'M\\\'etodo de secciones (corte manual)');
@@ -217,11 +217,20 @@ function construirLatex(){
     // Caso de clase: pasador + rodillo. Momentos respecto del pasador, donde se
     // cruzan dos de las tres incógnitas: la del rodillo sale sola.
     const P = pines[0], Rn = rodillos[0];
-    const dir = (Rn.apAng===0) ? {x:1,y:0} : {x:0,y:1};
-    const compR = (Rn.apAng===0) ? 'x' : 'y';
-    const nR = simbR(Rn, compR);
+    // La reacción del rodillo tiene la dirección declarada en su apoyo. Si cae
+    // sobre un eje conserva el nombre de siempre (R_{yC}); si está inclinada,
+    // la incógnita es la MAGNITUD sobre esa dirección y se llama R_C.
+    const angR = anguloReaccionApoyo(Rn);
+    const cosR = cosenosApoyo(Rn), ca = cosR.cx, sa = cosR.cy;
+    const dir = {x:ca, y:sa};
+    const inclin = (ca !== 0 && sa !== 0);
+    const ejeX = (sa === 0 && ca > 0), ejeY = (ca === 0 && sa > 0);
+    const compR = ejeX ? 'x' : (ejeY ? 'y' : 'd');
+    const nR = ejeX ? simbR(Rn, 'x') : (ejeY ? simbR(Rn, 'y') : ('R_{' + nomN(Rn) + '}'));
+    const trigR = comp => (comp === 'x' ? '\\cos ' : '\\operatorname{sen} ') + dec(angR,'f') + '^{\\circ}';
+    const f4 = v => (Math.round(v*10000)/10000).toFixed(4);
     const rc = resultado.reacciones[Rn.id], rp = resultado.reacciones[P.id];
-    const valR = compR === 'x' ? rc.rx : rc.ry;
+    const valR = (rc.mag !== undefined) ? rc.mag : (compR === 'x' ? rc.rx : rc.ry);
     const terms = [];
     cargasN.forEach(n=>{
       if(!esCero(n.fy)){ const bz = n.x - P.x; if(Math.abs(bz) > 1e-9)
@@ -231,6 +240,34 @@ function construirLatex(){
     });
     const coefR = (Rn.x-P.x)*dir.y - (Rn.y-P.y)*dir.x;
     const cte = terms.reduce((s,t)=>s+t.v, 0);
+    // Con el rodillo inclinado, el procedimiento tiene que verse: primero la
+    // reacción se descompone con su ángulo, y después el brazo respecto del
+    // pasador se desarrolla con sus distancias. Si no, el coeficiente de la
+    // ecuación de momentos aparecería como un número sin explicación.
+    if(inclin){
+      const dxR = Rn.x - P.x, dyR = Rn.y - P.y;
+      tex += '\\subpaso{La reacci\\\'on del rodillo est\\\'a inclinada}\n';
+      tex += '\\noindent{\\footnotesize El rodillo de ' + nomN(Rn) + ' apoya sobre un plano inclinado, as\\\'i que su '
+        + '\\\'unica reacci\\\'on no es vertical: act\\\'ua en la direcci\\\'on $\\alpha = ' + dec(angR,'f')
+        + '^{\\circ}$, medida desde el eje $x$. Antes de sumar, se descompone.}\\\\[2pt]\n';
+      tex += _alineadaArm([
+        'R_{x' + nomN(Rn) + '} &= ' + nR + '\\cos\\alpha = ' + nR + '\\cos ' + dec(angR,'f') + '^{\\circ} = ' + f4(ca) + '\\,' + nR,
+        'R_{y' + nomN(Rn) + '} &= ' + nR + '\\operatorname{sen}\\alpha = ' + nR + '\\operatorname{sen} ' + dec(angR,'f') + '^{\\circ} = ' + f4(sa) + '\\,' + nR
+      ]);
+      tex += '\\noindent{\\footnotesize Su momento respecto de ' + nomN(P) + ' es el de esas dos componentes, '
+        + 'cada una por su propia distancia:}\\\\[2pt]\n';
+      tex += _alineadaArm([
+        'M_{' + nomN(P) + '} &= (x_{' + nomN(Rn) + '} - x_{' + nomN(P) + '})\\,R_{y' + nomN(Rn) + '}'
+          + ' - (y_{' + nomN(Rn) + '} - y_{' + nomN(P) + '})\\,R_{x' + nomN(Rn) + '}',
+        '&= (' + dec(dxR,'len') + ')\\,(' + f4(sa) + '\\,' + nR + ') - (' + dec(dyR,'len') + ')\\,(' + f4(ca) + '\\,' + nR + ')',
+        '&= \\left[' + dec(dxR,'len') + '\\times' + f4(sa) + ' - ' + dec(dyR,'len') + '\\times' + f4(ca)
+          + '\\right]' + nR + ' = ' + dec(coefR,'len') + '\\,' + nR
+      ]);
+    }
+    // Autocontrol: el despeje escrito debe dar el valor que trae el motor.
+    if(Math.abs(coefR) > 1e-9 && Math.abs(-cte/coefR - valR) > 1e-5*Math.max(1, escalaDelProblema()))
+      console.warn('Informe LaTeX: el despeje no reproduce el valor de ' + Rn.nombre,
+                   {informe:-cte/coefR, motor:valR});
     const n1 = ++eqN; numEqReac[compR + Rn.id] = n1;
     const filasM = [];
     filasM.push(_filaArm('\\circlearrowleft\\!+\\ \\sum M_{' + nomN(P) + '} = 0:\\quad',
@@ -243,19 +280,27 @@ function construirLatex(){
                    ['x', '\\xrightarrow{+}\\ \\sum F_x = 0:\\quad', sumFx, dir.x, rp.rx]];
     otras.forEach(([comp, etq, sumF, dR, valP])=>{
       const nP = simbR(P, comp);
+      // Con el rodillo inclinado, su aportación a cada suma se escribe como
+      // R cos(alfa) y R sen(alfa), no como un coeficiente ya multiplicado.
       const t = [{v:1, tex:nP}];
-      if(Math.abs(dR) > 1e-9) t.push({v:1, tex:nR});
+      if(Math.abs(dR) > 1e-9) t.push({v:1, tex: inclin ? (nR + trigR(comp)) : nR});
       if(!esCero(sumF)) t.push({v:sumF, tex:dec(Math.abs(sumF),'f')});
       const nk = ++eqN; numEqReac[comp + P.id] = nk;
       const f = [];
       f.push(_filaArm(etq, t, ' = 0\\qquad(' + nk + ')'));
       if(Math.abs(dR) > 1e-9){
-        const t2 = [{v:1, tex:nP}, {v:valR, tex:dec(Math.abs(valR),'f')}];
+        const t2 = [{v:1, tex:nP}];
+        if(inclin) t2.push({v:1, tex:'(' + dec(valR,'f') + ')' + trigR(comp)});
+        else       t2.push({v:valR, tex:dec(Math.abs(valR),'f')});
         if(!esCero(sumF)) t2.push({v:sumF, tex:dec(Math.abs(sumF),'f')});
         f.push(_filaArm('{\\footnotesize\\text{de } (' + n1 + '):}\\quad', t2, ' = 0'));
       }
       f.push('& ' + nP + ' = ' + dec(valP,'f') + '\\ \\text{' + escLatex(uF) + '}');
       tex += _alineadaArm(f);
+      // Autocontrol: lo escrito debe reproducir la reacción que trae el motor.
+      if(Math.abs(valP + sumF + dR*valR) > 1e-5*Math.max(1, escalaDelProblema()))
+        console.warn('Informe LaTeX: el despeje no reproduce el valor de ' + P.nombre + comp,
+                     {informe:-(sumF + dR*valR), motor:valP});
     });
   } else {
     tex += '\\noindent{\\footnotesize Esta configuraci\\\'on de apoyos no es la de pasador m\\\'as rodillo; '
@@ -263,14 +308,22 @@ function construirLatex(){
     tex += '\\[ \\sum F_x = 0 \\qquad \\sum F_y = 0 \\qquad \\sum M = 0 \\]\n';
   }
   // Tabla de reacciones, con el sentido real en icono
-  let filasReac = '';
+  let filasReac = '', hayInclinado = false;
   nodos.forEach(n=>{
     const rc = resultado.reacciones[n.id]; if(!rc) return;
+    // Un rodillo inclinado se lista primero por su magnitud y su dirección, que
+    // es la incógnita que se ha resuelto, y después por sus dos componentes.
+    if(rc.inclinado){
+      hayInclinado = true;
+      filasReac += '$R_{' + nomN(n) + '}$ {\\footnotesize(a ' + dec(rc.ang,'f') + '$^{\\circ}$)} & $'
+        + dec(rc.mag,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(rc.rx, rc.ry) + ' \\\\\n';
+    }
     if(rc.rx !== undefined) filasReac += '$' + simbR(n,'x') + '$ & $' + dec(rc.rx,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(rc.rx, 0) + ' \\\\\n';
     if(rc.ry !== undefined) filasReac += '$' + simbR(n,'y') + '$ & $' + dec(rc.ry,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(0, rc.ry) + ' \\\\\n';
   });
   tex += tablaCaption('Reacciones en los apoyos, con su sentido real. Un valor negativo significa que la '
-    + 'reacci\\\'on act\\\'ua al rev\\\'es del sentido supuesto en el DCL.');
+    + 'reacci\\\'on act\\\'ua al rev\\\'es del sentido supuesto en el DCL.'
+    + (hayInclinado ? ' El rodillo inclinado aporta una sola inc\\\'ognita: se dan su magnitud, su direcci\\\'on y las dos componentes con las que entra en las sumas.' : ''));
   tex += '\\resultado{\\centering\\small\\begin{tabular}{@{}crc@{}}\\hline\n'
     + '\\textbf{Reacci\\\'on} & \\textbf{Valor} & \\textbf{Sentido real} \\\\\\hline\n' + filasReac
     + '\\hline\\end{tabular}}\n';

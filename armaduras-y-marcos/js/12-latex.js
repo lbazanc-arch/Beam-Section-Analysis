@@ -16,26 +16,33 @@ function tikzColorFuerza(v){
 // ── Apoyo formal (pasador / rodillo), estilo libro de texto ──
 // Triángulo con base y sombreado rayado bajo tierra; el rodillo añade dos
 // círculos entre el triángulo y la tierra para indicar que puede rodar.
-function tikzApoyo(tipo, px, py){
-  const w = 0.34, h = 0.52;
-  let s = '';
-  s += '\\draw[bsaAcc, line width=0.9pt, fill=white] (' + px + ',' + py + ') -- '
+// `ang` es el ángulo del apoyo, desde +x y antihorario: la dirección de la
+// reacción si es un rodillo, el giro estético si es un pasador. El símbolo se
+// dibuja bajo el origen y todo él va dentro de un scope girado (la misma
+// técnica que el empotramiento de fuerzas internas), así que un rodillo sobre
+// un plano inclinado se ve inclinado.
+function tikzApoyo(tipo, px, py, ang){
+  const w = 0.34, h = 0.52, F = v => v.toFixed(3);
+  const giro = (ang === undefined || ang === null) ? 0 : (Number(ang) - 90);
+  let s = '\\begin{scope}[shift={(' + px + ',' + py + ')}, rotate=' + giro.toFixed(2) + ']\n';
+  s += '\\draw[bsaAcc, line width=0.9pt, fill=white] (0,0) -- '
      + '++(-' + w + ',-' + h + ') -- ++(' + (2*w) + ',0) -- cycle;\n';
-  let baseY = (parseFloat(py) - h).toFixed(3);
+  let baseY = -h;
   if(tipo === 'movil'){
-    const cy2 = (parseFloat(baseY) - 0.10).toFixed(3);
-    s += '\\draw[bsaAcc, line width=0.7pt, fill=white] (' + (parseFloat(px)-w*0.55).toFixed(3) + ',' + cy2 + ') circle (0.10);\n';
-    s += '\\draw[bsaAcc, line width=0.7pt, fill=white] (' + (parseFloat(px)+w*0.55).toFixed(3) + ',' + cy2 + ') circle (0.10);\n';
-    baseY = (parseFloat(cy2) - 0.10).toFixed(3);
+    const cy2 = baseY - 0.10;
+    s += '\\draw[bsaAcc, line width=0.7pt, fill=white] (' + F(-w*0.55) + ',' + F(cy2) + ') circle (0.10);\n';
+    s += '\\draw[bsaAcc, line width=0.7pt, fill=white] (' + F(w*0.55) + ',' + F(cy2) + ') circle (0.10);\n';
+    baseY = cy2 - 0.10;
   }
-  s += '\\draw[bsaAcc, line width=0.8pt] (' + (parseFloat(px)-w-0.06).toFixed(3) + ',' + baseY + ') -- '
-     + '(' + (parseFloat(px)+w+0.06).toFixed(3) + ',' + baseY + ');\n';
+  s += '\\draw[bsaAcc, line width=0.8pt] (' + F(-w-0.06) + ',' + F(baseY) + ') -- '
+     + '(' + F(w+0.06) + ',' + F(baseY) + ');\n';
   // rayado de tierra (hatching)
   const n = 5;
   for(let i=0;i<=n;i++){
-    const hx = (parseFloat(px) - w - 0.06 + i*(2*w+0.12)/n).toFixed(3);
-    s += '\\draw[bsaAcc, line width=0.5pt] (' + hx + ',' + baseY + ') -- ++(-0.10,-0.11);\n';
+    const hx = -w - 0.06 + i*(2*w+0.12)/n;
+    s += '\\draw[bsaAcc, line width=0.5pt] (' + F(hx) + ',' + F(baseY) + ') -- ++(-0.10,-0.11);\n';
   }
+  s += '\\end{scope}\n';
   return s;
 }
 
@@ -422,7 +429,7 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
     // En un DCL el apoyo se SUSTITUYE por su reacción: si la reacción va dibujada
     // en este nudo, el símbolo del apoyo sobra (y se pisaba con el rótulo).
     const conReaccion = externas.some(e=>e.et.charAt(0) === 'R' && Math.abs(e.x-n.x) < 1e-6 && Math.abs(e.y-n.y) < 1e-6);
-    if((n.apoyo === 'fijo' || n.apoyo === 'movil') && !conReaccion) s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y));
+    if((n.apoyo === 'fijo' || n.apoyo === 'movil') && !conReaccion) s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y), anguloDibujoApoyo(n));
   });
 
   // fuerzas supuestas en las barras cortadas (tracción hacia afuera)
@@ -647,8 +654,9 @@ function tikzDCLNudo(n, res){
       s += etiquetaFuerza(-k*ux, -k*uy, col, etiqueta, 2.55);
     }
     ocup.push([ax, ay]);
-    // Si la fuerza es inclinada (componentes en x e y), su ángulo. Las
-    // reacciones se dibujan por componentes, así que esto solo afecta a cargas.
+    // Si la fuerza es inclinada (componentes en x e y), su ángulo. Afecta a las
+    // cargas y a la reacción de un rodillo inclinado, que también se dibuja
+    // como una sola flecha; las demás reacciones van por componentes.
     const arcoF = arcoAngulo(-k*ux, -k*uy, col, gen, 0.95, lado.ox, lado.oy, colocadorLetras);
     if(arcoF.tikz){ s += arcoF.tikz; angulos.push({letra:arcoF.letra, valor:arcoF.valor}); ocup.push([arcoF.lx, arcoF.ly]); }
   };
@@ -660,8 +668,15 @@ function tikzDCLNudo(n, res){
   // la flecha iba de (0,+2.15) a (0,+0.30), o sea hacia abajo).
   const rr = res.reacciones[n.id];
   if(rr){
-    if(rr.ry !== undefined && !esCero(rr.ry)) flechaExterna(0, rr.ry>0?1:-1, 'bsaVerde', '$R_{y' + escLatex(n.nombre) + '}$');
-    if(rr.rx !== undefined && !esCero(rr.rx)) flechaExterna(rr.rx>0?1:-1, 0, 'bsaVerde', '$R_{x' + escLatex(n.nombre) + '}$');
+    if(rr.inclinado && !esCero(rr.mag)){
+      // Un rodillo inclinado tiene UNA reacción: una sola flecha, en su sentido
+      // real (si la magnitud salió negativa, empuja al revés de lo declarado).
+      const ar = rr.ang*Math.PI/180, sg = rr.mag > 0 ? 1 : -1;
+      flechaExterna(sg*Math.cos(ar), sg*Math.sin(ar), 'bsaVerde', '$R_{' + escLatex(n.nombre) + '}$');
+    } else {
+      if(rr.ry !== undefined && !esCero(rr.ry)) flechaExterna(0, rr.ry>0?1:-1, 'bsaVerde', '$R_{y' + escLatex(n.nombre) + '}$');
+      if(rr.rx !== undefined && !esCero(rr.rx)) flechaExterna(rr.rx>0?1:-1, 0, 'bsaVerde', '$R_{x' + escLatex(n.nombre) + '}$');
+    }
   }
 
   // Marco x,y en la esquina más despejada, medida contra lo que de verdad hay
@@ -722,7 +737,7 @@ function tikzArmaduraCompleta(opts){
     s += '\\fill (' + tx(n.x) + ',' + ty(n.y) + ') circle (1.5pt);\n';
     s += '\\node[font=\\tiny, above right, xshift=1pt] at (' + tx(n.x) + ',' + ty(n.y) + ') {' + escLatex(n.nombre) + '};\n';
     if(n.apoyo === 'fijo' || n.apoyo === 'movil'){
-      s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y));
+      s += tikzApoyo(n.apoyo, tx(n.x), ty(n.y), anguloDibujoApoyo(n));
     }
     if(opts.cargas !== false){
       s += tikzFlechaCarga(n, tx, ty, factorCargas, null,
@@ -733,7 +748,19 @@ function tikzArmaduraCompleta(opts){
     if(opts.reaccionesIncognita && reacciones[n.id]){
       const rr = reacciones[n.id];
       const px = parseFloat(tx(n.x)), py = parseFloat(ty(n.y));
-      if(rr.ry !== undefined){
+      if(rr.inclinado){
+        // Una sola flecha en la dirección declarada: la reacción de un rodillo
+        // inclinado es UNA incógnita, no dos componentes. El ángulo se acota
+        // como el de las barras y las cargas (agudo, desde el eje más cercano).
+        const ar = rr.ang*Math.PI/180, ux = Math.cos(ar), uy = Math.sin(ar);
+        const x0 = px - ux*1.45, y0 = py - uy*1.45;
+        s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + x0.toFixed(3) + ',' + y0.toFixed(3)
+           + ') -- (' + (px - ux*0.62).toFixed(3) + ',' + (py - uy*0.62).toFixed(3) + ');\n';
+        s += '\\node[font=\\scriptsize, text=bsaVerde, inner sep=1.5pt] at (' + (px - ux*1.88).toFixed(3) + ','
+           + (py - uy*1.88).toFixed(3) + ') {$R_{' + escLatex(n.nombre) + '}$};\n';
+        const arcoR = arcoAngulo(ux, uy, 'bsaVerde', genCargas, 0.55, x0, y0, crearColocador(24, 0.40));
+        if(arcoR.tikz){ s += arcoR.tikz; _angulosFigura.push({letra:arcoR.letra, valor:arcoR.valor}); }
+      } else if(rr.ry !== undefined){
         s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + px.toFixed(3) + ',' + (py-1.45).toFixed(3) + ') -- (' + px.toFixed(3) + ',' + (py-0.62).toFixed(3) + ');\n';
         s += '\\node[font=\\scriptsize, text=bsaVerde, right, xshift=2pt] at (' + px.toFixed(3) + ',' + (py-1.05).toFixed(3) + ') {$R_{y' + escLatex(n.nombre) + '}$};\n';
       }

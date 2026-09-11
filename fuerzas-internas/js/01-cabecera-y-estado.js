@@ -39,7 +39,10 @@ function renderKatex(root){
 //  coordenadas, de modo que puede tener tramos inclinados. Las
 //  fuerzas internas se obtienen sobre el EJE LOCAL de cada tramo.
 // ═══════════════════════════════════════════════════════════
-let nodos = [];    // {id,x,y,nombre,apoyo:'libre'|'movil'|'simple'|'empotrado',rotula:bool}
+// nodos: {id,x,y,nombre,apoyo:'libre'|'movil'|'simple'|'empotrado',rotula:bool,
+//         apAng   — solo el MÓVIL: dirección de su única reacción (entra en el cálculo),
+//         apAngDib— solo el SIMPLE: giro del símbolo, presentación pura}
+let nodos = [];
 let tramos = [];   // {id,a,b}
 let cargas = [];   // {id,tipo,tramo,pos,pos2,mag,mag2}
 let nodoSeq = 0, tramoSeq = 0, cargaSeq = 0;
@@ -63,13 +66,31 @@ let edNodo = null, edTramo = null, edApoyo = null, edCarga = null;
 const LEN_A_M = {m:1, cm:0.01, ft:0.3048};
 const FOR_A_KN = {kN:1, N:0.001, ton:9.80665, lb:0.00444822};
 const GRADOS = {libre:0, movil:1, simple:2, empotrado:3};
-// Rotación por defecto de un apoyo: colgando hacia abajo.
-const AP_ANG_DEF = -90;
-// Dirección (radianes, plano con y hacia arriba) en la que EMPUJA la
-// reacción de un apoyo orientado: opuesta a la rotación del símbolo.
+// ── Ángulo de un apoyo ──
+// Convención unificada del proyecto: todo ángulo que escribe el usuario se mide
+// desde el eje +x y en sentido ANTIHORARIO (0° derecha, 90° arriba, −90° abajo).
+// Por defecto, 90°: la reacción sube, que es el rodillo apoyado en el suelo de
+// siempre y el pasador dibujado debajo del nudo.
+const AP_ANG_DEF = 90;
+// Dirección (radianes, plano con y hacia arriba) en la que EMPUJA la reacción
+// de un apoyo móvil: es directamente el ángulo que escribió el usuario.
+// Hasta el 2026-09-10 `apAng` significaba «hacia dónde cuelga el símbolo desde
+// el nudo» y aquí se le sumaban 180°; ahora el campo YA es la dirección de la
+// reacción, así que no hay nada que girar.
 function angReaccion(n){
   const a = (n.apAng === undefined) ? AP_ANG_DEF : n.apAng;
-  return (a + 180) * Math.PI/180;
+  return a * Math.PI/180;
+}
+// Ángulo con el que se DIBUJA el símbolo del apoyo, en la misma convención.
+// La distinción importa: en el móvil ese ángulo es la dirección real de su
+// única reacción y entra en el cálculo; en el simple es solo presentación —un
+// pasador sujeta las dos direcciones se dibuje como se dibuje—, así que vive en
+// otra propiedad (`apAngDib`) que ningún motor lee.
+function anguloApoyo(n){
+  if(!n) return AP_ANG_DEF;
+  if(n.apoyo === 'movil')  return (n.apAng    === undefined) ? AP_ANG_DEF : n.apAng;
+  if(n.apoyo === 'simple') return (n.apAngDib === undefined) ? AP_ANG_DEF : n.apAngDib;
+  return AP_ANG_DEF;
 }
 const NOMBRE_APOYO = {libre:'Libre', movil:'Móvil', simple:'Simple / articulado', empotrado:'Empotrado'};
 

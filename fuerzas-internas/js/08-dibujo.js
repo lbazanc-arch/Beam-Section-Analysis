@@ -501,26 +501,28 @@ function dibujarApoyo(n){
   if(!n.apoyo || n.apoyo==='libre') return;
   const [px,py]=aPantalla(n.x,n.y);
   ctx.strokeStyle='#1e3a8a'; ctx.lineWidth=2.2;
-  if(n.apoyo==='movil'){
-    // El apoyo móvil puede orientarse: apAng es la dirección de su ÚNICA
-    // reacción (90° = vertical, el caso habitual). El símbolo se dibuja
-    // girado para que se vea sobre qué dirección desliza.
-    const ang = (n.apAng === undefined ? AP_ANG_DEF : n.apAng);
+  if(n.apoyo==='movil' || n.apoyo==='simple'){
+    // Los dos símbolos se dibujan colgando del nudo, que es el caso de 90°
+    // (reacción hacia arriba), y se giran (90 − ángulo) para llevarlos a su
+    // posición. Ojo a la diferencia de fondo: en el MÓVIL ese ángulo es la
+    // dirección real de su única reacción y entra en el cálculo; en el SIMPLE
+    // sale de `apAngDib` y es solo presentación, porque un pasador sujeta las
+    // dos direcciones se dibuje como se dibuje.
+    const ang = anguloApoyo(n);
     ctx.save();
     ctx.translate(px, py);
-    // El símbolo se dibuja colgando hacia abajo; girarlo -(apAng+90°) lo
-    // lleva a la rotación pedida. Con el valor por defecto (-90°) el giro
-    // es nulo y queda como siempre.
-    ctx.rotate(-(ang + 90) * Math.PI/180);
-    ctx.beginPath(); ctx.moveTo(0,2); ctx.lineTo(-12,17); ctx.lineTo(12,17); ctx.closePath(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(-6,21,3.4,0,Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(6,21,3.4,0,Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-17,25); ctx.lineTo(17,25); ctx.stroke();
+    ctx.rotate((90 - ang) * Math.PI/180);
+    if(n.apoyo==='movil'){
+      ctx.beginPath(); ctx.moveTo(0,2); ctx.lineTo(-12,17); ctx.lineTo(12,17); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(-6,21,3.4,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(6,21,3.4,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-17,25); ctx.lineTo(17,25); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(0,2); ctx.lineTo(-13,21); ctx.lineTo(13,21); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-19,21); ctx.lineTo(19,21); ctx.stroke();
+      for(let i=-3;i<=3;i++){ ctx.beginPath(); ctx.moveTo(i*5.5,21); ctx.lineTo(i*5.5-4,27); ctx.stroke(); }
+    }
     ctx.restore();
-  } else if(n.apoyo==='simple'){
-    ctx.beginPath(); ctx.moveTo(px,py+2); ctx.lineTo(px-13,py+21); ctx.lineTo(px+13,py+21); ctx.closePath(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px-19,py+21); ctx.lineTo(px+19,py+21); ctx.stroke();
-    for(let i=-3;i<=3;i++){ ctx.beginPath(); ctx.moveTo(px+i*5.5,py+21); ctx.lineTo(px+i*5.5-4,py+27); ctx.stroke(); }
   } else if(n.apoyo==='empotrado'){
     // Las diagonales del muro van SIEMPRE al lado opuesto a la viga: si el
     // empotramiento está en el extremo derecho, el muro queda a la derecha.

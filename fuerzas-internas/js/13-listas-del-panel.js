@@ -94,10 +94,26 @@ const _ICO_DIR = {
   perp:  ['⇣','⇡'],
   axial: ['⇢','⇠']
 };
+// La inclinada apunta a cualquier lado, así que no tiene un par fijo de
+// flechas: se escoge la más próxima de las ocho, igual que hace el informe con
+// la reacción de un apoyo orientado.
+const _ICO_OCHO = ['→','↗','↑','↖','←','↙','↓','↘'];
 function iconoSentido(c){
   if(c.tipo === 'M') return (c.mag < 0) ? '↻' : '↺';
-  const par = _ICO_DIR[dirDeCarga(c)] || _ICO_DIR.y;
+  const d = dirDeCarga(c);
+  if(d === 'ang'){
+    const a = (+c.ang || 0) + (c.mag < 0 ? 180 : 0);
+    return _ICO_OCHO[((Math.round(a/45) % 8) + 8) % 8];
+  }
+  const par = _ICO_DIR[d] || _ICO_DIR.y;
   return (c.mag < 0) ? par[1] : par[0];
+}
+// Nombre corto de la dirección para la lista del panel. La inclinada lleva su
+// ángulo: «Inclinada» a secas no dice hacia dónde va.
+function nombreDireccion(c){
+  const d = dirDeCarga(c);
+  const nom = (DIR_CARGA[d] || {}).nom || '';
+  return (d === 'ang') ? (nom + ' ' + (+c.ang || 0) + '°') : nom;
 }
 
 function htmlArbolCargas(){
@@ -141,7 +157,7 @@ function htmlArbolCargas(){
             + '<span class="sent" title="sentido">' + iconoSentido(c) + '</span>'
             + '<div class="nm">' + val + ' ' + u
             + ((c.tipo !== 'M' && dirDeCarga(c) !== 'y')
-                ? ' <span class="loc">' + (DIR_CARGA[dirDeCarga(c)]||{}).nom + '</span>' : '') + '</div>'
+                ? ' <span class="loc">' + nombreDireccion(c) + '</span>' : '') + '</div>'
             + '<button class="x" title="Editar" onclick="editarCarga(' + c.id + ')">✎</button>'
             + '<button class="x" title="Borrar" onclick="borrarCarga(' + c.id + ')">×</button>'
             + '</div>';

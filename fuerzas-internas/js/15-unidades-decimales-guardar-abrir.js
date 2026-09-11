@@ -74,7 +74,11 @@ const BSA_FORMATO = 'bsa7';
 const BSA_EXT     = '.json';          // un solo .json: la doble extensión .bsa7.json
                                       // dejaba los archivos en gris en el selector de Android
 const BSA_PREFIJO = 'fuerzas-internas-';    // el tema va en el nombre, y el formato dentro (bsaApp)
-const BSA_VERSION = 1;
+// v2 (2026-09-10): el ángulo del apoyo móvil pasó a significar la DIRECCIÓN DE
+// LA REACCIÓN —antes era hacia dónde colgaba el símbolo, 180° de diferencia— y
+// el apoyo simple ganó un ángulo de dibujo. Los archivos v1 se convierten al
+// abrirlos, en `convertirApoyosDeArchivo`.
+const BSA_VERSION = 2;
 
 function nombreArchivoSeguro(nombre){
   // Sin caracteres que rompan el nombre de archivo en Windows/macOS/Android.
@@ -172,7 +176,7 @@ function _cargarEjercicioTexto(texto, nombre){
     if(datos.bsaApp && datos.bsaApp !== BSA_FORMATO)
       aviso('Este archivo parece ser de otro capítulo (' + datos.bsaApp + '). Se intentará abrir de todos modos.', 'error');
     const estado = datos.estado || datos;   // admite también el JSON "pelado" del estado
-    cargarEstadoDesdeArchivo(estado, nombre);
+    cargarEstadoDesdeArchivo(estado, nombre, datos.version);
 }
 function onArchivoElegido(ev){
   const file = ev.target.files && ev.target.files[0];
@@ -220,7 +224,23 @@ function pintarGuardadosEnEquipo(){
   if(c) c.innerHTML = bsaHtmlGuardados(BSA_FORMATO);
 }
 
-function cargarEstadoDesdeArchivo(e, nombreArchivo){
+// ── Archivos anteriores al cambio de convención (v1 → v2) ──
+// En v1 `apAng` era «hacia dónde cuelga el símbolo del apoyo móvil desde el
+// nudo», y la reacción actuaba en sentido contrario; desde v2 el campo YA es la
+// dirección de la reacción. Girarlo 180° deja el ejercicio con la misma física
+// que tenía. En la práctica ningún archivo v1 trae el campo, porque el
+// `estadoActual` de entonces no lo guardaba, pero la conversión se deja escrita
+// para que la regla no dependa de ese detalle.
+function convertirApoyosDeArchivo(lista, version){
+  if((+version || 1) >= 2) return;
+  (lista || []).forEach(n=>{
+    if(n && n.apoyo === 'movil' && n.apAng !== undefined && isFinite(+n.apAng))
+      n.apAng = ((+n.apAng + 180) % 360 + 360) % 360;
+  });
+}
+// `version` es la del PAQUETE (`datos.version`), no la del estado: dice en qué
+// convención vienen escritos los campos que llegan.
+function cargarEstadoDesdeArchivo(e, nombreArchivo, version){
   if(!e || !Array.isArray(e.nodos)){
     aviso('El archivo no contiene un ejercicio reconocible.', 'error');
     return;
@@ -228,6 +248,7 @@ function cargarEstadoDesdeArchivo(e, nombreArchivo){
   try{
     registrarCambio();
     nodos=(e.nodos||[]).map(n=>Object.assign({nombre:''},n));
+    convertirApoyosDeArchivo(nodos, version);
     tramos=(e.tramos||[]).slice();
     cargas=normalizarCargas((e.cargas||[]).map(c=>Object.assign({}, c)));
     pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
@@ -250,7 +271,11 @@ function escaparTexto(s){
                   .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function estadoActual(){
-  return {nodos:nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,rotula:n.rotula})),
+  // `apAng` (dirección de la reacción del móvil) y `apAngDib` (giro del símbolo
+  // del simple) se guardan desde la v2: antes se perdían al guardar, y el
+  // ejercicio se reabría con todos los apoyos en su posición por defecto.
+  return {nodos:nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,rotula:n.rotula,
+                               apAng:n.apAng, apAngDib:n.apAngDib})),
           tramos:tramos.map(t=>({id:t.id,a:t.a,b:t.b})),
           cargas:cargas.slice(),
           unidades:{len:unitLen,fuerza:unitFor}, decimales:DEC};
@@ -791,23 +816,32 @@ function anguloEmpotramiento(n){
 // derecha, 180 = a la izquierda, que es el valor por defecto). Lo da
 // `anguloEmpotramiento(n)` salvo en el esquema de los diagramas, donde la pieza
 // se dibuja desarrollada sobre su eje y el muro sigue a ese eje, no al modelo.
-function tikzApoyo(x, y, tipo, k, angMuro){
+// angApoyo: ángulo del propio apoyo, en la convención del proyecto (desde +x,
+// antihorario; 90° = el de siempre). Lo usan el simple y el móvil, que se
+// dibujan colgando del nudo y giran (ángulo − 90°) dentro de un `scope`. En el
+// MÓVIL ese ángulo es la dirección real de su reacción y sale de `apAng`; en el
+// SIMPLE es solo presentación y sale de `apAngDib`, sin tocar ningún cálculo.
+function tikzApoyo(x, y, tipo, k, angMuro, angApoyo){
   const K = k || 1, F = n => n.toFixed(3);
   let out = '';
+  const aAp = (angApoyo === undefined ? 90 : angApoyo);
+  const giro = (tipo === 'simple' || tipo === 'movil') && Math.abs(aAp - 90) > 0.01;
+  if(giro) out += '\\begin{scope}[shift={(' + F(x) + ',' + F(y) + ')}, rotate=' + (aAp - 90).toFixed(2) + ']\n';
+  const X0 = giro ? 0 : x, Y0 = giro ? 0 : y;
   if(tipo === 'simple'){
-    out += '\\draw[line width=1pt] (' + F(x) + ',' + F(y) + ') -- (' + F(x-0.28*K) + ',' + F(y-0.45*K)
-         + ') -- (' + F(x+0.28*K) + ',' + F(y-0.45*K) + ') -- cycle;\n';
-    out += '\\draw[line width=1pt] (' + F(x-0.4*K) + ',' + F(y-0.45*K) + ') -- (' + F(x+0.4*K) + ',' + F(y-0.45*K) + ');\n';
+    out += '\\draw[line width=1pt] (' + F(X0) + ',' + F(Y0) + ') -- (' + F(X0-0.28*K) + ',' + F(Y0-0.45*K)
+         + ') -- (' + F(X0+0.28*K) + ',' + F(Y0-0.45*K) + ') -- cycle;\n';
+    out += '\\draw[line width=1pt] (' + F(X0-0.4*K) + ',' + F(Y0-0.45*K) + ') -- (' + F(X0+0.4*K) + ',' + F(Y0-0.45*K) + ');\n';
     for(let i=-3;i<=3;i++){
-      const xi = x+i*0.11*K;
-      out += '\\draw[line width=.6pt] (' + F(xi) + ',' + F(y-0.45*K) + ') -- (' + F(xi-0.08*K) + ',' + F(y-0.58*K) + ');\n';
+      const xi = X0+i*0.11*K;
+      out += '\\draw[line width=.6pt] (' + F(xi) + ',' + F(Y0-0.45*K) + ') -- (' + F(xi-0.08*K) + ',' + F(Y0-0.58*K) + ');\n';
     }
   } else if(tipo === 'movil'){
-    out += '\\draw[line width=1pt] (' + F(x) + ',' + F(y) + ') -- (' + F(x-0.26*K) + ',' + F(y-0.38*K)
-         + ') -- (' + F(x+0.26*K) + ',' + F(y-0.38*K) + ') -- cycle;\n';
-    out += '\\draw[line width=1pt] (' + F(x-0.13*K) + ',' + F(y-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
-    out += '\\draw[line width=1pt] (' + F(x+0.13*K) + ',' + F(y-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
-    out += '\\draw[line width=1pt] (' + F(x-0.36*K) + ',' + F(y-0.54*K) + ') -- (' + F(x+0.36*K) + ',' + F(y-0.54*K) + ');\n';
+    out += '\\draw[line width=1pt] (' + F(X0) + ',' + F(Y0) + ') -- (' + F(X0-0.26*K) + ',' + F(Y0-0.38*K)
+         + ') -- (' + F(X0+0.26*K) + ',' + F(Y0-0.38*K) + ') -- cycle;\n';
+    out += '\\draw[line width=1pt] (' + F(X0-0.13*K) + ',' + F(Y0-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
+    out += '\\draw[line width=1pt] (' + F(X0+0.13*K) + ',' + F(Y0-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
+    out += '\\draw[line width=1pt] (' + F(X0-0.36*K) + ',' + F(Y0-0.54*K) + ') -- (' + F(X0+0.36*K) + ',' + F(Y0-0.54*K) + ');\n';
   } else if(tipo === 'empotrado'){
     // El muro entero gira: se dibuja con la cara del muro sobre el eje vertical
     // local y las rayas hacia +x, y el `rotate` lo lleva a su orientación. Así
@@ -822,6 +856,7 @@ function tikzApoyo(x, y, tipo, k, angMuro){
     }
     out += '\\end{scope}\n';
   }
+  if(giro) out += '\\end{scope}\n';
   return out;
 }
 
@@ -898,9 +933,12 @@ function tikzDCLSub(R, gg, seg, sub, info){
     const esArranque = (i === 0);
     if(p.n && p.n.apoyo && p.n.apoyo !== 'libre' && (primero || !esArranque)){
       const emp = (p.n.apoyo === 'empotrado');
-      out += tikzApoyo(X(p.x), Y(p.y), p.n.apoyo, 0.9, emp ? anguloEmpotramiento(p.n) : undefined);
-      // el empotramiento gira, así que su hueco es un cuadrado alrededor del nudo
-      if(emp) tzOcupar(X(p.x)-0.42, Y(p.y)-0.42, X(p.x)+0.42, Y(p.y)+0.42);
+      const aAp = anguloApoyo(p.n);
+      out += tikzApoyo(X(p.x), Y(p.y), p.n.apoyo, 0.9,
+                       emp ? anguloEmpotramiento(p.n) : undefined, aAp);
+      // Si el símbolo gira, su hueco deja de ser la banda de debajo del nudo y
+      // pasa a ser un cuadrado alrededor, como el del empotramiento.
+      if(emp || Math.abs(aAp - 90) > 0.01) tzOcupar(X(p.x)-0.42, Y(p.y)-0.42, X(p.x)+0.42, Y(p.y)+0.42);
       else tzOcupar(X(p.x)-0.42, Y(p.y)-0.62, X(p.x)+0.42, Y(p.y)-0.02);
     }
     if(p.n && p.n.rotula && !esArranque)

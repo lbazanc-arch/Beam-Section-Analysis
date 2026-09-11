@@ -52,6 +52,18 @@ function _primeraVezPres(clave){
 let _tkpCajas = [];
 function tkpReiniciar(){ _tkpCajas = []; }
 function tkpOcupar(x0,y0,x1,y1){ _tkpCajas.push({x0:Math.min(x0,x1), y0:Math.min(y0,y1), x1:Math.max(x0,x1), y1:Math.max(y0,y1)}); }
+// Caja de un símbolo girado: el rectángulo local (x0,y0)-(x1,y1) después de
+// girarlo `grados` (antihorario) alrededor de (cx,cy).
+function tkpOcuparGirado(cx,cy,grados,x0,y0,x1,y1){
+  const a = grados*Math.PI/180, c = Math.cos(a), s = Math.sin(a);
+  let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+  [[x0,y0],[x1,y0],[x1,y1],[x0,y1]].forEach(p=>{
+    const X = cx + p[0]*c - p[1]*s, Y = cy + p[0]*s + p[1]*c;
+    mnx = Math.min(mnx,X); mxx = Math.max(mxx,X);
+    mny = Math.min(mny,Y); mxy = Math.max(mxy,Y);
+  });
+  tkpOcupar(mnx, mny, mxx, mxy);
+}
 function tkpChoca(c){ return _tkpCajas.some(q=>c.x0 < q.x1 && c.x1 > q.x0 && c.y0 < q.y1 && c.y1 > q.y0); }
 function tkpOcuparTrazo(x1,y1,x2,y2,w){
   const g = w || 0.08, n = 6;
@@ -148,10 +160,15 @@ function tkpApoyo(n, X, Y, k){
   const x = X(n.x), y = Y(n.y);
   let out = '';
   if(n.apoyo === 'fijo'){
-    out += '\\draw[line width=1pt, color=bsaAcc2] (' + F(x) + ',' + F(y) + ') -- (' + F(x-0.26) + ',' + F(y-0.42) + ') -- (' + F(x+0.26) + ',' + F(y-0.42) + ') -- cycle;\n';
-    out += '\\draw[line width=1pt, color=bsaAcc2] (' + F(x-0.40) + ',' + F(y-0.42) + ') -- (' + F(x+0.40) + ',' + F(y-0.42) + ');\n';
-    for(let i=-3;i<=3;i++) out += '\\draw[bsaAcc2, line width=.5pt] (' + F(x+i*0.12) + ',' + F(y-0.42) + ') -- (' + F(x+i*0.12-0.1) + ',' + F(y-0.56) + ');\n';
-    tkpOcupar(x-0.45, y-0.6, x+0.45, y);
+    // Mismo giro que en el lienzo, y por el mismo motivo: es presentación y no
+    // interviene en el cálculo. Con 90° queda el triángulo debajo del nudo.
+    const gf = anguloDibujoApoyoFijo(n) - 90;
+    out += '\\begin{scope}[shift={(' + F(x) + ',' + F(y) + ')}, rotate=' + gf.toFixed(2) + ']\n';
+    out += '\\draw[line width=1pt, color=bsaAcc2] (0,0) -- (-0.260,-0.420) -- (0.260,-0.420) -- cycle;\n';
+    out += '\\draw[line width=1pt, color=bsaAcc2] (-0.400,-0.420) -- (0.400,-0.420);\n';
+    for(let i=-3;i<=3;i++) out += '\\draw[bsaAcc2, line width=.5pt] (' + F(i*0.12) + ',-0.420) -- (' + F(i*0.12-0.1) + ',-0.560);\n';
+    out += '\\end{scope}\n';
+    tkpOcuparGirado(x, y, gf, -0.45, -0.6, 0.45, 0);
   } else if(n.apoyo === 'movil'){
     const d = direccionIncognita({n, tipo:'R'});
     const ang = Math.atan2(d.y, d.x)*180/Math.PI - 90;

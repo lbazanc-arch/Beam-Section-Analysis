@@ -62,30 +62,34 @@ function colorBarra(f){
   return '#563aa8';
 }
 
+// El símbolo se dibuja siempre BAJO el nudo y luego se gira, en vez de tener
+// un caso por orientación. El ángulo del apoyo es la dirección de su reacción
+// (desde +x, antihorario), así que el símbolo va al lado contrario: un rodillo
+// a 90° queda debajo y empuja hacia arriba; uno a 0°, a la izquierda y empuja
+// hacia la derecha. En el lienzo la y va invertida, de ahí el giro 90° − a.
 function dibujarApoyo(n){
   const [px,py] = aPantalla(n.x, n.y);
   ctx.strokeStyle = '#563aa8'; ctx.fillStyle = '#563aa8'; ctx.lineWidth = 2;
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(Math.PI/2 - anguloDibujoApoyo(n)*Math.PI/180);
   if(n.apoyo === 'fijo'){
     ctx.beginPath();
-    ctx.moveTo(px, py+2); ctx.lineTo(px-13, py+21); ctx.lineTo(px+13, py+21); ctx.closePath();
+    ctx.moveTo(0, 2); ctx.lineTo(-13, 21); ctx.lineTo(13, 21); ctx.closePath();
     ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px-19, py+21); ctx.lineTo(px+19, py+21); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-19, 21); ctx.lineTo(19, 21); ctx.stroke();
     for(let i=-3;i<=3;i++){
-      ctx.beginPath(); ctx.moveTo(px+i*5.5, py+21); ctx.lineTo(px+i*5.5-4, py+27); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(i*5.5, 21); ctx.lineTo(i*5.5-4, 27); ctx.stroke();
     }
   } else if(n.apoyo === 'movil'){
-    const horizontal = n.apAng === 0;
-    ctx.save();
-    ctx.translate(px, py);
-    if(horizontal) ctx.rotate(-Math.PI/2);   // de costado, contra una superficie vertical
     ctx.beginPath();
     ctx.moveTo(0, 2); ctx.lineTo(-13, 18); ctx.lineTo(13, 18); ctx.closePath();
     ctx.stroke();
     ctx.beginPath(); ctx.arc(-7, 22.5, 4, 0, Math.PI*2); ctx.stroke();
     ctx.beginPath(); ctx.arc(7, 22.5, 4, 0, Math.PI*2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-19, 27.5); ctx.lineTo(19, 27.5); ctx.stroke();
-    ctx.restore();
   }
+  ctx.restore();
 }
 
 function dibujarCarga(n){
@@ -479,6 +483,9 @@ function dibujar(){
       const [px,py] = aPantalla(n.x, n.y);
       ctx.font = '700 10.5px Inter, sans-serif'; ctx.fillStyle = '#15803d';
       let t = [];
+      // Un rodillo inclinado es UNA reacción con dirección: se rotula su
+      // magnitud y su ángulo, y debajo las componentes con las que se calcula.
+      if(R.inclinado) t.push('R='+dec(R.mag,'f')+' a '+dec(R.ang,'f')+'°');
       if(R.rx !== undefined) t.push('Rx='+dec(R.rx,'f'));
       if(R.ry !== undefined) t.push('Ry='+dec(R.ry,'f'));
       if(R.m !== undefined) t.push('M='+dec(R.m,'f'));

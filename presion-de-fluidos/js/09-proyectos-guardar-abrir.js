@@ -9,6 +9,7 @@ function escaparTexto(s){
 function estadoActual(){
   return {
     nodos: nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,apAng:n.apAng,apModo:n.apModo||'angulo',
+                          apAngFijo:anguloDibujoApoyoFijo(n),
                           rotula:n.rotula,tope:n.tope ? Object.assign({}, n.tope) : null})),
     tramos: tramos.map(t=>({id:t.id,a:t.a,b:t.b,tipo:t.tipo,flecha:t.flecha,
                             activo:t.activo,invertir:t.invertir})),
@@ -179,6 +180,15 @@ window.addEventListener('load', ()=>{
     if(e) e.addEventListener('input',()=>{ R=null; refrescar(); }); });
   const ap=document.getElementById('apAng');
   if(ap) ap.addEventListener('input',actualizarPrevApoyo);
+  const apf=document.getElementById('apAngFijo');
+  if(apf) apf.addEventListener('input',()=>{
+    // El giro del apoyo fijo se ve al instante porque es solo dibujo: no
+    // invalida el resultado, así que R se conserva.
+    const n = nodos.find(z=>z.id===apoyoId);
+    const v = parseFloat(apf.value);
+    if(n && isFinite(v)) n.apAngFijo = v;
+    actualizarPrevApoyo(); refrescar();
+  });
   document.getElementById('chipDec').textContent=textoDecimales();
   posicionarToggle();
   ajustarCanvas(); setTool('pan'); centrar(); refrescar(); histRequest();
@@ -193,7 +203,10 @@ window.addEventListener('load', ()=>{
 //  API no existe (Firefox, Safari, móvil) se recurre a la descarga normal.
 // ═══════════════════════════════════════════════════════════
 const BSA_FORMATO = 'bsa9p';
-const BSA_VERSION = 2;                // 2 (2026-09-08): topes con modo/lado y apoyos móviles con modo
+const BSA_VERSION = 3;                // 2 (2026-09-08): topes con modo/lado y apoyos móviles con modo
+                                      // 3 (2026-09-10): apAngFijo, el giro de dibujo del apoyo fijo.
+                                      // Los archivos de la 1 y la 2 se abren igual: sin ese campo,
+                                      // el apoyo fijo se dibuja a 90° como siempre.
 const BSA_EXT     = '.json';          // un solo .json: la doble extensión .bsa9p.json
                                       // dejaba los archivos en gris en el selector de Android
 const BSA_PREFIJO = 'presion-de-fluidos-';    // el tema va en el nombre, y el formato dentro (bsaApp)

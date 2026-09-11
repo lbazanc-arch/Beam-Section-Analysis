@@ -1799,13 +1799,13 @@ async function api(action, body={}, timeoutMs=12000){
         const correo=String(body.email||'').trim().toLowerCase();
         const { data, error } = await SB.auth.signInWithPassword({email:correo, password:body.pass});
         if(error){
-          // ¿el correo está matriculado pero aún no tiene cuenta?
-          const { data:m } = await SB.from('matriculados').select('correo').eq('correo',correo).maybeSingle();
-          if(m) return {ok:false, needsRegister:true, email:correo,
-                        error:'Aún no has creado tu contraseña.'};
+          // Aquí NO se consulta la lista de matriculados. Hacerlo permitía
+          // averiguar, correo a correo, quién está inscrito en el curso: bastaba
+          // probar credenciales falsas y mirar la respuesta. El mensaje es el
+          // mismo para cualquier fallo de credenciales.
           if(/Email not confirmed/i.test(error.message))
             return {ok:false, error:'Debes confirmar tu correo. Revisa tu bandeja de entrada.'};
-          return {ok:false, error:'Credenciales incorrectas.'};
+          return {ok:false, error:'Correo o contraseña incorrectos. Si aún no has creado tu contraseña, usa «Crear cuenta».'};
         }
         const { data:perfil } = await SB.from('alumnos').select('*').eq('id',data.user.id).maybeSingle();
         // Cuenta creada pero registro sin terminar: se le pide completarlo.
@@ -1935,10 +1935,19 @@ async function api(action, body={}, timeoutMs=12000){
       // ── Registro: crea la cuenta y su ficha ──
       case 'registrarClave': {
         const correo=String(body.email||'').trim().toLowerCase();
-        const { data:m } = await SB.from('matriculados').select('*').eq('correo',correo).maybeSingle();
-        if(!m) return {ok:false, error:'Tu correo no está registrado en el curso.'};
-        if(String(m.codigo||'').trim().toLowerCase() !== String(body.codigo||'').trim().toLowerCase())
-          return {ok:false, error:'El código no coincide con el registrado. Consúltalo con tu profesor.'};
+        // La tabla `matriculados` solo la puede leer el profesor (RLS). Quien
+        // se está registrando todavía es anónimo, así que la consulta directa
+        // devolvía vacío SIEMPRE y el registro respondía «tu correo no está
+        // registrado» aunque lo estuviera. `datos_matricula` exige correo y
+        // código a la vez, así que comprueba la matrícula sin dejar que nadie
+        // averigüe quién está inscrito.
+        const { data:filas, error:eMat } = await SB.rpc('datos_matricula',
+                        {p_correo:correo, p_codigo:String(body.codigo||'').trim()});
+        if(eMat) return {ok:false, error:'No se pudo comprobar tu matrícula. Inténtalo de nuevo.'};
+        const m = Array.isArray(filas) ? filas[0] : filas;
+        // Un solo mensaje para los dos casos: decir cuál de los dos falla
+        // volvería a delatar qué correos están matriculados.
+        if(!m) return {ok:false, error:'El correo y el código no coinciden con la lista del curso. Consúltalo con tu profesor.'};
         if(String(body.pass||'').length < 6)
           return {ok:false, error:'La contraseña debe tener al menos 6 caracteres.'};
 
@@ -2033,14 +2042,15 @@ async function api(action, body={}, timeoutMs=12000){
       }
 
       case 'deleteAccount': {
-        if(!user) return {ok:false};
-        // Se borran primero los ingresos: si quedaran huérfanos apuntando a
-        // un alumno inexistente, las estadísticas del profesor saldrían mal.
-        // `sesiones` cae sola por ON DELETE CASCADE, pero se borra antes
-        // de forma explícita para no depender de ello si algún día cambia.
-        await SB.from('sesiones').delete().eq('alumno', user.id);
-        const { error } = await SB.from('alumnos').delete().eq('id', user.id);
-        return {ok: !error};
+        // La baja la hace `borrar_cuenta()`, que elimina la IDENTIDAD en
+        // auth.users; la ficha de `alumnos` y las `sesiones` caen con ella por
+        // ON DELETE CASCADE, y el correo queda libre para volver a usarse.
+        // Antes se borraba a mano de esas dos tablas, pero la única política de
+        // borrado sobre `alumnos` es la del profesor: para un alumno no se
+        // borraba NADA y aun así se respondía que había salido bien. Y al no
+        // tocar la identidad, el correo quedaba ocupado para siempre.
+        const { error } = await SB.rpc('borrar_cuenta');
+        return error ? {ok:false, error:error.message} : {ok:true};
       }
 
       case 'logout':
@@ -2058,10 +2068,17 @@ async function api(action, body={}, timeoutMs=12000){
       }
 
       case 'checkStudent': {
+        // Pide correo Y código, como `registrarClave`: la lista de
+        // matriculados no puede consultarse correo a correo (ver arriba).
         const correo=String(body.email||'').trim().toLowerCase();
-        const { data } = await SB.from('matriculados').select('*').eq('correo',correo).maybeSingle();
-        return data ? {found:true, student:{codigo:data.codigo, nombre:data.nombre,
-                       email:correo, horario:data.horario}} : {found:false};
+        const codigo=String(body.codigo||'').trim();
+        if(!correo || !codigo) return {found:false};
+        const { data, error } = await SB.rpc('datos_matricula',
+                                      {p_correo:correo, p_codigo:codigo});
+        if(error) return {found:false};
+        const m = Array.isArray(data) ? data[0] : data;
+        return m ? {found:true, student:{codigo:m.codigo, nombre:m.nombre,
+                    email:correo, horario:m.horario}} : {found:false};
       }
 
       case 'getLogs': {
@@ -2082,14 +2099,31 @@ async function api(action, body={}, timeoutMs=12000){
           temas:  Number(r.temas_distintos)||0}))};
       }
 
+      // ── Configuración del curso: tabla `config` de Supabase ──
+      // Antes esto era localStorage y nada más, así que el bloqueo de temas y
+      // el «deshabilitar aplicativo» no eran una barrera: cada navegador
+      // mandaba sobre sí mismo y lo que activaba el profesor no llegaba a
+      // nadie. La verdad está en el servidor; la copia local es solo caché.
       case 'getConfig': {
-        const v=ls.get('app_disabled_until');
-        const co=ls.get('caps_off');
-        const cf={}; if(v)cf.app_disabled_until=v; if(co)cf.caps_off=Array.isArray(co)?co.join(','):co;
+        const { data, error } = await SB.from('config').select('clave, valor');
+        if(error){
+          console.warn('getConfig:', error.message);
+          return {config: configEnCache(), local:true};   // sin conexión: la caché
+        }
+        const cf = {};
+        (data||[]).forEach(f=>{ if(f && f.clave) cf[f.clave] = f.valor; });
         return {config: cf};
       }
-      case 'setConfig':
-        ls.set(body.key, body.value); return {ok:true};
+      case 'setConfig': {
+        // Escribe solo el profesor (política «profesor edita config»). Si la
+        // orden no llega, se dice: guardarla en el navegador la hacía parecer
+        // aplicada sin haber salido de este equipo.
+        const valor = (body.value===undefined || body.value===null) ? '' : String(body.value);
+        const { error } = await SB.from('config').upsert(
+          {clave:String(body.key||''), valor:valor, actualizado_en:new Date().toISOString()},
+          {onConflict:'clave'});
+        return error ? {ok:false, error:error.message} : {ok:true};
+      }
 
       // ── Escritura ──
       case 'addStudents': {
@@ -2103,14 +2137,18 @@ async function api(action, body={}, timeoutMs=12000){
       }
 
       case 'deleteStudents': {
-        // `sesiones.alumno` tiene ON DELETE CASCADE, así que al borrar la
-        // cuenta se van con ella sus ingresos: no hay forma de conservar el
-        // historial de un alumno cuya cuenta se elimina. El panel lo dice.
-        const correos=(body.emails||[]).map(e=>String(e).toLowerCase());
-        await SB.from('matriculados').delete().in('correo',correos);
-        const { error } = await SB.from('alumnos').delete().in('correo',correos);
-        return error ? {ok:false, error:error.message}
-                     : {ok:true, deleted:correos.length};
+        // `borrar_cuentas_por_correo` elimina la IDENTIDAD en auth.users: con
+        // ella caen la ficha de `alumnos` y sus `sesiones` (ON DELETE CASCADE)
+        // y el correo queda libre para volver a registrarse. Borrar solo de
+        // `alumnos`, como antes, dejaba viva la identidad y el correo ocupado.
+        const correos=(body.emails||[]).map(e=>String(e||'').trim().toLowerCase()).filter(Boolean);
+        if(!correos.length) return {ok:false, error:'No se indicó a quién eliminar.'};
+        const { data, error } = await SB.rpc('borrar_cuentas_por_correo', {p_correos:correos});
+        if(error) return {ok:false, error:error.message};
+        // La matrícula es otra lista: se retira después, ya con las cuentas fuera.
+        const { error:eMat } = await SB.from('matriculados').delete().in('correo',correos);
+        if(eMat) return {ok:false, error:'Se eliminaron las cuentas, pero no la matrícula: '+eMat.message};
+        return {ok:true, deleted:Number(data)||0};
       }
 
       case 'addLog': {
@@ -2385,7 +2423,8 @@ async function loginEst(){
     return;
   }
   if(!r.ok){
-    if(r.needsRegister){ err.textContent=''; abrirRegistro(e,'registro'); return; }
+    // Ya no hay rama «needsRegister»: averiguar si el correo está matriculado
+    // exigía consultar esa lista, que es justo lo que permitía enumerarla.
     if(r.registroIncompleto){ err.textContent=''; abrirRegistro(e,'completar'); return; }        // nunca tuvo contraseña
     if(r.mustChange){    err.textContent=''; abrirRegistro(e,'cambio',pass); return; }      // provisional del profesor
     err.style.color='#e05c5c';
@@ -2396,18 +2435,10 @@ async function loginEst(){
   setAuthToken(r.token);
   err.textContent='';
 
-  // Estado de "aplicativos deshabilitados" (lo fija el profesor)
-  let dis=ls.get('app_disabled_until');
-  try{
-    const cfg=await api('getConfig',{},7000);
-    if(cfg&&cfg.config){
-      const v=cfg.config.app_disabled_until?Number(cfg.config.app_disabled_until):0;
-      dis=(v&&v>Date.now())?v:null; ls.set('app_disabled_until',dis);
-      // temas bloqueados por el profesor
-      const co=cfg.config.caps_off;
-      if(co!==undefined) ls.set('caps_off', typeof co==='string' ? (co?co.split(','):[]) : (co||[]));
-    }
-  }catch(_){}
+  // Estado de "aplicativos deshabilitados" y temas bloqueados: los fija el
+  // profesor y se leen del servidor, no de este navegador.
+  await refrescarConfig();
+  const dis=Number(ls.get('app_disabled_until'))||0;
   if(dis&&Date.now()<dis){
     setAuthToken(null);
     document.getElementById('dis-detail').textContent='Deshabilitado. Reactiva en aprox. '+humanTime(dis-Date.now())+'.';
@@ -2443,7 +2474,8 @@ function enterStudent(e, found){
   aplicarBloqueoEstudiante();
 }
 function refreshEstCacheBg(){
-  api('getConfig').then(cfg=>{if(cfg&&cfg.config){const v=cfg.config.app_disabled_until?Number(cfg.config.app_disabled_until):0;if(v&&v>Date.now())ls.set('app_disabled_until',v);else ls.del('app_disabled_until');}}).catch(()=>{});
+  // Refresca también los temas bloqueados, no solo la fecha de deshabilitación.
+  refrescarConfig().then(cf=>{ if(cf){ try{ aplicarBloqueoEstudiante(); }catch(e){} } }).catch(()=>{});
   api('getStudents').then(sr=>{if(sr&&Array.isArray(sr.students))ls.set('students',sr.students);}).catch(()=>{});
 }
 function humanTime(ms){const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);return h>0?h+'h '+m+'min':m+' min';}
@@ -2488,12 +2520,12 @@ async function fetchAll(){
     if(lr&&Array.isArray(lr.logs)){ls.set('access_logs',lr.logs.map(l=>({...l,time:l.time?(typeof l.time==='number'?l.time:new Date(l.time).getTime()):Date.now()})));anyOk=true;renderLogs();renderStats();}
   }).catch(()=>{});
   const pConfig=api('getConfig').then(cfg=>{
-    if(cfg&&cfg.config){
+    if(cfg&&cfg.config&&!cfg.local){
       anyOk=true;
-      const v=cfg.config.app_disabled_until?Number(cfg.config.app_disabled_until):0;
-      if(v&&v>Date.now())ls.set('app_disabled_until',v);else ls.del('app_disabled_until');
-      
-      refreshStatus();
+      guardarConfigEnCache(cfg.config);
+      // Las tarjetas del panel muestran lo que hay en el servidor, no lo que
+      // este navegador recordaba de la última vez.
+      refreshStatus(); try{ renderAppCards(); }catch(e){}
     }
   }).catch(()=>{});
   await Promise.all([pStudents,pLogs,pConfig]);
@@ -2803,6 +2835,55 @@ async function refreshPanel(){
   setTimeout(()=>document.querySelectorAll('[onclick="refreshPanel()"]').forEach(b=>{b.textContent='↻';b.style.color='var(--muted)';}),500);
 }
 
+// ═══ Configuración del curso: el servidor manda, el navegador solo recuerda ═══
+// `caps_off` (temas bloqueados) y `app_disabled_until` (aplicativo deshabilitado
+// hasta una fecha) los fija el profesor y viven en la tabla `config` de Supabase.
+// Son una barrera para todos, no una preferencia de cada equipo: aquí se guarda
+// una copia únicamente para que el portal siga funcionando sin conexión, y en
+// cuanto el servidor responde, manda el servidor.
+function configEnCache(){
+  const cf = {};
+  const v = ls.get('app_disabled_until');
+  if(v) cf.app_disabled_until = String(v);
+  const co = ls.get('caps_off');
+  if(co !== null && co !== undefined)
+    cf.caps_off = Array.isArray(co) ? co.join(',') : String(co);
+  return cf;
+}
+
+// Vuelca en la caché lo que acaba de decir el servidor. Un valor vencido o en
+// cero se borra, para que no reviva al recargar sin conexión.
+function guardarConfigEnCache(cf){
+  if(!cf) return;
+  if(cf.app_disabled_until !== undefined){
+    const v = Number(cf.app_disabled_until) || 0;
+    if(v && v > Date.now()) ls.set('app_disabled_until', v); else ls.del('app_disabled_until');
+  }
+  if(cf.caps_off !== undefined){
+    const co = cf.caps_off;
+    ls.set('caps_off', typeof co === 'string'
+      ? (co ? co.split(',').map(s=>s.trim()).filter(Boolean) : [])
+      : (co || []));
+  }
+}
+
+// Relee la configuración y refresca la caché. Devuelve lo leído, o null si no
+// se llegó al servidor (entonces vale la última copia conocida). `msMax` corta
+// la espera: un clic no puede quedarse colgado por una red lenta.
+async function refrescarConfig(msMax = 6000){
+  if(typeof USE_SHEETS === 'undefined' || !USE_SHEETS) return null;
+  let cfg = null;
+  try{
+    cfg = await Promise.race([
+      api('getConfig'),
+      new Promise(r => setTimeout(()=>r(null), msMax))
+    ]);
+  }catch(e){ cfg = null; }
+  if(!cfg || !cfg.config || cfg.local) return null;
+  guardarConfigEnCache(cfg.config);
+  return cfg.config;
+}
+
 // ═══ Catálogo de temas y bloqueo por tema (solo estudiantes) ═══
 // El número es el del TEMA dentro del curso (1 a 5), no el del capítulo del
 // libro. Sale de la columna `capitulo` de la tabla `temas`, que manda sobre
@@ -2830,10 +2911,18 @@ async function toggleAcceso(key){
   const off = capsOff();
   const i = off.indexOf(key);
   if(i >= 0) off.splice(i,1); else off.push(key);
-  ls.set('caps_off', off);
+  // Primero el servidor. Si la orden no llega, el interruptor NO debe quedarse
+  // «aplicado» aquí: el profesor creería haber bloqueado un tema que los
+  // alumnos siguen abriendo.
   if(typeof USE_SHEETS !== 'undefined' && USE_SHEETS){
-    try{ await api('setConfig',{key:'caps_off', value:off.join(',')}); }catch(e){}
+    let r = null;
+    try{ r = await api('setConfig',{key:'caps_off', value:off.join(',')}); }catch(e){}
+    if(!r || !r.ok){
+      aviso('No se pudo guardar el cambio en el servidor' + ((r && r.error) ? ': '+r.error : '.'));
+      return;
+    }
   }
+  ls.set('caps_off', off);
   renderAppCards();
 }
 
@@ -2879,14 +2968,18 @@ function refreshStatus(){
   else{dot.className='sdot on';lbl.textContent='Aplicativos habilitados para estudiantes';btn.textContent='⏸ Deshabilitar';btn.classList.remove('on');btn.onclick=openDisModal;if(u)ls.del('app_disabled_until');}
 }
 async function reactivate(){
-  // Habilitar de inmediato en la UI (evita que un getConfig con valor obsoleto vuelva a deshabilitar)
+  // Primero el servidor, que es quien tiene la última palabra; la pantalla se
+  // repinta después con lo que quedó guardado de verdad.
+  if(USE_SHEETS){
+    let r=null;
+    try{ r=await api('setConfig',{key:'app_disabled_until',value:0}); }catch(e){}
+    if(!r || !r.ok){
+      aviso('No se pudo reactivar en el servidor' + ((r && r.error) ? ': '+r.error : '.'));
+      return;
+    }
+  }
   ls.del('app_disabled_until');
-  const dot=document.getElementById('sdot'),lbl=document.getElementById('slabel'),btn=document.getElementById('btn-disable');
-  if(dot)dot.className='sdot on';
-  if(lbl)lbl.textContent='Aplicativos habilitados para estudiantes';
-  if(btn){btn.textContent='⏸ Deshabilitar';btn.classList.remove('on');btn.onclick=openDisModal;}
-  if(USE_SHEETS){try{await api('setConfig',{key:'app_disabled_until',value:0});}catch(e){}}
-  ls.del('app_disabled_until');
+  refreshStatus();
 }
 
 
@@ -3170,7 +3263,22 @@ async function restablecerClave(email){
   else aviso('No se pudo enviar. '+((r&&r.error)||''));
 }
 
-function openDisModal(){document.getElementById('ovl-dis').classList.add('on');}async function confirmDis(){const h=parseInt(document.getElementById('dis-hrs').value);const u=Date.now()+h*3600000;if(USE_SHEETS)await api('setConfig',{key:'app_disabled_until',value:u});ls.set('app_disabled_until',u);closeOvl();refreshStatus();}
+function openDisModal(){document.getElementById('ovl-dis').classList.add('on');}
+// Deshabilitar es una barrera para todos los alumnos, así que se guarda en el
+// servidor ANTES de darlo por hecho aquí.
+async function confirmDis(){
+  const h=parseInt(document.getElementById('dis-hrs').value);
+  const u=Date.now()+h*3600000;
+  if(USE_SHEETS){
+    let r=null;
+    try{ r=await api('setConfig',{key:'app_disabled_until',value:u}); }catch(e){}
+    if(!r || !r.ok){
+      aviso('No se pudo deshabilitar en el servidor' + ((r && r.error) ? ': '+r.error : '.'));
+      return;
+    }
+  }
+  ls.set('app_disabled_until',u);closeOvl();refreshStatus();
+}
 function openAddModal(){['add-codigo','add-nombre','add-correo','add-horario'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});const fi=document.getElementById('add-file-input');if(fi)fi.value='';const err=document.getElementById('add-modal-err');if(err){err.textContent='';err.style.color='var(--blue)';}document.getElementById('ovl-add').classList.add('on');setTimeout(()=>document.getElementById('add-codigo')?.focus(),100);}
 function showAddMsg(msg,isErr=false){const el=document.getElementById('add-modal-err');if(!el)return;el.textContent=msg;el.style.color=isErr?'#e05c5c':'var(--green)';el.style.fontWeight=isErr?'normal':'600';if(!isErr)setTimeout(()=>{if(el.textContent===msg)el.textContent='';},5000);}
 function loadAddFile(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{inp._bulkData=e.target.result;const lines=e.target.result.split(/\r?\n/).filter(l=>l.trim()).length;showAddMsg('✓ Archivo cargado: '+lines+' usuario'+(lines===1?'':'s')+'. Pulsa "+ Agregar".',false);};r.readAsText(f);}
@@ -3223,7 +3331,7 @@ function udelRevisar(){
   const n = _udelSel.length;
   document.getElementById('udel-final').innerHTML = (udelModo() === 'solo')
     ? 'Se vaciará el registro de ingresos de <b>' + n + '</b> usuario(s). Sus cuentas se conservan.'
-    : 'Se eliminarán <b>' + n + '</b> usuario(s): su cuenta, su matrícula y su registro de ingresos.';
+    : 'Se eliminarán <b>' + n + '</b> usuario(s): su cuenta, su matrícula y su registro de ingresos. Su correo quedará libre para volver a registrarse.';
   udelPaso(3);
 }
 async function udelEjecutar(){
@@ -3249,9 +3357,12 @@ async function udelEjecutar(){
   closeOvl(); _udelSel = [];
   // Se relee del servidor: el panel muestra lo que quedó de verdad.
   await refreshPanel();
+  // El número que se enseña es el que devolvió el servidor, incluido el cero:
+  // con `||` un borrado de cero cuentas se anunciaba como si hubieran caído todas.
   aviso(modo === 'solo'
     ? 'Listo: se eliminaron ' + (res.borradas||0) + ' ingreso(s).'
-    : 'Listo: se eliminaron ' + (res.deleted||rem.length) + ' usuario(s) con su registro.');
+    : 'Listo: se eliminaron ' + (res.deleted!=null?res.deleted:rem.length)
+      + ' cuenta(s) con su registro. Esos correos quedan libres para volver a registrarse.');
 }
 
 // ── Eliminar registro de ingresos ──────────────────────────────────────────
@@ -3410,12 +3521,25 @@ function confirmarBSAResolver(v){
   const ov = document.getElementById('ovl-confirmar'); if(ov) ov.classList.remove('on');
   if(r) r(!!v);
 }
-function openApp(appKey){
-  // Un tema bloqueado no se abre para estudiantes, ni siquiera llamando
-  // directamente a esta función: el control no puede quedarse solo en la vista.
-  if(role !== 'prof' && capBloqueado(appKey)){
-    aviso('Tu profesor ha deshabilitado el acceso a este tema.');
-    return;
+async function openApp(appKey){
+  // El bloqueo por tema y el «deshabilitar aplicativo» los fija el profesor en
+  // el servidor, y aquí se releen ANTES de abrir: decidir con la copia de este
+  // navegador dejaba a cada equipo mandando sobre sí mismo, y lo que el
+  // profesor bloqueaba no llegaba al alumno. Sin conexión se decide con la
+  // última copia conocida, que es lo mejor que se puede saber. El control está
+  // en esta función a propósito, no solo en la vista.
+  if(role !== 'prof'){
+    await refrescarConfig(5000);
+    try{ aplicarBloqueoEstudiante(); }catch(e){}
+    const hasta = Number(ls.get('app_disabled_until')) || 0;
+    if(hasta && Date.now() < hasta){
+      aviso('Tu profesor ha deshabilitado los temas por ahora.');
+      return;
+    }
+    if(capBloqueado(appKey)){
+      aviso('Tu profesor ha deshabilitado el acceso a este tema.');
+      return;
+    }
   }
   // La ruta del tema sale del catálogo único (TEMAS_CAT).
   const ruta = archivoCap(appKey);
@@ -3789,7 +3913,8 @@ function pedirBaja(){
   document.getElementById('baja-txt').innerHTML =
     'Se borrará tu acceso, tu historial de ingresos y el tiempo de uso '
     + 'registrado. <b>Los ejercicios que hayas guardado como archivo seguirán '
-    + 'en tu equipo</b>. Esta acción no se puede deshacer.';
+    + 'en tu equipo</b>. Tu correo quedará libre para volver a registrarte. '
+    + 'Esta acción no se puede deshacer.';
   document.getElementById('baja-filaConf').style.display = 'none';
   document.getElementById('baja-conf').value = '';
   const ok = document.getElementById('baja-ok');
@@ -3828,9 +3953,12 @@ async function ejecutarBaja(){
   if(USE_SHEETS){
     try{
       const r = await api('deleteAccount', {});
+      // Si el servidor no borró, no se sigue: antes se daba por buena una
+      // respuesta que no había borrado nada y el alumno perdía su copia local
+      // creyendo que su cuenta ya no existía.
       if(!r || r.ok === false){
         ok.disabled = false; ok.textContent = 'Eliminar definitivamente';
-        msgCuenta('No se pudo eliminar en el servidor. Inténtalo más tarde.', 'err');
+        msgCuenta('No se pudo eliminar tu cuenta' + ((r && r.error) ? ': '+r.error : '. Inténtalo más tarde.'), 'err');
         cerrarBaja();
         return;
       }
@@ -3856,7 +3984,7 @@ async function ejecutarBaja(){
   try{ api('logout'); }catch(e){}
   setAuthToken(null);
   role = null; user = null; updNav(); showLanding();
-  alert('Tu cuenta ha sido eliminada.');
+  alert('Tu cuenta ha sido eliminada. Tu correo queda libre para volver a registrarte.');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4137,6 +4265,18 @@ async function restaurarSesion(){
       const el=document.getElementById('pemaildisplay'); if(el) el.textContent=user;
       loadPanel();
     } else {
+      // Al restaurar la sesión no se pasa por el ingreso, así que aquí es donde
+      // hay que releer la configuración: sin esto, un alumno con la pestaña ya
+      // abierta seguía con la copia de su navegador y no se enteraba de lo que
+      // el profesor hubiera bloqueado o deshabilitado entretanto.
+      await refrescarConfig();
+      const hasta = Number(ls.get('app_disabled_until')) || 0;
+      if(hasta && Date.now() < hasta){
+        setAuthToken(null); role=null; user=null; updNav();
+        const d=document.getElementById('dis-detail');
+        if(d) d.textContent='Deshabilitado. Reactiva en aprox. '+humanTime(hasta-Date.now())+'.';
+        showScreen('s-disabled'); return;
+      }
       enterStudent(user,{codigo:perfil.codigo, nombre:perfil.nombre,
                          email:perfil.correo, horario:perfil.horario});
     }

@@ -165,13 +165,13 @@ function svgArmadura(opts){
   // apoyos, cargas y nudos
   nodos.forEach(n=>{
     const [px,py] = P(n.x,n.y);
-    if(n.apoyo === 'fijo'){
-      s += '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+18)+' L'+(px+11)+' '+(py+18)+' Z" fill="none" stroke="#563aa8" stroke-width="1.8"/>'
-         + '<line x1="'+(px-16)+'" y1="'+(py+18)+'" x2="'+(px+16)+'" y2="'+(py+18)+'" stroke="#563aa8" stroke-width="1.8"/>';
+    if(n.apoyo === 'fijo'){ const gf = giroApoyoSVG(n, px, py);
+      s += gf.abre + '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+18)+' L'+(px+11)+' '+(py+18)+' Z" fill="none" stroke="#563aa8" stroke-width="1.8"/>'
+         + '<line x1="'+(px-16)+'" y1="'+(py+18)+'" x2="'+(px+16)+'" y2="'+(py+18)+'" stroke="#563aa8" stroke-width="1.8"/>' + gf.cierra;
     } else if(n.apoyo === 'movil'){
-      const horizontal = n.apAng === 0;
-      const abre = horizontal ? '<g transform="rotate(-90 '+px+' '+py+')">' : '';
-      const cierra = horizontal ? '</g>' : '';
+      const gm = giroApoyoSVG(n, px, py);
+      const abre = gm.abre;
+      const cierra = gm.cierra;
       s += abre
          + '<path d="M'+px+' '+(py+2)+' L'+(px-11)+' '+(py+15)+' L'+(px+11)+' '+(py+15)+' Z" fill="none" stroke="#563aa8" stroke-width="1.8"/>'
          + '<circle cx="'+(px-6)+'" cy="'+(py+19)+'" r="3.4" fill="none" stroke="#563aa8" stroke-width="1.6"/>'

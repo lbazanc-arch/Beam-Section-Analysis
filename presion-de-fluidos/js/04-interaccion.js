@@ -23,7 +23,8 @@ function tramoEn(mx,my){
   return mejor;
 }
 function addNodo(x,y){
-  const n={id:++nodoSeq,x:snap(x),y:snap(y),nombre:'',apoyo:null,apAng:90,apModo:'angulo',rotula:false,tope:null};
+  const n={id:++nodoSeq,x:snap(x),y:snap(y),nombre:'',apoyo:null,apAng:90,apModo:'angulo',
+           apAngFijo:90,rotula:false,tope:null};
   nodos.push(n); reNombrar(); return n;
 }
 function addTramo(a,b,tipo){

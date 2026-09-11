@@ -98,6 +98,17 @@ function applyTransformar(){
   }
   registrarCambio();
   t.destinos.forEach(d=>{ const n=nodos.find(z=>z.id===d.id); if(n){ n.x=d.x; n.y=d.y; } });
+  // Al GIRAR, el apoyo gira con la compuerta: el movil porque su reaccion es
+  // real y entra en el calculo, y el fijo para que su simbolo no quede torcido.
+  if(transModo === 'girar'){
+    const norm = a => { const v = ((a % 360) + 360) % 360; return v > 180 ? v - 360 : v; };
+    t.destinos.forEach(d=>{
+      const n = nodos.find(z=>z.id===d.id);
+      if(!n) return;
+      if(n.apoyo === 'movil') n.apAng     = norm((n.apAng === undefined ? 90 : n.apAng) + t.ang);
+      if(n.apoyo === 'fijo')  n.apAngFijo = norm(anguloDibujoApoyoFijo(n) + t.ang);
+    });
+  }
   R = null;
   closeTransformar(); refrescar();
 }

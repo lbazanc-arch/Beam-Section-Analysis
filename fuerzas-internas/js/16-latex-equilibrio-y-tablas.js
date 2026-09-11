@@ -990,8 +990,12 @@ function tikzEsquemaGrupo(R, gg, W){
     // Aquí la pieza va desarrollada sobre su eje, así que el muro sigue a ESE
     // eje, no a la geometría del modelo: a la izquierda si el apoyo está en el
     // arranque y a la derecha si está en el extremo final.
+    // Por lo mismo, el móvil y el simple van aquí en su posición estándar
+    // (AP_ANG_DEF): girarlos según la geometría del modelo no diría nada sobre
+    // un eje que se ha estirado en horizontal para dibujar los diagramas.
     if(e.n.apoyo && e.n.apoyo !== 'libre')
-      out += tikzApoyo(x, 0, e.n.apoyo, 0.8, (e.n.apoyo === 'empotrado' && e.s > L/2) ? 0 : 180);
+      out += tikzApoyo(x, 0, e.n.apoyo, 0.8,
+                       (e.n.apoyo === 'empotrado' && e.s > L/2) ? 0 : 180, AP_ANG_DEF);
     if(e.n.rotula){
       out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.8pt] (' + F(x) + ',0) circle (0.09);\n';
     }

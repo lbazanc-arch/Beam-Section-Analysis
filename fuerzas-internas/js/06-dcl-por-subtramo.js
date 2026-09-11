@@ -148,7 +148,15 @@ function renderResultados(r){
     + '<th class="r">Valor</th><th>Unidad</th></tr></thead><tbody>';
   r.inc.forEach((u,j)=>{
     const v = r.val[j];
-    const comp = u.tipo==='Rx'?'Horizontal R<sub>x</sub>':(u.tipo==='Ry'?'Vertical R<sub>y</sub>':'Momento M');
+    // Un apoyo MOVIL puede estar orientado: tiene UNA reaccion, en la direccion
+    // `u.ang` (radianes, la que monto 03-). Llamarla «Vertical R_y» solo es
+    // cierto a 90°; el informe LaTeX ya lo hacia bien y la tabla no.
+    let comp;
+    if(u.tipo==='M') comp = 'Momento M';
+    else if(u.tipo==='Rx') comp = 'Horizontal R<sub>x</sub>';
+    else if(u.ang !== undefined && Math.abs(u.ang - Math.PI/2) > 1e-6)
+      comp = 'Reacción R (a ' + f(u.ang*180/Math.PI) + '°)';
+    else comp = 'Vertical R<sub>y</sub>';
     h += '<tr><td><b>'+u.n.nombre+'</b></td><td>'+NOMBRE_APOYO[u.n.apoyo]+'</td><td>'+comp+'</td>'
       + '<td class="r"><b>'+(u.tipo==='M'?fm(v):f(v))+'</b></td>'
       + '<td>'+(u.tipo==='M'?uMom():unitFor)+'</td></tr>';

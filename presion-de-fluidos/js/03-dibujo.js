@@ -95,6 +95,18 @@ function _rotulo(txt, x, y, color, ax, ay, font, alinear){
   ctx.restore();
 }
 function _reservar(x0,y0,x1,y1){ _rotCajas.push({x0:Math.min(x0,x1), y0:Math.min(y0,y1), x1:Math.max(x0,x1), y1:Math.max(y0,y1)}); }
+// Caja de un símbolo girado: reserva el rectángulo local (x0,y0)-(x1,y1) tras
+// girarlo `rot` radianes alrededor de (cx,cy), en coordenadas de pantalla.
+function _reservarGirado(cx,cy,rot,x0,y0,x1,y1){
+  const c = Math.cos(rot), s = Math.sin(rot);
+  let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+  [[x0,y0],[x1,y0],[x1,y1],[x0,y1]].forEach(p=>{
+    const X = cx + p[0]*c - p[1]*s, Y = cy + p[0]*s + p[1]*c;
+    mnx = Math.min(mnx,X); mxx = Math.max(mxx,X);
+    mny = Math.min(mny,Y); mxy = Math.max(mxy,Y);
+  });
+  _reservar(mnx, mny, mxx, mxy);
+}
 function _flecha(x0,y0,x1,y1,color,ancho,cabeza){
   const a = Math.atan2(y1-y0, x1-x0), c = cabeza || 9;
   ctx.save();
@@ -314,10 +326,16 @@ function dibujar(){
     const [px,py]=aPantalla(n.x,n.y);
     if(VIS.apoyos){
     if(n.apoyo==='fijo'){
+      // El giro del apoyo fijo es PRESENTACIÓN: coloca el símbolo donde lo pide
+      // el enunciado y no toca el cálculo. Con 90° (por defecto) el triángulo
+      // queda debajo del nudo, que es como se dibujaba antes de tener giro.
+      const rot = Math.PI/2 - anguloDibujoApoyoFijo(n)*Math.PI/180;
+      ctx.save(); ctx.translate(px,py); ctx.rotate(rot);
       ctx.strokeStyle='#0b3f3a'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(px,py+2); ctx.lineTo(px-13,py+21); ctx.lineTo(px+13,py+21); ctx.closePath(); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(px-19,py+21); ctx.lineTo(px+19,py+21); ctx.stroke();
-      _reservar(px-19, py, px+19, py+22);
+      ctx.beginPath(); ctx.moveTo(0,2); ctx.lineTo(-13,21); ctx.lineTo(13,21); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-19,21); ctx.lineTo(19,21); ctx.stroke();
+      ctx.restore();
+      _reservarGirado(px, py, rot, -19, 0, 19, 22);
     } else if(n.apoyo==='movil'){
       const u = {n, tipo:'R'};
       const d = direccionIncognita(u);

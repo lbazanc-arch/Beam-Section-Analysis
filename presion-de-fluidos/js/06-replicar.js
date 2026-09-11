@@ -133,6 +133,8 @@ function abrirApoyoModal(id){
   apoyoId=id; const n=nodos.find(z=>z.id===id); if(!n) return;
   document.getElementById('apNom').textContent=n.nombre;
   document.getElementById('apAng').value = n.apAng===undefined?90:n.apAng;
+  const gf = document.getElementById('apAngFijo');
+  if(gf) gf.value = anguloDibujoApoyoFijo(n);
   const chk = document.getElementById('apNormal');
   if(chk) chk.checked = (n.apModo === 'normal');
   actualizarPrevApoyo();
@@ -141,9 +143,17 @@ function abrirApoyoModal(id){
 function closeApoyoModal(){
   const n=nodos.find(z=>z.id===apoyoId);
   if(n){
-    n.apAng=parseFloat(document.getElementById('apAng').value)||90;
+    // 0 grados es una direccion valida (rodillo contra un muro, reaccion
+    // hacia +x): con `||90` se convertia en silencio en 90, y este angulo SI
+    // entra en el calculo. Mismo criterio que el campo del apoyo fijo.
+    const vm=parseFloat(document.getElementById('apAng').value);
+    n.apAng=isFinite(vm)?vm:90;
     const chk = document.getElementById('apNormal');
     n.apModo = (chk && chk.checked) ? 'normal' : 'angulo';
+    // Giro del apoyo fijo: solo dibujo (ver anguloDibujoApoyoFijo en 01-).
+    const gf = document.getElementById('apAngFijo');
+    const vf = parseFloat(gf && gf.value);
+    n.apAngFijo = isFinite(vf) ? vf : 90;
   }
   document.getElementById('apoyoModal').classList.remove('show'); apoyoId=null; R=null; refrescar();
 }
@@ -171,9 +181,16 @@ function toggleRotulaNudo(){
 }
 
 function actualizarPrevApoyo(){
-  marcarApoyoPF(nodos.find(z=>z.id===apoyoId));
-  const n=nodos.find(z=>z.id===apoyoId), el=document.getElementById('apPrev');
+  const n=nodos.find(z=>z.id===apoyoId);
+  marcarApoyoPF(n);
+  const el=document.getElementById('apPrev');
   if(!n||!el) return;
+  // Cada apoyo enseña solo su campo: el del fijo gira el dibujo y el del móvil
+  // es la dirección de su única reacción, que sí entra en el cálculo.
+  const esFijo = n.apoyo === 'fijo', esMovil = n.apoyo === 'movil';
+  const ver = (id, on) => { const e = document.getElementById(id); if(e) e.style.display = on ? '' : 'none'; };
+  ['apAngFijoRow','apAngFijoNota'].forEach(id=>ver(id, esFijo));
+  ['apAngRow','apAngNota','apNormalRow','apNormalNota'].forEach(id=>ver(id, esMovil));
   const chk = document.getElementById('apNormal');
   const ang = document.getElementById('apAng');
   if(ang && chk) ang.disabled = chk.checked;
@@ -182,7 +199,10 @@ function actualizarPrevApoyo(){
   el.innerHTML='Ahora: <b>'+(n.apoyo?(n.apoyo==='fijo'?'apoyo fijo':'apoyo móvil'):'sin apoyo')
     +(n.rotula?' con rótula':'')
     +'</b> · Incógnitas totales: <b>'+inc+'</b> frente a <b>'+eq+'</b> ecuaciones'
-    + (chk && chk.checked ? '<br>La reacción del móvil será perpendicular a la compuerta en este nudo.' : '');
+    + (esMovil && chk && chk.checked
+        ? '<br>La reacción del móvil será perpendicular a la compuerta: ' + anguloIncognita({n, tipo:'R'}).toFixed(1) + '° desde el eje x.'
+        : '')
+    + (esFijo ? '<br>El giro del apoyo fijo es solo del dibujo: sus dos reacciones no cambian.' : '');
 }
 function setApoyo(t){
   registrarCambio();
@@ -190,9 +210,15 @@ function setApoyo(t){
   if(n){
     n.apoyo=t;
     if(t==='movil'){
-      n.apAng=parseFloat(document.getElementById('apAng').value)||90;
+      const vm=parseFloat(document.getElementById('apAng').value);  // 0 es valido
+      n.apAng=isFinite(vm)?vm:90;
       const chk = document.getElementById('apNormal');
       n.apModo = (chk && chk.checked) ? 'normal' : 'angulo';
+    }
+    if(t==='fijo'){
+      const gf = document.getElementById('apAngFijo');
+      const vf = parseFloat(gf && gf.value);
+      if(isFinite(vf)) n.apAngFijo = vf;     // solo dibujo
     }
     R=null;
   }
@@ -425,7 +451,8 @@ function cargarEjemplo(id){
   // Nudo en coordenada EXACTA: addNodo engancha a la rejilla, cuyo paso
   // depende del zoom.
   const N = (x,y)=>{
-    const n = {id:++nodoSeq, x, y, nombre:'', apoyo:null, apAng:90, apModo:'angulo', rotula:false, tope:null};
+    const n = {id:++nodoSeq, x, y, nombre:'', apoyo:null, apAng:90, apModo:'angulo',
+               apAngFijo:90, rotula:false, tope:null};
     nodos.push(n); return n;
   };
   const b = ej.armar(N);

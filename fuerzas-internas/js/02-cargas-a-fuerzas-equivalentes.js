@@ -70,6 +70,8 @@ function trozoCargado(c){
 //   'x'     : horizontal del plano, positiva hacia la derecha.
 //   'perp'  : perpendicular al eje del tramo ("contra" la barra).
 //   'axial' : paralela al eje del tramo, en su sentido.
+//   'ang'   : inclinada, dada como magnitud y ángulo, que es como se
+//             enuncia en clase. El ángulo va en c.ang.
 // Antes la dirección dependía del TIPO (había una puntual X y otra Y, y las
 // repartidas solo podían ir en vertical o perpendiculares), lo que dejaba sin
 // cubrir el caso corriente de una repartida horizontal sobre una columna.
@@ -77,7 +79,8 @@ const DIR_CARGA = {
   y:     {nom:'Vertical (Y)',     ico:'\u2193', ayuda:'Vertical del plano, positiva hacia abajo.'},
   x:     {nom:'Horizontal (X)',   ico:'\u2192', ayuda:'Horizontal del plano, positiva hacia la derecha.'},
   perp:  {nom:'Perpendicular',    ico:'\u21e3', ayuda:'Perpendicular al eje del tramo, positiva "contra" la barra.'},
-  axial: {nom:'Axial',            ico:'\u21e2', ayuda:'Paralela al eje del tramo, positiva en su sentido de avance.'}
+  axial: {nom:'Axial',            ico:'\u21e2', ayuda:'Paralela al eje del tramo, positiva en su sentido de avance.'},
+  ang:   {nom:'Inclinada',        ico:'↗', ayuda:'Ángulo desde el eje x, antihorario: 0° derecha, 90° arriba, −90° abajo.'}
 };
 // Dirección efectiva, con lectura de los archivos guardados antes de unificar
 // la puntual X con la puntual Y (ahí la dirección salía de tipo + orient).
@@ -88,7 +91,9 @@ function dirDeCarga(c){
   return local ? 'perp' : 'y';
 }
 // El marco de las COORDENADAS de posición va con la dirección: una carga
-// referida al tramo se sitúa también con las coordenadas del tramo.
+// referida al tramo se sitúa también con las coordenadas del tramo. La
+// inclinada NO es una de esas: su ángulo se mide desde el eje x del plano, así
+// que es tan global como la vertical y la horizontal.
 function marcoDeCarga(c){
   const d = dirDeCarga(c);
   return (d === 'perp' || d === 'axial') ? 'local' : 'global';
@@ -110,6 +115,13 @@ function dirCarga(c, g){
   const d = dirDeCarga(c);
   if(d === 'y') return {x:0, y:-1};
   if(d === 'x') return {x:1, y:0};
+  // Inclinada: el ángulo ya viene en la convención del proyecto (desde +x y
+  // antihorario) y aquí el plano tiene la y hacia arriba, así que el vector
+  // sale directo. No necesita la geometría del tramo: es una dirección global.
+  if(d === 'ang'){
+    const a = (+c.ang || 0)*Math.PI/180;
+    return {x:Math.cos(a), y:Math.sin(a)};
+  }
   if(!g) return {x:0, y:-1};
   if(d === 'axial') return {x:g.ux, y:g.uy};
   // Perpendicular al eje, apuntando "contra" la barra: para un tramo
@@ -128,6 +140,9 @@ function normalizarCargas(lista){
     if(!c || c.tipo === 'M') return;
     if(!c.dir) c.dir = dirDeCarga(c);
     if(c.tipo === 'PX') c.tipo = 'P';
+    // La inclinada necesita SIEMPRE un ángulo numérico: sin él, dirCarga la
+    // mandaría a 0° (hacia la derecha) sin avisar de nada.
+    if(c.dir === 'ang') c.ang = +c.ang || 0;
     c.orient = marcoDeCarga(c);
   });
   return lista;
