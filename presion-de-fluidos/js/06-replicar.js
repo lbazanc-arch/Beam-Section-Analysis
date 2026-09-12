@@ -349,6 +349,7 @@ const EJEMPLOS = [
     desc:'Compuerta AB vertical de 3 m, ancho 1.5 m, con la superficie del agua 2 m por encima de A. '
         +'Articulada en A y apoyada en un tope liso en B.',
     esperado:'F₁ = 154.51 kN a 1.29 m sobre B (z_P = 3.71 m) · N_B = 88.29 kN ← · R_xA = 66.22 kN ← · R_yA = 0',
+    verifica:{F1:154.51, zP1:3.71, N_B:{v:88.29, s:'←'}, R_xA:{v:66.22, s:'←'}, R_yA:0},
     armar(N){
       const A=N(0,-2), B=N(0,-5);
       addTramo(A.id,B.id,'recto');
@@ -363,6 +364,8 @@ const EJEMPLOS = [
     desc:'Compuerta AB de 2 × 3 (inclinada), ancho 2 m, articulada en A al nivel del agua y apoyada en B '
         +'sobre el fondo liso del canal (reacción vertical). El agua queda sobre la placa, a su derecha.',
     esperado:'Diagrama triangular: F₁ = γ z̄ A = 9.81·1.5·(3.606·2) = 106.11 kN, en P a 2/3 de AB (z_P = 2.00 m) · R_B = 127.53 kN ↑ · R_xA = 88.29 kN → · R_yA = 68.67 kN ↓',
+    verifica:{F1:106.11, L1:3.606, zP1:2.00, R_B:{v:127.53, s:'↑'},
+              R_xA:{v:88.29, s:'→'}, R_yA:{v:68.67, s:'↓'}},
     armar(N){
       const A=N(0,0), B=N(2,-3);
       addTramo(A.id,B.id,'recto');
@@ -377,6 +380,7 @@ const EJEMPLOS = [
     desc:'Arco AB de radio 2 m con centro en (2 ; 0), ancho 2 m; el agua llena el cuarto de círculo, a la derecha, '
         +'hasta el nivel de A. Articulada en B (abajo) y con un tope liso en A, del lado seco.',
     esperado:'F_h = γ(1)(2)(2) = 39.24 kN ← · F_v = peso del cuarto de círculo de agua = γ b πR²/4 = 61.64 kN ↓ · F₁ = 73.07 kN por el centro del arco · N_A = 39.24 kN →',
+    verifica:{F1:73.07, Fx1:{v:39.24, s:'←'}, Fy1:{v:61.64, s:'↓'}, N_A:{v:39.24, s:'→'}},
     armar(N){
       const A=N(0,0), B=N(2,-2);
       const t = addTramo(A.id,B.id,'arco'); t.flecha = -(2 - Math.SQRT2);   // R(1 − cos 45°), combado hacia fuera del agua
@@ -391,6 +395,7 @@ const EJEMPLOS = [
     desc:'Compuerta AB vertical de 4 m, ancho 1 m. A la izquierda, 1.5 m de aceite (γ = 8.5) sobre agua (γ = 9.81). '
         +'Articulada en A (en la superficie) y tope liso en B.',
     esperado:'p en el cambio de capa = 8.5·1.5 = 12.75; en B = 12.75 + 9.81·2.5 = 37.28 kN/m². F₁ = 9.56 + 62.53 = 72.09 kN (z_P = 2.70 m) · N_B = 48.57 kN. Se resuelve por capas: cada una, rectángulo + triángulo.',
+    verifica:{pD1:37.28, F1:72.09, zP1:2.70, N_B:48.57},
     armar(N){
       const A=N(0,0), B=N(0,-4);
       addTramo(A.id,B.id,'recto');
@@ -405,6 +410,8 @@ const EJEMPLOS = [
     desc:'Compuerta AB vertical de 3 m y 1.2 m de ancho, con bisagra en A (arriba) y tope en B. A la derecha, mar '
         +'(γ = 10.05) 0.5 m por encima de A; a la izquierda, agua dulce (γ = 9.81) 0.3 m por debajo de A.',
     esperado:'Dos fuerzas en el DCL: F₁ = 42.91 kN del agua dulce (izquierda, 2.7 m mojados, z_P = 1.80 m) y F₂ = 72.36 kN del mar (derecha, z_P = 2.38 m). El tope, del lado izquierdo, resiste la diferencia: N_B = 15.19 kN → · R_xA = 14.26 kN →',
+    verifica:{F1:42.91, L1:2.7, zP1:1.80, F2:72.36, zP2:2.38,
+              N_B:{v:15.19, s:'→'}, R_xA:{v:14.26, s:'→'}},
     armar(N){
       const A=N(0,0), B=N(0,-3);
       addTramo(A.id,B.id,'recto');
@@ -419,6 +426,7 @@ const EJEMPLOS = [
     desc:'Hoja vertical AB articulada en A, rótula en B y hoja inclinada BC articulada en C. Ancho 1 m, agua a la izquierda hasta A. '
         +'Cuatro incógnitas y cuatro ecuaciones: la rótula aporta ΣM_B = 0 de una hoja.',
     esperado:'F₁ = 19.62 kN (hoja AB) y F₂ = 73.57 kN (hoja BC, inclinada). La rótula da ΣM_B = 0 de la hoja AB, que despeja R_xA = 6.54 kN ←; luego ΣF_x, ΣM_A y ΣF_y.',
+    verifica:{F1:19.62, F2:73.57, R_xA:{v:6.54, s:'←'}},
     armar(N){
       const A=N(0,0), B=N(0,-2), C=N(1.5,-4);
       addTramo(A.id,B.id,'recto'); addTramo(B.id,C.id,'recto');
@@ -429,6 +437,101 @@ const EJEMPLOS = [
   }
 ];
 
+// ═══════════════════════════════════════════════════════════
+//  COMPROBACIÓN DE LOS EJEMPLOS
+//  `esperado` es el texto que ve el alumno; `verifica` lleva esos mismos
+//  números en forma legible por máquina, para contrastarlos con lo que ha
+//  calculado el motor. Claves admitidas (k = número de la resultante):
+//    Fk, Fxk, Fyk · magnitud de la resultante y de sus componentes
+//    zPk, Lk      · su centro de presión y su longitud mojada
+//    pTk, pDk     · presión en el extremo menos y más profundo de la parte mojada
+//    R_xA, R_yA, R_B, N_B · incógnitas, con el nombre con el que salen en pantalla
+//  Cada valor es un número (la magnitud, como en el texto) o {v, s} con la
+//  flecha del sentido real: un apoyo resuelto al revés da la misma magnitud y
+//  la flecha contraria, y eso es lo más grave que puede pasar aquí.
+// ═══════════════════════════════════════════════════════════
+// Magnitudes del resultado que se pueden contrastar, cada una con su nombre.
+function magnitudesEjemplo(r){
+  const m = {};
+  if(!r || r.error) return m;
+  (r.cargas||[]).forEach(c=>{
+    const d = c.des || desarrolloCarga(c);
+    m['F'+c.k]  = {v:c.F, fam:'f'};
+    m['Fx'+c.k] = {v:Math.abs(c.Fx), fam:'f', s: c.Fx >= 0 ? '→' : '←'};
+    m['Fy'+c.k] = {v:Math.abs(c.Fy), fam:'f', s: c.Fy >= 0 ? '↑' : '↓'};
+    m['zP'+c.k] = {v:c.zP,  fam:'len'};
+    m['L'+c.k]  = {v:c.len, fam:'len'};
+    // Presiones en los extremos de la parte mojada: las mismas que imprime la
+    // tabla 1 de los resultados. `c.pMax` NO vale aquí: se muestrea en el punto
+    // medio de cada segmento de la integral y no llega al valor del extremo.
+    if(d && d.tipo === 'recto' && d.bandas.length){
+      m['pT'+c.k] = {v:d.bandas[0].p0, fam:'pres'};
+      m['pD'+c.k] = {v:d.bandas[d.bandas.length-1].p1, fam:'pres'};
+    } else if(d && d.tipo === 'curvo'){
+      m['pT'+c.k] = {v:presionZona(c.z, d.yTop), fam:'pres'};
+      m['pD'+c.k] = {v:presionZona(c.z, d.yBot), fam:'pres'};
+    }
+  });
+  (r.inc||[]).forEach((u,j)=>{
+    const pre = u.tipo==='Rx' ? 'R_x' : u.tipo==='Ry' ? 'R_y' : u.tipo==='R' ? 'R_' : 'N_';
+    const s = sentidoRealIncognita(u, r.val[j]);
+    m[pre + u.n.nombre] = {v:Math.abs(r.val[j]), fam:'f', s:iconoSentidoHtml(s.x, s.y)};
+  });
+  return m;
+}
+// Familia de cada clave, que es la que fija la escala de la tolerancia.
+function _familiaEjemplo(k){
+  if(/^(zP|L)\d+$/.test(k)) return 'len';
+  if(/^p[TD]\d+$/.test(k)) return 'pres';
+  return 'f';
+}
+// Contrasta el resultado del motor con los valores de referencia del ejemplo
+// y devuelve cuántas magnitudes se desvían (0 si todo cuadra).
+function comprobarEjemploPF(ej){
+  if(!ej || !ej.verifica) return 0;
+  // Un ejemplo que tiene valores de referencia y NO llega a resolverse es un
+  // fallo, no un caso sin comprobar. Callarse aqui era indistinguible de «todo
+  // cuadra»: una regresion que rompiera calcular() no habria dado ni un aviso.
+  if(!R || R.error){
+    console.warn('Ejemplo ' + ej.id + ': el motor no ha resuelto, no se puede comprobar', {error:(R && R.error) || 'sin resultado'});
+    return 1;
+  }
+  if(R.cierra === false){
+    console.warn('Ejemplo ' + ej.id + ': el equilibrio no cierra');
+  }
+  const mag = magnitudesEjemplo(R);
+  const refs = ej.verifica;
+  const ref = e => (typeof e === 'number') ? {v:e} : e;
+  // Escala de cada familia: el mayor valor de referencia del ejemplo.
+  const escala = {f:1, len:1, pres:1};
+  Object.keys(refs).forEach(k=>{
+    const f = _familiaEjemplo(k);
+    escala[f] = Math.max(escala[f], Math.abs(ref(refs[k]).v));
+  });
+  // Los números de referencia están escritos con dos decimales, así que se
+  // admite medio dígito del último (0.005) más el 0.1 % del mayor valor de su
+  // familia. Si algo se desvía más, o falla el motor o el número de referencia
+  // está mal leído: hay que mirarlo, no ensanchar esta tolerancia.
+  const tol = f => 0.005 + 1e-3*escala[f];
+  let desvios = 0;
+  Object.keys(refs).forEach(k=>{
+    const e = ref(refs[k]), m = mag[k], t = tol(_familiaEjemplo(k));
+    if(!m){ console.warn('Ejemplo ' + ej.id + ': ' + k + ' no es una magnitud calculada'); desvios++; return; }
+    // Negado a propósito: si el motor devolviera NaN, `> t` sería falso y el
+    // desvío pasaría en silencio, que es justo lo que esta comprobación evita.
+    if(!(Math.abs(m.v - e.v) <= t)){
+      console.warn('Ejemplo ' + ej.id + ': ' + k + ' se desvía de la referencia', {motor:m.v, referencia:e.v});
+      desvios++;
+      return;
+    }
+    // El sentido solo se compara si el texto lo da y la fuerza no es nula.
+    if(e.s && m.s && e.v > t && m.s !== e.s){
+      console.warn('Ejemplo ' + ej.id + ': ' + k + ' se desvía de la referencia (sentido)', {motor:m.s, referencia:e.s});
+      desvios++;
+    }
+  });
+  return desvios;
+}
 function abrirEjemplos(){
   const el = document.getElementById('ejLista');
   // Un solo ejemplo a la vista; los demás siguen en el código como casos de
@@ -458,6 +561,7 @@ function cargarEjemplo(id){
   const b = ej.armar(N);
   const eb=document.getElementById('pB'); if(eb) eb.value = b || 1;
   reNombrar(); centrar(); refrescar(); calcular();
+  comprobarEjemploPF(ej);
   cerrarEjemplos();
 }
 

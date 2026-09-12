@@ -582,7 +582,7 @@ function construirLatexAlambre(){
       else if(f.type === 'l_cuarto')
         tex += porque('cuarto-l', 'El cuarto de arco es media semicircunferencia: por simetría su centroide está sobre la '
           + 'bisectriz a $45^\\circ$, y proyectado sobre cada radio queda a $2R/\\pi$ del centro, por el mismo cálculo que '
-          + 'en la semicircunferencia (Hibbeler, 2016).');
+          + 'en la semicircunferencia (Hibbeler, 2027).');
       else if(f.type === 'l_arco')
         tex += porque('arco-l', 'El arco de semiángulo $\\alpha$ tiene su centroide sobre la bisectriz, a $R\\sen\\alpha/\\alpha$ '
           + 'del centro: $\\int R\\cos\\theta\\cdot R\\,d\\theta$ entre $-\\alpha$ y $\\alpha$, dividido entre $2\\alpha R$. '

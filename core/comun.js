@@ -329,14 +329,14 @@ function bsaPanelMovil(){
 function bsaReferenciasLatex(opts){
   opts = opts || {};
   const refs = [
-    'Beer, F. P., Johnston, E. R., Mazurek, D. F. y Cornwell, P. J. (2017). '
-      + '\\emph{Mec\\\'anica vectorial para ingenieros: Est\\\'atica} (11.\\textsuperscript{a} ed.). McGraw-Hill Interamericana.'
+    'Beer, F. P., Johnston, E. R. y Mazurek, D. F. (2024). '
+      + '\\emph{Vector Mechanics for Engineers: Statics} (12.\\textsuperscript{a} ed., versi\\\'on 2024). McGraw Hill.'
   ];
   if(opts.materiales) refs.push(
-    'Beer, F. P., Johnston, E. R., DeWolf, J. T. y Mazurek, D. F. (2017). '
-      + '\\emph{Mec\\\'anica de materiales} (7.\\textsuperscript{a} ed.). McGraw-Hill Interamericana.');
+    'Beer, F. P., Johnston, E. R., DeWolf, J. T. y Mazurek, D. F. (2020). '
+      + '\\emph{Mechanics of Materials} (8.\\textsuperscript{a} ed.). McGraw Hill.');
   refs.push(
-    'Hibbeler, R. C. (2016). \\emph{Ingenier\\\'ia mec\\\'anica: Est\\\'atica} (14.\\textsuperscript{a} ed.). Pearson Educaci\\\'on.');
+    'Hibbeler, R. C. (2027). \\emph{Engineering Mechanics: Statics} (16.\\textsuperscript{a} ed.). Pearson.');
   (opts.extra || []).forEach(r=>refs.push(r));
   // \par cierra el párrafo anterior: sin él, «Referencias» se pegaba al final
   // del último texto del informe en vez de empezar en su propia línea.

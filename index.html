@@ -2865,6 +2865,9 @@ function guardarConfigEnCache(cf){
       ? (co ? co.split(',').map(s=>s.trim()).filter(Boolean) : [])
       : (co || []));
   }
+  // Cuando se leyo del servidor. Sirve para saber si la copia local aun vale y
+  // poder abrir un tema sin esperar en cada clic.
+  ls.set('config_ts', Date.now());
 }
 
 // Relee la configuración y refresca la caché. Devuelve lo leído, o null si no
@@ -3529,7 +3532,14 @@ async function openApp(appKey){
   // última copia conocida, que es lo mejor que se puede saber. El control está
   // en esta función a propósito, no solo en la vista.
   if(role !== 'prof'){
-    await refrescarConfig(5000);
+    // La copia local vale si es RECIENTE: entonces el tema abre al instante y la
+    // relectura se hace despues, en segundo plano, para el proximo clic. Si esta
+    // vieja si se espera, pero poco: 1,5 s en vez de 5. Quedarse cinco segundos
+    // en blanco en CADA clic era peor que el hueco que eso cubria, y la barrera
+    // sigue siendo del servidor: una copia vieja no abre nada sin releer.
+    const edadConfig = Date.now() - (Number(ls.get('config_ts')) || 0);
+    if(edadConfig > 60000) await refrescarConfig(1500);
+    else refrescarConfig(4000).then(cf=>{ if(cf){ try{ aplicarBloqueoEstudiante(); }catch(e){} } }).catch(()=>{});
     try{ aplicarBloqueoEstudiante(); }catch(e){}
     const hasta = Number(ls.get('app_disabled_until')) || 0;
     if(hasta && Date.now() < hasta){

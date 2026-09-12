@@ -160,7 +160,7 @@ function tikzCroquisFigura(fig, anchoCm){
 }
 
 // ═══════════════════════════════════════════════════════════
-//  INFORME LaTeX · una clase paso a paso (Hibbeler, 2016)
+//  INFORME LaTeX · una clase paso a paso (Hibbeler, 2027)
 //  Planteamiento y convenio → propiedades de cada parte → tabla de áreas y
 //  momentos estáticos → centroide (y centro de gravedad si el cuerpo es
 //  heterogéneo) → comprobaciones → colofón.
@@ -262,7 +262,7 @@ function _tablaPerfilTex(f, tablaCaption){
     if(fam.tipo === 'channel') c('$\\bar{x}$',u,r[12]);
   }
   let s = tablaCaption('Propiedades tabuladas del perfil ' + escLatex(r[0]) + ' (' + escLatex(fam.nom) + ', '
-    + escLatex(fam.sist) + '; Beer et al., 2017).');
+    + escLatex(fam.sist) + '; Beer et al., 2024).');
   s += '{\\footnotesize\\begin{tablacentrada}\\begin{tabular}{' + 'c'.repeat(cab.length) + '}\\hline\n'
      + cab.join(' & ') + '\\\\\\hline\n' + fila.join(' & ') + '\\\\\\hline\\end{tabular}\\end{tablacentrada}}\n';
   return s;
@@ -594,16 +594,16 @@ function construirLatex(){
         tex += porque('tri',
           'El centroide de un triángulo está a un tercio de la altura desde la base (y a un tercio de la base desde el '
           + 'cateto vertical): es el punto donde se cruzan las medianas. Sale de integrar $\\int\\tilde{y}\\,dA$ con '
-          + 'franjas paralelas a la base, cuyo ancho decrece linealmente hacia el vértice (Hibbeler, 2016).');
+          + 'franjas paralelas a la base, cuyo ancho decrece linealmente hacia el vértice (Hibbeler, 2027).');
       else if(f.type === 'semicircle')
         tex += porque('semi',
           'En un semicírculo hay más área cerca del diámetro que cerca del arco, así que el centroide no está a $R/2$ '
           + 'sino más abajo, a $4R/3\\pi \\approx 0.42\\,R$ del diámetro. Se obtiene integrando con sectores '
-          + 'diferenciales, cada uno con su centroide a $2R/3$ del centro (Hibbeler, 2016).');
+          + 'diferenciales, cada uno con su centroide a $2R/3$ del centro (Hibbeler, 2027).');
       else if(f.type === 'quarter')
         tex += porque('cuarto',
           'El cuarto de círculo es un semicírculo partido por su eje de simetría: su centroide está a $4R/3\\pi$ de '
-          + 'cada uno de los dos radios rectos, por el mismo motivo que en el semicírculo (Hibbeler, 2016).');
+          + 'cada uno de los dos radios rectos, por el mismo motivo que en el semicírculo (Hibbeler, 2027).');
       else if(f.type === 'sector')
         tex += porque('sector',
           'El sector circular de semiángulo $\\theta$ tiene su centroide sobre la bisectriz, a $2R\\sen\\theta/3\\theta$ del '
@@ -762,7 +762,7 @@ function construirLatex(){
   // Lectura como carga distribuida (propuesta 2.4): el ejemplo guiado del §9.4.
   if(typeof ejemploActualCen !== 'undefined' && ejemploActualCen === 'carga')
     tex += porque('carga-distribuida',
-      'Si estas figuras son el \\textbf{diagrama de una carga} $w(x)$ sobre una viga (Hibbeler, 2016), la magnitud de la '
+      'Si estas figuras son el \\textbf{diagrama de una carga} $w(x)$ sobre una viga (Hibbeler, 2027), la magnitud de la '
       + 'resultante es el \\textbf{\\\'area} bajo el diagrama, $F_R = \\int w\\,dx = ' + ftex(results.A) + '$, y su '
       + 'l\\\'inea de acci\\\'on pasa por el \\textbf{centroide} de esa \\\'area, a $\\bar{x} = ' + decP(results.xbar,'len')
       + '$' + U1 + ' del extremo izquierdo. Es exactamente la sustituci\\\'on que Fuerzas Internas hace al reemplazar '

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  INFORME LaTeX · una clase paso a paso (Hibbeler, 2016)
+//  INFORME LaTeX · una clase paso a paso (Hibbeler, 2027)
 //  Planteamiento y convenio → propiedades de cada parte → centroide de la
 //  sección → teorema de Steiner y tabla de inercias → ejes principales →
 //  círculo de Mohr → (punto P y ejes girados, si se pidieron) →
@@ -104,7 +104,7 @@ function _tablaPerfilTex(f, tablaCaption){
     if(fam.tipo === 'channel') c('$\\bar{x}$',u,r[12]);
   }
   let s = tablaCaption('Propiedades tabuladas del perfil ' + escLatex(r[0]) + ' (' + escLatex(fam.nom) + ', '
-    + escLatex(fam.sist) + '; Beer et al., 2017).');
+    + escLatex(fam.sist) + '; Beer et al., 2024).');
   // Más de doce columnas (ángulo de lados desiguales) no caben en el ancho de
   // la página: la fila se parte en dos tramos de columnas, uno bajo el otro.
   const porTramo = cab.length > 12 ? Math.ceil(cab.length/2) : cab.length;
@@ -454,10 +454,10 @@ function construirLatex(){
       tex += '\\[ ' + cl + ' \\]\n';
       if(f.type === 'rtriangle' || f.type === 'rtriangle2')
         tex += porque('tri', 'El centroide de un triángulo está a un tercio de la altura desde la base y a un tercio '
-          + 'de la base desde el cateto vertical: es donde se cruzan las medianas (Hibbeler, 2016).');
+          + 'de la base desde el cateto vertical: es donde se cruzan las medianas (Hibbeler, 2027).');
       else if(f.type === 'semicircle' || f.type === 'quarter')
         tex += porque('semi', 'En un semicírculo o un cuarto de círculo hay más área cerca del diámetro que cerca del '
-          + 'arco, así que el centroide queda a $4R/3\\pi \\approx 0.42\\,R$ del diámetro, no a $R/2$ (Hibbeler, 2016).');
+          + 'arco, así que el centroide queda a $4R/3\\pi \\approx 0.42\\,R$ del diámetro, no a $R/2$ (Hibbeler, 2027).');
       else if(f.type === 'sector')
         tex += porque('sector', 'El sector de semiángulo $\\theta$ tiene el centroide sobre su bisectriz, a '
           + '$2R\\sen\\theta/3\\theta$ del vértice: tiende a $2R/3$ si es estrecho y a $4R/3\\pi$ si se abre a semicírculo.');
