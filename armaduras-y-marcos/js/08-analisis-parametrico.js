@@ -35,7 +35,7 @@ function renderCargasEdit(){
       lista.forEach((c, i)=>{
         h += '<div style="display:flex;gap:8px;align-items:center;margin:4px 0 4px 14px;flex-wrap:wrap">'
           + '<span style="font-size:11px;color:var(--acc2);font-weight:800;min-width:58px">Fuerza ' + (i+1) + '</span>'
-          + '<label style="font-size:11px;color:var(--muted)">' + (DIR_CARGA_ARM[c.dir||'y']||DIR_CARGA_ARM.y).ico + (c.dir==='ang' ? ' ' + dec(c.ang||0,'ang') + '\u00b0' : '') + '</label>'
+          + '<label style="font-size:11px;color:var(--muted)">' + (DIR_CARGA_ARM[c.dir||'y']||DIR_CARGA_ARM.y).ico + (c.dir==='ang' ? ' ' + dec(bsaAnguloOpuesto(c.ang, true),'ang') + '\u00b0' : '') + '</label>'
           + '<input type="number" step="any" id="vc-mag-' + n.id + '-' + i + '" value="' + (c.mag||0) + '" '
           + 'style="width:96px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-family:var(--mf)">'
           + '<span style="font-size:11px;color:var(--muted)">' + unitFor + '</span></div>';

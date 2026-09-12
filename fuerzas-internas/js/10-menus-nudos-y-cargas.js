@@ -65,10 +65,12 @@ function abrirCargaModal(tipo, c){
   const _o = document.getElementById('cgDir');
   const _dirIni = c ? dirDeCarga(c) : (tipo === 'PX' ? 'x' : 'y');
   if(_o) _o.value = _dirIni;
-  // Ángulo de la carga inclinada. Por defecto −90° (hacia abajo), que es el
-  // sentido positivo de la vertical: elegir «Inclinada» no mueve la carga.
+  // Ángulo de la carga inclinada, en el convenio del alumno: señala DE DÓNDE
+  // VIENE la flecha. Por defecto 90° (hacia abajo), que es el sentido
+  // positivo de la vertical: elegir «Inclinada» no mueve la carga.
   const _a = document.getElementById('cgAng');
-  if(_a) _a.value = (c && c.ang !== undefined) ? c.ang : -90;
+  if(_a) _a.value = (c && c.ang !== undefined && isFinite(+c.ang))
+                      ? bsaAnguloOpuesto(c.ang, true) : 90;
   const _b = document.getElementById('cgBase');
   if(_b) _b.value = (c && c.basePos) || 'eje';
   // Se fija el modo de partida ANTES de refrescar etiquetas, para que al
@@ -102,13 +104,89 @@ function cambioDestinoCarga(){
   dibujarCroquisTramo();
 }
 
+// ── Flecha del croquis ────────────────────────────────────────────
+// LLEGA al punto (x,y) viniendo del lado contrario al que apunta, igual que
+// en el lienzo y en los DCL del informe: la punta toca el punto de
+// aplicación. (ux,uy) es el sentido EN PANTALLA, con la y hacia abajo.
+function _flechaCroquis(x, y, ux, uy, L, col, w){
+  const F = v => v.toFixed(1);
+  const x0 = x - ux*L, y0 = y - uy*L;
+  const gr = (Math.atan2(uy, ux)*180/Math.PI).toFixed(1);
+  return '<line x1="'+F(x0)+'" y1="'+F(y0)+'" x2="'+F(x-ux*1.5)+'" y2="'+F(y-uy*1.5)
+       + '" stroke="'+col+'" stroke-width="'+(w||2)+'"/>'
+       + '<polygon points="0,0 -7.5,-3.4 -7.5,3.4" fill="'+col+'" transform="translate('
+       + F(x)+','+F(y)+') rotate('+gr+')"/>';
+}
+// ── Arco del par ────────────────────────────────────────────────
+// El sentido de giro es justo lo que no se veía: un par positivo es
+// ANTIHORARIO (CLAUDE.md §7) y su punta de flecha tiene que decirlo.
+function _arcoParCroquis(x, y, anti, col){
+  const F = v => v.toFixed(1), r = 15;
+  const rad = g => g*Math.PI/180;
+  // Arco de unos 280° recorrido EN EL SENTIDO DEL GIRO, para que la punta
+  // caiga donde de verdad termina el trazo.
+  const a0 = anti ? -55 : 235, a1 = anti ? 235 : -55;
+  const x0 = x + r*Math.cos(rad(a0)), y0 = y - r*Math.sin(rad(a0));
+  const x1 = x + r*Math.cos(rad(a1)), y1 = y - r*Math.sin(rad(a1));
+  // En pantalla la y va hacia abajo, así que el antihorario del plano se
+  // dibuja con sweep-flag 0.
+  const sweep = anti ? 0 : 1;
+  // La punta es tangente al arco en su extremo: perpendicular al radio y
+  // girada hacia donde avanza el trazo.
+  const tg = a1 + (anti ? 90 : -90);
+  return '<path d="M '+F(x0)+' '+F(y0)+' A '+r+' '+r+' 0 1 '+sweep+' '+F(x1)+' '+F(y1)
+       + '" fill="none" stroke="'+col+'" stroke-width="2.2"/>'
+       + '<polygon points="0,0 -8,-3.6 -8,3.6" fill="'+col+'" transform="translate('
+       + F(x1)+','+F(y1)+') rotate('+(-tg).toFixed(1)+')"/>';
+}
+
+// ── Croquis de una carga puesta sobre un NUDO ──────────────────────
+// Antes aquí solo había una frase: el alumno no veía ni hacia dónde tira la
+// carga ni, en el par, en qué sentido gira. Mismo planteamiento que el
+// croquis de nudo de armaduras: el nudo, los tramos que llegan y la flecha.
+function _croquisCargaNudo(){
+  const W2 = 240, H2 = 150, F = v => v.toFixed(1), ROJO = '#d94f5c';
+  const n = nodo(parseInt((document.getElementById('cgNudo')||{}).value, 10));
+  const cx = W2/2, cy = H2/2;
+  let s = '<svg viewBox="0 0 '+W2+' '+H2+'" style="width:100%;height:auto;display:block">'
+        + '<rect width="'+W2+'" height="'+H2+'" fill="#fff"/>';
+  if(n){
+    // Tramos que llegan al nudo, a escala común.
+    const con = tramos.filter(t=>t.a===n.id || t.b===n.id);
+    let esc = 1e-9;
+    con.forEach(t=>{ const o = nodo(t.a===n.id ? t.b : t.a);
+      if(o) esc = Math.max(esc, Math.hypot(o.x-n.x, o.y-n.y)); });
+    const k = 46/Math.max(esc, 1e-9);
+    con.forEach(t=>{ const o = nodo(t.a===n.id ? t.b : t.a); if(!o) return;
+      s += '<line x1="'+cx+'" y1="'+cy+'" x2="'+F(cx+(o.x-n.x)*k)+'" y2="'+F(cy-(o.y-n.y)*k)
+         + '" stroke="#1e3a8a" stroke-width="4" stroke-linecap="round" opacity=".5"/>'; });
+  }
+  const tipoC = edCarga ? edCarga.tipo : 'P';
+  const magC = parseFloat((document.getElementById('cgMag')||{}).value) || 0;
+  if(tipoC === 'M'){
+    s += _arcoParCroquis(cx, cy, magC >= 0, ROJO)
+       + '<text x="'+cx+'" y="'+(cy-21)+'" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="'+ROJO+'" text-anchor="middle">'
+       + dec(Math.abs(magC),'mom')+' '+(magC>=0?'\u21ba':'\u21bb')+'</text>';
+  } else if(Math.abs(magC) > 1e-12){
+    const _angUsr = parseFloat((document.getElementById('cgAng')||{}).value);
+    const v = dirCarga({dir:_dirModal(), ang:bsaAnguloOpuesto(isFinite(_angUsr)?_angUsr:90)}, null);
+    const sg = (magC < 0) ? -1 : 1;
+    const ux = v.x*sg, uy = -v.y*sg;
+    s += _flechaCroquis(cx, cy, ux, uy, 44, ROJO, 2.2)
+       + '<text x="'+F(cx-ux*55)+'" y="'+F(cy-uy*55+3)+'" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="'+ROJO+'" text-anchor="middle">'
+       + dec(Math.abs(magC),'f')+'</text>';
+  }
+  s += '<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="#1e3a8a" stroke="#fff" stroke-width="2"/>';
+  if(n) s += '<text x="'+(cx+10)+'" y="'+(cy-9)+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="#1b1f24">'+n.nombre+'</text>';
+  return s + '</svg>';
+}
+
 // ── Croquis acotado del tramo elegido (punto 4) ──
 function dibujarCroquisTramo(){
   const cont=document.getElementById('cgCroquis'); if(!cont) return;
   const enNudo = document.getElementById('cgDestino').value==='nudo'
               && !(edCarga && (edCarga.tipo==='U'||edCarga.tipo==='T'));
-  if(enNudo){ cont.innerHTML='<div style="font-size:10.5px;color:#66727e;padding:14px 6px;'
-    +'text-align:center">La carga se aplica directamente sobre el nudo elegido.</div>'; return; }
+  if(enNudo){ cont.innerHTML = _croquisCargaNudo(); return; }
   const t = tramos.find(z=>z.id===parseInt(document.getElementById('cgTramo').value,10));
   const g = t && geoTramo(t);
   if(!g){ cont.innerHTML='<div style="font-size:10.5px;color:#66727e;padding:14px 6px">Sin tramo.</div>'; return; }
@@ -160,15 +238,66 @@ function dibujarCroquisTramo(){
   const p1 = _aS(parseFloat(document.getElementById('cgPos').value)||0);
   const p2 = distrib ? _aS(parseFloat(document.getElementById('cgFin').value)||0) : p1;
   const f1 = Math.max(0, Math.min(1, p1/g.L)), f2 = Math.max(0, Math.min(1, p2/g.L));
+
+  // ── La carga, con su dirección ──
+  // Hasta el 2026-09-11 el croquis solo marcaba DÓNDE cae la carga (una banda
+  // o un punto): no se veía hacia dónde tira ni, en el par, en qué sentido
+  // gira. Ahora se dibuja la flecha, como en el croquis de armaduras.
+  const tipoC = edCarga ? edCarga.tipo : 'P';
+  const magC  = parseFloat((document.getElementById('cgMag')||{}).value) || 0;
+  const magC2 = parseFloat((document.getElementById('cgMag2')||{}).value) || 0;
+  const ROJO = '#d94f5c';
+  // Sentido en pantalla: dirCarga devuelve el vector con la y hacia arriba.
+  let uxC = 0, uyC = 1;
+  if(tipoC !== 'M'){
+    const _angUsr = parseFloat((document.getElementById('cgAng')||{}).value);
+    const _vC = dirCarga({dir:_dirModal(), ang:bsaAnguloOpuesto(isFinite(_angUsr)?_angUsr:90)}, g);
+    uxC = _vC.x; uyC = -_vC.y;
+  }
+
   if(distrib && Math.abs(f2-f1)>1e-6){
     const q1x=ax+(bx-ax)*f1, q1y=ay+(by-ay)*f1, q2x=ax+(bx-ax)*f2, q2y=ay+(by-ay)*f2;
     s+='<line x1="'+q1x+'" y1="'+q1y+'" x2="'+q2x+'" y2="'+q2y+'" stroke="#e0a83c" stroke-width="7" stroke-linecap="round" opacity=".75"/>';
+    // Flechas repartidas sobre el trozo cargado. En la triangular la longitud
+    // va de `mag` a `mag2`: es justo lo que distingue las dos formas.
+    const m1 = magC, m2 = (tipoC === 'T') ? magC2 : magC;
+    const mx = Math.max(Math.abs(m1), Math.abs(m2)) || 1;
+    const LMAX = 30, NF = 6;
+    const colas = [];
+    for(let i=0;i<=NF;i++){
+      const t = i/NF;
+      const m = m1 + (m2-m1)*t;
+      const qx = q1x+(q2x-q1x)*t, qy = q1y+(q2y-q1y)*t;
+      const L = Math.abs(m)/mx*LMAX;
+      const sg = (m < 0) ? -1 : 1;          // una intensidad negativa tira al revés
+      const dxF = uxC*sg, dyF = uyC*sg;
+      colas.push([qx-dxF*L, qy-dyF*L]);
+      if(L > 2.5) s+=_flechaCroquis(qx, qy, dxF, dyF, L, ROJO, 1.5);
+    }
+    // Silueta de la carga: la línea que une las colas (rectángulo o triángulo).
+    s+='<polyline points="'+colas.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')
+      +'" fill="none" stroke="'+ROJO+'" stroke-width="1.6"/>';
     // el rótulo va al lado opuesto de la cota de longitud, para no pisarla
     s+='<text x="'+((q1x+q2x)/2-px)+'" y="'+((q1y+q2y)/2-py)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#b07d1a" text-anchor="middle">cargado '+dec(Math.abs(p2-p1),'len')+'</text>';
   } else if(!distrib){
     const qx=ax+(bx-ax)*f1, qy=ay+(by-ay)*f1;
-    s+='<circle cx="'+qx+'" cy="'+qy+'" r="5" fill="#d94f5c"/>';
-    s+='<text x="'+qx+'" y="'+(qy-11)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#d94f5c" text-anchor="middle">'+dec(p1,'len')+'</text>';
+    if(tipoC === 'M'){
+      s+=_arcoParCroquis(qx, qy, magC >= 0, ROJO);
+      s+='<text x="'+qx+'" y="'+(qy-20)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'+ROJO+'" text-anchor="middle">'
+        +dec(Math.abs(magC),'mom')+' '+(magC>=0?'\u21ba':'\u21bb')+'</text>';
+    } else if(Math.abs(magC) > 1e-12){
+      const sgP = (magC < 0) ? -1 : 1;
+      s+=_flechaCroquis(qx, qy, uxC*sgP, uyC*sgP, 34, ROJO, 2.2);
+      s+='<text x="'+(qx-uxC*sgP*44)+'" y="'+(qy-uyC*sgP*44+3)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'+ROJO+'" text-anchor="middle">'
+        +dec(Math.abs(magC),'f')+'</text>';
+    }
+    s+='<circle cx="'+qx+'" cy="'+qy+'" r="4" fill="'+ROJO+'"/>';
+    // La distancia se aparta a lo largo del eje y al lado CONTRARIO de la cota
+    // de longitud: puestas las dos en el centro del tramo, se pisaban.
+    const _uL = Math.hypot(bx-ax, by-ay) || 1;
+    const _sep = (tipoC === 'M') ? 31 : 15;   // el par ocupa un arco de radio 15
+    s+='<text x="'+(qx - px*0.45 + (bx-ax)/_uL*_sep).toFixed(1)+'" y="'+(qy - py*0.45 + (by-ay)/_uL*_sep + 3).toFixed(1)
+      +'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'+ROJO+'" text-anchor="middle">'+dec(p1,'len')+'</text>';
   }
   s+='</svg>';
   cont.innerHTML=s;
@@ -325,7 +454,7 @@ function aplicarCarga(){
     dir: _dir,
     // Se guarda siempre, aunque la dirección no sea la inclinada: así el
     // alumno que vuelve a «Inclinada» reencuentra el ángulo que había puesto.
-    ang: parseFloat((document.getElementById('cgAng')||{}).value) || 0,
+    ang: bsaAnguloOpuesto(parseFloat((document.getElementById('cgAng')||{}).value) || 0),
     // El marco de las coordenadas va con la dirección; se guarda aparte
     // porque es lo que leen las funciones de posición.
     orient: _dir ? _marcoDeDir(_dir) : 'global',

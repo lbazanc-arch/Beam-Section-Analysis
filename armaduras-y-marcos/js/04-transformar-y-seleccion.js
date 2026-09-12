@@ -12,14 +12,18 @@ function marcarApoyoArm(n){
 }
 // Atajos de ángulo de la ventana de apoyo. Se generan aquí, con la marca ya
 // puesta, para que no puedan desincronizarse del dato (como segCargaArm).
-const ATAJOS_AP_MOVIL = [90, 0, 45, -45];
-const ATAJOS_AP_FIJO  = [90, 0, 180, -90];
+// Atajos en el ANGULO QUE ESCRIBE EL USUARIO (donde se apoya el nudo):
+// -90 suelo, 0 pared derecha, 180 pared izquierda, 90 techo. El valor que
+// guarda el modelo es el opuesto (bsaAnguloOpuesto), que es la direccion en
+// la que empuja la reaccion.
+const ATAJOS_AP_MOVIL = [-90, 0, 180, -45];
+const ATAJOS_AP_FIJO  = [-90, 0, 180, 90];
 function pintarAtajosApoyo(n){
   const cont = document.getElementById('apDirAtajos');
   if(!cont) return;
   if(!n || !n.apoyo){ cont.innerHTML = ''; return; }
   const esMovil = n.apoyo === 'movil';
-  const actual = esMovil ? anguloReaccionApoyo(n) : anguloDibujoApoyo(n);
+  const actual = bsaAnguloOpuesto(esMovil ? anguloReaccionApoyo(n) : anguloDibujoApoyo(n));
   cont.innerHTML = (esMovil ? ATAJOS_AP_MOVIL : ATAJOS_AP_FIJO).map(a=>{
     const puesto = Math.abs(normalizarAnguloArm(a - actual)) < 0.01;
     return '<button type="button" class="tpl-btn' + (puesto ? ' active' : '') + '"'
@@ -38,11 +42,13 @@ function actualizarPrevApoyo(){
     const tit = document.getElementById('apDirTit');
     const hint = document.getElementById('apDirHint');
     const campo = document.getElementById('apAng');
-    if(tit) tit.textContent = esMovil ? 'Dirección de la reacción' : 'Giro del dibujo';
+    if(tit) tit.textContent = esMovil ? 'Dónde se apoya' : 'Giro del dibujo';
     if(hint) hint.textContent = esMovil
-      ? 'Ángulo desde +x, antihorario: 90° rodillo sobre el suelo, 0° contra un muro.'
-      : 'Solo presentación: un pasador restringe las dos direcciones se dibuje como se dibuje.';
-    if(campo) campo.value = esMovil ? anguloReaccionApoyo(n) : anguloDibujoApoyo(n);
+      ? '−90° suelo, 0° pared derecha, 180° pared izquierda, 90° techo.'
+      : 'Solo presentación: el pasador sujeta las dos direcciones se dibuje como se dibuje.';
+    // El campo muestra el angulo del USUARIO (donde se apoya); el modelo
+    // guarda el opuesto, que es hacia donde empuja la reaccion.
+    if(campo) campo.value = bsaAnguloOpuesto(esMovil ? anguloReaccionApoyo(n) : anguloDibujoApoyo(n));
   }
   const r = nodos.reduce((s2,z)=>s2+gradosApoyo(z), 0);
   el.innerHTML = 'Ahora: <b>' + descApoyoLargo(n)
@@ -60,43 +66,49 @@ function setApoyo(tipo){
   actualizarPrevApoyo();
   refrescar();
 }
-// Ángulo del apoyo, desde +x y antihorario. En un apoyo MÓVIL es la dirección
-// de su única reacción y ENTRA EN EL CÁLCULO: 90 = rodillo sobre el suelo,
-// 0 = contra un muro, cualquier otro = plano inclinado. En un apoyo FIJO gira
-// solo el dibujo, porque un pasador restringe las dos direcciones igual; por
-// eso ahí no se invalida el resultado ya calculado.
+// Ángulo del apoyo TAL Y COMO LO ESCRIBE EL USUARIO: señala dónde se apoya
+// el nudo —−90° en el suelo, 0° contra la pared derecha, 180° contra la
+// izquierda, 90° en el techo—, no hacia dónde empuja la reacción. El modelo
+// guarda el opuesto (`bsaAnguloOpuesto`), que sí es la dirección de la
+// reacción y es lo que consume el motor.
+// En un apoyo MÓVIL ese valor ENTRA EN EL CÁLCULO; en un apoyo FIJO gira solo
+// el dibujo, porque un pasador restringe las dos direcciones igual, y por eso
+// ahí no se invalida el resultado ya calculado.
 function setApAng(ang){
   const n = nodos.find(z=>z.id===apoyoNodoId);
   if(!n || !n.apoyo) return;
   const v = parseFloat(ang);
   if(!isFinite(v)) return;
-  const a = normalizarAnguloArm(v);
+  const a = normalizarAnguloArm(bsaAnguloOpuesto(v));
   registrarCambio();
   if(n.apoyo === 'movil'){ n.apAng = a; resultado = null; }
   else { n.apAngDib = a; }
   actualizarPrevApoyo();
   refrescar();
 }
-// Cómo se nombra una dirección de reacción: se conservan las palabras de los
-// dos casos de siempre, y cualquier otra dirección se dice con su ángulo.
+// Cómo se nombra un apoyo por su ángulo. Recibe el ángulo INTERNO (dirección
+// de la reacción) y lo cuenta como lo ve el alumno: dónde se apoya el nudo.
+// Cualquier otra posición se dice con el ángulo que él escribió.
 function descDirApoyo(a){
   const v = normalizarAnguloArm(a);
-  if(Math.abs(v - 90) < 0.01) return 'vertical';
-  if(Math.abs(v) < 0.01) return 'horizontal';
-  return 'a ' + dec(v,'f') + '°';
+  if(Math.abs(v - 90) < 0.01) return 'sobre el suelo';
+  if(Math.abs(v + 90) < 0.01) return 'bajo el techo';
+  if(Math.abs(v) < 0.01) return 'contra la pared izquierda';
+  if(Math.abs(Math.abs(v) - 180) < 0.01) return 'contra la pared derecha';
+  return 'a ' + dec(bsaAnguloOpuesto(v),'f') + '°';
 }
 // Texto largo (modal, caja de información del nudo).
 function descApoyoLargo(n){
   if(!n.apoyo) return 'sin apoyo';
   if(n.apoyo === 'fijo') return 'apoyo fijo (2 reacciones)';
-  return 'apoyo móvil (1 reacción ' + descDirApoyo(anguloReaccionApoyo(n)) + ')';
+  return 'apoyo móvil (1 reacción) ' + descDirApoyo(anguloReaccionApoyo(n));
 }
 // Texto corto (lista de nudos).
 function descApoyoCorto(n){
   if(!n.apoyo) return '';
   if(n.apoyo === 'fijo') return 'apoyo fijo';
   const d = descDirApoyo(anguloReaccionApoyo(n));
-  return 'apoyo móvil (' + (d === 'vertical' ? 'Y' : (d === 'horizontal' ? 'X' : d)) + ')';
+  return 'apoyo móvil (' + (d === 'sobre el suelo' ? 'Y' : (d === 'contra la pared izquierda' ? 'X' : d)) + ')';
 }
 
 // (editarSeleccion() se retiró: quedó sin ninguna llamada tras introducir

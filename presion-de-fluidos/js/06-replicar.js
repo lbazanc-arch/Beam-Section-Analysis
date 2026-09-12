@@ -132,9 +132,11 @@ function borrarTramo(id){ registrarCambio(); tramos=tramos.filter(t=>t.id!==id);
 function abrirApoyoModal(id){
   apoyoId=id; const n=nodos.find(z=>z.id===id); if(!n) return;
   document.getElementById('apNom').textContent=n.nombre;
-  document.getElementById('apAng').value = n.apAng===undefined?90:n.apAng;
+  // Los dos campos enseñan el ángulo del USUARIO (dónde se apoya el nudo);
+  // el modelo guarda el opuesto, que es hacia dónde empuja la reacción.
+  document.getElementById('apAng').value = bsaAnguloOpuesto(n.apAng===undefined?90:n.apAng);
   const gf = document.getElementById('apAngFijo');
-  if(gf) gf.value = anguloDibujoApoyoFijo(n);
+  if(gf) gf.value = bsaAnguloOpuesto(anguloDibujoApoyoFijo(n));
   const chk = document.getElementById('apNormal');
   if(chk) chk.checked = (n.apModo === 'normal');
   actualizarPrevApoyo();
@@ -143,17 +145,19 @@ function abrirApoyoModal(id){
 function closeApoyoModal(){
   const n=nodos.find(z=>z.id===apoyoId);
   if(n){
-    // 0 grados es una direccion valida (rodillo contra un muro, reaccion
-    // hacia +x): con `||90` se convertia en silencio en 90, y este angulo SI
+    // 0 grados es una direccion valida (el nudo se apoya en la pared
+    // derecha): con `||90` se convertia en silencio en 90, y este angulo SI
     // entra en el calculo. Mismo criterio que el campo del apoyo fijo.
+    // El campo dice DONDE SE APOYA; se guarda el opuesto, la direccion de la
+    // reaccion, que es lo que consume direccionIncognita.
     const vm=parseFloat(document.getElementById('apAng').value);
-    n.apAng=isFinite(vm)?vm:90;
+    n.apAng=isFinite(vm)?bsaAnguloOpuesto(vm):90;
     const chk = document.getElementById('apNormal');
     n.apModo = (chk && chk.checked) ? 'normal' : 'angulo';
     // Giro del apoyo fijo: solo dibujo (ver anguloDibujoApoyoFijo en 01-).
     const gf = document.getElementById('apAngFijo');
     const vf = parseFloat(gf && gf.value);
-    n.apAngFijo = isFinite(vf) ? vf : 90;
+    n.apAngFijo = isFinite(vf) ? bsaAnguloOpuesto(vf) : 90;
   }
   document.getElementById('apoyoModal').classList.remove('show'); apoyoId=null; R=null; refrescar();
 }
@@ -211,14 +215,14 @@ function setApoyo(t){
     n.apoyo=t;
     if(t==='movil'){
       const vm=parseFloat(document.getElementById('apAng').value);  // 0 es valido
-      n.apAng=isFinite(vm)?vm:90;
+      n.apAng=isFinite(vm)?bsaAnguloOpuesto(vm):90;
       const chk = document.getElementById('apNormal');
       n.apModo = (chk && chk.checked) ? 'normal' : 'angulo';
     }
     if(t==='fijo'){
       const gf = document.getElementById('apAngFijo');
       const vf = parseFloat(gf && gf.value);
-      if(isFinite(vf)) n.apAngFijo = vf;     // solo dibujo
+      if(isFinite(vf)) n.apAngFijo = bsaAnguloOpuesto(vf);     // solo dibujo
     }
     R=null;
   }
@@ -233,7 +237,11 @@ function abrirTopeModal(id){
   topeId=id; const n=nodos.find(z=>z.id===id); if(!n) return;
   document.getElementById('tpNom').textContent=n.nombre;
   const tp = n.tope || {};
-  document.getElementById('tpAng').value = tp.ang || 0;
+  // El campo va en el convenio del alumno (de dónde empuja el tope); el
+  // modelo guarda el opuesto, la dirección de la fuerza, que es lo que lee
+  // direccionIncognita.
+  document.getElementById('tpAng').value =
+    (tp.ang !== undefined && isFinite(+tp.ang)) ? bsaAnguloOpuesto(tp.ang, true) : 0;
   // lado por defecto: el seco, si solo una zona tiene líquido
   let lado = tp.lado;
   if(!lado){
@@ -256,7 +264,7 @@ function closeTopeModal(){ document.getElementById('topeModal').classList.remove
 function applyTope(){
   registrarCambio();
   const n=nodos.find(z=>z.id===topeId);
-  if(n) n.tope={ang:parseFloat(document.getElementById('tpAng').value)||0, modo:_topeModo,
+  if(n) n.tope={ang:bsaAnguloOpuesto(parseFloat(document.getElementById('tpAng').value)||0), modo:_topeModo,
                 lado:parseInt(document.getElementById('tpLado').value,10)||1};
   document.getElementById('topeModal').classList.remove('show'); topeId=null; R=null; refrescar();
 }

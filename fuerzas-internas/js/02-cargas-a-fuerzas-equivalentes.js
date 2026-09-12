@@ -80,7 +80,7 @@ const DIR_CARGA = {
   x:     {nom:'Horizontal (X)',   ico:'\u2192', ayuda:'Horizontal del plano, positiva hacia la derecha.'},
   perp:  {nom:'Perpendicular',    ico:'\u21e3', ayuda:'Perpendicular al eje del tramo, positiva "contra" la barra.'},
   axial: {nom:'Axial',            ico:'\u21e2', ayuda:'Paralela al eje del tramo, positiva en su sentido de avance.'},
-  ang:   {nom:'Inclinada',        ico:'↗', ayuda:'Ángulo desde el eje x, antihorario: 0° derecha, 90° arriba, −90° abajo.'}
+  ang:   {nom:'Inclinada',        ico:'↗', ayuda:'0° hacia la izquierda, 90° abajo, 180° derecha, 270° arriba.'}
 };
 // Dirección efectiva, con lectura de los archivos guardados antes de unificar
 // la puntual X con la puntual Y (ahí la dirección salía de tipo + orient).
@@ -115,9 +115,11 @@ function dirCarga(c, g){
   const d = dirDeCarga(c);
   if(d === 'y') return {x:0, y:-1};
   if(d === 'x') return {x:1, y:0};
-  // Inclinada: el ángulo ya viene en la convención del proyecto (desde +x y
-  // antihorario) y aquí el plano tiene la y hacia arriba, así que el vector
-  // sale directo. No necesita la geometría del tramo: es una dirección global.
+  // Inclinada: `c.ang` es el ángulo INTERNO —desde +x, antihorario, HACIA
+  // DONDE APUNTA la flecha—, y aquí el plano tiene la y hacia arriba, así que
+  // el vector sale directo. No es el ángulo que escribe el alumno: ese señala
+  // de dónde viene la carga y es el opuesto (`bsaAnguloOpuesto`, aplicado en
+  // la ventana). No necesita la geometría del tramo: es dirección global.
   if(d === 'ang'){
     const a = (+c.ang || 0)*Math.PI/180;
     return {x:Math.cos(a), y:Math.sin(a)};

@@ -366,3 +366,39 @@ function colofonLatexBSA(){
     + '{\\scriptsize\\color{bsaMuted}beamsectionanalysis.com}\n'
     + '\\end{center}\n\\end{minipage}\n\n';
 }
+
+// ==========================================================================
+//  CONVENIO DE ANGULOS QUE ESCRIBE EL USUARIO  (2026-09-11)
+//
+//  El angulo que el alumno teclea senala DE DONDE VIENE la fuerza o DONDE
+//  ESTA el apoyo, no hacia donde apunta la flecha:
+//
+//    Apoyo   0 = se apoya en la pared derecha   180 / -180 = pared izquierda
+//            90 = se apoya en el techo          -90        = en el suelo
+//    Carga   0 = va hacia la izquierda          180        = hacia la derecha
+//            90 = hacia abajo                   270        = hacia arriba
+//
+//  Los motores y los dibujos siguen trabajando con el angulo MATEMATICO de
+//  siempre (desde +x, antihorario, hacia donde apunta el vector): un rodillo
+//  en el suelo empuja a 90, una carga hacia abajo va a -90. Entre los dos
+//  convenios hay exactamente media vuelta, y esta funcion es esa media
+//  vuelta. Es involutiva -aplicarla dos veces devuelve el valor original-,
+//  asi que la misma llamada sirve para leer un campo y para rellenarlo.
+//
+//  Se convierte SOLO en el borde de la interfaz (al leer un campo y al
+//  escribirlo). Lo guardado en el archivo del ejercicio sigue siendo el
+//  angulo matematico, de modo que los ejercicios anteriores se abren sin
+//  conversion y ningun motor cambia.
+// ==========================================================================
+//  `rango360` elige como se ENSENA el resultado, que no cambia el angulo:
+//  los apoyos se cuentan en (-180, 180] porque asi los dijo el profesor
+//  (-90 el suelo, 180 o -180 la pared izquierda), y las cargas en [0, 360)
+//  por lo mismo (0 izquierda, 90 abajo, 180 derecha, 270 arriba). Sin esto,
+//  quien escribia 270 en una carga la reabria viendo -90.
+function bsaAnguloOpuesto(a, rango360){
+  const n = Number(a);
+  if(!isFinite(n)) return 0;
+  let v = ((n + 180) % 360 + 360) % 360;   // media vuelta, ya en [0, 360)
+  if(!rango360 && v > 180) v -= 360;       // rango (-180, 180]
+  return +v.toFixed(6);
+}

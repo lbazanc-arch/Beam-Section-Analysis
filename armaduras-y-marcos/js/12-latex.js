@@ -46,6 +46,24 @@ function tikzApoyo(tipo, px, py, ang){
   return s;
 }
 
+// ── De qué lado del nudo se dibuja una reacción por componentes ──────
+// En el DCL global, $R_y$ va DEBAJO del nudo y $R_x$ a su IZQUIERDA. Con el
+// apoyo colgando recto eso funciona: la flecha nace justo detrás del símbolo
+// (colineal) o lejos de él (perpendicular). Pero un apoyo GIRADO EN OBLICUO
+// mete su triángulo y su rayado justo en esa franja y tapa la flecha —el
+// fallo que se veía con el apoyo simple a 45°—, así que entonces la flecha
+// pasa al otro lado del nudo. Sigue apuntando en el mismo sentido: lo único
+// que cambia es por dónde entra.
+//   (lx,ly) es la dirección, desde el nudo, de la franja que ocuparía la
+//   flecha. Devuelve +1 (el lado de siempre) o -1 (el contrario).
+function ladoReaccionFig(n, lx, ly){
+  if(!n || (n.apoyo !== 'fijo' && n.apoyo !== 'movil')) return 1;
+  const d = (anguloDibujoApoyo(n) - 180)*Math.PI/180;   // hacia dónde cuelga
+  const cos = lx*Math.cos(d) + ly*Math.sin(d);
+  // Solo estorba el oblicuo: entre unos 20° y 75° del eje de la flecha.
+  return (cos > 0.26 && cos < 0.94) ? -1 : 1;
+}
+
 // ── Cotas (cadena de dimensiones) bajo la armadura ──
 // Acota cada tramo horizontal entre coordenadas x consecutivas y, si la
 // armadura tiene altura, una cota vertical total a la izquierda.
@@ -761,12 +779,21 @@ function tikzArmaduraCompleta(opts){
         const arcoR = arcoAngulo(ux, uy, 'bsaVerde', genCargas, 0.55, x0, y0, crearColocador(24, 0.40));
         if(arcoR.tikz){ s += arcoR.tikz; _angulosFigura.push({letra:arcoR.letra, valor:arcoR.valor}); }
       } else if(rr.ry !== undefined){
-        s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + px.toFixed(3) + ',' + (py-1.45).toFixed(3) + ') -- (' + px.toFixed(3) + ',' + (py-0.62).toFixed(3) + ');\n';
-        s += '\\node[font=\\scriptsize, text=bsaVerde, right, xshift=2pt] at (' + px.toFixed(3) + ',' + (py-1.05).toFixed(3) + ') {$R_{y' + escLatex(n.nombre) + '}$};\n';
+        // k = 1: la flecha entra por debajo (lo de siempre). k = -1: por
+        // arriba, porque el símbolo del apoyo girado ocupa la franja de abajo.
+        const k = ladoReaccionFig(n, 0, -1);
+        // La flecha apunta SIEMPRE en +y: lo que cambia con k es por qué lado
+        // del nudo entra, no su sentido. Por eso la cola es la posición lejana
+        // cuando viene de abajo y la cercana cuando sale hacia arriba.
+        const d0 = k > 0 ? 1.45 : 0.62, d1 = k > 0 ? 0.62 : 1.45;
+        s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + px.toFixed(3) + ',' + (py-k*d0).toFixed(3) + ') -- (' + px.toFixed(3) + ',' + (py-k*d1).toFixed(3) + ');\n';
+        s += '\\node[font=\\scriptsize, text=bsaVerde, right, xshift=2pt] at (' + px.toFixed(3) + ',' + (py-k*1.05).toFixed(3) + ') {$R_{y' + escLatex(n.nombre) + '}$};\n';
       }
       if(rr.rx !== undefined){
-        s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + (px-1.35).toFixed(3) + ',' + py.toFixed(3) + ') -- (' + (px-0.45).toFixed(3) + ',' + py.toFixed(3) + ');\n';
-        s += '\\node[font=\\scriptsize, text=bsaVerde, above] at (' + (px-0.90).toFixed(3) + ',' + py.toFixed(3) + ') {$R_{x' + escLatex(n.nombre) + '}$};\n';
+        const k = ladoReaccionFig(n, -1, 0);
+        const e0 = k > 0 ? 1.35 : 0.45, e1 = k > 0 ? 0.45 : 1.35;   // apunta siempre en +x
+        s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + (px-k*e0).toFixed(3) + ',' + py.toFixed(3) + ') -- (' + (px-k*e1).toFixed(3) + ',' + py.toFixed(3) + ');\n';
+        s += '\\node[font=\\scriptsize, text=bsaVerde, above] at (' + (px-k*0.90).toFixed(3) + ',' + py.toFixed(3) + ') {$R_{x' + escLatex(n.nombre) + '}$};\n';
       }
     }
   });

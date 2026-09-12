@@ -117,9 +117,12 @@ function quitarCarga(id){
 const DIR_CARGA_ARM = {
   y:   {nom:'Vertical',   ico:'\u2193', ayuda:'Vertical, positiva hacia abajo.'},
   x:   {nom:'Horizontal', ico:'\u2192', ayuda:'Horizontal, positiva hacia la derecha.'},
-  ang: {nom:'Inclinada',  ico:'\u2220', ayuda:'\u00c1ngulo desde la horizontal, antihorario: 0\u00b0 derecha, 90\u00b0 arriba, \u221290\u00b0 abajo.'}
+  ang: {nom:'Inclinada',  ico:'\u2220', ayuda:'0\u00b0 hacia la izquierda, 90\u00b0 abajo, 180\u00b0 derecha, 270\u00b0 arriba.'}
 };
-// Vector unitario en el que actua una magnitud positiva.
+// Vector unitario en el que actua una magnitud positiva. `ang` es el angulo
+// INTERNO (desde +x, antihorario, HACIA DONDE APUNTA la flecha), no el que
+// escribe el alumno: ese senala de donde viene y es el opuesto. La media
+// vuelta la da bsaAnguloOpuesto al leer y al escribir el campo.
 function vectorCarga(dir, ang){
   if(dir === 'ang'){ const a = (+ang || 0)*Math.PI/180; return {x:Math.cos(a), y:Math.sin(a)}; }
   if(dir === 'x') return {x:1, y:0};
@@ -138,7 +141,7 @@ function _cargasNudoDeComponentes(fx, fy){
 }
 function descPuntual(c){
   const m = dec(+c.mag || 0, 'f');
-  if((c.dir || 'y') === 'ang') return m + ' ' + unitFor + ' a ' + dec(+c.ang || 0, 'ang') + '\u00b0';
+  if((c.dir || 'y') === 'ang') return m + ' ' + unitFor + ' a ' + dec(bsaAnguloOpuesto(c.ang, true), 'ang') + '\u00b0';
   return m + ' ' + unitFor + ' ' + (DIR_CARGA_ARM[c.dir || 'y'] || DIR_CARGA_ARM.y).ico;
 }
 function descCargaNudo(c){ return descPuntual(c); }
@@ -207,7 +210,10 @@ function abrirCargaArmModal(){
   selN.value = edCargaArm.nudo;
   document.getElementById('cgLblMag').textContent = 'Magnitud (' + unitFor + ')';
   document.getElementById('cgMag').value = c ? c.mag : 10;
-  document.getElementById('cgAng').value = (c && c.ang) || -90;
+  // El campo ensena el angulo del USUARIO (de donde viene la carga). Ojo con
+  // `|| -90`: 0 es un angulo valido y el operador logico lo daba por ausente.
+  document.getElementById('cgAng').value =
+    (c && c.ang !== undefined && isFinite(+c.ang)) ? bsaAnguloOpuesto(c.ang, true) : 90;
   setDirCargaArm(_pintarDirsArm(c ? (c.dir || 'y') : 'y'));
   document.getElementById('cargaModal').classList.add('show');
 }
@@ -244,7 +250,9 @@ function aplicarCargaArm(){
   const n = nodos.find(z=>z.id === parseInt(document.getElementById('cgNudo').value, 10));
   if(!n){ aviso('Elige un nudo.', 'error'); return; }
   const dir = document.getElementById('cgDir').value;
-  const ang = parseFloat(document.getElementById('cgAng').value) || 0;
+  // El campo dice DE DONDE VIENE la carga; se guarda hacia donde va.
+  const angUsr = parseFloat(document.getElementById('cgAng').value);
+  const ang = bsaAnguloOpuesto(isFinite(angUsr) ? angUsr : 90);
   const mag = parseFloat(document.getElementById('cgMag').value) || 0;
   if(Math.abs(mag) < 1e-12){ aviso('La magnitud es cero: la carga no har\u00eda nada.', 'error'); return; }
   registrarCambio();
@@ -264,7 +272,8 @@ function dibujarCroquisCargaArm(){
   const cont = document.getElementById('cgCroquis'); if(!cont || !edCargaArm) return;
   const W2 = 220, H2 = 200, F = v => v.toFixed(1);
   const dir = (document.getElementById('cgDir') || {}).value || 'y';
-  const ang = parseFloat((document.getElementById('cgAng') || {}).value) || 0;
+  const _angUsr = parseFloat((document.getElementById('cgAng') || {}).value);
+  const ang = bsaAnguloOpuesto(isFinite(_angUsr) ? _angUsr : 90);
   const mag = parseFloat((document.getElementById('cgMag') || {}).value) || 0;
   const n = nodos.find(z=>z.id === parseInt((document.getElementById('cgNudo') || {}).value, 10));
   const cx = W2/2, cy = H2/2;

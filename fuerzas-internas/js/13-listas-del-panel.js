@@ -113,7 +113,7 @@ function iconoSentido(c){
 function nombreDireccion(c){
   const d = dirDeCarga(c);
   const nom = (DIR_CARGA[d] || {}).nom || '';
-  return (d === 'ang') ? (nom + ' ' + (+c.ang || 0) + '°') : nom;
+  return (d === 'ang') ? (nom + ' ' + bsaAnguloOpuesto(c.ang, true) + '°') : nom;
 }
 
 function htmlArbolCargas(){

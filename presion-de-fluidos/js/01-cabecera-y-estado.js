@@ -301,7 +301,10 @@ function normalCompuertaEnNudo(n, lado){
 // pasador restringe las dos direcciones se dibuje como se dibuje, así que este
 // ángulo no entra en ninguna ecuación. Compárese con apAng, que sí es la
 // dirección de la reacción del apoyo móvil y sí entra en el cálculo.
-// Se mide desde el eje x, antihorario; 90° deja el triángulo debajo del nudo.
+// Ojo: como apAng, este es el ángulo INTERNO (desde +x, antihorario; 90° deja
+// el triángulo debajo del nudo). El que escribe el alumno señala dónde se
+// apoya el nudo y es el opuesto: la media vuelta la da `bsaAnguloOpuesto`
+// (core/comun.js) al abrir y al cerrar la ventana, en 06-replicar.js.
 function anguloDibujoApoyoFijo(n){
   const a = n && n.apAngFijo;
   return (typeof a === 'number' && isFinite(a)) ? a : 90;

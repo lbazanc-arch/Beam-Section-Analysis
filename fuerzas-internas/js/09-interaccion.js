@@ -494,28 +494,35 @@ function sincroApAng(){
   const conAng = (tipo === 'movil' || tipo === 'simple');
   bloque.style.display = conAng ? '' : 'none';
   if(!conAng) return;
-  const a = anguloApoyo(n);
+  // El campo enseña el ángulo del USUARIO (dónde se apoya el nudo); el modelo
+  // guarda el opuesto, que es la dirección en la que empuja la reacción.
+  const a = bsaAnguloOpuesto(anguloApoyo(n));
   const campo = document.getElementById('apAngVal');
   if(campo && document.activeElement !== campo) campo.value = a;
   const lbl = document.getElementById('apAngLbl');
-  if(lbl) lbl.textContent = (tipo === 'movil') ? 'Ángulo de la reacción' : 'Giro del símbolo';
+  if(lbl) lbl.textContent = (tipo === 'movil') ? 'Dónde se apoya' : 'Giro del símbolo';
   const h = document.getElementById('apAngHint');
   if(h) h.textContent = (tipo === 'movil')
-    ? 'Dirección de la reacción, desde +x y antihoraria: 90° es el rodillo de siempre.'
+    ? '−90° suelo, 0° pared derecha, 180° pared izquierda, 90° techo.'
     : 'Solo presentación: el pasador sujeta las dos direcciones se dibuje como se dibuje.';
 }
+// `v` llega en el convenio del USUARIO: señala dónde se apoya el nudo (−90°
+// suelo, 0° pared derecha, 180° pared izquierda, 90° techo). Lo que se guarda
+// es el opuesto —la dirección en la que empuja la reacción—, que es lo que
+// leen el motor y los dibujos.
 function setApAng(v){
   const n = nodo(edApoyo);
   if(!n || (n.apoyo !== 'movil' && n.apoyo !== 'simple')) return;
-  const a = parseFloat(v);
-  if(!isFinite(a)) return;
+  const u = parseFloat(v);
+  if(!isFinite(u)) return;
+  const a = bsaAnguloOpuesto(u);
   registrarCambio();
   // Cada tipo guarda en SU propiedad. Mezclarlas metería en el cálculo un
   // ángulo que en el pasador es solo dibujo; por eso el simple tampoco anula R.
   if(n.apoyo === 'movil'){ n.apAng = a; R = null; }
   else n.apAngDib = a;
   const campo = document.getElementById('apAngVal');
-  if(campo && document.activeElement !== campo) campo.value = a;
+  if(campo && document.activeElement !== campo) campo.value = u;
   sincroApAng(); actualizarPrevApoyo(); refrescar();
 }
 function alternarRotula(){

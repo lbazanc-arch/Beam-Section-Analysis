@@ -67,10 +67,15 @@ const LEN_A_M = {m:1, cm:0.01, ft:0.3048};
 const FOR_A_KN = {kN:1, N:0.001, ton:9.80665, lb:0.00444822};
 const GRADOS = {libre:0, movil:1, simple:2, empotrado:3};
 // ── Ángulo de un apoyo ──
-// Convención unificada del proyecto: todo ángulo que escribe el usuario se mide
-// desde el eje +x y en sentido ANTIHORARIO (0° derecha, 90° arriba, −90° abajo).
-// Por defecto, 90°: la reacción sube, que es el rodillo apoyado en el suelo de
-// siempre y el pasador dibujado debajo del nudo.
+// OJO: aquí viven los ángulos INTERNOS, que no son los que escribe el alumno.
+// El interno es la dirección en la que EMPUJA la reacción, desde +x y
+// antihoraria; el que se teclea en la ventana señala DÓNDE SE APOYA el nudo
+// (−90° suelo, 0° pared derecha, 180° pared izquierda, 90° techo) y es
+// exactamente el opuesto. La media vuelta la da `bsaAnguloOpuesto`
+// (core/comun.js) en el borde de la ventana, así que lo guardado en el
+// archivo del ejercicio nunca ha cambiado de significado.
+// Por defecto, 90° internos: la reacción sube, que es el rodillo apoyado en el
+// suelo de siempre y el pasador dibujado debajo del nudo.
 const AP_ANG_DEF = 90;
 // Dirección (radianes, plano con y hacia arriba) en la que EMPUJA la reacción
 // de un apoyo móvil: es directamente el ángulo que escribió el usuario.

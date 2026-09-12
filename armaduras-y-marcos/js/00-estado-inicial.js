@@ -16,14 +16,23 @@ let modoCorte = 'auto';
 
 // ==========================================================================
 //  ANGULOS DE LOS APOYOS
-//  Convenio unico del proyecto: todo angulo que escribe el usuario se mide
-//  desde el eje +x y en sentido ANTIHORARIO (0 derecha, 90 arriba, -90 abajo).
+//  Hay DOS angulos y no significan lo mismo (CLAUDE.md 7):
 //
-//  · Apoyo MOVIL  -> `n.apAng` es la direccion de su UNICA reaccion, y ENTRA
-//    en el calculo (06-motor-de-equilibrio.js). 90 es el rodillo sobre el
-//    suelo; 0, el rodillo contra un muro. Los archivos anteriores solo
-//    guardaban 0 o 90, que ya significan exactamente eso: siguen siendo
-//    validos sin conversion.
+//  · El que ESCRIBE EL USUARIO senala DONDE SE APOYA el nudo: -90 en el
+//    suelo, 0 contra la pared derecha, 180 contra la izquierda, 90 en el
+//    techo. Vive solo en la ventana del apoyo.
+//  · El que GUARDA EL MODELO en `n.apAng` es el opuesto: la direccion en la
+//    que EMPUJA la reaccion, medida desde +x y antihoraria. Es el que
+//    consumen el motor y los tres dibujos.
+//
+//  `bsaAnguloOpuesto` (core/comun.js) pasa de uno a otro, y se aplica SOLO
+//  en el borde de la ventana. Por eso los ejercicios guardados antes del
+//  2026-09-11 se abren sin conversion: lo almacenado no ha cambiado nunca.
+//
+//  · Apoyo MOVIL  -> `n.apAng` ENTRA en el calculo (06-motor-de-equilibrio.js).
+//    90 es el rodillo sobre el suelo; 180, el rodillo contra la pared
+//    derecha. Los archivos anteriores solo guardaban 0 o 90, que ya
+//    significan exactamente eso: siguen siendo validos sin conversion.
 //  · Apoyo FIJO   -> `n.apAngDib` gira SOLO el dibujo. Un pasador restringe
 //    las dos direcciones se dibuje como se dibuje, asi que este angulo no
 //    puede tocar el motor ni el informe: es presentacion.
