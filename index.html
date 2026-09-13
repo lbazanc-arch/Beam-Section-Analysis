@@ -337,7 +337,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .bdis{background:var(--bg4);border:1px solid var(--border2);color:var(--text);padding:9px 16px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;}
 .bdis:hover{border-color:var(--yellow);color:var(--yellow);}
 .bdis.on{background:rgba(240,192,64,.1);border-color:var(--yellow);color:var(--yellow);}
-.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pgrid{display:grid;grid-template-columns:1fr;gap:14px;}
 .pc{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;}
 .pctitle{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;}
 .ulist{list-style:none;display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;}
@@ -424,6 +424,8 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   .pgrid,.apps-grid,.app-choice-grid{grid-template-columns:1fr;}
   .nav .nsub{display:none;}
   .stats{grid-template-columns:1fr 1fr;}
+  /* Tres cajas en dos columnas dejaban la tercera sola: ocupa la fila. */
+  .stats > .sbox:nth-child(3){grid-column:1 / -1;}
 }
 @media(max-width:540px){
   .land-title{font-size:28px;}
@@ -508,7 +510,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .pc-busca:focus{outline:none;border-color:var(--blue2);}
 .pc-filtros{display:flex;gap:8px;align-items:center;}
 .pc-filtros .pc-busca{flex:1;min-width:0;}
-.pc-filtro{flex:0 0 190px;font-family:inherit;}
+.pc-filtros .pc-filtro{flex:0 0 190px;font-family:inherit;}
 .llog-inactivos{font-size:11px;color:var(--muted);line-height:1.5;margin-top:8px;}
 .llog-inactivos b{color:#b45309;}
 .uso-semanas{display:flex;align-items:flex-end;gap:6px;height:74px;padding:6px 4px 0;margin:6px 0 10px;border-bottom:1px solid var(--border);}
@@ -516,7 +518,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .uso-sem-b{width:100%;max-width:38px;background:linear-gradient(180deg,#5b8def,var(--blue2));border-radius:4px 4px 0 0;min-height:2px;}
 .uso-sem-v{font-weight:700;color:var(--blue2);margin-bottom:2px;}
 .uso-sem-l{margin-top:3px;white-space:nowrap;}
-@media(max-width:820px){ .pc-filtros{flex-direction:column;align-items:stretch;} .pc-filtro{flex:0 0 auto;} }
+@media(max-width:820px){ .pc-filtros{flex-direction:column;align-items:stretch;} .pc-filtros .pc-filtro{flex:0 0 auto;} }
 /* Barra de páginas */
 .pag-barra{display:flex;align-items:center;justify-content:center;gap:10px;
   padding:9px 0 2px;}
@@ -528,13 +530,12 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .pag-info{font-size:10.5px;color:var(--muted);}
 
 /* ── Composición del panel ──
-   .pgrid tiene dos columnas y ahora hay tres tarjetas: la última dejaba
-   media fila vacía en escritorio. La de "Uso del aplicativo" pasa a ocupar
-   el ancho completo, que además le conviene porque lleva dos tablas. */
-.pgrid > .pc:nth-child(2){grid-column:1 / -1;}
+   Las tres tarjetas van en UNA columna en todos los tamaños (2026-09-13).
+   Con dos, "Uso del aplicativo" ocupaba la fila entera y dejaba vacía la
+   mitad derecha junto a "Usuarios" y junto a "Registro"; y esas tablas, de
+   6 y 7 columnas, piden unos 550 px que media fila no tiene. */
+.llog-inactivos summary{cursor:pointer;}
 @media(max-width:820px){
-  /* Apiladas: el tramo a todo el ancho ya no aplica */
-  .pgrid > .pc:nth-child(2){grid-column:auto;}
   .pc-busca{font-size:16px;padding:9px 11px;}  /* 16px evita el zoom de iOS */
   .pag-btn{width:36px;height:36px;}            /* objetivo táctil */
 }
@@ -971,6 +972,12 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
             <button onclick="refreshPanel()" aria-label="Actualizar" title="Actualizar" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:5px 9px;border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">↻</button>
           </div>
         </div>
+        <div class="pc-filtros">
+        <input type="search" id="buscaUsr" class="pc-busca"
+               placeholder="Buscar por código, nombre, correo u horario…"
+               autocomplete="off">
+        <select id="filtroHorUsr" class="pc-busca pc-filtro" aria-label="Filtrar por horario" onchange="_pagUsr=1;renderUsers()"><option value="">Todos los horarios</option></select>
+        </div>
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:400px;">
             <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted);text-transform:uppercase;font-size:9px;">
@@ -984,15 +991,9 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
             </tr></thead>
             <tbody id="ulist"></tbody>
           </table>
-          <div class="pag-barra" id="pagUsr"></div>
-          <div class="pc-filtros">
-          <input type="search" id="buscaUsr" class="pc-busca"
-                 placeholder="Buscar por código, nombre, correo u horario…"
-                 autocomplete="off">
-          <select id="filtroHorUsr" class="pc-busca pc-filtro" aria-label="Filtrar por horario" onchange="_pagUsr=1;renderUsers()"><option value="">Todos los horarios</option></select>
-          </div>
-          <div class="empty" id="ulist-empty" style="display:none">Sin usuarios registrados</div>
         </div>
+        <div class="pag-barra" id="pagUsr"></div>
+        <div class="empty" id="ulist-empty" style="display:none">Sin usuarios registrados</div>
         <div class="aerr" id="aerr"></div>
       </div>
       <!-- ── Uso del aplicativo: por tema y por horario, con periodo ── -->
@@ -1071,10 +1072,10 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
             </tr></thead>
             <tbody id="llog"></tbody>
           </table>
-          <div class="pag-barra" id="pagLog"></div>
-          <div class="empty" id="llog-empty" style="display:none">Sin registros aún</div>
-          <div class="llog-inactivos" id="llog-inactivos"></div>
         </div>
+        <div class="pag-barra" id="pagLog"></div>
+        <div class="empty" id="llog-empty" style="display:none">Sin registros aún</div>
+        <div class="llog-inactivos" id="llog-inactivos"></div>
       </div>
     </div>
   </div>
@@ -1993,11 +1994,12 @@ async function api(action, body={}, timeoutMs=12000){
       case 'addUso': {
         // Una fila por sesión de tema. Se acumula en el servidor, así el
         // alumno ve su tiempo sumado entre el PC y el móvil.
-        if(!user) return {ok:false};
+        const uid = await idDeSesion();
+        if(!uid) return {ok:false};
         const tema = String(body.tema||'').trim();
         if(!tema) return {ok:false};
         const { error } = await SB.from('sesiones').insert({
-          alumno: user.id, tema: tema,
+          alumno: uid, tema: tema,
           segundos: Number(body.seg)||0,
           inicio: new Date(body.ini||Date.now()).toISOString()
         });
@@ -2008,9 +2010,10 @@ async function api(action, body={}, timeoutMs=12000){
       }
 
       case 'misUsos': {
-        if(!user) return {usos:null};
+        const uid = await idDeSesion();
+        if(!uid) return {usos:null};
         const { data, error } = await SB.from('sesiones')
-          .select('tema, segundos, inicio').eq('alumno', user.id)
+          .select('tema, segundos, inicio').eq('alumno', uid)
           .not('tema','is',null)
           .order('inicio',{ascending:false}).limit(1000);
         // Si la tabla aún no existe, se devuelve null y la vista se queda
@@ -2022,9 +2025,10 @@ async function api(action, body={}, timeoutMs=12000){
       case 'misIngresos': {
         // Cada alumno solo ve lo suyo: el filtro va por el id del token, no
         // por nada que mande el navegador.
-        if(!user) return {logs:[]};
+        const uid = await idDeSesion();
+        if(!uid) return {logs:[]};
         const { data, error } = await SB.from('sesiones')
-          .select('inicio, segundos').eq('alumno', user.id)
+          .select('inicio, segundos').eq('alumno', uid)
           .is('tema', null)
           .order('inicio',{ascending:false}).limit(300);
         if(error) return {logs:[]};
@@ -2034,10 +2038,11 @@ async function api(action, body={}, timeoutMs=12000){
       case 'updateEmail': {
         // El servidor identifica al alumno por su token, no por lo que
         // mande el navegador: así nadie puede cambiar el correo de otro.
-        if(!user) return {ok:false};
+        const uid = await idDeSesion();
+        if(!uid) return {ok:false};
         const nuevo = String(body.email||'').trim().toLowerCase();
         if(!nuevo) return {ok:false};
-        const { error } = await SB.from('alumnos').update({correo:nuevo}).eq('id',user.id);
+        const { error } = await SB.from('alumnos').update({correo:nuevo}).eq('id',uid);
         return {ok: !error};
       }
 
@@ -2495,11 +2500,21 @@ function loadPanel(){
     });
   }
 }
+// Id del usuario autenticado, leído de la sesión local de Supabase (sin red).
+// Ojo: la global `user` es el CORREO como texto, no el objeto de Auth, así
+// que `user.id` es undefined. Por eso addUso no registró ni un solo uso de
+// tema hasta el 2026-09-13: la política de `sesiones` rechazaba la fila.
+async function idDeSesion(){
+  try{
+    const { data } = await SB.auth.getSession();
+    return (data && data.session && data.session.user && data.session.user.id) || null;
+  }catch(e){ return null; }
+}
 function showTablesLoading(){
   const u=document.getElementById('ulist'),l=document.getElementById('llog');
   const ue=document.getElementById('ulist-empty'),le=document.getElementById('llog-empty');
-  if(u&&!u.children.length)u.innerHTML='<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--muted);font-size:11px">Cargando información…</td></tr>';
-  if(l&&!l.children.length)l.innerHTML='<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--muted);font-size:11px">Cargando registros…</td></tr>';
+  if(u&&!u.children.length)u.innerHTML='<tr><td colspan="'+colsDeTabla(u)+'" style="padding:14px;text-align:center;color:var(--muted);font-size:11px">Cargando información…</td></tr>';
+  if(l&&!l.children.length)l.innerHTML='<tr><td colspan="'+colsDeTabla(l)+'" style="padding:14px;text-align:center;color:var(--muted);font-size:11px">Cargando registros…</td></tr>';
   if(ue)ue.style.display='none';if(le)le.style.display='none';
 }
 function showPanelWarning(){
@@ -2547,6 +2562,14 @@ function filtrarFilas(filas, q, campos){
 
 // Pinta una página y su barra de navegación. `pintaFila` devuelve el HTML
 // de cada fila; `irA` recibe el número de página elegido.
+// Columnas de la tabla a la que pertenece un tbody. Los avisos que ocupan
+// una fila entera («Sin coincidencias», «Cargando…») tenían el colspan
+// escrito a mano (7 y 4) y descuadraban la tabla de 6 columnas.
+function colsDeTabla(tbody){
+  const t = tbody && tbody.closest('table');
+  const n = t ? t.querySelectorAll('thead th').length : 0;
+  return n || 1;
+}
 function paginar(idTbody, filas, pag, pintaFila, irA, idBarra){
   const tbody = document.getElementById(idTbody);
   if(!tbody) return;
@@ -2556,7 +2579,7 @@ function paginar(idTbody, filas, pag, pintaFila, irA, idBarra){
   const ini = (pag-1) * FILAS_POR_PAG;
   const visibles = filas.slice(ini, ini + FILAS_POR_PAG);
   tbody.innerHTML = visibles.map(pintaFila).join('')
-    || `<tr><td colspan="7" style="padding:14px;text-align:center;color:var(--muted);font-size:11px">Sin coincidencias</td></tr>`;
+    || `<tr><td colspan="${colsDeTabla(tbody)}" style="padding:14px;text-align:center;color:var(--muted);font-size:11px">Sin coincidencias</td></tr>`;
 
   const barra = document.getElementById(idBarra);
   if(!barra) return;
@@ -2631,7 +2654,10 @@ function pintarInactivos(todos){
     const nom = (x.nombre && x.nombre!=='—') ? x.nombre : '';
     return nom ? esc(nom) + ' &lt;' + esc(x.email||'') + '&gt;' : esc(x.email||'—');
   }).join(', ');
-  el.innerHTML = '<b>Sin actividad en 14 días (' + inact.length + '):</b> ' + lista + (inact.length > 40 ? '…' : '');
+  // Plegable: en el móvil la lista (hasta 40 nombres) alargaba la tarjeta
+  // más de 130 px. Cerrada por defecto; el título ya dice cuántos son.
+  el.innerHTML = '<details><summary><b>Sin actividad en 14 días (' + inact.length + ')</b></summary>'
+    + lista + (inact.length > 40 ? '…' : '') + '</details>';
 }
 function renderLogs(){
   const tbody=document.getElementById('llog'),empty=document.getElementById('llog-empty');
@@ -2639,7 +2665,14 @@ function renderLogs(){
   // nunca (LEFT JOIN sobre `sesiones`). En un registro de INGRESOS esas filas
   // sobran y, además, hacían creer que un borrado no había surtido efecto.
   const logs=(ls.get('access_logs')||[]).filter(x=>(x.ingresos||0)>0 || (x.tiempo||0)>0);
-  if(!logs.length){tbody.innerHTML='';if(empty)empty.style.display='block';return;}
+  if(!logs.length){
+    tbody.innerHTML='';if(empty)empty.style.display='block';
+    // Sin esto la paginación y la lista de inactivos se quedaban con lo que
+    // hubiera antes, por ejemplo tras vaciar el registro entero.
+    const b=document.getElementById('pagLog'); if(b) b.innerHTML='';
+    pintarInactivos(ls.get('access_logs')||[]);
+    return;
+  }
   if(empty)empty.style.display='none';
   // Los totales ya vienen calculados del servidor: aquí solo se filtra,
   // se ordena por actividad reciente y se pinta la página visible.
