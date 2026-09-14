@@ -454,6 +454,21 @@ function tkpDCL(r, sel){
     // ángulo con el eje más cercano, si la fuerza es inclinada (R17): arco en la cola
     out += tkpArcoAngulo(x1, y1, c.dir);
   });
+  // peso propio: W en el centroide G de cada tramo, vertical hacia abajo
+  (r.pesos || []).filter(c=>!sel || sel.tramos.indexOf(c.t.id) >= 0).forEach(c=>{
+    const Gx = X(c.G.x), Gy = Y(c.G.y), Lw = 1.15;
+    out += '\\draw[-{Latex[length=2.2mm]}, bsaPeso, line width=1.2pt] (' + F(Gx) + ',' + F(Gy + Lw) + ') -- (' + F(Gx) + ',' + F(Gy + 0.06) + ');\n';
+    tkpOcuparTrazo(Gx, Gy + Lw, Gx, Gy, 0.08);
+    out += '\\filldraw[bsaPeso] (' + F(Gx) + ',' + F(Gy) + ') circle (0.045);\n';
+    out += tkpTexto(Gx, Gy + Lw + 0.28, '$' + c.nombre + '$', 'font=\\scriptsize, color=bsaPeso', 0, 1);
+    // G al lado seco del tramo (del que no llega el líquido) para no pisar la barra
+    // ni la flecha de la presión; sin líquido en el tramo, a su izquierda.
+    const liq = r.cargas.find(q=>q.t && c.t && q.t.id === c.t.id);
+    let gx = liq ? liq.dir.x : -1, gy = liq ? liq.dir.y : 0;
+    const gn = Math.hypot(gx, gy) || 1; gx /= gn; gy /= gn;
+    out += tkpTexto(Gx + gx*0.34, Gy + gy*0.34, '$G_{' + c.k.slice(1) + '}$', 'font=\\tiny, color=bsaPeso', gx, gy);
+    ocupados.push([Gx, Gy + Lw]);
+  });
   // reacciones e incógnitas: llegan al nudo en su sentido real, solo el nombre
   const incVis = sel ? r.inc.filter(u=>sel.nodos.indexOf(u.n.id) >= 0) : r.inc;
   incVis.forEach((u)=>{
@@ -510,13 +525,32 @@ function tkpBrazos(r, ec, sel){
     const pts = puntosTramo(t, 40);
     if(pts.length < 2) return;
     out += '\\draw[bsaMuted!70, line width=1.2pt] ' + pts.map(p=>'(' + F(X(p.x)) + ',' + F(Y(p.y)) + ')').join(' -- ') + ';\n';
+    for(let i=1;i<pts.length;i++) tkpOcuparTrazo(X(pts[i-1].x), Y(pts[i-1].y), X(pts[i].x), Y(pts[i].y), 0.06);
   });
   const C = ec.centro;
   out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.9pt] (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') circle (0.11);\n';
   out += tkpTexto(X(C.x) + 0.3, Y(C.y) + 0.3, '\\textbf{' + escLatex(C.nombre) + '}', 'font=\\scriptsize, color=bsaAcc2', 1, 1);
   const filas = [];
-  ec.ts.forEach(t=>filas.push({P:t.carga.P, dir:t.carga.dir, nombre:t.carga.nombre, sub:String(t.carga.k), col:'bsaPres', brazo:t.brazo}));
+  ec.ts.forEach(t=>filas.push({P:t.carga.P, dir:t.carga.dir, nombre:t.carga.nombre, sub:String(t.carga.k), col:(t.carga.esPeso ? 'bsaPeso' : 'bsaPres'), brazo:t.brazo}));
   ec.us.forEach(u=>{ const q = r.inc[u.j]; filas.push({P:{x:q.n.x, y:q.n.y}, dir:sentidoRealIncognita(q, r.val[u.j]), nombre:simbIncognita(q), sub:q.n.nombre, col:(q.tipo==='T' ? 'bsaTope' : 'bsaReac'), brazo:u.brazo}); });
+  // Brazos sobre la misma recta desde C (p. ej., fuerzas verticales): cotas
+  // corridas, cada rótulo en el trozo que añade su brazo, como en las cotas de
+  // fuerzas internas; si no, dos rótulos centrados en el mismo sitio se pisan.
+  filas.forEach(f=>{
+    const s = (f.P.x - C.x)*f.dir.x + (f.P.y - C.y)*f.dir.y;
+    f.bx = X(f.P.x - f.dir.x*s) - X(C.x); f.by = Y(f.P.y - f.dir.y*s) - Y(C.y);
+    f.bl = Math.hypot(f.bx, f.by);
+    f.clave = f.bl > 1e-6 ? Math.round(Math.atan2(f.by, f.bx)*180/Math.PI) : 'nulo';
+  });
+  {
+    const grupos = {};
+    filas.forEach(f=>{ (grupos[f.clave] = grupos[f.clave] || []).push(f); });
+    Object.values(grupos).forEach(g=>{
+      g.sort((a,b)=>a.bl - b.bl);
+      let ant = 0;
+      g.forEach(f=>{ f.t0 = ant; ant = f.bl; });
+    });
+  }
   filas.forEach(f=>{
     const px = X(f.P.x), py = Y(f.P.y);
     // pie de la perpendicular desde C a la línea de acción
@@ -532,7 +566,8 @@ function tkpBrazos(r, ec, sel){
     out += tkpTexto(px - f.dir.x*1.15, py - f.dir.y*1.15, '$' + f.nombre + '$', 'font=\\scriptsize, color=' + f.col, -f.dir.x, -f.dir.y);
     // brazo: del centro al pie, con cota
     out += '\\draw[bsaAcc2, line width=.6pt] (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') -- (' + F(qx) + ',' + F(qy) + ');\n';
-    const mx = (X(C.x)+qx)/2, my = (Y(C.y)+qy)/2;
+    const tm = f.bl > 1e-6 ? (f.t0 + f.bl)/2/f.bl : 0.5;
+    const mx = X(C.x) + (qx - X(C.x))*tm, my = Y(C.y) + (qy - Y(C.y))*tm;
     const nx = -(qy - Y(C.y)), ny = (qx - X(C.x)); const nn = Math.hypot(nx,ny) || 1;
     out += tkpTexto(mx + nx/nn*0.22, my + ny/nn*0.22, '$d_{' + f.sub + '} = ' + dec(f.brazo,'len') + '$', 'font=\\tiny, color=bsaAcc2', nx/nn, ny/nn);
     // marca de perpendicular
@@ -601,6 +636,7 @@ function construirLatex(){
     + '\\definecolor{bsaAgua}{HTML}{2F7FB5}\n'
     + '\\definecolor{bsaPres}{HTML}{C0392B}\n'
     + '\\definecolor{bsaTope}{HTML}{B45309}\n'
+    + '\\definecolor{bsaPeso}{HTML}{7A5C1E}\n'
     + '\\definecolor{bsaReac}{HTML}{15803D}\n'
     + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
     + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
@@ -753,10 +789,19 @@ function construirLatex(){
   });
   tex += '\\hline\n\\multicolumn{6}{l}{$\\Sigma$ del l\\\'iquido} & ' + f(SX) + ' & ' + f(SY) + ' & \\\\\n\\hline\n\\end{tabular}\\end{tablacentrada}\n';
   tex += '{\\footnotesize El programa integra la presi\\\'on punto a punto sobre cada tramo; el desarrollo de este paso reproduce esa integral.}\\\\[2pt]\n';
+  // Peso propio de la compuerta: W = q b L en el centroide de cada tramo
+  if(r.pesos && r.pesos.length){
+    tex += '\\subpaso{Peso propio de la compuerta}\n';
+    tex += '\\noindent{\\footnotesize Cada tramo pesa $W = q\\,b\\,L$, vertical y hacia abajo, aplicado en el centroide $G$ de su l\\\'inea: el punto medio si es recto; en un arco de semi\\\'angulo $\\alpha$, a $\\bar r = R\\,\\sen\\alpha/\\alpha$ del centro, sobre la bisectriz.}\\\\[2pt]\n';
+    const filasW = r.pesos.map(c=> c.nombre + ' &= q\\,b\\,L = ' + f(c.q) + '\\,(' + nl(c.b) + ')(' + nl(c.len) + ') = ' + f(c.F) + UF
+      + '\\quad\\text{en } G_{' + c.k.slice(1) + '} = (' + nl(c.G.x) + ';\\ ' + nl(c.G.y) + ')'
+      + (c.G.arc ? ',\\quad \\bar r = ' + nl(c.G.arc.R) + '\\,\\sen ' + (c.G.alfa*180/Math.PI).toFixed(2) + '^\\circ/' + c.G.alfa.toFixed(4) + ' = ' + nl(c.G.rbar) + UL : ''));
+    tex += '\\begin{align*}\n' + filasW.join(' \\\\\n') + '\n\\end{align*}\n';
+  }
 
   // ═══ 4. Paso 3: DCL ═══
   tex += '\\seccion{4. Paso 3 --- Diagrama de cuerpo libre de la compuerta}\n';
-  tex += '\\noindent Sobre la compuerta act\\\'uan las resultantes del l\\\'iquido, cada una en su centro de presi\\\'on, y las inc\\\'ognitas de los apoyos'
+  tex += '\\noindent Sobre la compuerta act\\\'uan las resultantes del l\\\'iquido, cada una en su centro de presi\\\'on, ' + (r.pesos && r.pesos.length ? 'el peso propio de cada tramo en su centroide ' : '') + 'y las inc\\\'ognitas de los apoyos'
     + (r.inc.some(u=>u.tipo==='T') ? ' y del tope' : '') + '. Cada fuerza se dibuja en su sentido real y se rotula solo con su nombre; los valores est\\\'an en las tablas.\n';
   const letras = Object.values(_LETRAS_ANG);
   const listaAng = letras.map(e=>'$' + e.letra + ' = ' + e.grados.toFixed(2) + '^\\circ$');
@@ -854,7 +899,7 @@ function construirLatex(){
   }
   const rs = r.residuo;
   const cero = v => (Math.abs(v) < 1e-6*rs.ref) ? '0' : f(v);
-  tex += '\\noindent Con todas las fuerzas (l\\\'iquido, reacciones' + (r.inc.some(u=>u.tipo==='T') ? ' y tope' : '') + '):\n'
+  tex += '\\noindent Con todas las fuerzas (l\\\'iquido' + (r.pesos && r.pesos.length ? ', peso propio' : '') + ', reacciones' + (r.inc.some(u=>u.tipo==='T') ? ' y tope' : '') + '):\n'
     + '$$\\sum F_x = ' + cero(rs.cx) + ' \\qquad \\sum F_y = ' + cero(rs.cy) + ' \\qquad \\sum M_O = ' + cero(rs.cm) + '$$\n';
   const planas = r.cargas.filter(c=>c.des && c.des.tipo==='recto' && !c.des.horizontal);
   if(planas.length)

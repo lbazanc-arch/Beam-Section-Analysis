@@ -316,6 +316,24 @@ function dibujar(){
     if(inactivo) ctx.setLineDash([9,6]);
     ctx.stroke();
     ctx.setLineDash([]);
+    // Un tramo con peso propio asignado lleva una banda discreta a su lado, como
+    // en fuerzas internas: sin marca no se sabría a cuáles se les puso.
+    const _pp = VIS.peso ? pesoDe(t) : null;
+    if(_pp){
+      ctx.save();
+      ctx.strokeStyle = (pesoActivo === _pp.id) ? '#b07d1a' : 'rgba(176,125,26,.45)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      pts.forEach((P,i)=>{
+        const Q = pts[Math.min(i+1, pts.length-1)], O = pts[Math.max(i-1, 0)];
+        const [ax,ay] = aPantalla(O.x,O.y), [bx,by] = aPantalla(Q.x,Q.y), [sx,sy] = aPantalla(P.x,P.y);
+        const ln = Math.hypot(bx-ax, by-ay) || 1;
+        const qx = sx - (by-ay)/ln*7, qy = sy + (bx-ax)/ln*7;
+        i ? ctx.lineTo(qx,qy) : ctx.moveTo(qx,qy);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
     const md = pts[Math.floor(pts.length/2)];
     const [mx,my]=aPantalla(md.x,md.y);
     _rotulo(nomTramo(t), mx+6, my-9, '#0b3f3a', 0, -1, '700 10px Inter,sans-serif');
@@ -383,6 +401,20 @@ function dibujar(){
     ctx.fillText(n.nombre, px+10, py-9);
     _reservar(px+8, py-20, px+22, py-2);
   });
+
+  // ── Peso propio: W en el centroide de cada tramo, vertical hacia abajo ──
+  // Se conoce antes de resolver (es geometría), así que se dibuja siempre.
+  if(VIS.peso){
+    fuerzasPesoPropio().forEach(c=>{
+      const [px,py] = aPantalla(c.G.x, c.G.y);
+      const y0 = py - 46;
+      _flecha(px, y0, px, py - 2, '#7a5c1e', 2.6, 10);
+      _reservar(px-5, y0-4, px+5, py+4);
+      ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI*2); ctx.fillStyle = '#7a5c1e'; ctx.fill();
+      _rotulo('W' + c.k.slice(1) + ' = ' + dec(c.F,'f') + ' ' + unitFor, px, y0 - 8, '#7a5c1e', 0, -1,
+              '700 10.5px Inter,sans-serif', 'center');
+    });
+  }
 
   // ── Resultantes en su centro de presión y cota de profundidad ──
   if(R && !R.error && VIS.resultantes){

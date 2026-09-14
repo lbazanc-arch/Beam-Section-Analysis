@@ -44,7 +44,14 @@ function renderKatex(root){
 let nodos = [];     // {id,x,y,nombre,apoyo:null|'fijo'|'movil',apAng,apModo:'angulo'|'normal',
                     //  apAngFijo (giro del apoyo fijo: SOLO dibujo, nunca cálculo),
                     //  rotula:bool,tope:null|{ang,modo:'normal'|'angulo',lado:1|2}}
-let tramos = [];    // {id,a,b,tipo:'recto'|'arco',flecha,activo,invertir}
+let tramos = [];    // {id,a,b,tipo:'recto'|'arco',flecha,activo,invertir,pesoId}
+// Peso propio de la compuerta (2026-09-14): VARIOS valores con nombre, en peso
+// por unidad de SUPERFICIE de placa, y cada tramo guarda el suyo (t.pesoId),
+// como en fuerzas internas. W = q·b·L, vertical hacia abajo, en el centroide
+// del tramo (fuerzasPesoPropio).
+let pesos = [];            // [{id, nom, val}]
+let pesoSeq = 0;
+let pesoActivo = null;     // id del valor que se está asignando
 let nodoSeq = 0, tramoSeq = 0;
 let tool = 'pan', selNodo = null;
 let gesto = null;   // gesto unificado del botón "Mover / editar" (criterio cap9)
@@ -59,7 +66,7 @@ let mouseW = null;
 
 // ── Visibilidad de capas del dibujo (criterio cap6/cap7) ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, apoyos:true, liquidos:true, presion:true, resultantes:true, cotas:true};
+const VIS = {grilla:true, apoyos:true, liquidos:true, presion:true, resultantes:true, peso:true, cotas:true};
 function setVis(cual, valor){ VIS[cual] = !!valor; dibujar(); }
 
 const LEN_A_M = {m:1, cm:0.01, ft:0.3048};
@@ -627,6 +634,44 @@ function _desarrolloCurvo(c, arc){
 }
 
 // ── Equilibrio del conjunto ──
+// ═══════════════════════════════════════════════════════════
+//  PESO PROPIO DE LA COMPUERTA
+// ═══════════════════════════════════════════════════════════
+function pesoDe(t){ return pesos.find(p=>p.id === t.pesoId) || null; }
+// Centroide de la línea del tramo (la placa vista de canto): el punto medio si
+// es recto; en un arco de semiángulo α, a r̄ = R·sen α / α del centro, sobre la
+// bisectriz.
+function centroideTramo(t){
+  const a = nodo(t.a), b = nodo(t.b);
+  const arc = arcoDeTramo(t);
+  if(!arc) return {x:(a.x+b.x)/2, y:(a.y+b.y)/2, arc:null};
+  const al = Math.abs(arc.d)/2;
+  const rb = arc.R*Math.sin(al)/al;
+  const tm = arc.t1 + arc.d/2;
+  return {x:arc.cx + rb*Math.cos(tm), y:arc.cy + rb*Math.sin(tm), arc, alfa:al, rbar:rb};
+}
+// Una fuerza por tramo con peso, con la MISMA forma que las del líquido
+// (Fx, Fy, F, Mo, P, dir, len, t) para que el equilibrio, el plan de
+// ecuaciones y las figuras la traten igual; `esPeso` la distingue donde hace
+// falta. Un tramo excluido del análisis no aporta peso.
+function fuerzasPesoPropio(){
+  const out = [];
+  const b = anchoB();
+  tramos.forEach(t=>{
+    if(t.activo === false) return;
+    const p = pesoDe(t);
+    if(!p || !(p.val > 0)) return;
+    const L = longitudTramo(t);
+    const W = p.val*b*L;
+    if(W < 1e-12) return;
+    const G = centroideTramo(t);
+    out.push({t, esPeso:true, peso:p, q:p.val, b, len:L, G,
+              Fx:0, Fy:-W, F:W, Mo:-G.x*W, dir:{x:0, y:-1}, P:{x:G.x, y:G.y}});
+  });
+  out.forEach((c,i)=>{ c.k = 'W' + (i+1); c.nombre = 'W_{' + (i+1) + '}'; });
+  return out;
+}
+
 function resolverSistema(A,b){
   const n = b.length;
   const M = A.map((f,i)=>f.slice().concat([b[i]]));
@@ -666,6 +711,10 @@ function analizar(){
     });
   });
   cargas.forEach((c,i)=>{ c.k = i+1; c.nombre = 'F_{' + (i+1) + '}'; });
+  // El peso propio entra en el equilibrio junto a las fuerzas del líquido;
+  // `cargas` sigue siendo solo el líquido (presiones, resultantes, tablas).
+  const pesosF = fuerzasPesoPropio();
+  const todas = cargas.concat(pesosF);
 
   const inc = listaIncognitas();
   const rotulas = nodos.filter(n=>n.rotula);
@@ -684,7 +733,7 @@ function analizar(){
     A[2][j] = u.n.x*d.y - u.n.y*d.x;
   });
   let sx=0, sy=0, sm=0;
-  cargas.forEach(c=>{ sx+=c.Fx; sy+=c.Fy; sm+=c.Mo; });
+  todas.forEach(c=>{ sx+=c.Fx; sy+=c.Fy; sm+=c.Mo; });
   b[0] = -sx; b[1] = -sy; b[2] = -sm;
 
   // Una ecuación extra por rótula: ΣM = 0 respecto a ella,
@@ -699,7 +748,7 @@ function analizar(){
       A[3+k][j] = (u.n.x-rt.x)*d.y - (u.n.y-rt.y)*d.x;
     });
     let m = 0;
-    cargas.forEach(c=>{
+    todas.forEach(c=>{
       if(lado.tramos.indexOf(c.t.id) < 0) return;
       m += (c.P.x-rt.x)*c.Fy - (c.P.y-rt.y)*c.Fx;
     });
@@ -710,11 +759,11 @@ function analizar(){
   if(!x) return {error:'singular', diag, cargas, inc};
   const val = {};
   inc.forEach((u,j)=>{ val[j] = x[j]; });
-  const out = {cargas, inc, val, diag, rotulas, lados, A, b};
+  const out = {cargas, pesos:pesosF, fuerzas:todas, inc, val, diag, rotulas, lados, A, b};
   out.plan = planEquilibrio(out);
   // Comprobación numérica del equilibrio con los valores hallados.
   let cx=0, cy=0, cm=0;
-  cargas.forEach(c=>{ cx+=c.Fx; cy+=c.Fy; cm+=c.Mo; });
+  todas.forEach(c=>{ cx+=c.Fx; cy+=c.Fy; cm+=c.Mo; });
   inc.forEach((u,j)=>{ cx += val[j]*u.dir.x; cy += val[j]*u.dir.y; cm += u.n.x*val[j]*u.dir.y - u.n.y*val[j]*u.dir.x; });
   out.residuo = {cx, cy, cm, ref: Math.max(1, Math.abs(sx), Math.abs(sy), Math.abs(sm))};
   out.cierra = Math.abs(cx) < 1e-7*out.residuo.ref && Math.abs(cy) < 1e-7*out.residuo.ref && Math.abs(cm) < 1e-7*out.residuo.ref;
@@ -760,7 +809,7 @@ function brazoRespecto(C, Pt, dir){
   return {m, brazo: Math.abs(m), signo: m >= 0 ? 1 : -1};
 }
 function planEquilibrio(r){
-  const inc = r.inc, cargas = r.cargas;
+  const inc = r.inc, cargas = r.fuerzas || r.cargas;     // líquido y peso propio
   const EPS = 1e-9;
   // ── centro de momentos: el nudo con más incógnitas pasando por él ──
   const candidatos = [];

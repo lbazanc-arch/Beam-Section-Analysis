@@ -71,7 +71,9 @@ function dibujar(){
     // recto, que se lee mejor.
     // Un tramo con peso propio asignado lleva una banda discreta bajo su eje:
     // sin marca no habría forma de saber a cuáles se les puso.
-    const _pp = pesoDe(t);
+    // Con «Peso propio» apagado en Visualización no se marca ni se dibuja;
+    // el cálculo lo sigue teniendo en cuenta.
+    const _pp = VIS.peso ? pesoDe(t) : null;
     if(_pp){
       const [pax,pay] = aPantalla(g.a.x, g.a.y), [pbx,pby] = aPantalla(g.b.x, g.b.y);
       const ln = Math.hypot(pbx-pax, pby-pay) || 1;
@@ -109,7 +111,7 @@ function dibujar(){
     // Las repartidas van SIEMPRE debajo: su bloque relleno tapaba las flechas
     // y los arcos de momento que caían dentro de su tramo.
     const _reps = c => (c.tipo === 'U' || c.tipo === 'T');
-    const _todas = cargas.concat(cargasPesoPropio());
+    const _todas = cargas.concat(VIS.peso ? cargasPesoPropio() : []);
     _todas.filter(_reps).forEach(dibujarCarga);
     _todas.filter(c=>!_reps(c)).forEach(dibujarCarga);
   }

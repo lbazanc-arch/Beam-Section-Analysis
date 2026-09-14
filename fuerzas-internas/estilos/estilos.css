@@ -590,6 +590,7 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
   font-family:inherit;background:#fff;border:1px solid var(--border2);color:var(--muted);transition:all .15s;}
 .modo-btn.active{background:var(--acc);border-color:var(--acc);color:#fff;}
 .vis-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:7px;}
+.vis-row > .vis-item:last-child:nth-child(odd){grid-column:1 / -1;}
 .vis-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);
   border:1px solid var(--border2);border-radius:7px;padding:6px 8px;cursor:pointer;
   background:#fff;user-select:none;}

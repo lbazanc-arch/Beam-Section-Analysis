@@ -64,6 +64,7 @@ function applyReplicar(){
 function limpiarTodo(){
   registrarCambio();
   nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; selN=[]; selT=[]; R=null;
+  pesos=[]; pesoSeq=0; pesoActivo=null;
   document.getElementById('resultsArea').style.display='none';
   const rp=document.getElementById('resultsPanel'); if(rp){rp.innerHTML='';rp.style.display='none';}
   const hh=document.getElementById('noResultsHint'); if(hh) hh.style.display='';
@@ -105,7 +106,7 @@ function pintarListas(){
       return '<div class="item-row'+(selT.indexOf(t.id)>=0?' sel':'')+'">'
         + '<input type="checkbox" '+(act?'checked':'')+' onchange="toggleActivo('+t.id+')" '
         + 'title="Incluir en el análisis" style="width:14px;height:14px;accent-color:#0f5c56">'
-        + '<div class="nm">'+nomTramo(t)+' · '+(t.tipo==='arco'?'curvo':'recto')+'</div>'
+        + '<div class="nm">'+nomTramo(t)+' · '+(t.tipo==='arco'?'curvo':'recto')+(pesoDe(t) ? ' · '+escaparTexto(pesoDe(t).nom) : '')+'</div>'
         + (t.tipo==='arco' ? '<input type="number" step="any" value="'+t.flecha+'" title="flecha (sagita)" '
             + 'style="width:52px;padding:2px 4px;border:1px solid var(--border2);border-radius:4px;font-size:10px" '
             + 'onchange="cambiarFlecha('+t.id+',this.value)">' : '')
@@ -274,6 +275,57 @@ function applyTope(){
                 lado:parseInt(document.getElementById('tpLado').value,10)||1};
   document.getElementById('topeModal').classList.remove('show'); topeId=null; R=null; refrescar();
 }
+// ── Ventana de peso propio (2026-09-14) ──
+// Valores con nombre, en peso por unidad de superficie de placa; mientras la
+// herramienta está activa, tocar un tramo le asigna el elegido.
+function abrirPeso(){
+  const lb = document.getElementById('pesoLbl'); if(lb) lb.textContent = 'Peso por ' + unitLen + '²';
+  const pu = document.getElementById('pesoU'); if(pu) pu.textContent = uPres();
+  renderPesos();
+  document.getElementById('pesoModal').classList.add('show');
+}
+function cerrarPeso(){ document.getElementById('pesoModal').classList.remove('show'); }
+function renderPesos(){
+  const el = document.getElementById('pesoLista'); if(!el) return;
+  if(!pesos.length){ el.innerHTML = '<div class="list-empty">Todavía no hay valores. Crea uno abajo.</div>'; return; }
+  el.innerHTML = pesos.map(p=>{
+    const n = tramos.filter(t=>t.pesoId === p.id).length;
+    return '<div class="item-row' + (pesoActivo === p.id ? ' sel' : '') + '" onclick="elegirPeso(' + p.id + ')" style="cursor:pointer">'
+      + '<div class="dot" style="background:#b07d1a"></div>'
+      + '<div class="nm">' + escaparTexto(p.nom) + ' · <b>' + dec(p.val,'f') + ' ' + uPres() + '</b>'
+      + (n ? ' <span style="color:var(--muted)">· ' + n + ' tramo' + (n>1?'s':'') + '</span>' : '') + '</div>'
+      + '<button class="x" title="Borrar" onclick="event.stopPropagation();borrarPeso(' + p.id + ')">×</button></div>';
+  }).join('');
+}
+function crearPeso(){
+  const v = parseFloat(document.getElementById('pesoVal').value);
+  if(!isFinite(v) || v <= 0){ aviso('Indica un peso mayor que cero.', 'error'); return; }
+  const nom = (document.getElementById('pesoNom').value || '').trim() || ('Peso ' + (pesos.length + 1));
+  registrarCambio();
+  const p = {id:++pesoSeq, nom, val:v};
+  pesos.push(p); pesoActivo = p.id;
+  document.getElementById('pesoNom').value = '';
+  document.getElementById('pesoVal').value = 0;
+  renderPesos(); refrescar();
+  aviso('Valor creado. Toca los tramos a los que quieras asignárselo.');
+}
+function elegirPeso(id){ pesoActivo = (pesoActivo === id) ? null : id; renderPesos(); refrescar(); }
+function borrarPeso(id){
+  registrarCambio();
+  pesos = pesos.filter(p=>p.id !== id);
+  tramos.forEach(t=>{ if(t.pesoId === id) t.pesoId = null; });
+  if(pesoActivo === id) pesoActivo = null;
+  R = null; renderPesos(); refrescar();
+}
+function activarPeso(){ setTool('peso'); abrirPeso(); }
+function asignarPesoATramo(idTramo){
+  const t = tramos.find(z=>z.id === idTramo); if(!t) return false;
+  if(pesoActivo === null){ aviso('Elige antes un valor de peso en la lista.', 'error'); return false; }
+  registrarCambio();
+  t.pesoId = (t.pesoId === pesoActivo) ? null : pesoActivo;
+  R = null; renderPesos(); refrescar();
+  return true;
+}
 function quitarTope(){
   registrarCambio();
   const n=nodos.find(z=>z.id===topeId);
@@ -389,6 +441,23 @@ const EJEMPLOS = [
     }
   },
   {
+    id:'pesoPropio',
+    nom:'Compuerta inclinada con peso propio',
+    desc:'La compuerta inclinada AB, ahora con peso propio q = 2 kN/m²: W = q·b·L, vertical, en el centro de AB.',
+    esperado:'W₁ = 2·2·3.606 = 14.42 kN en G = (1; −1.5) · con W a x = 1 m, ΣM_A reparte W a partes iguales: R_B = 127.53 + W/2 = 134.74 kN ↑ · R_yA = 68.67 − W/2 = 61.46 kN ↓ · R_xA = 88.29 kN →',
+    verifica:{F1:106.11, W1:14.42, R_B:{v:134.74, s:'↑'},
+              R_xA:{v:88.29, s:'→'}, R_yA:{v:61.46, s:'↓'}},
+    armar(N){
+      const A=N(0,0), B=N(2,-3);
+      addTramo(A.id,B.id,'recto');
+      A.apoyo='fijo'; B.apoyo='movil'; B.apAng=90; B.apModo='angulo';
+      zonas = {1:[], 2:[{g:9.81, niv:0}]};
+      pesos = [{id:1, nom:'Chapa de la compuerta', val:2}]; pesoSeq = 1;
+      tramos[tramos.length-1].pesoId = 1;
+      return 2;
+    }
+  },
+  {
     id:'curva',
     nom:'Compuerta curva (cuarto de círculo)',
     desc:'Arco AB de radio 2 m con centro en (2 ; 0), ancho 2 m; el agua llena el cuarto de círculo, a la derecha, '
@@ -486,6 +555,7 @@ function magnitudesEjemplo(r){
       m['pD'+c.k] = {v:presionZona(c.z, d.yBot), fam:'pres'};
     }
   });
+  (r.pesos||[]).forEach(c=>{ m[c.k] = {v:c.F, fam:'f'}; });     // W1, W2…
   (r.inc||[]).forEach((u,j)=>{
     const pre = u.tipo==='Rx' ? 'R_x' : u.tipo==='Ry' ? 'R_y' : u.tipo==='R' ? 'R_' : 'N_';
     const s = sentidoRealIncognita(u, r.val[j]);
@@ -565,6 +635,7 @@ function cargarEjemplo(id){
   const ej = EJEMPLOS.find(e=>e.id === id) || EJEMPLOS[0];
   registrarCambio();
   nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; selN=[]; selT=[]; R=null; selNodo=null;
+  pesos=[]; pesoSeq=0; pesoActivo=null;
   // Nudo en coordenada EXACTA: addNodo engancha a la rejilla, cuyo paso
   // depende del zoom.
   const N = (x,y)=>{

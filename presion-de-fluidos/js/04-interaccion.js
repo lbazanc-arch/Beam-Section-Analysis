@@ -46,6 +46,12 @@ function onDown(e){
   }
   else if(tool==='apoyo'){ if(n) abrirApoyoModal(n.id); }
   else if(tool==='tope'){ if(n) abrirTopeModal(n.id); }
+  else if(tool==='peso'){
+    // Tocar un tramo le asigna (o le quita) el valor de peso elegido.
+    const tr = tramoEn(mx, my);
+    if(tr) asignarPesoATramo(tr.id);
+    else aviso('Toca sobre un tramo para asignarle el peso.');
+  }
   else if(tool==='pan'){ iniciarPan(mx,my); }
   else if(tool==='sel' || tool==='borrar'){
     // Botón unificado "Mover / editar" (o "Eliminar" interactivo): aún no se
@@ -241,7 +247,7 @@ function onDbl(e){
 
 function setTool(t){
   tool=t; selNodo=null;
-  ['nudo','recto','arco','apoyo','tope','sel','pan'].forEach(k=>{
+  ['nudo','recto','arco','apoyo','tope','peso','sel','pan'].forEach(k=>{
     const el=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active',k===t);
   });
@@ -253,6 +259,7 @@ function setTool(t){
     arco:'Haz clic en dos nudos para unirlos con un tramo curvo.',
     apoyo:'Haz clic en un nudo y elige su apoyo o su rótula interna.',
     tope:'Haz clic en un nudo para colocar un tope liso: una fuerza incógnita, normal a la compuerta (o con la dirección que indiques).',
+    peso:'Toca los tramos a los que quieras asignar el peso elegido; tócalos de nuevo para quitárselo.',
     pan:'Arrastra el lienzo para desplazar la vista.',
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
     borrar:'Toca un nudo o un tramo para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'};
@@ -273,7 +280,8 @@ function instantanea(){
     tramos: tramos.map(t=>Object.assign({}, t)),
     zonas:  {1: zonas[1].map(l=>Object.assign({}, l)),
              2: zonas[2].map(l=>Object.assign({}, l))},
-    nodoSeq, tramoSeq
+    pesos:  pesos.map(p=>Object.assign({}, p)),
+    nodoSeq, tramoSeq, pesoSeq
   });
 }
 // Llamar ANTES de modificar el modelo.
@@ -290,6 +298,8 @@ function restaurarInstantanea(txt){
   zonas  = {1: e.zonas[1].map(l=>Object.assign({}, l)),
             2: e.zonas[2].map(l=>Object.assign({}, l))};
   nodoSeq = e.nodoSeq; tramoSeq = e.tramoSeq;
+  pesos = (e.pesos || []).map(p=>Object.assign({}, p)); pesoSeq = e.pesoSeq || 0;
+  if(!pesos.some(p=>p.id === pesoActivo)) pesoActivo = null;
   selN = selN.filter(id=>nodos.some(n=>n.id===id));
   selT = selT.filter(id=>tramos.some(t=>t.id===id));
   if(!nodos.some(n=>n.id===infoNodo))   infoNodo = null;
@@ -343,8 +353,14 @@ function abrirEdNodo(id){
   document.getElementById('edNodoNom').textContent = n.nombre || '';
   document.getElementById('edNx').value = n.x;
   document.getElementById('edNy').value = n.y;
-  const u = document.getElementById('edNuL');
-  if(u) u.textContent = (typeof unitLen !== 'undefined') ? unitLen : '';
+  // La unidad va junto a cada campo, como el ° en la ventana del apoyo.
+  document.querySelectorAll('#edNodoModal .uLen').forEach(s=>{ s.textContent = unitLen; });
+  // Bajo cada icono, lo que el nudo tiene ahora.
+  const ta = document.getElementById('edNApoyoTxt');
+  if(ta) ta.textContent = (n.apoyo === 'fijo' ? 'Apoyo fijo' : (n.apoyo === 'movil' ? 'Apoyo móvil' : 'Sin apoyo'))
+                        + (n.rotula ? ' · rótula' : '');
+  const tt = document.getElementById('edNTopeTxt');
+  if(tt) tt.textContent = n.tope ? 'Con tope' : 'Sin tope';
   document.getElementById('edNodoModal').classList.add('show');
   const inp = document.getElementById('edNx'); if(inp) setTimeout(()=>inp.focus(), 50);
 }

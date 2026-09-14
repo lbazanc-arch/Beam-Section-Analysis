@@ -271,6 +271,14 @@ function renderResultados(r){
   });
   h += '<tr class="fila-total"><td colspan="6">Σ del líquido</td>'
     + '<td class="r">'+f(SX)+'</td><td class="r">'+f(SY)+'</td><td></td></tr></tbody></table>';
+  // Peso propio: ecuación y resultado; el porqué del centroide va al PDF.
+  if(r.pesos && r.pesos.length){
+    h += '<div class="proc-block" style="padding:9px 12px;margin-top:8px"><div class="proc-sub">Peso propio de la compuerta</div>';
+    r.pesos.forEach(c=>{
+      h += '<div class="eq-row"><div class="eq-body">' + kx(c.nombre + ' = q\\,b\\,L = ' + f(c.q) + '\\,(' + nl(c.b) + ')(' + nl(c.len) + ') = ' + f(c.F) + '\\ \\text{' + uF + '}\\quad\\text{en}\\ G_{' + c.k.slice(1) + '} = (' + nl(c.G.x) + ';\\ ' + nl(c.G.y) + ')') + '</div></div>';
+    });
+    h += '</div>';
+  }
   h += '<div class="hint-sm">Comprobación con la integral numérica del programa'
     + (cargas.every(c=>!c.des || c.des.coincide) ? ' ✓' : ' <b style="color:#c0392b">(discrepancia: revisa la geometría)</b>') + '.</div>';
   h += '</div>';
@@ -341,7 +349,7 @@ function renderResultados(r){
     + '<div class="proc-block"><div class="eq-row"><div class="eq-body">'
     + kx('\\sum F_x = ' + cero(rs.cx) + ' \\qquad \\sum F_y = ' + cero(rs.cy) + ' \\qquad \\sum M_{O} = ' + cero(rs.cm)) + '</div></div>'
     + '<div class="hint-sm" style="color:' + (r.cierra?'#15803d':'#c0392b') + '">'
-    + (r.cierra ? '✓ Con todas las fuerzas (líquido, reacciones y tope) las tres sumas son nulas.'
+    + (r.cierra ? '✓ Con todas las fuerzas (líquido' + (r.pesos && r.pesos.length ? ', peso propio' : '') + ', reacciones y tope) las tres sumas son nulas.'
                 : '⚠ El equilibrio no cierra; revisa apoyos y caras mojadas.') + '</div>';
   const planas = cargas.filter(c=>c.des && c.des.tipo==='recto' && !c.des.horizontal);
   if(planas.length)

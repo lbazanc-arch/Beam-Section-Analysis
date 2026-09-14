@@ -12,7 +12,8 @@ function estadoActual(){
                           apAngFijo:anguloDibujoApoyoFijo(n),
                           rotula:n.rotula,tope:n.tope ? Object.assign({}, n.tope) : null})),
     tramos: tramos.map(t=>({id:t.id,a:t.a,b:t.b,tipo:t.tipo,flecha:t.flecha,
-                            activo:t.activo,invertir:t.invertir})),
+                            activo:t.activo,invertir:t.invertir,pesoId:t.pesoId||null})),
+    pesos: pesos.map(p=>Object.assign({}, p)),
     zonas: JSON.parse(JSON.stringify(zonas)),
     ancho: num('pB',1),
     unidades:{len:unitLen, fuerza:unitFor},
@@ -60,6 +61,9 @@ function cargarProyecto(id){
     tramos=(e.tramos||[]).slice();
     nodoSeq=nodos.reduce((m,n)=>Math.max(m,n.id),0);
     tramoSeq=tramos.reduce((m,t)=>Math.max(m,t.id),0);
+    // Peso propio (2026-09-14): los archivos anteriores no lo traen y se abren igual.
+    pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
+    pesoSeq=pesos.reduce((m,p)=>Math.max(m,p.id),0); pesoActivo=null;
     if(e.zonas) zonas=e.zonas;
     if(e.unidades){ unitLen=e.unidades.len||unitLen; unitFor=e.unidades.fuerza||unitFor; }
     if(e.decimales) DEC=e.decimales;
@@ -90,7 +94,7 @@ window.addEventListener('message', ev=>{
 // ── Jerarquía de Esc (criterio cap9): cierra lo más superficial primero ────
 function manejarEsc(){
   // 1) Un modal abierto: se cierra con su función propia para no dejar estado sucio
-  const cierres = {edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal',
+  const cierres = {edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal', pesoModal:'cerrarPeso',
     ejModal:'cerrarEjemplos',
     unitsModal:'closeUnitsModal', decModal:'closeDecModal',
     guardarModal:'cerrarGuardar', histModal:'cerrarHistorial',
