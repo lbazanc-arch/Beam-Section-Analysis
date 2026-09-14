@@ -92,6 +92,124 @@ function dibujarApoyo(n){
   ctx.restore();
 }
 
+// ── Reacción resuelta de un apoyo (2026-09-14, petición del profesor) ──
+// Antes solo iba una línea de texto bajo el nudo («R=7.07 a 135.00° Rx=…»).
+// Ahora se dibuja como en el DCL del informe y en el lienzo de fuerzas
+// internas: cada reacción es una flecha verde EN SU SENTIDO REAL que llega al
+// nudo —una por componente en el pasador y el rodillo recto; una sola, en su
+// dirección, en el rodillo inclinado—. Si la flecha viene por el eje del
+// símbolo del apoyo, nace más allá de él para no taparlo. El rodillo
+// inclinado acota en la cola el ángulo agudo con el eje más cercano
+// (anguloAgudoEje: el mismo número que escribe el PDF). Los valores van en
+// columna —R, Rx, Ry, M— junto al fuste de la flecha principal, del lado libre.
+const REAC_COLOR = '#15803d', REAC_L = 44, REAC_EXT = 36;
+function _flechaReaccion(x0, y0, x1, y1){
+  const ang = Math.atan2(y1-y0, x1-x0);
+  ctx.save(); ctx.strokeStyle = REAC_COLOR; ctx.fillStyle = REAC_COLOR; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - 9*Math.cos(ang), y1 - 9*Math.sin(ang)); ctx.stroke();
+  ctx.translate(x1, y1); ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-4.5); ctx.lineTo(-10,4.5); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+// Arco del ángulo de la reacción inclinada, en la cola de su flecha: entre el
+// eje más cercano (trazo punteado) y la flecha, con el valor agudo. Es el
+// mismo planteamiento que arcoAngulo en el PDF, en coordenadas de pantalla
+// (la y hacia abajo). Devuelve de qué lado del fuste quedó la letra, para que
+// la columna de valores vaya por el otro.
+function dibujarArcoReaccion(f){
+  const ag = anguloAgudoEje(f.ex, f.ey);
+  if(ag.grados < 4) return null;
+  // rayo de referencia (mundo), del mismo lado que la flecha
+  const rx = ag.desdeV ? 0 : (f.ex >= 0 ? 1 : -1), ry = ag.desdeV ? (f.ey >= 0 ? 1 : -1) : 0;
+  const a0 = Math.atan2(-ry, rx), a1 = Math.atan2(-f.ey, f.ex);      // ángulos de pantalla
+  let d = a1 - a0; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI;
+  const r = 17, am = a0 + d/2;
+  ctx.save(); ctx.strokeStyle = REAC_COLOR; ctx.fillStyle = REAC_COLOR;
+  ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(f.x0, f.y0); ctx.lineTo(f.x0 + 26*rx, f.y0 - 26*ry); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(f.x0, f.y0, r, a0, a1, d < 0); ctx.stroke();
+  // El valor va junto al extremo del trazo de referencia, del lado contrario
+  // al fuste, y el texto crece alejándose del nudo. En la bisectriz chocaba
+  // con el fuste (45°) o con el símbolo del apoyo (ángulos cerrados).
+  const sx = Math.cos(a1), sy = Math.sin(a1);                  // hacia el nudo
+  const tx = rx, ty = -ry;                                      // trazo de referencia, en pantalla
+  let qx = -ty, qy = tx; if(qx*sx + qy*sy > 0){ qx = -qx; qy = -qy; }
+  const haciaDerecha = sx < 0;
+  ctx.font = '700 10px Inter, sans-serif'; ctx.textBaseline = 'middle';
+  ctx.textAlign = haciaDerecha ? 'left' : 'right';
+  ctx.fillText(dec(ag.grados,'f') + '\u00b0', f.x0 + 26*tx + 14*qx, f.y0 + 26*ty + 14*qy);
+  ctx.restore();
+  return {x: Math.cos(am), y: Math.sin(am)};
+}
+function dibujarReaccion(n, R){
+  const [px,py] = aPantalla(n.x, n.y);
+  // Sentidos reales, en el mundo (y hacia arriba)
+  const flechas = [];
+  if(R.inclinado){
+    const ar = R.ang*Math.PI/180, sg = R.mag >= 0 ? 1 : -1;
+    flechas.push({ex: sg*Math.cos(ar), ey: sg*Math.sin(ar), arco: true});
+  } else {
+    if(R.rx !== undefined && !esCero(R.rx)) flechas.push({ex: R.rx > 0 ? 1 : -1, ey: 0});
+    if(R.ry !== undefined && !esCero(R.ry)) flechas.push({ex: 0, ey: R.ry > 0 ? 1 : -1});
+  }
+  // Hacia dónde cuelga el símbolo del apoyo (mundo)
+  const hd = (anguloDibujoApoyo(n) - 180)*Math.PI/180, hx = Math.cos(hd), hy = Math.sin(hd);
+  let principal = null, ladoLetra = null;
+  flechas.forEach(f=>{
+    // La cola está del lado -e. Si ese lado es el del símbolo (a menos de
+    // 35°), la flecha nace más allá de él; si no, llega hasta el nudo.
+    const porElApoyo = (-f.ex*hx - f.ey*hy) > Math.cos(35*Math.PI/180);
+    const d1 = porElApoyo ? REAC_EXT : 8, d0 = d1 + REAC_L;
+    f.x0 = px - f.ex*d0; f.y0 = py + f.ey*d0;
+    f.x1 = px - f.ex*d1; f.y1 = py + f.ey*d1;
+    _flechaReaccion(f.x0, f.y0, f.x1, f.y1);
+    if(f.arco) ladoLetra = dibujarArcoReaccion(f);
+    if(!principal || f.arco || (porElApoyo && !principal.arco)) principal = f;
+  });
+  // Columna de valores, con unidad
+  const lineas = [];
+  if(R.inclinado) lineas.push('R=' + dec(R.mag,'f') + ' ' + unitFor);
+  if(R.rx !== undefined) lineas.push('Rx=' + dec(R.rx,'f') + ' ' + unitFor);
+  if(R.ry !== undefined) lineas.push('Ry=' + dec(R.ry,'f') + ' ' + unitFor);
+  if(R.m !== undefined) lineas.push('M=' + dec(R.m,'f'));
+  if(!lineas.length) return;
+  ctx.save();
+  ctx.font = '700 10.5px Inter, sans-serif'; ctx.fillStyle = REAC_COLOR; ctx.textBaseline = 'middle';
+  const H = 13;
+  if(!principal){
+    // Reacción nula: solo los valores, bajo el nudo.
+    ctx.textAlign = 'center';
+    lineas.forEach((t,i)=>ctx.fillText(t, px, py + 44 + H*i));
+  } else if(ladoLetra){
+    // Con arco, la columna va TRAS LA COLA de la flecha, como el rótulo R_C
+    // del PDF: junto al fuste chocaba con la letra del ángulo.
+    const ax = principal.x0 - principal.ex*16, ay = principal.y0 + principal.ey*16;
+    if(Math.abs(principal.ey) >= 0.7){
+      ctx.textAlign = 'center';
+      lineas.forEach((t,i)=>ctx.fillText(t, ax, principal.ey > 0 ? ay + 8 + H*i : ay - 8 - H*(lineas.length-1-i)));
+    } else {
+      ctx.textAlign = principal.ex > 0 ? 'right' : 'left';
+      lineas.forEach((t,i)=>ctx.fillText(t, ax, ay + H*(i - (lineas.length-1)/2)));
+    }
+  } else {
+    // Sin arco, junto al fuste, del lado libre: a la derecha de un fuste
+    // vertical o debajo de uno horizontal.
+    const sx = principal.ex, sy = -principal.ey;                 // fuste en pantalla
+    let cx = -sy, cy = sx;                                       // una perpendicular
+    if(Math.abs(cx) > 0.7 ? cx < 0 : cy < 0){ cx = -cx; cy = -cy; }
+    const mx = (principal.x0 + principal.x1)/2 + cx*12, my = (principal.y0 + principal.y1)/2 + cy*12;
+    if(Math.abs(cx) > 0.7){
+      ctx.textAlign = cx > 0 ? 'left' : 'right';
+      lineas.forEach((t,i)=>ctx.fillText(t, mx, my + H*(i - (lineas.length-1)/2)));
+    } else {
+      ctx.textAlign = 'center';
+      lineas.forEach((t,i)=>ctx.fillText(t, mx, cy > 0 ? my + 6 + H*i : my - 6 - H*(lineas.length-1-i)));
+    }
+  }
+  ctx.restore();
+}
+
 function dibujarCarga(n){
   // Fuente de verdad: n.cargas, cada una con su magnitud y su dirección
   // (10-modales.js). Si el nudo viene de un formato antiguo, la resultante fx/fy
@@ -475,35 +593,9 @@ function dibujar(){
 
   if(resultado) dibujarOrdenNudos();
 
-  // reacciones resueltas
-  if(resultado){
-    nodos.forEach(n=>{
-      const R = resultado.reacciones[n.id];
-      if(!R) return;
-      const [px,py] = aPantalla(n.x, n.y);
-      ctx.font = '700 10.5px Inter, sans-serif'; ctx.fillStyle = '#15803d';
-      let t = [];
-      // Un rodillo inclinado es UNA reacción con dirección: se rotula su
-      // magnitud y su ángulo, y debajo las componentes con las que se calcula.
-      // El ángulo se dice como en el PDF —el agudo con el eje más cercano,
-      // «45.00° de la vertical»—, nunca el de 0 a 360 del modelo (2026-09-14).
-      if(R.inclinado){
-        const ar = R.ang*Math.PI/180;
-        t.push('R='+dec(R.mag,'f')+' a '+textoAnguloAgudo(Math.cos(ar), Math.sin(ar)));
-      }
-      if(R.rx !== undefined) t.push('Rx='+dec(R.rx,'f'));
-      if(R.ry !== undefined) t.push('Ry='+dec(R.ry,'f'));
-      if(R.m !== undefined) t.push('M='+dec(R.m,'f'));
-      ctx.textAlign = 'center';
-      if(R.inclinado && t.length > 1){
-        // La reacción con su dirección en una línea y las componentes
-        // debajo: en una sola no cabían.
-        ctx.fillText(t[0], px, py+44);
-        ctx.fillText(t.slice(1).join('  '), px, py+57);
-      } else ctx.fillText(t.join('  '), px, py+44);
-      ctx.textAlign = 'start';
-    });
-  }
+  // reacciones resueltas: flecha en su sentido real, arco del ángulo en el
+  // rodillo inclinado y valores en columna (dibujarReaccion)
+  if(resultado) nodos.forEach(n=>{ const R = resultado.reacciones[n.id]; if(R) dibujarReaccion(n, R); });
 
   // Recuadro de selección múltiple o de borrado en curso (según herramienta)
   if(gesto && (gesto.tipo === 'rubber' || gesto.tipo === 'rubber-borrar')){
