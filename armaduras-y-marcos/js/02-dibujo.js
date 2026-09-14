@@ -485,12 +485,22 @@ function dibujar(){
       let t = [];
       // Un rodillo inclinado es UNA reacción con dirección: se rotula su
       // magnitud y su ángulo, y debajo las componentes con las que se calcula.
-      if(R.inclinado) t.push('R='+dec(R.mag,'f')+' a '+dec(R.ang,'f')+'°');
+      // El ángulo se dice como en el PDF —el agudo con el eje más cercano,
+      // «45.00° de la vertical»—, nunca el de 0 a 360 del modelo (2026-09-14).
+      if(R.inclinado){
+        const ar = R.ang*Math.PI/180;
+        t.push('R='+dec(R.mag,'f')+' a '+textoAnguloAgudo(Math.cos(ar), Math.sin(ar)));
+      }
       if(R.rx !== undefined) t.push('Rx='+dec(R.rx,'f'));
       if(R.ry !== undefined) t.push('Ry='+dec(R.ry,'f'));
       if(R.m !== undefined) t.push('M='+dec(R.m,'f'));
       ctx.textAlign = 'center';
-      ctx.fillText(t.join('  '), px, py+44);
+      if(R.inclinado && t.length > 1){
+        // La reacción con su dirección en una línea y las componentes
+        // debajo: en una sola no cabían.
+        ctx.fillText(t[0], px, py+44);
+        ctx.fillText(t.slice(1).join('  '), px, py+57);
+      } else ctx.fillText(t.join('  '), px, py+44);
       ctx.textAlign = 'start';
     });
   }

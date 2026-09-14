@@ -140,9 +140,11 @@ function renderResultados(res){
     + '</div></div></div>';
   // Un rodillo inclinado es UNA inc\u00f3gnita con direcci\u00f3n: se muestran su
   // magnitud y su \u00e1ngulo adem\u00e1s de las dos componentes con las que se suma.
+  // La direcci\u00f3n de cada reacci\u00f3n se dice como en el PDF (textoAnguloAgudo):
+  // el \u00e1ngulo agudo con el eje m\u00e1s cercano, nunca el de 0 a 360 (2026-09-14).
   h += '<table class="tabla"><thead><tr><th>Apoyo</th><th>Tipo</th>'
     + '<th class="r">R<sub>x</sub> ('+uF+')</th><th class="r">R<sub>y</sub> ('+uF+')</th>'
-    + '<th class="r">|R| ('+uF+')</th><th class="r">\u03b8 (\u00b0)</th></tr></thead><tbody>';
+    + '<th class="r">|R| ('+uF+')</th><th class="r">Direcci\u00f3n de R</th></tr></thead><tbody>';
   nodos.forEach(n=>{
     const R = res.reacciones[n.id];
     if(!R) return;
@@ -151,7 +153,7 @@ function renderResultados(res){
       + '<td class="r">'+(R.rx!==undefined ? f(R.rx) : '—')+'</td>'
       + '<td class="r">'+(R.ry!==undefined ? f(R.ry) : '—')+'</td>'
       + '<td class="r">'+f(mag)+'</td>'
-      + '<td class="r">'+(esCero(mag) ? '—' : dec(Math.atan2(ry, rx)*180/Math.PI,'f'))+'</td></tr>';
+      + '<td class="r">'+(esCero(mag) ? '—' : textoAnguloAgudo(rx/mag, ry/mag))+'</td></tr>';
   });
   h += '</tbody></table></div>';
 

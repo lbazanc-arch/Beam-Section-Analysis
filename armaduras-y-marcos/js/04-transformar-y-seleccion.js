@@ -95,7 +95,7 @@ function descDirApoyo(a){
   if(Math.abs(v + 90) < 0.01) return 'bajo el techo';
   if(Math.abs(v) < 0.01) return 'contra la pared izquierda';
   if(Math.abs(Math.abs(v) - 180) < 0.01) return 'contra la pared derecha';
-  return 'a ' + dec(bsaAnguloOpuesto(v),'f') + '°';
+  return 'apoyado a ' + dec(bsaAnguloOpuesto(v),'f') + '°';
 }
 // Texto largo (modal, caja de información del nudo).
 function descApoyoLargo(n){

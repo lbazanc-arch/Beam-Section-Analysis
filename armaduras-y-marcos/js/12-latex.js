@@ -262,18 +262,9 @@ function crearColocador(minSepDeg, pasoRadio){
 // está más cerca de la vertical se mide desde ella. Las ecuaciones no dependen
 // de esto porque usan los cosenos directores en número, no la letra. Si la
 // letra chocaría con otra ya puesta, se aleja y se une con una línea delgada.
-// Eje más cercano y ángulo agudo con los que se acota una dirección (ux,uy):
-// desde la horizontal si está a menos de 45° de ella, desde la vertical si no.
-// Lo usan arcoAngulo (la figura) y el informe (las ecuaciones de la reacción
-// del rodillo inclinado), para que el ángulo escrito sea EXACTAMENTE el
-// dibujado. El empate a 45° se resuelve siempre hacia la vertical: antes lo
-// decidía el redondeo del coseno, y una misma dirección podía acotarse de
-// las dos maneras.
-function anguloAgudoEje(ux, uy){
-  const conH = Math.acos(Math.min(1, Math.abs(ux))) * 180/Math.PI;   // con la horizontal
-  const desdeV = conH > 45 - 1e-7;                                     // más cerca de la vertical
-  return {desdeV, grados: desdeV ? 90 - conH : conH};
-}
+// El eje de referencia y el ángulo agudo salen de anguloAgudoEje
+// (00-estado-inicial.js), que es el único criterio del tema: el mismo que
+// usan el lienzo, la tabla de resultados y la descomposición del informe.
 function arcoAngulo(ux, uy, col, gen, radio, ox, oy, colocadorLetras){
   ox = ox || 0; oy = oy || 0;
   const agudo = anguloAgudoEje(ux, uy);
