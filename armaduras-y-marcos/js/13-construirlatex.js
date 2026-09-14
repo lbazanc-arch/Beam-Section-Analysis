@@ -51,11 +51,13 @@ function _coefAbs(c){
   if(Math.abs(a-1) < 1e-9) return '';
   return dec(a,'f') + '\\,';
 }
-// «(1)», «(1) y (2)», «(1), (2) y (4)»
-function _refsArm(ns){
+// «(1)», «(1) y (2)», «(1), (2) y (4)». Con `enMath` la « y » va en \text{},
+// porque dentro de una ecuación se comía los espacios: salía «(4)y(5)».
+function _refsArm(ns, enMath){
   if(!ns.length) return '';
   if(ns.length === 1) return '(' + ns[0] + ')';
-  return '(' + ns.slice(0,-1).join('), (') + ') y (' + ns[ns.length-1] + ')';
+  const y = enMath ? ') \\text{ y } (' : ') y (';
+  return '(' + ns.slice(0,-1).join('), (') + y + ns[ns.length-1] + ')';
 }
 function _iconoSentido(fx, fy){
   const a = Math.atan2(fy, fx);
@@ -227,7 +229,20 @@ function construirLatex(){
     const ejeX = (sa === 0 && ca > 0), ejeY = (ca === 0 && sa > 0);
     const compR = ejeX ? 'x' : (ejeY ? 'y' : 'd');
     const nR = ejeX ? simbR(Rn, 'x') : (ejeY ? simbR(Rn, 'y') : ('R_{' + nomN(Rn) + '}'));
-    const trigR = comp => (comp === 'x' ? '\\cos ' : '\\operatorname{sen} ') + dec(angR,'f') + '^{\\circ}';
+    // El ángulo con el que se ESCRIBE la reacción es el agudo que acota la
+    // figura (anguloAgudoEje, el mismo criterio que arcoAngulo), no el de 0 a
+    // 360 con el que la guarda el modelo. Si el DCL enseña θ = 45° con la
+    // vertical, las ecuaciones dicen R sen θ y R cos θ; el signo de cada
+    // componente lo pone su sentido, no el ángulo. Antes se escribía cos 135°,
+    // que no estaba en ninguna figura. La letra es la que le dio la figura.
+    const agR = anguloAgudoEje(ca, sa);
+    const letraR = (_angulosFigura.find(a => a.letra && Math.abs(a.valor - agR.grados) < 0.15) || {}).letra || '\\theta';
+    const gradosR = dec(agR.grados,'f') + '^{\\circ}';
+    const ejeRefR = agR.desdeV ? 'vertical' : 'horizontal';
+    // Desde la horizontal, x lleva cos e y sen; desde la vertical, al revés.
+    const fnTrig = comp => (((comp === 'x') !== agR.desdeV) ? '\\cos' : '\\operatorname{sen}');
+    const trigR = comp => fnTrig(comp) + ' ' + gradosR;
+    const signoR = comp => ((comp === 'x' ? ca : sa) < 0 ? '-' : '');
     const f4 = v => (Math.round(v*10000)/10000).toFixed(4);
     const rc = resultado.reacciones[Rn.id], rp = resultado.reacciones[P.id];
     const valR = (rc.mag !== undefined) ? rc.mag : (compR === 'x' ? rc.rx : rc.ry);
@@ -248,11 +263,12 @@ function construirLatex(){
       const dxR = Rn.x - P.x, dyR = Rn.y - P.y;
       tex += '\\subpaso{La reacci\\\'on del rodillo est\\\'a inclinada}\n';
       tex += '\\noindent{\\footnotesize El rodillo de ' + nomN(Rn) + ' apoya sobre un plano inclinado, as\\\'i que su '
-        + '\\\'unica reacci\\\'on no es vertical: act\\\'ua en la direcci\\\'on $\\alpha = ' + dec(angR,'f')
-        + '^{\\circ}$, medida desde el eje $x$. Antes de sumar, se descompone.}\\\\[2pt]\n';
+        + '\\\'unica reacci\\\'on no es vertical: forma $' + letraR + ' = ' + gradosR + '$ con la ' + ejeRefR
+        + ', el \\\'angulo acotado en la figura. Antes de sumar, se descompone; el signo de cada componente '
+        + 'es el del sentido de la flecha.}\\\\[2pt]\n';
       tex += _alineadaArm([
-        'R_{x' + nomN(Rn) + '} &= ' + nR + '\\cos\\alpha = ' + nR + '\\cos ' + dec(angR,'f') + '^{\\circ} = ' + f4(ca) + '\\,' + nR,
-        'R_{y' + nomN(Rn) + '} &= ' + nR + '\\operatorname{sen}\\alpha = ' + nR + '\\operatorname{sen} ' + dec(angR,'f') + '^{\\circ} = ' + f4(sa) + '\\,' + nR
+        'R_{x' + nomN(Rn) + '} &= ' + signoR('x') + nR + fnTrig('x') + letraR + ' = ' + signoR('x') + nR + trigR('x') + ' = ' + f4(ca) + '\\,' + nR,
+        'R_{y' + nomN(Rn) + '} &= ' + signoR('y') + nR + fnTrig('y') + letraR + ' = ' + signoR('y') + nR + trigR('y') + ' = ' + f4(sa) + '\\,' + nR
       ]);
       tex += '\\noindent{\\footnotesize Su momento respecto de ' + nomN(P) + ' es el de esas dos componentes, '
         + 'cada una por su propia distancia:}\\\\[2pt]\n';
@@ -283,14 +299,14 @@ function construirLatex(){
       // Con el rodillo inclinado, su aportación a cada suma se escribe como
       // R cos(alfa) y R sen(alfa), no como un coeficiente ya multiplicado.
       const t = [{v:1, tex:nP}];
-      if(Math.abs(dR) > 1e-9) t.push({v:1, tex: inclin ? (nR + trigR(comp)) : nR});
+      if(Math.abs(dR) > 1e-9) t.push({v: inclin ? Math.sign(dR) : 1, tex: inclin ? (nR + trigR(comp)) : nR});
       if(!esCero(sumF)) t.push({v:sumF, tex:dec(Math.abs(sumF),'f')});
       const nk = ++eqN; numEqReac[comp + P.id] = nk;
       const f = [];
       f.push(_filaArm(etq, t, ' = 0\\qquad(' + nk + ')'));
       if(Math.abs(dR) > 1e-9){
         const t2 = [{v:1, tex:nP}];
-        if(inclin) t2.push({v:1, tex:'(' + dec(valR,'f') + ')' + trigR(comp)});
+        if(inclin) t2.push({v:Math.sign(dR), tex:'(' + dec(valR,'f') + ')' + trigR(comp)});
         else       t2.push({v:valR, tex:dec(Math.abs(valR),'f')});
         if(!esCero(sumF)) t2.push({v:sumF, tex:dec(Math.abs(sumF),'f')});
         f.push(_filaArm('{\\footnotesize\\text{de } (' + n1 + '):}\\quad', t2, ' = 0'));
@@ -315,7 +331,11 @@ function construirLatex(){
     // es la incógnita que se ha resuelto, y después por sus dos componentes.
     if(rc.inclinado){
       hayInclinado = true;
-      filasReac += '$R_{' + nomN(n) + '}$ {\\footnotesize(a ' + dec(rc.ang,'f') + '$^{\\circ}$)} & $'
+      // Su dirección se da como en la figura y en las ecuaciones: el ángulo
+      // agudo con el eje más cercano, no el de 0 a 360 del modelo.
+      const agT = anguloAgudoEje(Math.cos(rc.ang*Math.PI/180), Math.sin(rc.ang*Math.PI/180));
+      filasReac += '$R_{' + nomN(n) + '}$ {\\footnotesize(a ' + dec(agT.grados,'f') + '$^{\\circ}$ de la '
+        + (agT.desdeV ? 'vertical' : 'horizontal') + ')} & $'
         + dec(rc.mag,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(rc.rx, rc.ry) + ' \\\\\n';
     }
     if(rc.rx !== undefined) filasReac += '$' + simbR(n,'x') + '$ & $' + dec(rc.rx,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(rc.rx, 0) + ' \\\\\n';
@@ -365,7 +385,12 @@ function construirLatex(){
       const n = paso.nodo;
       const conec = barras.filter(b=>b.a===n.id||b.b===n.id);
       const nuevas = paso.nuevas.filter(id=>conocidas[id] === undefined);
-      const txN = [], txY = [], tsX = [], tsY = [], citas = [];
+      const txN = [], txY = [], tsX = [], tsY = [];
+      // Cada fila de sustitución cita solo las ecuaciones de las que salieron
+      // los valores QUE ESA FILA sustituye: una barra horizontal no entra en
+      // ΣF_y y no se cita ahí. Antes se citaban todas en las dos filas.
+      const citasX = [], citasY = [];
+      const citar = (lista, b) => (deQuien[b.id] || []).forEach(q => { if(q !== 'fuerza cero' && lista.indexOf(q) < 0) lista.push(q); });
       const incogX = [], incogY = [];
       conec.forEach(b=>{
         const o = nodos.find(z=>z.id === (b.a===n.id ? b.b : b.a));
@@ -374,15 +399,14 @@ function construirLatex(){
         const con = conocidas[b.id];
         if(Math.abs(cx) > 1e-9){
           txN.push({v:cx, tex:_coefAbs(cx) + 'F_{' + nb + '}'});
-          if(con !== undefined) tsX.push({v:cx*con, tex:dec(Math.abs(cx*con),'f')});
+          if(con !== undefined){ tsX.push({v:cx*con, tex:dec(Math.abs(cx*con),'f')}); citar(citasX, b); }
           else { tsX.push({v:cx, tex:_coefAbs(cx) + 'F_{' + nb + '}'}); incogX.push({b, c:cx}); }
         }
         if(Math.abs(cy) > 1e-9){
           txY.push({v:cy, tex:_coefAbs(cy) + 'F_{' + nb + '}'});
-          if(con !== undefined) tsY.push({v:cy*con, tex:dec(Math.abs(cy*con),'f')});
+          if(con !== undefined){ tsY.push({v:cy*con, tex:dec(Math.abs(cy*con),'f')}); citar(citasY, b); }
           else { tsY.push({v:cy, tex:_coefAbs(cy) + 'F_{' + nb + '}'}); incogY.push({b, c:cy}); }
         }
-        if(con !== undefined && deQuien[b.id]) deQuien[b.id].forEach(q=>{ if(citas.indexOf(q) < 0) citas.push(q); });
       });
       const rc = resultado.reacciones[n.id];
       if(rc && rc.rx !== undefined && !esCero(rc.rx)){ txN.push({v:rc.rx, tex:dec(Math.abs(rc.rx),'f')}); tsX.push({v:rc.rx, tex:dec(Math.abs(rc.rx),'f')}); }
@@ -406,27 +430,43 @@ function construirLatex(){
       tex += '\\begin{center}\\begin{tikzpicture}[scale=0.72]\n' + dclA.tikz + '\\end{tikzpicture}\\end{center}\n';
       tex += figCaption('DCL del nudo ' + nomN(n) + '.' + _angulosArm(dclA.angulos));
       const nx = ++eqN, ny = ++eqN;
-      const citaTxt = citas.filter(q=>q !== 'fuerza cero');
+      // La fila de sustitucion va si ALGUN termino cambio respecto de la
+      // ecuacion literal; se compara por posicion, porque tsX y txN se llenan
+      // en el mismo orden. Buscar por texto se saltaba la fila cuando el valor
+      // sustituido coincidia con otro termino (0.86 F_BC = 5.00 y R_yC = 5.00),
+      // y la comprobacion del ultimo nudo quedaba sin escribir.
+      const cambia = (ts, tx) => ts.some((t, i) => !tx[i] || t.tex !== tx[i].tex);
       const filas = [];
       filas.push(_filaArm('\\xrightarrow{+}\\ \\sum F_x = 0:\\quad', txN, ' = 0\\qquad(' + nx + ')'));
-      if(tsX.some(t=>t.tex !== txN.find(u=>u.tex===t.tex)?.tex)) filas.push(_filaArm('{\\footnotesize\\text{de } ' + _refsArm(citaTxt) + ':}\\quad', tsX, ' = 0'));
+      if(cambia(tsX, txN)) filas.push(_filaArm('{\\footnotesize\\text{de } ' + _refsArm(citasX, true) + ':}\\quad', tsX, ' = 0'));
       filas.push(_filaArm('+\\!\\uparrow\\ \\sum F_y = 0:\\quad', txY, ' = 0\\qquad(' + ny + ')'));
-      if(tsY.some(t=>t.tex !== txY.find(u=>u.tex===t.tex)?.tex)) filas.push(_filaArm('{\\footnotesize\\text{de } ' + _refsArm(citaTxt) + ':}\\quad', tsY, ' = 0'));
-      // despeje: si una ecuación tiene una sola incógnita, se muestra la división
-      nuevas.forEach(bid=>{
+      if(cambia(tsY, txY)) filas.push(_filaArm('{\\footnotesize\\text{de } ' + _refsArm(citasY, true) + ':}\\quad', tsY, ' = 0'));
+      // Despeje. Una barra sale de UNA ecuación: de la que la tiene como única
+      // incógnita (y se muestra la división), o de aquella cuyas otras
+      // incógnitas ya se despejaron en este mismo nudo. Solo si de verdad hace
+      // falta el sistema se citan las dos. Esa ecuación es la que la barra
+      // arrastra después: en el nudo siguiente se cita ella, no las dos.
+      const solaDe = bid => (incogX.length === 1 && incogX[0].b.id === bid) ? {eq:nx, c:incogX[0].c, ts:tsX}
+                          : ((incogY.length === 1 && incogY[0].b.id === bid) ? {eq:ny, c:incogY[0].c, ts:tsY} : null);
+      // Primero las que salen solas: las demás se apoyan en ellas.
+      const ordenNuevas = nuevas.slice().sort((p, q) => (solaDe(q) ? 1 : 0) - (solaDe(p) ? 1 : 0));
+      const resueltoEn = (lista, bid) => lista.some(q => q.b.id === bid) && lista.every(q => q.b.id === bid || conocidas[q.b.id] !== undefined);
+      ordenNuevas.forEach(bid=>{
         const b = barras.find(x=>x.id===bid);
         const val = resultado.fuerzas[bid];
         const tipo = esCero(val) ? '\\ \\text{(fuerza cero)}' : (val > 0 ? '\\ \\text{(T)}' : '\\ \\text{(C)}');
-        const sola = (incogX.length === 1 && incogX[0].b.id === bid) ? {eq:nx, c:incogX[0].c, ts:tsX}
-                   : ((incogY.length === 1 && incogY[0].b.id === bid) ? {eq:ny, c:incogY[0].c, ts:tsY} : null);
+        const sola = solaDe(bid);
+        let de;
         if(sola){
           const cte = sola.ts.filter(t=>t.tex.indexOf('F_') < 0).reduce((s,t)=>s+t.v, 0);
           filas.push('{\\footnotesize\\text{de } (' + sola.eq + '):}\\quad & F_{' + nomB(b) + '} = \\dfrac{' + dec(-cte,'f') + '}{' + dec(sola.c,'f') + '} = '
             + dec(val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo);
+          de = [sola.eq];
         } else {
-          filas.push('{\\footnotesize\\text{de } (' + nx + ') \\text{ y } (' + ny + '):}\\quad & F_{' + nomB(b) + '} = ' + dec(val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo);
+          de = resueltoEn(incogX, bid) ? [nx] : (resueltoEn(incogY, bid) ? [ny] : [nx, ny]);
+          filas.push('{\\footnotesize\\text{de } ' + _refsArm(de, true) + ':}\\quad & F_{' + nomB(b) + '} = ' + dec(val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo);
         }
-        conocidas[bid] = val; deQuien[bid] = [nx, ny];
+        conocidas[bid] = val; deQuien[bid] = de;
       });
       if(!nuevas.length) filas.push('& \\text{\\footnotesize todas las barras ya se conoc\\\'ian: las dos ecuaciones cierran, el nudo comprueba el resultado}');
       tex += _alineadaArm(filas);

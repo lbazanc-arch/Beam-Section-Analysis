@@ -262,11 +262,22 @@ function crearColocador(minSepDeg, pasoRadio){
 // está más cerca de la vertical se mide desde ella. Las ecuaciones no dependen
 // de esto porque usan los cosenos directores en número, no la letra. Si la
 // letra chocaría con otra ya puesta, se aleja y se une con una línea delgada.
+// Eje más cercano y ángulo agudo con los que se acota una dirección (ux,uy):
+// desde la horizontal si está a menos de 45° de ella, desde la vertical si no.
+// Lo usan arcoAngulo (la figura) y el informe (las ecuaciones de la reacción
+// del rodillo inclinado), para que el ángulo escrito sea EXACTAMENTE el
+// dibujado. El empate a 45° se resuelve siempre hacia la vertical: antes lo
+// decidía el redondeo del coseno, y una misma dirección podía acotarse de
+// las dos maneras.
+function anguloAgudoEje(ux, uy){
+  const conH = Math.acos(Math.min(1, Math.abs(ux))) * 180/Math.PI;   // con la horizontal
+  const desdeV = conH > 45 - 1e-7;                                     // más cerca de la vertical
+  return {desdeV, grados: desdeV ? 90 - conH : conH};
+}
 function arcoAngulo(ux, uy, col, gen, radio, ox, oy, colocadorLetras){
   ox = ox || 0; oy = oy || 0;
-  const conH = Math.acos(Math.min(1, Math.abs(ux))) * 180/Math.PI;   // con la horizontal
-  const desdeV = conH > 45;                                            // más cerca de la vertical
-  const acuteDeg = desdeV ? 90 - conH : conH;
+  const agudo = anguloAgudoEje(ux, uy);
+  const desdeV = agudo.desdeV, acuteDeg = agudo.grados;
   if(acuteDeg < 4) return {tikz:'', letra:null, valor:null};
   const R2 = radio || 0.65;
   // Semieje de referencia del mismo lado que la barra: 0/180 si es la
@@ -770,15 +781,23 @@ function tikzArmaduraCompleta(opts){
         // Una sola flecha en la dirección declarada: la reacción de un rodillo
         // inclinado es UNA incógnita, no dos componentes. El ángulo se acota
         // como el de las barras y las cargas (agudo, desde el eje más cercano).
+        // La flecha viene de tierra, por el eje del apoyo, y su cola queda
+        // MÁS ALLÁ del símbolo: el arco del ángulo y su letra se dibujan en la
+        // cola, y el símbolo (triángulo, rodillos y rayado) llega hasta 0.83
+        // del nudo; con la cola a 1.45 el ángulo caía encima y no se leía.
         const ar = rr.ang*Math.PI/180, ux = Math.cos(ar), uy = Math.sin(ar);
-        const x0 = px - ux*1.45, y0 = py - uy*1.45;
+        const x0 = px - ux*2.10, y0 = py - uy*2.10;
         s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + x0.toFixed(3) + ',' + y0.toFixed(3)
-           + ') -- (' + (px - ux*0.62).toFixed(3) + ',' + (py - uy*0.62).toFixed(3) + ');\n';
-        s += '\\node[font=\\scriptsize, text=bsaVerde, inner sep=1.5pt] at (' + (px - ux*1.88).toFixed(3) + ','
-           + (py - uy*1.88).toFixed(3) + ') {$R_{' + escLatex(n.nombre) + '}$};\n';
+           + ') -- (' + (px - ux*1.00).toFixed(3) + ',' + (py - uy*1.00).toFixed(3) + ');\n';
+        s += '\\node[font=\\scriptsize, text=bsaVerde, inner sep=1.5pt] at (' + (px - ux*2.53).toFixed(3) + ','
+           + (py - uy*2.53).toFixed(3) + ') {$R_{' + escLatex(n.nombre) + '}$};\n';
         const arcoR = arcoAngulo(ux, uy, 'bsaVerde', genCargas, 0.55, x0, y0, crearColocador(24, 0.40));
         if(arcoR.tikz){ s += arcoR.tikz; _angulosFigura.push({letra:arcoR.letra, valor:arcoR.valor}); }
-      } else if(rr.ry !== undefined){
+      } else {
+      // Reacción por componentes: solo si NO es el rodillo inclinado, que ya
+      // va entero en su flecha. Antes el bloque de R_x quedaba fuera de este
+      // else y al rodillo inclinado se le pintaba R_x además de R.
+      if(rr.ry !== undefined){
         // k = 1: la flecha entra por debajo (lo de siempre). k = -1: por
         // arriba, porque el símbolo del apoyo girado ocupa la franja de abajo.
         const k = ladoReaccionFig(n, 0, -1);
@@ -794,6 +813,7 @@ function tikzArmaduraCompleta(opts){
         const e0 = k > 0 ? 1.35 : 0.45, e1 = k > 0 ? 0.45 : 1.35;   // apunta siempre en +x
         s += '\\draw[->, >=stealth, bsaVerde, line width=1.1pt] (' + (px-k*e0).toFixed(3) + ',' + py.toFixed(3) + ') -- (' + (px-k*e1).toFixed(3) + ',' + py.toFixed(3) + ');\n';
         s += '\\node[font=\\scriptsize, text=bsaVerde, above] at (' + (px-k*0.90).toFixed(3) + ',' + py.toFixed(3) + ') {$R_{x' + escLatex(n.nombre) + '}$};\n';
+      }
       }
     }
   });
