@@ -73,26 +73,12 @@ function cosenosApoyo(n){
   const c = Math.cos(a), s = Math.sin(a);
   return {cx: Math.abs(c) < 1e-12 ? 0 : c, cy: Math.abs(s) < 1e-12 ? 0 : s};
 }
-// Eje mas cercano y angulo agudo con los que se ACOTA una direccion (ux,uy):
-// desde la horizontal si esta a menos de 45 grados de ella, desde la vertical
-// si no. Es el UNICO criterio del tema para decir un angulo: lo usan el
-// lienzo (02-), la tabla de resultados (07-), el arco de las figuras
-// (arcoAngulo, 12-) y la descomposicion de la reaccion del rodillo inclinado
-// en el informe (13-), para que en pantalla y en el PDF se lea el mismo
-// numero. El empate a 45 grados va siempre hacia la vertical, y no segun el
-// redondeo del coseno. El angulo de 0 a 360 con el que el modelo guarda una
-// reaccion (rr.ang) no se ensena nunca. Vive aqui porque el lienzo lo usa y
-// carga antes que 12-latex.js.
-function anguloAgudoEje(ux, uy){
-  const conH = Math.acos(Math.min(1, Math.abs(ux))) * 180/Math.PI;   // con la horizontal
-  const desdeV = conH > 45 - 1e-7;                                     // mas cerca de la vertical
-  return {desdeV, grados: desdeV ? 90 - conH : conH};
-}
-// Como se dice esa direccion en pantalla: «45.00° de la vertical».
-function textoAnguloAgudo(ux, uy){
-  const a = anguloAgudoEje(ux, uy);
-  return dec(a.grados,'f') + '° de la ' + (a.desdeV ? 'vertical' : 'horizontal');
-}
+// El eje de referencia y el angulo agudo con que se dice cualquier direccion
+// salen de bsaAnguloAgudoEje (core/comun.js): un solo criterio para los tres
+// temas con apoyos. Lo usan el lienzo (02-), la tabla de resultados (07-), el
+// arco de las figuras (arcoAngulo, 12-) y la descomposicion del informe (13-).
+// Como se dice esa direccion en pantalla ('45.00° de la vertical'):
+// bsaTextoAnguloAgudo, tambien en core/comun.js.
 // Envoltura <g transform="rotate(...)"> para girar el simbolo de un apoyo en
 // un SVG (09-diagrama-svg-de-la-armadura.js). El simbolo se dibuja bajo el
 // nudo y va al lado CONTRARIO a la reaccion, igual que en el lienzo y en el

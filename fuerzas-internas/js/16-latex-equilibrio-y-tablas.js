@@ -288,7 +288,9 @@ function terminosCorte(R, gg, seg, sub){
 //            giro θ = f(θ₁, θ₂), que es el que entra en la fórmula de siempre.
 function anguloQuiebre(u1, u2, D){
   const EPS = 1e-9;
-  const agudo = u => { const conH = Math.acos(Math.min(1, Math.abs(u.x)))*180/Math.PI; const desdeV = conH > 45; return {phi: desdeV ? 90 - conH : conH, desdeV}; };
+  // El eje y el ángulo agudo salen de bsaAnguloAgudoEje (core): un solo criterio
+  // en todo el proyecto, con el empate a 45° siempre hacia la vertical.
+  const agudo = u => { const a = bsaAnguloAgudoEje(u.x, u.y); return {phi: a.grados, desdeV: a.desdeV}; };
   const a2 = agudo(u2);
   const cD = Math.cos(D), sD = Math.sin(D);
   const ejeLlega = Math.abs(u1.x) < EPS || Math.abs(u1.y) < EPS;
@@ -368,7 +370,7 @@ function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
   // un solo θ, el de la barra nueva; en modo 'dos' (cumbrera) también θ₁, el de
   // la barra que llega; en modo 'recto' no hay ángulo que dibujar.
   const arcoEje = (u, etiqueta) => {
-    const conH = Math.acos(Math.min(1, Math.abs(u.x)))*180/Math.PI, desdeV = conH > 45;
+    const desdeV = bsaAnguloAgudoEje(u.x, u.y).desdeV;     // mismo criterio que anguloQuiebre
     const rayDeg = desdeV ? (u.y >= 0 ? 90 : -90) : (u.x >= 0 ? 0 : 180);
     let endDeg = Math.atan2(u.y, u.x)*180/Math.PI;
     while(endDeg - rayDeg > 180) endDeg -= 360;
@@ -604,7 +606,7 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
   out += '\\noindent{\\bfseries Corte en $' + Lz(a) + ' \\le ' + sb + ' \\le ' + Lz(b) + '$\\,' + uL + '}\\\\[2pt]\n';
   out += '\\begin{center}\\begin{tikzpicture}\n' + tikzDCLSub(R, gg, seg, sub, info)
        + '\\end{tikzpicture}\\end{center}\n';
-  out += figCaption('DCL del trozo antes de la sección $S$ (abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + ').');
+  out += figCaption('DCL del trozo antes de la sección $S$ (abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + ').' + _angulosFiguraTex(_angulosFiguraFI));
 
   // El quiebre se explica UNA vez por nudo, en el primer corte del grupo.
   // Repetirlo en cada corte era lo que sobraba: los números son los mismos.

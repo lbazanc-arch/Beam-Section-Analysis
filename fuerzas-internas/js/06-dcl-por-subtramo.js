@@ -154,10 +154,16 @@ function renderResultados(r){
     let comp;
     if(u.tipo==='M') comp = 'Momento M';
     else if(u.tipo==='Rx') comp = 'Horizontal R<sub>x</sub>';
+    // La dirección se dice como en el lienzo y en el PDF: el ángulo agudo con el
+    // eje más cercano (bsaTextoAnguloAgudo), nunca el de 0 a 360 (2026-09-14).
     else if(u.ang !== undefined && Math.abs(u.ang - Math.PI/2) > 1e-6)
-      comp = 'Reacción R (a ' + f(u.ang*180/Math.PI) + '°)';
+      comp = 'Reacción R (a ' + bsaTextoAnguloAgudo(Math.cos(u.ang), Math.sin(u.ang)) + ')';
     else comp = 'Vertical R<sub>y</sub>';
-    h += '<tr><td><b>'+u.n.nombre+'</b></td><td>'+NOMBRE_APOYO[u.n.apoyo]+'</td><td>'+comp+'</td>'
+    // El tipo de apoyo lleva el ángulo que escribió el alumno (dónde se apoya),
+    // que no es la dirección de la reacción.
+    const tipoAp = NOMBRE_APOYO[u.n.apoyo] + ((u.n.apoyo === 'movil' && Math.abs(anguloApoyo(u.n) - 90) > 1e-6)
+      ? ' (apoyado a ' + dec(bsaAnguloOpuesto(anguloApoyo(u.n)),'f') + '°)' : '');
+    h += '<tr><td><b>'+u.n.nombre+'</b></td><td>'+tipoAp+'</td><td>'+comp+'</td>'
       + '<td class="r"><b>'+(u.tipo==='M'?fm(v):f(v))+'</b></td>'
       + '<td>'+(u.tipo==='M'?uMom():unitFor)+'</td></tr>';
   });

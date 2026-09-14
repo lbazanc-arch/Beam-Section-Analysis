@@ -221,19 +221,9 @@ function tikzFlechaCarga(n, tx, ty, factor, longBase, ang){
 // Generador de letras griegas que REUTILIZA la misma letra si el ángulo ya
 // apareció antes en este diagrama (con la misma medida): si tres ángulos
 // valen 56.31°, los tres se llaman θ, no θ/α/β.
-function letrasGriegas(){
-  const lista = ['\\theta','\\alpha','\\beta','\\gamma','\\delta','\\varepsilon','\\zeta','\\eta'];
-  let i = 0;
-  const vistos = [];   // {valor, letra}
-  return {
-    para(valor){
-      const igual = vistos.find(v => Math.abs(v.valor-valor) < 0.15);
-      if(igual) return igual.letra;
-      const l = lista[i % lista.length]; i++;
-      vistos.push({valor, letra:l});
-      return l;
-    }
-  };
+// Las letras las reparte bsaLetrasGriegas (core/comun.js), compartida con
+// fuerzas internas; aquí queda el nombre de siempre.
+function letrasGriegas(){ return bsaLetrasGriegas(); 
 }
 
 // Colocador anti-solape genérico: reparte etiquetas alrededor de un punto
@@ -262,12 +252,12 @@ function crearColocador(minSepDeg, pasoRadio){
 // está más cerca de la vertical se mide desde ella. Las ecuaciones no dependen
 // de esto porque usan los cosenos directores en número, no la letra. Si la
 // letra chocaría con otra ya puesta, se aleja y se une con una línea delgada.
-// El eje de referencia y el ángulo agudo salen de anguloAgudoEje
+// El eje de referencia y el ángulo agudo salen de bsaAnguloAgudoEje
 // (00-estado-inicial.js), que es el único criterio del tema: el mismo que
 // usan el lienzo, la tabla de resultados y la descomposición del informe.
 function arcoAngulo(ux, uy, col, gen, radio, ox, oy, colocadorLetras){
   ox = ox || 0; oy = oy || 0;
-  const agudo = anguloAgudoEje(ux, uy);
+  const agudo = bsaAnguloAgudoEje(ux, uy);
   const desdeV = agudo.desdeV, acuteDeg = agudo.grados;
   if(acuteDeg < 4) return {tikz:'', letra:null, valor:null};
   const R2 = radio || 0.65;

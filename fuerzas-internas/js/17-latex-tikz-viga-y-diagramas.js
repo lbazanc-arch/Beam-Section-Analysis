@@ -6,6 +6,8 @@
 function tikzViga(conReacciones, sel){
   if(!nodos.length) return '';
   tzReiniciar();
+  _angulosFiguraFI = [];
+  const genAng = bsaLetrasGriegas();
   const _idsVis = (sel && sel.tramos) ? sel.tramos : null;
   const _tr = _idsVis ? tramos.filter(t=>_idsVis.indexOf(t.id) >= 0) : tramos;
   const _ndIds = new Set();
@@ -180,12 +182,25 @@ function tikzViga(conReacciones, sel){
         out += tzTexto(x+0.55, y-0.55, '$'+nom+'$', 'font=\\tiny, color=bsaReac', 1, -1);
         return;
       }
-      const bajoApoyo = (u.n.apoyo && u.n.apoyo !== 'libre' && d.y > 0.5);
-      const L1 = bajoApoyo ? 1.30 : 0.85, L0 = bajoApoyo ? 0.62 : 0.10;
+      // El rodillo inclinado (2026-09-14, criterio de armaduras): la flecha nace
+      // más allá del símbolo del apoyo, que llega a 0.58, porque en su cola se
+      // acota el ángulo agudo con el eje más cercano, con su letra. Cualquier
+      // flecha que venga por el eje del símbolo (a menos de 35° de hacia donde
+      // cuelga) nace también más allá de él, en vez de cruzarlo.
+      const inclinada = (u.ang !== undefined) && bsaAnguloAgudoEje(d.x, d.y).grados >= 4;
+      let porElApoyo = false;
+      if(u.n.apoyo === 'movil' || u.n.apoyo === 'simple'){
+        const hd = (anguloApoyo(u.n) - 180)*Math.PI/180;
+        porElApoyo = (-d.x*Math.cos(hd) - d.y*Math.sin(hd)) > Math.cos(35*Math.PI/180);
+      }
+      const bajoApoyo = porElApoyo || (u.n.apoyo && u.n.apoyo !== 'libre' && d.y > 0.5);
+      const L1 = inclinada ? 1.55 : (bajoApoyo ? 1.30 : 0.85);
+      const L0 = inclinada ? 0.70 : (porElApoyo ? 0.70 : (bajoApoyo ? 0.62 : 0.10));
       out += '\\draw[-{Latex[length=2mm]}, color=bsaReac, line width=1.1pt] ('
            + F(x-d.x*L1) + ',' + F(y-d.y*L1) + ') -- (' + F(x-d.x*L0) + ',' + F(y-d.y*L0) + ');\n';
       tzOcuparTrazo(x-d.x*L1, y-d.y*L1, x-d.x*L0, y-d.y*L0, 0.07);
-      if(Math.abs(d.y) > 0.5){
+      if(inclinada) out += tikzArcoReaccionFI(x-d.x*L1, y-d.y*L1, d.x, d.y, genAng);
+      if(!inclinada && Math.abs(d.y) > 0.5){
         // vertical: el rótulo va al costado de la flecha, hacia afuera de la
         // viga, y no debajo de su cola, donde se metía entre las cotas.
         const s = (x <= (Xn(minx)+Xn(maxx))/2) ? -1 : 1;
@@ -589,7 +604,14 @@ function construirLatex(){
   R.inc.forEach((u,j)=>{
     const esMom = (u.tipo === 'M' && u.ang === undefined);
     const v = R.val[j];
-    tex += '$' + simbReaccion(u) + '$ & $'
+    // La dirección del rodillo inclinado, con el mismo ángulo agudo que la figura
+    // y el desarrollo (2026-09-14): nunca el de 0 a 360 del modelo.
+    let dirR = '';
+    if(u.ang !== undefined){
+      const agT = bsaAnguloAgudoEje(Math.cos(u.ang), Math.sin(u.ang));
+      if(agT.grados >= 4) dirR = ' {\\footnotesize(a ' + dec(agT.grados,'f') + '$^{\\circ}$ de la ' + (agT.desdeV ? 'vertical' : 'horizontal') + ')}';
+    }
+    tex += '$' + simbReaccion(u) + '$' + dirR + ' & $'
       + dec(v, esMom?'momento':'fuerza') + '$\\,' + escLatex(esMom?unidadMomento():unitFor)
       + ' & ' + iconoReaccion(u, v) + ' \\\\\n';
   });

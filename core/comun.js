@@ -402,3 +402,76 @@ function bsaAnguloOpuesto(a, rango360){
   if(!rango360 && v > 180) v -= 360;       // rango (-180, 180]
   return +v.toFixed(6);
 }
+
+// ==========================================================================
+//  EL ANGULO AGUDO CON EL QUE SE DICE UNA DIRECCION  (2026-09-14)
+//
+//  Eje mas cercano y angulo agudo con los que se ACOTA una direccion (ux,uy):
+//  desde la horizontal si esta a menos de 45 grados de ella, desde la
+//  vertical si no. Es el UNICO criterio del proyecto para escribir el angulo
+//  de una reaccion o de una fuerza: lo usan el lienzo, la tabla de
+//  resultados, el arco de las figuras del PDF y la descomposicion del
+//  informe, en armaduras, fuerzas internas y presion, para que en pantalla y
+//  en el papel se lea el mismo numero. El empate a 45 grados va siempre
+//  hacia la vertical, y no segun el redondeo del coseno. El angulo de 0 a
+//  360 con el que un modelo guarda una reaccion no se ensena nunca.
+// ==========================================================================
+function bsaAnguloAgudoEje(ux, uy){
+  const conH = Math.acos(Math.min(1, Math.abs(ux))) * 180/Math.PI;   // con la horizontal
+  const desdeV = conH > 45 - 1e-7;                                     // mas cerca de la vertical
+  return {desdeV, grados: desdeV ? 90 - conH : conH};
+}
+
+// Como se dice esa direccion en pantalla: '45.00° de la vertical'. Usa el
+// `dec(v,'f')` del tema que lo llama (los mismos decimales que las fuerzas).
+function bsaTextoAnguloAgudo(ux, uy){
+  const a = bsaAnguloAgudoEje(ux, uy);
+  return dec(a.grados,'f') + '° de la ' + (a.desdeV ? 'vertical' : 'horizontal');
+}
+// Arco del angulo de una reaccion inclinada en el LIENZO, en la cola de su
+// flecha (coordenadas de pantalla, y hacia abajo): entre el eje mas cercano
+// (trazo punteado de 26 px) y la flecha, radio 17, con el valor agudo junto
+// al extremo del trazo, del lado contrario al fuste y creciendo lejos del
+// nudo (en la bisectriz chocaba con el fuste o con el simbolo del apoyo).
+// (x0,y0) es la cola; (ex,ey) el sentido de la flecha EN EL MUNDO (y hacia
+// arriba). Devuelve false si el angulo es menor de 4 grados (no dibuja nada).
+// Es el mismo planteamiento que el arco de las figuras de los PDF, y lo usan
+// armaduras, fuerzas internas y presion: un solo dibujo para los tres.
+function bsaArcoReaccion(ctx, x0, y0, ex, ey, col){
+  const ag = bsaAnguloAgudoEje(ex, ey);
+  if(ag.grados < 4) return false;
+  const rx = ag.desdeV ? 0 : (ex >= 0 ? 1 : -1), ry = ag.desdeV ? (ey >= 0 ? 1 : -1) : 0;
+  const a0 = Math.atan2(-ry, rx), a1 = Math.atan2(-ey, ex);      // angulos de pantalla
+  let d = a1 - a0; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI;
+  ctx.save(); ctx.strokeStyle = col; ctx.fillStyle = col;
+  ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + 26*rx, y0 - 26*ry); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(x0, y0, 17, a0, a1, d < 0); ctx.stroke();
+  const sx = Math.cos(a1), sy = Math.sin(a1), tx = rx, ty = -ry;
+  let qx = -ty, qy = tx; if(qx*sx + qy*sy > 0){ qx = -qx; qy = -qy; }
+  const haciaDerecha = sx < 0;
+  ctx.font = '700 10px Inter, sans-serif'; ctx.textBaseline = 'middle';
+  ctx.textAlign = haciaDerecha ? 'left' : 'right';
+  ctx.fillText(dec(ag.grados,'f') + '°', x0 + 26*tx + 14*qx, y0 + 26*ty + 14*qy);
+  ctx.restore();
+  return true;
+}
+// Letras griegas para los angulos de una figura del PDF: una letra por valor,
+// y dos angulos iguales (a menos de 0.15 grados) comparten letra, con el valor
+// escrito una sola vez en el pie (regla R21 de los DCL). Una instancia por
+// figura. Lo usan armaduras y fuerzas internas.
+function bsaLetrasGriegas(){
+  const lista = ['\\theta','\\alpha','\\beta','\\gamma','\\delta','\\varepsilon','\\zeta','\\eta'];
+  let i = 0;
+  const vistos = [];   // {valor, letra}
+  return {
+    para(valor){
+      const igual = vistos.find(v => Math.abs(v.valor-valor) < 0.15);
+      if(igual) return igual.letra;
+      const l = lista[i % lista.length]; i++;
+      vistos.push({valor, letra:l});
+      return l;
+    }
+  };
+}

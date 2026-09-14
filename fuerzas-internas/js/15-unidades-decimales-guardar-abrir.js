@@ -563,6 +563,40 @@ function terminosEquilibrio(R, e){
 // hallado. Cada reacción aparece con su valor en cuanto se obtiene; antes se
 // escribían tres líneas casi iguales y el valor solo salía en la tabla final.
 // ── Nombre de cada reacción ──
+// ── Ángulos acotados en la figura que se está dibujando (2026-09-14) ──
+// tikzViga y tikzDCLSub lo vacían al empezar y tikzArcoReaccionFI añade cada
+// {letra, valor}; el pie de figura los lista con _angulosFiguraTex, y el
+// desarrollo de las reacciones toma de aquí la letra del rodillo inclinado.
+let _angulosFiguraFI = [];
+function _angulosFiguraTex(lista){
+  if(!lista || !lista.length) return '';
+  const vistas = [];
+  lista.forEach(a=>{ if(a.letra && !vistas.some(v=>v.letra === a.letra)) vistas.push(a); });
+  return ' Ángulos: ' + vistas.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '.';
+}
+// Arco del ángulo de una reacción inclinada en el PDF, en la cola de su flecha:
+// desde el eje más cercano (trazo punteado), con su letra griega colocada por
+// tzTexto. (ox,oy) es la cola; (ux,uy) la dirección de la flecha hacia el nudo.
+// Mismo criterio que el lienzo (bsaAnguloAgudoEje) y que armaduras.
+function tikzArcoReaccionFI(ox, oy, ux, uy, gen){
+  const ag = bsaAnguloAgudoEje(ux, uy);
+  if(ag.grados < 4) return '';
+  const rayDeg = ag.desdeV ? (uy >= 0 ? 90 : -90) : (ux >= 0 ? 0 : 180);
+  let endDeg = Math.atan2(uy, ux)*180/Math.PI;
+  while(endDeg - rayDeg > 180) endDeg -= 360;
+  while(endDeg - rayDeg < -180) endDeg += 360;
+  const cr = Math.cos(rayDeg*Math.PI/180), sr = Math.sin(rayDeg*Math.PI/180), R2 = 0.45;
+  const F3 = v => v.toFixed(3);
+  const letra = gen.para(ag.grados);
+  let q = '\\draw[bsaReac!55, line width=0.35pt, dash pattern=on 1.5pt off 1.5pt] (' + F3(ox) + ',' + F3(oy)
+        + ') -- (' + F3(ox + 0.62*cr) + ',' + F3(oy + 0.62*sr) + ');\n';
+  q += '\\draw[bsaReac!70, line width=0.45pt] (' + F3(ox + R2*cr) + ',' + F3(oy + R2*sr)
+     + ') arc [start angle=' + rayDeg + ', end angle=' + endDeg.toFixed(2) + ', radius=' + R2 + '];\n';
+  const am = (rayDeg + endDeg)/2*Math.PI/180;
+  q += tzTexto(ox + 0.72*Math.cos(am), oy + 0.72*Math.sin(am), '$' + letra + '$', 'font=\\tiny, color=bsaReac', Math.cos(am), Math.sin(am));
+  _angulosFiguraFI.push({letra, valor:ag.grados});
+  return q;
+}
 // $R_{yD}$, $R_{xD}$, $R_A$, $M_D$: el mismo símbolo en el desarrollo, en el
 // resumen y en los DCL, para que el alumno siga una sola nomenclatura.
 function simbReaccion(u){
@@ -605,10 +639,49 @@ function pasoAPasoReacciones(R){
   // Diagrama de cuerpo libre global: la viga con sus cargas Y con las
   // reacciones dibujadas como incógnitas, para que se vea el sentido
   // positivo supuesto de cada una antes de plantear las ecuaciones.
-  out += '\\begin{center}\\begin{tikzpicture}\n' + tikzViga(true)
+  const _dclGlobal = tikzViga(true);
+  const angsGlobal = _angulosFiguraFI.slice();     // las letras de esta figura
+  out += '\\begin{center}\\begin{tikzpicture}\n' + _dclGlobal
        + '\\end{tikzpicture}\n'
        + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre global: cargas y reacciones incógnita '
-       + 'en su sentido positivo; brazos acotados desde $' + nombreOrigen() + '$.}\n\\end{center}\\vspace{4pt}\n';
+       + 'en su sentido positivo; brazos acotados desde $' + nombreOrigen() + '$.' + _angulosFiguraTex(angsGlobal) + '}\n\\end{center}\\vspace{4pt}\n';
+
+  // ── El rodillo inclinado: su reacción se descompone con el ángulo de la figura ──
+  // Antes su coeficiente aparecía ya multiplicado (5.66 R_C) sin explicación. Se
+  // escribe con el ángulo agudo acotado en el DCL y el signo de cada sentido
+  // (R_x = -R sen θ ...), nunca con el de 0 a 360 del modelo; y el brazo respecto
+  // del origen de momentos se desarrolla con sus distancias (2026-09-14).
+  R.inc.forEach((u,j)=>{
+    if(u.ang === undefined) return;
+    const ca = Math.cos(u.ang), sa = Math.sin(u.ang);
+    const ag = bsaAnguloAgudoEje(ca, sa);
+    if(ag.grados < 4) return;
+    const nR = simb(u), nn = escLatex(u.n.nombre);
+    const letra = (angsGlobal.find(x => x.letra && Math.abs(x.valor - ag.grados) < 0.15) || {}).letra || '\\theta';
+    const g = dec(ag.grados,'f') + '^{\\circ}';
+    const fn = comp => (((comp === 'x') !== ag.desdeV) ? '\\cos' : '\\operatorname{sen}');
+    const sg = comp => ((comp === 'x' ? ca : sa) < 0 ? '-' : '');
+    const f4 = v => (Math.round(v*10000)/10000).toFixed(4);
+    out += '\\noindent{\\footnotesize El rodillo de ' + nn + ' apoya sobre un plano inclinado, así que su '
+      + 'única reacción no es vertical: forma $' + letra + ' = ' + g + '$ con la ' + (ag.desdeV ? 'vertical' : 'horizontal')
+      + ', el ángulo acotado en la figura. Antes de sumar, se descompone; el signo de cada componente '
+      + 'es el del sentido de la flecha.}\\\\[2pt]\n';
+    out += _alineada([
+      'R_{x' + nn + '} &= ' + sg('x') + nR + fn('x') + letra + ' = ' + sg('x') + nR + fn('x') + ' ' + g + ' = ' + f4(ca) + '\\,' + nR,
+      'R_{y' + nn + '} &= ' + sg('y') + nR + fn('y') + letra + ' = ' + sg('y') + nR + fn('y') + ' ' + g + ' = ' + f4(sa) + '\\,' + nR
+    ]);
+    const O = nombreOrigen(), coefM = R.A[2][j];
+    out += '\\noindent{\\footnotesize Su momento respecto de $' + O + '$ es el de esas dos componentes, '
+      + 'cada una por su propia distancia:}\\\\[2pt]\n';
+    out += _alineada([
+      'M_{' + O + '} &= x_{' + nn + '}\\,R_{y' + nn + '} - y_{' + nn + '}\\,R_{x' + nn + '}',
+      '&= (' + dec(u.n.x,'len') + ')\\,(' + f4(sa) + '\\,' + nR + ') - (' + dec(u.n.y,'len') + ')\\,(' + f4(ca) + '\\,' + nR + ')',
+      '&= ' + dec(coefM,'len') + '\\,' + nR
+    ]);
+    // Autocontrol: el brazo escrito debe reproducir el coeficiente del motor.
+    if(Math.abs(u.n.x*sa - u.n.y*ca - coefM) > 1e-6)
+      console.warn('Informe LaTeX: el brazo del rodillo inclinado no reproduce el coeficiente', {escrito:u.n.x*sa - u.n.y*ca, motor:coefM});
+  });
 
   // ── Un DCL por cada ecuación de equilibrio independiente ──
   // Con una rótula no basta el DCL global: la ecuación de momento nulo aísla
@@ -641,12 +714,28 @@ function pasoAPasoReacciones(R){
         if(Math.abs(v) < 1e-9) return;
         t.push({v, tex: dec(Math.abs(v), dtEq(e))});
       } else {
-        const co = Math.abs(Math.abs(a)-1) < 1e-9 ? '' : dec(Math.abs(a),'len') + '\\,';
-        t.push({v:a, tex: co + simb(u)});
+        t.push({v:a, tex: termInc(u, a, e)});
       }
     });
     return t;
   };
+  // Cómo entra una incógnita en una suma. La reacción del rodillo inclinado va
+  // en $\\sum F_x$ y $\\sum F_y$ con su seno o su coseno del ángulo agudo de la
+  // figura (R sen 45°), no con el coeficiente ya multiplicado (0.71 R); el signo
+  // lo pone el término. En $\\sum M$ el coeficiente es el brazo, que ya se
+  // desarrolló arriba, y se deja en número.
+  const _trigInclinada = (u, e) => {
+    if(e > 1 || u.ang === undefined) return null;
+    const ag = bsaAnguloAgudoEje(Math.cos(u.ang), Math.sin(u.ang));
+    if(ag.grados < 4) return null;
+    return (((e === 0) !== ag.desdeV) ? '\\cos ' : '\\operatorname{sen} ') + dec(ag.grados,'f') + '^{\\circ}';
+  };
+  function termInc(u, a, e){
+    const tr = _trigInclinada(u, e);
+    if(tr) return simb(u) + tr;
+    const co = Math.abs(Math.abs(a)-1) < 1e-9 ? '' : dec(Math.abs(a),'len') + '\\,';
+    return co + simb(u);
+  }
   const pendientes = (e) => {
     const v = [];
     R.inc.forEach((u,j)=>{ if(Math.abs(R.A[e][j]) > 1e-9 && !conocido[j]) v.push({u, j, a:R.A[e][j]}); });
@@ -755,7 +844,7 @@ function pasoAPasoReacciones(R){
                        sust, ' = 0', 5, ' & '));
     // 3 · Despeje, con la división a la vista si el coeficiente no es 1
     const dtI = (p.u.tipo === 'M' && p.u.ang === undefined) ? 'momento' : 'fuerza';
-    const izqDes = (p.a < 0 ? '-' : '') + coefTxt + simb(p.u);
+    const izqDes = (p.a < 0 ? '-' : '') + termInc(p.u, p.a, el);
     let linea = izqDes + ' = ' + dec(-cte, dtEq(el)) + '\\ \\text{' + unEq(el) + '}';
     if(Math.abs(Math.abs(p.a)-1) > 1e-9)
       linea += ' \\quad\\Rightarrow\\quad ' + simb(p.u) + ' = \\dfrac{' + dec(-cte, dtEq(el))
@@ -872,6 +961,9 @@ function tikzApoyo(x, y, tipo, k, angMuro, angApoyo){
 // w(x-d), aplicada a la mitad de ese trozo. Solo las cargas que terminan
 // antes del intervalo se sustituyen por su resultante numérica.
 function tikzDCLSub(R, gg, seg, sub, info){
+  _angulosFiguraFI = [];
+  const genAngSub = bsaLetrasGriegas();
+  if(gg.inclinado) genAngSub.para(Math.abs(gg.ang));   // θ ya es la inclinación del tramo
   const EPS = 1e-9;
   const primero = (gg.idx === 0);
   const sIni = gg.s0;
@@ -1074,7 +1166,17 @@ function tikzDCLSub(R, gg, seg, sub, info){
     const a = o.a, Fm = Math.hypot(a.fx, a.fy);
     return Fm > 1e-12 && a.reac && a.nodo && a.nodo.apoyo && a.nodo.apoyo !== 'libre' && a.fy/Fm > 0.5;
   });
-  const BRAZO0 = hayBajoApoyo ? 1.62 : 1.25, BRAZO_SALTO = 0.50;
+  // Un rodillo inclinado bajo la viga lleva su flecha más larga (1.55) y el arco
+  // en la cola: la banda de cotas empieza más abajo.
+  const hayInclinadaBajo = (R.internas.puntuales || []).some(o=>{
+    if(o.s === null) return false;
+    if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return false;
+    if(o.s >= sCut - EPS) return false;
+    const a = o.a, Fm = Math.hypot(a.fx, a.fy);
+    return Fm > 1e-12 && a.reac && a.inc && a.inc.ang !== undefined && a.fy/Fm > 0.3
+      && bsaAnguloAgudoEje(a.fx/Fm, a.fy/Fm).grados >= 4;
+  });
+  const BRAZO0 = hayInclinadaBajo ? 1.90 : (hayBajoApoyo ? 1.62 : 1.25), BRAZO_SALTO = 0.50;
   const bandaIni = BRAZO0 - 0.14;
   const bandaFin = BRAZO0 + brazos.length*BRAZO_SALTO + 0.30 + 4*0.36 + 0.9;
   const iBanda = _tzCajas.length;
@@ -1130,13 +1232,23 @@ function tikzDCLSub(R, gg, seg, sub, info){
       const ex = a.fx/Fm, ey = a.fy/Fm;
       // La reacción sale del apoyo: si el nudo tiene apoyo dibujado, la flecha
       // arranca por debajo de él para no taparlo.
-      const bajoApoyo = (a.reac && a.nodo && a.nodo.apoyo && a.nodo.apoyo !== 'libre' && ey > 0.5);
-      const larga = bajoApoyo ? 1.30 : 0.85, corta = bajoApoyo ? 0.62 : 0.10;
+      // El rodillo inclinado lleva el arco de su ángulo en la cola, y toda flecha
+      // que venga por el eje del símbolo del apoyo nace más allá de él (2026-09-14).
+      const inclinada = a.reac && a.inc && a.inc.ang !== undefined && bsaAnguloAgudoEje(ex, ey).grados >= 4;
+      let porElApoyo = false;
+      if(a.reac && a.nodo && (a.nodo.apoyo === 'movil' || a.nodo.apoyo === 'simple')){
+        const hd = (anguloApoyo(a.nodo) - 180)*Math.PI/180;
+        porElApoyo = (-ex*Math.cos(hd) - ey*Math.sin(hd)) > Math.cos(35*Math.PI/180);
+      }
+      const bajoApoyo = porElApoyo || (a.reac && a.nodo && a.nodo.apoyo && a.nodo.apoyo !== 'libre' && ey > 0.5);
+      const larga = inclinada ? 1.55 : (bajoApoyo ? 1.30 : 0.85);
+      const corta = inclinada ? 0.70 : (porElApoyo ? 0.70 : (bajoApoyo ? 0.62 : 0.10));
       out += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1pt] ('
            + F(x-ex*larga) + ',' + F(y-ey*larga) + ') -- (' + F(x-ex*corta) + ',' + F(y-ey*corta) + ');\n';
       tzOcuparTrazo(x-ex*larga, y-ey*larga, x-ex*corta, y-ey*corta, 0.07);
+      if(inclinada) out += tikzArcoReaccionFI(x-ex*larga, y-ey*larga, ex, ey, genAngSub);
       const lab = a.reac ? '$' + nom.tex + '=' + Fz(Fm) + '$' : Fz(Fm) + '\\,' + uF;
-      if(ey > 0.5){
+      if(!inclinada && ey > 0.5){
         // Fuerza hacia arriba: su cola cae bajo la viga, en la banda de cotas,
         // así que el valor va al costado de la flecha, hacia afuera del trozo.
         const s = (x <= (X(minx)+X(maxx))/2) ? -1 : 1;

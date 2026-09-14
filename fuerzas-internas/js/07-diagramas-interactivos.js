@@ -102,6 +102,24 @@ function htmlExtremosGrupo(r, gg){
 // ── DCL global de la estructura ──
 // El cuerpo libre completo: barras, nudos, cargas con sus valores,
 // reacciones en verde y cadena de cotas por cada tramo de dirección.
+// Arco del ángulo de una reacción inclinada en el SVG del DCL global: entre el
+// eje más cercano (trazo punteado) y la flecha, con el valor agudo
+// (bsaAnguloAgudoEje: el mismo número que el lienzo y el PDF). (x0,y0) es la
+// cola en pantalla; (ex,ey) el sentido de la flecha en el mundo (y arriba).
+function _svgArcoReaccion(x0, y0, ex, ey, col){
+  const ag = bsaAnguloAgudoEje(ex, ey);
+  if(ag.grados < 4) return '';
+  const rx = ag.desdeV ? 0 : (ex >= 0 ? 1 : -1), ry = ag.desdeV ? (ey >= 0 ? 1 : -1) : 0;
+  const a0 = Math.atan2(-ry, rx), a1 = Math.atan2(-ey, ex);
+  let d = a1 - a0; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI;
+  const r = 14, F = v => v.toFixed(1);
+  const sx = Math.cos(a1), sy = Math.sin(a1), tx = rx, ty = -ry;
+  let qx = -ty, qy = tx; if(qx*sx + qy*sy > 0){ qx = -qx; qy = -qy; }
+  let s = '<line x1="'+F(x0)+'" y1="'+F(y0)+'" x2="'+F(x0+22*tx)+'" y2="'+F(y0+22*ty)+'" stroke="'+col+'" stroke-width="1" stroke-dasharray="3,3"/>';
+  s += '<path d="M '+F(x0+r*Math.cos(a0))+' '+F(y0+r*Math.sin(a0))+' A '+r+' '+r+' 0 0 '+(d > 0 ? 1 : 0)+' '+F(x0+r*Math.cos(a1))+' '+F(y0+r*Math.sin(a1))+'" fill="none" stroke="'+col+'" stroke-width="1.2"/>';
+  s += '<text x="'+F(x0+22*tx+12*qx)+'" y="'+F(y0+22*ty+12*qy+3)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'+col+'" text-anchor="'+(sx < 0 ? 'start' : 'end')+'">'+dec(ag.grados,'f')+'°</text>';
+  return s;
+}
 function svgDCLGlobal(r){
   const F1 = n => n.toFixed(1);
   // ámbito del dibujo
@@ -240,6 +258,9 @@ function svgDCLGlobal(r){
     const s = v >= 0 ? 1 : -1;
     const ex = dx*s, ey = -dy*s;
     sv += flecha(X-ex*36, Y-ey*36, X-ex*5, Y-ey*5, '#1a7f37', 2.4);
+    // El rodillo inclinado lleva el arco de su ángulo agudo en la cola, como en el
+    // lienzo y en el PDF (2026-09-14).
+    if(u.ang !== undefined) sv += _svgArcoReaccion(X-ex*36, Y-ey*36, dx*s, dy*s, '#1a7f37');
     sv += texto(X-ex*48, Y-ey*48+3, dec(Math.abs(v),'f'), '#1a7f37', 10, 800, 'middle');
   });
 

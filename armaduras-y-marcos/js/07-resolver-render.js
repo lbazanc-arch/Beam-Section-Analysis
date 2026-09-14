@@ -153,7 +153,7 @@ function renderResultados(res){
       + '<td class="r">'+(R.rx!==undefined ? f(R.rx) : '—')+'</td>'
       + '<td class="r">'+(R.ry!==undefined ? f(R.ry) : '—')+'</td>'
       + '<td class="r">'+f(mag)+'</td>'
-      + '<td class="r">'+(esCero(mag) ? '—' : textoAnguloAgudo(rx/mag, ry/mag))+'</td></tr>';
+      + '<td class="r">'+(esCero(mag) ? '—' : bsaTextoAnguloAgudo(rx/mag, ry/mag))+'</td></tr>';
   });
   h += '</tbody></table></div>';
 

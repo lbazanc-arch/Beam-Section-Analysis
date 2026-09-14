@@ -230,12 +230,12 @@ function construirLatex(){
     const compR = ejeX ? 'x' : (ejeY ? 'y' : 'd');
     const nR = ejeX ? simbR(Rn, 'x') : (ejeY ? simbR(Rn, 'y') : ('R_{' + nomN(Rn) + '}'));
     // El ángulo con el que se ESCRIBE la reacción es el agudo que acota la
-    // figura (anguloAgudoEje, el mismo criterio que arcoAngulo), no el de 0 a
+    // figura (bsaAnguloAgudoEje, el mismo criterio que arcoAngulo), no el de 0 a
     // 360 con el que la guarda el modelo. Si el DCL enseña θ = 45° con la
     // vertical, las ecuaciones dicen R sen θ y R cos θ; el signo de cada
     // componente lo pone su sentido, no el ángulo. Antes se escribía cos 135°,
     // que no estaba en ninguna figura. La letra es la que le dio la figura.
-    const agR = anguloAgudoEje(ca, sa);
+    const agR = bsaAnguloAgudoEje(ca, sa);
     const letraR = (_angulosFigura.find(a => a.letra && Math.abs(a.valor - agR.grados) < 0.15) || {}).letra || '\\theta';
     const gradosR = dec(agR.grados,'f') + '^{\\circ}';
     const ejeRefR = agR.desdeV ? 'vertical' : 'horizontal';
@@ -333,7 +333,7 @@ function construirLatex(){
       hayInclinado = true;
       // Su dirección se da como en la figura y en las ecuaciones: el ángulo
       // agudo con el eje más cercano, no el de 0 a 360 del modelo.
-      const agT = anguloAgudoEje(Math.cos(rc.ang*Math.PI/180), Math.sin(rc.ang*Math.PI/180));
+      const agT = bsaAnguloAgudoEje(Math.cos(rc.ang*Math.PI/180), Math.sin(rc.ang*Math.PI/180));
       filasReac += '$R_{' + nomN(n) + '}$ {\\footnotesize(a ' + dec(agT.grados,'f') + '$^{\\circ}$ de la '
         + (agT.desdeV ? 'vertical' : 'horizontal') + ')} & $'
         + dec(rc.mag,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(rc.rx, rc.ry) + ' \\\\\n';

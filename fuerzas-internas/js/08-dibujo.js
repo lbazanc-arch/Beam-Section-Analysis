@@ -159,13 +159,24 @@ function dibujar(){
       else if(u.tipo === 'Rx'){ dx = 1; dy = 0; } else { dx = 0; dy = 1; }
       const sg = v >= 0 ? 1 : -1;
       const ex = dx*sg, ey = dy*sg;                 // sentido real, en el mundo
-      const Lf = 44;
-      const x0 = px - ex*Lf, y0 = py + ey*Lf;        // cola de la flecha (y de pantalla invertida)
+      // Si la flecha viene por el eje del símbolo del apoyo (a menos de 35° de
+      // hacia donde cuelga), nace más allá de él: el símbolo llega a 27 px y antes lo
+      // cruzaba (2026-09-14, criterio de armaduras). El empotrado no cuelga.
+      let d1 = 8;
+      if(u.n.apoyo === 'movil' || u.n.apoyo === 'simple'){
+        const hd = (anguloApoyo(u.n) - 180)*Math.PI/180;
+        if((-ex*Math.cos(hd) - ey*Math.sin(hd)) > Math.cos(35*Math.PI/180)) d1 = 34;
+      }
+      const Lf = 44, d0 = d1 + Lf;
+      const x0 = px - ex*d0, y0 = py + ey*d0;        // cola de la flecha (y de pantalla invertida)
       ctx.save(); ctx.strokeStyle = '#15803d'; ctx.fillStyle = '#15803d'; ctx.lineWidth = 2.4;
-      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(px - ex*9, py + ey*9); ctx.stroke();
-      ctx.translate(px - ex*8, py + ey*8); ctx.rotate(Math.atan2(-ey, ex));
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(px - ex*(d1+1), py + ey*(d1+1)); ctx.stroke();
+      ctx.translate(px - ex*d1, py + ey*d1); ctx.rotate(Math.atan2(-ey, ex));
       ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-4.5); ctx.lineTo(-10,4.5); ctx.closePath(); ctx.fill();
       ctx.restore();
+      // El rodillo inclinado lleva en la cola el arco de su ángulo agudo con el
+      // eje más cercano, el mismo número que escribe el PDF (bsaArcoReaccion).
+      if(u.ang !== undefined) bsaArcoReaccion(ctx, x0, y0, ex, ey, '#15803d');
       const base = (u.ang !== undefined) ? 'R' + nom : (u.tipo === 'Rx' ? 'Rx' + nom : 'Ry' + nom);
       rotulo(base + ' = ' + dec(Math.abs(v),'f') + ' ' + unitFor, x0 - ex*10, y0 + ey*10, '#15803d', -ex, ey, '700 10.5px Inter,sans-serif');
     });

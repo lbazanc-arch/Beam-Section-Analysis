@@ -100,7 +100,7 @@ function dibujarApoyo(n){
 // dirección, en el rodillo inclinado—. Si la flecha viene por el eje del
 // símbolo del apoyo, nace más allá de él para no taparlo. El rodillo
 // inclinado acota en la cola el ángulo agudo con el eje más cercano
-// (anguloAgudoEje: el mismo número que escribe el PDF). Los valores van en
+// (bsaAnguloAgudoEje: el mismo número que escribe el PDF). Los valores van en
 // columna —R, Rx, Ry, M— junto al fuste de la flecha principal, del lado libre.
 const REAC_COLOR = '#15803d', REAC_L = 44, REAC_EXT = 36;
 function _flechaReaccion(x0, y0, x1, y1){
@@ -111,36 +111,11 @@ function _flechaReaccion(x0, y0, x1, y1){
   ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-4.5); ctx.lineTo(-10,4.5); ctx.closePath(); ctx.fill();
   ctx.restore();
 }
-// Arco del ángulo de la reacción inclinada, en la cola de su flecha: entre el
-// eje más cercano (trazo punteado) y la flecha, con el valor agudo. Es el
-// mismo planteamiento que arcoAngulo en el PDF, en coordenadas de pantalla
-// (la y hacia abajo). Devuelve de qué lado del fuste quedó la letra, para que
-// la columna de valores vaya por el otro.
+// Arco del ángulo de la reacción inclinada, en la cola de su flecha: lo dibuja
+// bsaArcoReaccion (core/comun.js), el mismo para los tres temas con apoyos.
+// Devuelve si lo dibujó (con menos de 4° no hay arco).
 function dibujarArcoReaccion(f){
-  const ag = anguloAgudoEje(f.ex, f.ey);
-  if(ag.grados < 4) return null;
-  // rayo de referencia (mundo), del mismo lado que la flecha
-  const rx = ag.desdeV ? 0 : (f.ex >= 0 ? 1 : -1), ry = ag.desdeV ? (f.ey >= 0 ? 1 : -1) : 0;
-  const a0 = Math.atan2(-ry, rx), a1 = Math.atan2(-f.ey, f.ex);      // ángulos de pantalla
-  let d = a1 - a0; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI;
-  const r = 17, am = a0 + d/2;
-  ctx.save(); ctx.strokeStyle = REAC_COLOR; ctx.fillStyle = REAC_COLOR;
-  ctx.lineWidth = 1; ctx.setLineDash([3,3]);
-  ctx.beginPath(); ctx.moveTo(f.x0, f.y0); ctx.lineTo(f.x0 + 26*rx, f.y0 - 26*ry); ctx.stroke();
-  ctx.setLineDash([]); ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.arc(f.x0, f.y0, r, a0, a1, d < 0); ctx.stroke();
-  // El valor va junto al extremo del trazo de referencia, del lado contrario
-  // al fuste, y el texto crece alejándose del nudo. En la bisectriz chocaba
-  // con el fuste (45°) o con el símbolo del apoyo (ángulos cerrados).
-  const sx = Math.cos(a1), sy = Math.sin(a1);                  // hacia el nudo
-  const tx = rx, ty = -ry;                                      // trazo de referencia, en pantalla
-  let qx = -ty, qy = tx; if(qx*sx + qy*sy > 0){ qx = -qx; qy = -qy; }
-  const haciaDerecha = sx < 0;
-  ctx.font = '700 10px Inter, sans-serif'; ctx.textBaseline = 'middle';
-  ctx.textAlign = haciaDerecha ? 'left' : 'right';
-  ctx.fillText(dec(ag.grados,'f') + '\u00b0', f.x0 + 26*tx + 14*qx, f.y0 + 26*ty + 14*qy);
-  ctx.restore();
-  return {x: Math.cos(am), y: Math.sin(am)};
+  return bsaArcoReaccion(ctx, f.x0, f.y0, f.ex, f.ey, REAC_COLOR);
 }
 function dibujarReaccion(n, R){
   const [px,py] = aPantalla(n.x, n.y);
