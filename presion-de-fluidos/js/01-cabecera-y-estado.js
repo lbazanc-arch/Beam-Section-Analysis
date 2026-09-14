@@ -360,8 +360,11 @@ function simbIncognitaHtml(u){
 function descIncognita(u){
   if(u.tipo==='Rx') return 'reacción horizontal del apoyo fijo';
   if(u.tipo==='Ry') return 'reacción vertical del apoyo fijo';
+  // El móvil inclinado dice dónde se apoya con el ángulo que escribió el alumno
+  // (bsaAnguloOpuesto), que no es la dirección de la reacción (2026-09-14).
   if(u.tipo==='R')  return (u.n.apModo === 'normal') ? 'reacción del apoyo móvil, normal a la compuerta'
-                                                     : 'reacción del apoyo móvil';
+                    : 'reacción del apoyo móvil' + (Math.abs((u.n.apAng===undefined?90:u.n.apAng) - 90) > 1e-6
+                        ? ' (apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng),'f') + '°)' : '');
   return (u.n.tope && u.n.tope.modo === 'angulo') ? 'fuerza del tope' : 'fuerza normal del tope';
 }
 // Sentido real como flecha (R8): la más próxima de las ocho.

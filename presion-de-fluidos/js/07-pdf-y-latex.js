@@ -114,24 +114,28 @@ function tkpTextoFijo(x, y, txt, opts){
 const _LETRAS = ['\\theta', '\\varphi', '\\alpha', '\\beta', '\\psi', '\\omega', '\\lambda', '\\mu'];
 let _LETRAS_ANG = {};
 function asignarLetrasAngulos(r){
+  // Clave: el ángulo agudo con el eje MÁS CERCANO y ese eje (bsaAnguloAgudoEje),
+  // el mismo criterio que el lienzo y los otros temas. Con la clave de antes (el
+  // ángulo con la horizontal) 30° con la horizontal y 30° con la vertical
+  // habrían compartido letra por error (2026-09-14).
   _LETRAS_ANG = {};
-  const vals = [];
+  const claves = [];
   const mete = d => {
-    if(Math.abs(Math.abs(d.x)-1) < 1e-9 || Math.abs(d.x) < 1e-9) return;
-    const a = Math.acos(Math.min(1, Math.abs(d.x)))*180/Math.PI;
-    const clave = a.toFixed(2);
-    if(vals.indexOf(clave) < 0) vals.push(clave);
+    const ag = bsaAnguloAgudoEje(d.x, d.y);
+    if(ag.grados < 1e-6) return;                        // sobre un eje: sin ángulo
+    const clave = ag.grados.toFixed(2) + (ag.desdeV ? 'V' : 'H');
+    if(!_LETRAS_ANG[clave]){ _LETRAS_ANG[clave] = {grados:ag.grados, desdeV:ag.desdeV}; claves.push(clave); }
   };
   r.cargas.forEach(c=>mete(c.dir));
   r.inc.forEach(u=>mete(u.dir));
-  vals.forEach((clave,i)=>{ _LETRAS_ANG[clave] = _LETRAS[i % _LETRAS.length] + (i >= _LETRAS.length ? "'" : ''); });
+  claves.forEach((clave,i)=>{ _LETRAS_ANG[clave].letra = _LETRAS[i % _LETRAS.length] + (i >= _LETRAS.length ? "'" : ''); });
   return _LETRAS_ANG;
 }
 function letraAngulo(d){
-  const a = Math.acos(Math.min(1, Math.abs(d.x)))*180/Math.PI;
-  return _LETRAS_ANG[a.toFixed(2)] || '\\theta';
+  const ag = bsaAnguloAgudoEje(d.x, d.y);
+  const e = _LETRAS_ANG[ag.grados.toFixed(2) + (ag.desdeV ? 'V' : 'H')];
+  return e ? e.letra : '\\theta';
 }
-function valorAngulo(d){ return Math.acos(Math.min(1, Math.abs(d.x)))*180/Math.PI; }
 
 // ── Marco de referencia x, y en una esquina ──
 function tkpMarcoXY(x, y){
@@ -395,6 +399,25 @@ function tkpCroquisCarga(c, d){
 // ── DCL de la compuerta: cada F_k en su centro de presión, reacciones con
 //    su nombre llegando al nudo en su sentido real, marco x,y en la esquina.
 //    `sel` recorta al lado de una rótula: {tramos, nodos, rotula} ──
+// Arco del ángulo de una fuerza inclinada en el DCL, en la cola de su flecha:
+// desde el eje más cercano (trazo punteado, bsaAnguloAgudoEje), con la letra
+// que reparte asignarLetrasAngulos. Vale para las cargas del líquido y para
+// las reacciones y topes; antes cada bloque medía siempre desde la horizontal.
+function tkpArcoAngulo(x1, y1, d){
+  const ag = bsaAnguloAgudoEje(d.x, d.y);
+  if(ag.grados < 1e-6) return '';
+  const F = v => v.toFixed(3);
+  const rayDeg = ag.desdeV ? (d.y >= 0 ? 90 : -90) : (d.x >= 0 ? 0 : 180);
+  let a1 = Math.atan2(d.y, d.x)*180/Math.PI;
+  while(a1 - rayDeg > 180) a1 -= 360;
+  while(a1 - rayDeg < -180) a1 += 360;
+  const cr = Math.cos(rayDeg*Math.PI/180), sr = Math.sin(rayDeg*Math.PI/180);
+  let q = '\\draw[bsaMuted, dashed, line width=.4pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(x1 + 0.8*cr) + ',' + F(y1 + 0.8*sr) + ');\n';
+  q += '\\draw[bsaMuted, line width=.5pt] (' + F(x1 + 0.45*cr) + ',' + F(y1 + 0.45*sr) + ') arc (' + F(rayDeg) + ':' + F(a1) + ':0.45);\n';
+  const am = (rayDeg + a1)/2*Math.PI/180;
+  q += tkpTexto(x1 + 0.68*Math.cos(am), y1 + 0.68*Math.sin(am), '$' + letraAngulo(d) + '$', 'font=\\scriptsize, color=bsaMuted', Math.cos(am), Math.sin(am));
+  return q;
+}
 function tkpDCL(r, sel){
   tkpReiniciar();
   const caja = _cajaModelo();
@@ -428,15 +451,8 @@ function tkpDCL(r, sel){
     out += '\\filldraw[bsaPres] (' + F(Px) + ',' + F(Py) + ') circle (0.045);\n';
     out += tkpTexto(x1 - c.dir.x*0.32, y1 - c.dir.y*0.32, '$' + c.nombre + '$', 'font=\\scriptsize, color=bsaPres', -c.dir.x, -c.dir.y);
     ocupados.push([x1, y1]);
-    // ángulo con la horizontal, si la fuerza es inclinada (R17): arco en la cola
-    if(Math.abs(c.dir.x) > 1e-9 && Math.abs(Math.abs(c.dir.x)-1) > 1e-9){
-      const sx = c.dir.x >= 0 ? 1 : -1, sy = c.dir.y >= 0 ? 1 : -1;
-      const a0 = sx > 0 ? 0 : 180, a1 = Math.atan2(c.dir.y, c.dir.x)*180/Math.PI;
-      out += '\\draw[bsaMuted, dashed, line width=.4pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(x1 + sx*0.8) + ',' + F(y1) + ');\n';
-      const am = (a0 + a1)/2*Math.PI/180;
-      out += '\\draw[bsaMuted, line width=.5pt] (' + F(x1 + sx*0.45) + ',' + F(y1) + ') arc (' + F(a0) + ':' + F(a1) + ':0.45);\n';
-      out += tkpTexto(x1 + 0.68*Math.cos(am), y1 + 0.68*Math.sin(am), '$' + letraAngulo(c.dir) + '$', 'font=\\scriptsize, color=bsaMuted', Math.cos(am), Math.sin(am));
-    }
+    // ángulo con el eje más cercano, si la fuerza es inclinada (R17): arco en la cola
+    out += tkpArcoAngulo(x1, y1, c.dir);
   });
   // reacciones e incógnitas: llegan al nudo en su sentido real, solo el nombre
   const incVis = sel ? r.inc.filter(u=>sel.nodos.indexOf(u.n.id) >= 0) : r.inc;
@@ -460,14 +476,7 @@ function tkpDCL(r, sel){
     tkpOcuparTrazo(x1, y1, x, y, 0.08);
     out += tkpTexto(x1 - d.x*0.3, y1 - d.y*0.3, '$' + simbIncognita(u) + '$', 'font=\\scriptsize, color=' + col, -d.x, -d.y);
     ocupados.push([x1, y1]);
-    if(u.tipo !== 'Rx' && u.tipo !== 'Ry' && Math.abs(Math.abs(d.x)-1) > 1e-9 && Math.abs(d.x) > 1e-9){
-      const sx = d.x >= 0 ? 1 : -1;
-      const a0 = sx > 0 ? 0 : 180, a1 = Math.atan2(d.y, d.x)*180/Math.PI;
-      out += '\\draw[bsaMuted, dashed, line width=.4pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(x1 + sx*0.8) + ',' + F(y1) + ');\n';
-      const am = (a0 + a1)/2*Math.PI/180;
-      out += '\\draw[bsaMuted, line width=.5pt] (' + F(x1 + sx*0.45) + ',' + F(y1) + ') arc (' + F(a0) + ':' + F(a1) + ':0.45);\n';
-      out += tkpTexto(x1 + 0.68*Math.cos(am), y1 + 0.68*Math.sin(am), '$' + letraAngulo(u.dir) + '$', 'font=\\scriptsize, color=bsaMuted', Math.cos(am), Math.sin(am));
-    }
+    if(u.tipo !== 'Rx' && u.tipo !== 'Ry') out += tkpArcoAngulo(x1, y1, d);
   });
   // fuerzas del pasador de la rótula, a trazos (existen, pero su brazo es nulo)
   if(sel && sel.rotula){
@@ -749,8 +758,8 @@ function construirLatex(){
   tex += '\\seccion{4. Paso 3 --- Diagrama de cuerpo libre de la compuerta}\n';
   tex += '\\noindent Sobre la compuerta act\\\'uan las resultantes del l\\\'iquido, cada una en su centro de presi\\\'on, y las inc\\\'ognitas de los apoyos'
     + (r.inc.some(u=>u.tipo==='T') ? ' y del tope' : '') + '. Cada fuerza se dibuja en su sentido real y se rotula solo con su nombre; los valores est\\\'an en las tablas.\n';
-  const letras = Object.keys(_LETRAS_ANG);
-  const listaAng = letras.map(k=>'$' + _LETRAS_ANG[k] + ' = ' + k + '^\\circ$');
+  const letras = Object.values(_LETRAS_ANG);
+  const listaAng = letras.map(e=>'$' + e.letra + ' = ' + e.grados.toFixed(2) + '^\\circ$');
   tex += lamina(tkpDCL(r, null), 'DCL de la compuerta.' + (listaAng.length ? ' ' + listaAng.join(', ') + '.' : ''));
   if(r.topesSueltos.length === 0 && r.inc.some(u=>u.tipo==='T'))
     tex += porque('tope', 'Un tope liso solo puede \\textbf{empujar}: su fuerza es normal a la compuerta y se supone hacia ella. Si del equilibrio saliera negativa, la compuerta se separar\\\'ia del tope (se abrir\\\'ia); con valor cero est\\\'a \\emph{a punto de abrirse}, que es la situaci\\\'on l\\\'imite de muchos problemas.');
@@ -821,7 +830,12 @@ function construirLatex(){
   tex += '\\resultado{\\textbf{Resultado.} ' + r.inc.map((u,j)=>{
       const v = r.val[j]; const sr = sentidoRealIncognita(u, v);
       const nulo = Math.abs(v) < 1e-9*Math.max(1, r.residuo.ref);
-      return '$' + simbIncognita(u) + ' = ' + f(Math.abs(v)) + '$' + UF + (nulo ? '' : ' ' + iconoSentidoTex(sr.x, sr.y));
+      // La dirección de una reacción o un tope inclinados, con el mismo ángulo
+      // agudo que la figura y las ecuaciones (2026-09-14).
+      const ag = bsaAnguloAgudoEje(u.dir.x, u.dir.y);
+      const dirTx = ((u.tipo === 'R' || u.tipo === 'T') && ag.grados >= 1e-6)
+        ? ' (a ' + f(ag.grados) + '$^\\circ$ de la ' + (ag.desdeV ? 'vertical' : 'horizontal') + ')' : '';
+      return '$' + simbIncognita(u) + ' = ' + f(Math.abs(v)) + '$' + UF + (nulo ? '' : ' ' + iconoSentidoTex(sr.x, sr.y)) + dirTx;
     }).join(', ') + '. La flecha es el sentido real; el valor, su magnitud.}\n';
   if(r.topesSueltos.length)
     tex += '\\veredicto{\\textbf{Tope que no trabaja.} El equilibrio exige que ' + r.topesSueltos.map(u=>'$' + simbIncognita(u) + '$').join(', ') + ' tire de la compuerta, y un tope solo puede empujar: \\textbf{la compuerta se abre} (se separa del tope). Para que se mantenga cerrada hace falta otro apoyo o cambiar los niveles.}\n';

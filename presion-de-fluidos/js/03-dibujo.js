@@ -346,7 +346,8 @@ function dibujar(){
       ctx.beginPath(); ctx.arc(-6,21,3.5,0,Math.PI*2); ctx.stroke();
       ctx.beginPath(); ctx.arc(6,21,3.5,0,Math.PI*2); ctx.stroke();
       ctx.restore();
-      _reservar(px-14, py-14, px+14, py+24);
+      // La caja reservada gira con el símbolo (antes era la de un rodillo recto).
+      _reservarGirado(px, py, Math.PI/2-a, -14, 0, 14, 25);
     }
     if(n.tope){
       // El tope es un bloque liso apoyado en la compuerta, del lado en que
@@ -423,10 +424,22 @@ function dibujar(){
       const d = sentidoRealIncognita(u, v);
       const [px,py]=aPantalla(u.n.x,u.n.y);
       const col = (u.tipo==='T') ? '#b45309' : '#15803d';
-      const L = (u.tipo==='T') ? 44 : 46;
+      // Si la flecha viene por el eje del símbolo (rodillo, pasador o bloque del
+      // tope, a menos de 35° de hacia donde cuelga), nace más allá de él en vez de
+      // cruzarlo; y una reacción o un tope inclinados llevan en la cola el arco de
+      // su ángulo agudo con el eje más cercano (bsaArcoReaccion, el mismo dibujo
+      // que armaduras y fuerzas internas; 2026-09-14).
+      let hx = null, hy = null, ext = 0;
+      if(u.tipo === 'T'){ const dd = direccionIncognita(u); hx = -dd.x; hy = -dd.y; ext = 30; }
+      else if(u.n.apoyo === 'movil'){ const dd = direccionIncognita({n:u.n, tipo:'R'}); hx = -dd.x; hy = -dd.y; ext = 34; }
+      else if(u.n.apoyo === 'fijo'){ const hd = (anguloDibujoApoyoFijo(u.n) - 180)*Math.PI/180; hx = Math.cos(hd); hy = Math.sin(hd); ext = 34; }
+      const porElApoyo = hx !== null && (-d.x*hx - d.y*hy) > Math.cos(35*Math.PI/180);
+      const d1 = porElApoyo ? ext : 8;
+      const L = d1 + ((u.tipo==='T') ? 36 : 38);
       // llega al nudo desde fuera, en su sentido real
       const x0 = px - d.x*L, y0 = py + d.y*L;
-      _flecha(x0, y0, px - d.x*8, py + d.y*8, col, 2.6, 10);
+      _flecha(x0, y0, px - d.x*d1, py + d.y*d1, col, 2.6, 10);
+      if(u.tipo === 'R' || u.tipo === 'T') bsaArcoReaccion(ctx, x0, y0, d.x, d.y, col);
       const base = (u.tipo==='T') ? 'N' : 'R';
       const sub = (u.tipo==='Rx') ? 'x'+u.n.nombre : (u.tipo==='Ry') ? 'y'+u.n.nombre : u.n.nombre;
       const txt = base + '_' + sub + ' = ' + dec(Math.abs(v),'f') + ' ' + unitFor;

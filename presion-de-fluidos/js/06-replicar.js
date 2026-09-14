@@ -85,10 +85,16 @@ function cambiarFlecha(id,v){
   t.flecha=parseFloat(v)||0; R=null; refrescar();
 }
 // Texto corto de la orientación de un tope o apoyo móvil, para las listas.
+// Dice el ángulo como el alumno lo escribió (dónde se apoya, desde dónde
+// empuja) o, si lo fija la compuerta, el agudo con el eje más cercano; nunca
+// el de 0 a 360 del modelo (2026-09-14).
 function _textoDireccion(u){
-  const g = anguloIncognita(u).toFixed(0) + '°';
-  if(u.tipo==='T') return (u.n.tope && u.n.tope.modo === 'angulo') ? 'tope a ' + g : 'tope ⟂ (' + g + ')';
-  return (u.n.apModo === 'normal') ? 'móvil ⟂ (' + g + ')' : 'móvil ' + g;
+  const d = direccionIncognita(u);
+  const agudo = bsaAnguloAgudoEje(d.x, d.y).grados < 1e-6 ? '' : ' (a ' + bsaTextoAnguloAgudo(d.x, d.y) + ')';
+  if(u.tipo==='T') return (u.n.tope && u.n.tope.modo === 'angulo')
+    ? 'tope desde ' + dec(bsaAnguloOpuesto(u.n.tope.ang, true),'f') + '°' : 'tope ⟂' + agudo;
+  return (u.n.apModo === 'normal') ? 'móvil ⟂' + agudo
+    : 'móvil apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng===undefined?90:u.n.apAng),'f') + '°';
 }
 function pintarListas(){
   const lt=document.getElementById('listaTramos');
@@ -204,7 +210,7 @@ function actualizarPrevApoyo(){
     +(n.rotula?' con rótula':'')
     +'</b> · Incógnitas totales: <b>'+inc+'</b> frente a <b>'+eq+'</b> ecuaciones'
     + (esMovil && chk && chk.checked
-        ? '<br>La reacción del móvil será perpendicular a la compuerta: ' + anguloIncognita({n, tipo:'R'}).toFixed(1) + '° desde el eje x.'
+        ? '<br>La reacción del móvil será perpendicular a la compuerta (a ' + (function(){ const dd = direccionIncognita({n, tipo:'R'}); return bsaTextoAnguloAgudo(dd.x, dd.y); })() + ').'
         : '')
     + (esFijo ? '<br>El giro del apoyo fijo es solo del dibujo: sus dos reacciones no cambian.' : '');
 }

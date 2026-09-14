@@ -6,9 +6,26 @@
 //  reacciones con su nombre y su sentido, y las comprobaciones.
 // ═══════════════════════════════════════════════════════════
 
-// ── Ángulo agudo (grados) de una dirección con la horizontal y la vertical ──
-function _angConEjeX(d){ return Math.acos(Math.min(1, Math.abs(d.x)))*180/Math.PI; }
+// ── El ángulo de una dirección se dice como en todo el proyecto: el agudo con
+//    el eje MÁS CERCANO (bsaAnguloAgudoEje, core), con seno o coseno según el
+//    eje, y con la letra que le da la figura (letraAngulo, 07-). Antes se medía
+//    siempre con la horizontal y las ecuaciones escribían θ_k mientras la
+//    figura decía φ (2026-09-14) ──
+function _trigDir(ec, d){
+  const ag = bsaAnguloAgudoEje(d.x, d.y);
+  const fn = ((ec.tipo === 'Fx') !== ag.desdeV) ? '\\cos' : '\\operatorname{sen}';
+  return {fn, ang: ag.grados};
+}
 function _casiCero(v){ return Math.abs(v) < 1e-9; }
+// Dirección de una reacción o de un tope inclinados, para la pantalla: «(a
+// 45.00° de la vertical)», el mismo ángulo agudo que la figura y las
+// ecuaciones; nunca el de 0 a 360 (anguloIncognita), que salía hasta el
+// 2026-09-14. Sobre un eje no hace falta decir nada.
+function _dirAgudoHtml(u){
+  if(u.tipo !== 'R' && u.tipo !== 'T') return '';
+  if(bsaAnguloAgudoEje(u.dir.x, u.dir.y).grados < 1e-6) return '';
+  return ' (a ' + bsaTextoAnguloAgudo(u.dir.x, u.dir.y) + ')';
+}
 function _gr(v){ return (Math.round(v*100)/100).toFixed(2).replace(/\.?0+$/,'') + '^\\circ'; }
 
 // ── Términos de cada ecuación, en LaTeX (los comparten pantalla y PDF) ──
@@ -21,9 +38,8 @@ function terminosCarga(ec, c){
     if(_casiCero(comp/Math.max(1,c.F))) return null;
     const d = ec.tipo === 'Fx' ? Math.abs(c.dir.x) : Math.abs(c.dir.y);
     if(Math.abs(d-1) < 1e-9) return {v:comp, lit:c.nombre, sus:F};
-    const ang = _angConEjeX(c.dir);
-    const fn = ec.tipo === 'Fx' ? '\\cos' : '\\sin';
-    return {v:comp, lit:c.nombre + fn + '\\theta_{' + c.k + '}', sus:F + fn + ' ' + _gr(ang)};
+    const {fn, ang} = _trigDir(ec, c.dir);
+    return {v:comp, lit:c.nombre + fn + letraAngulo(c.dir), sus:F + fn + ' ' + _gr(ang)};
   }
   // momento respecto del centro de la ecuación
   const br = brazoRespecto(ec.centro, c.P, c.dir);
@@ -36,9 +52,8 @@ function terminosIncognita(ec, u, j){
     const coef = ec.tipo === 'Fx' ? u.dir.x : u.dir.y;
     if(_casiCero(coef)) return null;
     if(Math.abs(Math.abs(coef)-1) < 1e-9) return {j, coef, lit:s, sus:s, factor:'1'};
-    const ang = _angConEjeX(u.dir);
-    const fn = ec.tipo === 'Fx' ? '\\cos' : '\\sin';
-    return {j, coef, lit:s + fn + '\\theta_{' + u.n.nombre + '}', sus:s + fn + ' ' + _gr(ang), factor:fn + ' ' + _gr(ang)};
+    const {fn, ang} = _trigDir(ec, u.dir);
+    return {j, coef, lit:s + fn + letraAngulo(u.dir), sus:s + fn + ' ' + _gr(ang), factor:fn + ' ' + _gr(ang)};
   }
   const br = brazoRespecto(ec.centro, u.n, u.dir);
   if(br.brazo < 1e-7*Math.max(1, Math.abs(u.n.x), Math.abs(u.n.y))) return null;
@@ -58,6 +73,7 @@ function _iconoEc(ec){
 // Arma una ecuación del plan: literal, sustituida (con las incógnitas ya
 // conocidas puestas con su valor y signo) y el despeje de la pendiente.
 function ecuacionDelPaso(r, paso){
+  asignarLetrasAngulos(r);      // las mismas letras en pantalla y en el PDF
   const ec = r.plan.ecs[paso.e];
   const cargasT = ec.ts.map(t=>terminosCarga(ec, t.carga)).filter(Boolean);
   const incT = ec.us.map(u=>terminosIncognita(ec, r.inc[u.j], u.j)).filter(Boolean);
@@ -265,7 +281,7 @@ function renderResultados(r){
     + 'Equilibrio de la compuerta</div>'
     + '<div class="proc-block proc-cols">'
     + '<div class="proc-col"><div class="proc-sub">Incógnitas (' + r.diag.inc + ')</div>'
-    + r.inc.map(u=>'<div class="eq-row"><div class="eq-body">' + kx(simbIncognita(u)) + ' <span class="hint-sm" style="display:inline">— ' + descIncognita(u) + ' en ' + u.n.nombre + (u.tipo==='R' || u.tipo==='T' ? ' (' + anguloIncognita(u).toFixed(1) + '°)' : '') + '</span></div></div>').join('')
+    + r.inc.map(u=>'<div class="eq-row"><div class="eq-body">' + kx(simbIncognita(u)) + ' <span class="hint-sm" style="display:inline">— ' + descIncognita(u) + ' en ' + u.n.nombre + _dirAgudoHtml(u) + '</span></div></div>').join('')
     + '</div>'
     + '<div class="proc-col"><div class="proc-sub">Ecuaciones (' + r.diag.eq + ')</div>'
     + '<div class="eq-row"><div class="eq-body">' + kx('\\sum F_x = 0,\\quad \\sum F_y = 0,\\quad \\sum M_{' + plan.centro.nombre + '} = 0') + '</div></div>'
@@ -304,7 +320,7 @@ function renderResultados(r){
   r.inc.forEach((u,j)=>{
     const v = r.val[j];
     const s = sentidoRealIncognita(u, v);
-    h += '<tr><td><b>'+kx(simbIncognita(u))+'</b></td><td>'+descIncognita(u)+' en <b>'+u.n.nombre+'</b></td>'
+    h += '<tr><td><b>'+kx(simbIncognita(u))+'</b></td><td>'+descIncognita(u)+' en <b>'+u.n.nombre+'</b>'+_dirAgudoHtml(u)+'</td>'
       + '<td class="r"><b>'+f(Math.abs(v))+'</b></td>'
       + '<td>' + iconoSentidoHtml(s.x, s.y) + (u.tipo==='T' ? (v >= 0 ? ' empuja a la compuerta' : ' <b style="color:#c0392b">se separa</b>') : '') + '</td></tr>';
   });
