@@ -136,7 +136,7 @@ function onMouseMove(e){
       if(Math.abs(fig.cx) < 2/viewScale) fig.cx = 0;
       if(Math.abs(fig.cy) < 2/viewScale) fig.cy = 0;
       updatePropPanel();
-      results=null; render();
+      invalidarResultados(); render();
     }
     return;
   }
@@ -186,7 +186,7 @@ function onMouseMove(e){
       if(figures.length > 1){
         const f0 = figures.find(z=>z.id===gesto.origenes[0].id);
       }
-      updatePropPanel(); results = null; render();
+      updatePropPanel(); invalidarResultados(); render();
     } else if(gesto.tipo === 'pan-temporal'){
       viewTx = dragViewStart.x + (sp.x - dragStart.x);
       viewTy = dragViewStart.y + (sp.y - dragStart.y);
@@ -355,7 +355,7 @@ function onMouseUp(){
         figures = figures.filter(f => aBorrar.indexOf(f.id) < 0);
         if(aBorrar.indexOf(selectedFigId) >= 0) selectFigure(null);
         selFiguras = selFiguras.filter(id => aBorrar.indexOf(id) < 0);
-        results = null; renderFigList();
+        invalidarResultados(); renderFigList();
       }
       actualizarInfoSel(); render();
       gesto = null;

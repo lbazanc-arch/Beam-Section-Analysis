@@ -23,7 +23,7 @@ function tramoEn(mx,my){
   return mejor;
 }
 function addNodo(x,y){
-  const n={id:++nodoSeq,x:snap(x),y:snap(y),nombre:'',apoyo:null,apAng:90,apModo:'angulo',
+  const n={id:++nodoSeq,x:snap(x),y:snap(y),nombre:'',apoyo:null,apAng:90,apModo:'angulo',apLado:2,
            apAngFijo:90,rotula:false,tope:null};
   nodos.push(n); reNombrar(); return n;
 }
@@ -37,10 +37,17 @@ function onDown(e){
   const r=cv.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
   const n=nodoEn(mx,my); const [wx,wy]=aMundo(mx,my);
-  if(tool==='nudo'){ if(!n){ registrarCambio(); addNodo(wx,wy); } R=null; refrescar(); }
+  // El panel de resultados se oculta solo si el modelo cambia (06-): tocar un
+  // nudo que ya existe, o unir dos que ya une un tramo, no cambia nada.
+  if(tool==='nudo'){ if(!n){ registrarCambio(); addNodo(wx,wy); invalidarResultados(); } refrescar(); }
   else if(tool==='recto'||tool==='arco'){
     if(n){ if(selNodo===null) selNodo=n.id;
-      else { registrarCambio(); addTramo(selNodo,n.id,tool==='arco'?'arco':'recto'); selNodo=null; R=null; }
+      else {
+        if(n.id!==selNodo && !_tramoEntre(selNodo, n.id)){
+          registrarCambio(); addTramo(selNodo,n.id,tool==='arco'?'arco':'recto'); invalidarResultados();
+        }
+        selNodo=null;
+      }
       refrescar(); }
     else { selNodo=null; dibujar(); }
   }
@@ -95,7 +102,8 @@ function onMove(e){
           gesto.tipo='rubber';
           mostrarRecuadroSeleccion();
         } else if(gesto.hit.tipo==='nodo'){
-          registrarCambio();   // un solo paso de deshacer para todo el arrastre
+          // El paso de deshacer y el panel oculto esperan a que un nudo cambie
+          // de verdad (abajo): un toque con temblor no mueve nada.
           const grupo = selN.indexOf(gesto.hit.id)>=0 ? selN.slice() : [gesto.hit.id];
           if(selN.indexOf(gesto.hit.id)<0){ selN = grupo; infoNodo = gesto.hit.id; }
           gesto.tipo='mover';
@@ -103,7 +111,6 @@ function onMove(e){
         } else {
           // Tramo: se mueve como bloque rígido junto con sus dos nudos (y
           // los de cualquier otro tramo que ya estuviera seleccionado).
-          registrarCambio();   // un solo paso de deshacer para todo el arrastre
           const grupoT = selT.indexOf(gesto.hit.id)>=0 ? selT.slice() : [gesto.hit.id];
           if(selT.indexOf(gesto.hit.id)<0){ selT = grupoT; infoTramo = gesto.hit.id; }
           const idsNodos = new Set(selN);
@@ -115,11 +122,17 @@ function onMove(e){
     }
     if(gesto.tipo==='mover'){
       const wdx = mouseW[0]-gesto.wx0, wdy = mouseW[1]-gesto.wy0;
-      gesto.origenes.forEach(o=>{
-        const nn=nodos.find(z=>z.id===o.id);
-        if(nn){ nn.x=snap(o.x+wdx); nn.y=snap(o.y+wdy); }
-      });
-      R=null; dibujar();
+      const destinos = gesto.origenes.map(o=>({nn:nodos.find(z=>z.id===o.id), x:snap(o.x+wdx), y:snap(o.y+wdy)}))
+                                     .filter(d=>d.nn);
+      // Un solo paso de deshacer para todo el arrastre, registrado en el primer
+      // movimiento que cambia algún nudo; hasta entonces el panel de resultados
+      // sigue a la vista. Un toque con más de 4 px de temblor (pantalla táctil)
+      // que snap deja en su sitio no es un cambio (06-: invalidarResultados).
+      if(!gesto.registrado && destinos.some(d=>d.x !== d.nn.x || d.y !== d.nn.y)){
+        registrarCambio(); invalidarResultados(); gesto.registrado = true;
+      }
+      destinos.forEach(d=>{ d.nn.x = d.x; d.nn.y = d.y; });
+      dibujar();
     } else if(gesto.tipo==='rubber' || gesto.tipo==='rubber-borrar'){
       gesto.x1=mx; gesto.y1=my;
       actualizarRecuadroSeleccion(gesto);
@@ -150,11 +163,10 @@ function onUp(){
         registrarCambio();
         tramos = tramos.filter(t=>!marcado(bT,t.id) && !marcado(bN,t.a) && !marcado(bN,t.b));
         nodos  = nodos.filter(n=>!marcado(bN,n.id));
-        selN = selN.filter(id=>!marcado(bN,id));
-        selT = selT.filter(id=>!marcado(bT,id));
-        if(marcado(bN, infoNodo)) infoNodo = null;
-        if(marcado(bT, infoTramo)) infoTramo = null;
-        reNombrar(); R = null;
+        // Fuera de la selección todo id que ya no existe, también el de un tramo
+        // que cayó con su nudo; y el panel de resultados, que era del modelo de antes.
+        depurarSeleccionPF();
+        reNombrar(); invalidarResultados();
       }
       gesto = null;
       refrescar();
@@ -167,6 +179,10 @@ function onUp(){
       } else {
         selN=[]; selT=[]; infoNodo=null; infoTramo=null;
       }
+    } else if(gesto.tipo==='mover' && gesto.registrado
+              && gesto.origenes.every(o=>{ const nn=nodos.find(z=>z.id===o.id); return !nn || (nn.x===o.x && nn.y===o.y); })){
+      // Arrastrado y devuelto a su sitio: el paso de deshacer quedaría vacío.
+      pilaDeshacer.pop(); actualizarBotonesHistorial();
     } else if(gesto.tipo==='rubber'){
       const {ns, ts} = elementosEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
       selN = ns; selT = ts;
@@ -268,24 +284,33 @@ function setTool(t){
 }
 // ═══════════════════════════════════════════════════════════
 //  DESHACER / REHACER
-//  Instantáneas del modelo (geometría + líquidos). La vista no se guarda:
+//  Instantáneas del modelo (geometría, líquidos, unidades y ancho b). La vista no se guarda:
 //  deshacer restaura la compuerta, no el encuadre.
 // ═══════════════════════════════════════════════════════════
 let pilaDeshacer = [], pilaRehacer = [];
 const MAX_HISTORIAL = 60;
 
 function instantanea(){
+  const eb = document.getElementById('pB');
   return JSON.stringify({
     nodos:  nodos.map(n=>Object.assign({}, n)),
     tramos: tramos.map(t=>Object.assign({}, t)),
     zonas:  {1: zonas[1].map(l=>Object.assign({}, l)),
              2: zonas[2].map(l=>Object.assign({}, l))},
     pesos:  pesos.map(p=>Object.assign({}, p)),
+    // Las unidades van con el modelo: sus números solo valen en ellas, y
+    // deshacer un cambio de unidades tiene que devolver las dos cosas juntas.
+    unidades: {len:unitLen, fuerza:unitFor},
+    // El ancho b es un campo, pero el resultado depende de él: su edición es un
+    // paso de deshacer (09-), y deshacer un cambio de unidades lo devuelve tal cual.
+    ancho: eb ? eb.value : '',
     nodoSeq, tramoSeq, pesoSeq
   });
 }
 // Llamar ANTES de modificar el modelo.
 function registrarCambio(){
+  // Un ancho b tecleado y sin confirmar va antes, en su propio paso (09-).
+  if(typeof confirmarAnchoPendiente === 'function') confirmarAnchoPendiente();
   pilaDeshacer.push(instantanea());
   if(pilaDeshacer.length > MAX_HISTORIAL) pilaDeshacer.shift();
   pilaRehacer = [];
@@ -300,21 +325,44 @@ function restaurarInstantanea(txt){
   nodoSeq = e.nodoSeq; tramoSeq = e.tramoSeq;
   pesos = (e.pesos || []).map(p=>Object.assign({}, p)); pesoSeq = e.pesoSeq || 0;
   if(!pesos.some(p=>p.id === pesoActivo)) pesoActivo = null;
+  // El ancho b vuelve tal cual: está en las unidades de la instantánea, que son
+  // las que se devuelven aquí abajo.
+  const eb = document.getElementById('pB');
+  if(eb && e.ancho !== undefined) eb.value = e.ancho;
+  if(typeof sincronizarAnchoB === 'function') sincronizarAnchoB();   // 09-
+  // Una instantánea sin unidades conserva las actuales.
+  if(e.unidades){
+    const nL = e.unidades.len || unitLen, nF = e.unidades.fuerza || unitFor;
+    if(nL !== unitLen){
+      const k = LEN_A_M[unitLen]/LEN_A_M[nL];
+      // La vista pasa también a las unidades devueltas, conservando el encuadre:
+      // sin esto, deshacer un m → cm dibujaba la compuerta en metros con la
+      // escala de centímetros (unos pocos píxeles) y la rejilla enganchaba a
+      // pasos de 20 m. applyUnits, en cambio, recentra.
+      vx *= k; vy *= k; escala /= k;
+    }
+    fijarUnidades(nL, nF);   // 06-
+  }
   selN = selN.filter(id=>nodos.some(n=>n.id===id));
   selT = selT.filter(id=>tramos.some(t=>t.id===id));
   if(!nodos.some(n=>n.id===infoNodo))   infoNodo = null;
   if(!tramos.some(t=>t.id===infoTramo)) infoTramo = null;
   selNodo = null;
-  R = null;
+  // El panel enseñaba la solución del modelo de antes de deshacer (06-).
+  invalidarResultados();
   refrescar();
 }
+// Un b tecleado sin confirmar es un cambio más (09-): deshacer lo quita primero,
+// y rehacer ya no tiene nada que rehacer, como tras cualquier cambio nuevo.
 function deshacer(){
+  if(typeof confirmarAnchoPendiente === 'function') confirmarAnchoPendiente();
   if(!pilaDeshacer.length) return;
   pilaRehacer.push(instantanea());
   restaurarInstantanea(pilaDeshacer.pop());
   actualizarBotonesHistorial();
 }
 function rehacer(){
+  if(typeof confirmarAnchoPendiente === 'function') confirmarAnchoPendiente();
   if(!pilaRehacer.length) return;
   pilaDeshacer.push(instantanea());
   restaurarInstantanea(pilaRehacer.pop());
@@ -331,7 +379,9 @@ function eliminarSeleccion(){
   registrarCambio();
   tramos = tramos.filter(t=>selT.indexOf(t.id)<0 && selN.indexOf(t.a)<0 && selN.indexOf(t.b)<0);
   nodos = nodos.filter(n=>selN.indexOf(n.id)<0);
-  selN=[]; selT=[]; R=null; reNombrar(); refrescar();
+  // Lo borrado era la selección: se vacía entera (infoNodo e infoTramo incluidos)
+  // y se oculta el panel de resultados (06-).
+  vaciarSeleccionPF(); invalidarResultados(); reNombrar(); refrescar();
 }
 
 // ── El grupo de nudos que abarca la selección actual (nudos + extremos de
@@ -370,7 +420,9 @@ function applyEdNodo(){
   const x = parseFloat(document.getElementById('edNx').value);
   const y = parseFloat(document.getElementById('edNy').value);
   if(!isFinite(x) || !isFinite(y)){ aviso('Escribe valores numéricos para x e y.', 'error'); return; }
+  // Aplicar las mismas coordenadas no es un cambio: ni paso de deshacer ni panel oculto.
+  if(x === n.x && y === n.y){ closeEdNodo(); return; }
   registrarCambio();
-  n.x = x; n.y = y; R = null;
+  n.x = x; n.y = y; invalidarResultados();
   closeEdNodo(); refrescar();
 }

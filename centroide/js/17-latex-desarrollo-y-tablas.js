@@ -1,198 +1,291 @@
-function downloadPDF(){
-  if(!results){aviso('Primero calcula el centro de gravedad.');return;}
-
-  // La ventana debe abrirse ANTES de cualquier operación async, o el
-  // bloqueador de pop-ups del navegador la cancela.
-  const pdfWin = window.open('', '_blank');
-  if(!pdfWin){ aviso('El navegador bloqueó la ventana de impresión. Habilita las ventanas emergentes para este sitio.', 'error'); return; }
-
-  // Se capturan los tres lienzos del desarrollo: editor, sección con cotas
-  // y sección resuelta. (Este capítulo no usa círculos de Mohr.)
-  // Los lienzos son mucho más grandes que el dibujo (el editor mide más de
-  // 1000 px de ancho y la sección ocupa una parte pequeña). Copiarlos enteros
-  // deja franjas blancas enormes en el papel, así que se recortan al contenido.
-  function recortarLienzo(cv){
-    if(!cv) return null;
-    try{
-      const w=cv.width, h=cv.height;
-      if(!w || !h) return null;
-      const ctx=cv.getContext('2d');
-      const d=ctx.getImageData(0,0,w,h).data;
-      let x0=w, y0=h, x1=-1, y1=-1;
-      // Un píxel cuenta como dibujo si no es transparente y no es casi blanco
-      for(let y=0;y<h;y++){
-        for(let x=0;x<w;x++){
-          const i=(y*w+x)*4, a=d[i+3];
-          if(a<8) continue;
-          const r=d[i], g=d[i+1], bl=d[i+2];
-          const max=Math.max(r,g,bl), min=Math.min(r,g,bl);
-          // La retícula del editor es gris azulado muy claro y sin saturación:
-          // se descarta. Cuenta como dibujo lo que tiene color (saturación) o
-          // es oscuro (ejes, cotas, texto).
-          if((max-min)<=18 && min>=190) continue;
-          if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
-        }
-      }
-      if(x1<0) return cv.toDataURL('image/png');   // lienzo vacío: se deja igual
-      const m=Math.round(Math.min(w,h)*0.02)+6;    // margen para que no quede pegado
-      x0=Math.max(0,x0-m); y0=Math.max(0,y0-m);
-      x1=Math.min(w-1,x1+m); y1=Math.min(h-1,y1+m);
-      const cw=x1-x0+1, ch=y1-y0+1;
-      const tmp=document.createElement('canvas');
-      tmp.width=cw; tmp.height=ch;
-      const tc=tmp.getContext('2d');
-      tc.fillStyle='#ffffff'; tc.fillRect(0,0,cw,ch);   // fondo blanco para el papel
-      tc.drawImage(cv, x0,y0,cw,ch, 0,0,cw,ch);
-      return tmp.toDataURL('image/png');
-    }catch(e){ return cv.toDataURL('image/png'); }
+// ── Informe rápido: el botón rojo «PDF» (no el de LaTeX) ──
+// Todo el trabajo lo hace bsaInformeRapido de core/comun.js: abre la pestaña
+// dentro de la misma pulsación, clona #resultsPanel, pasa cada lienzo del panel
+// (la lámina con cotas, la sección resuelta y, en 3D, la vista isométrica) a
+// imagen recortada, quita los controles y arma el documento con la cabecera
+// BSA, la fecha y el colofón; en el ordenador imprime solo y en el teléfono
+// deja el botón «Imprimir / Guardar como PDF». Aquí va solo lo propio del tema:
+// el acento, el rótulo del lienzo del editor según el espacio de trabajo y el
+// CSS de las clases del panel de resultados (el documento nuevo no carga
+// estilos.css). Tamaños pensados para el papel; en pantalla la hoja se amplía.
+const CSS_INFORME_CEN = `
+  :root{--grn3:var(--acc2);}
+  .res-section{margin:0 0 10px;}
+  .res-section-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;
+    color:var(--acc);border-bottom:1.5px solid var(--acc2);padding-bottom:4px;margin:12px 0 7px;
+    break-after:avoid;page-break-after:avoid;}
+  .res-section-title .num{width:18px;height:18px;border-radius:50%;background:var(--acc2);
+    display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;
+    color:#fff;flex:none;}
+  .proc-block{background:var(--suave);border:1px solid var(--borde);border-radius:6px;
+    padding:6px 10px;margin:0 0 7px;break-inside:avoid;page-break-inside:avoid;}
+  .proc-block.proc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px 18px;}
+  .proc-col{min-width:0;}
+  .proc-sub{font-size:9px;font-weight:700;color:var(--acc);text-transform:uppercase;
+    letter-spacing:.5px;margin:0 0 4px;}
+  .eq-row{margin:1px 0;}
+  .eq-body{font-family:var(--math);font-size:11px;line-height:1.55;margin:1px 0;}
+  .eq-body .katex{font-size:1.05em;color:var(--text);}
+  .v{color:var(--acc2);font-weight:700;font-style:italic;font-family:var(--math);}
+  /* Tablas: la de cada figura y la de resumen */
+  .fig-tabla,.tabla-res{width:100%;border-collapse:collapse;font-family:var(--math);font-size:11px;}
+  .fig-tabla th,.tabla-res th{padding:3px 6px;text-align:left;font-size:9px;font-weight:700;
+    color:var(--acc);text-transform:uppercase;letter-spacing:.4px;vertical-align:bottom;
+    border-bottom:1.5px solid var(--borde);background:var(--suave);font-family:var(--sans);}
+  .tabla-res th{text-align:right;}
+  .tabla-res th:nth-child(1),.tabla-res th:nth-child(2){text-align:left;}
+  .tabla-res th span{font-weight:600;text-transform:none;letter-spacing:0;}
+  .fig-tabla td,.tabla-res td{padding:2px 6px;border-bottom:1px solid var(--borde);vertical-align:middle;}
+  .fig-tabla td.v,.tabla-res td.v{text-align:right;}
+  .fig-tabla tr:last-child td{border-bottom:none;}
+  .tabla-res .fila-total td{font-weight:700;border-top:2px solid var(--acc);border-bottom:none;
+    background:var(--suave);color:var(--acc2);}
+  /* Tarjeta por figura: datos a la izquierda, croquis a la derecha */
+  .fig-card{display:flex;gap:12px;align-items:stretch;background:var(--suave);
+    border:1px solid var(--borde);border-radius:6px;padding:7px 10px;margin:0 0 7px;
+    break-inside:avoid;page-break-inside:avoid;}
+  .fig-card-datos{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .fig-card-h{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;
+    margin:0 0 6px;flex-wrap:wrap;}
+  .fig-card-dib{flex:0 0 175px;display:flex;align-items:stretch;}
+  .croq{width:100%;margin:0;padding:5px 7px 4px;border:1px solid var(--borde);border-radius:6px;
+    background:#fff;display:flex;flex-direction:column;justify-content:center;}
+  .croq-h{display:flex;align-items:center;gap:6px;margin:0 0 3px;}
+  .croq-n{width:14px;height:14px;border-radius:50%;background:var(--acc2);color:#fff;
+    font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;}
+  .croq-t{font-size:9px;font-weight:700;line-height:1.2;}
+  .croq-t i{color:#c0392b;font-style:normal;font-size:8px;}
+  .croq-svg{width:100%;max-width:165px;height:auto;display:block;margin:0 auto;}
+  .croq-d{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1px 6px;font-size:8px;
+    color:var(--muted);border-top:1px solid var(--borde);padding-top:3px;margin-top:3px;font-family:var(--math);}
+  /* Cajas de resumen */
+  .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:0 0 7px;
+    break-inside:avoid;page-break-inside:avoid;}
+  .summary-box{border:1px solid var(--borde);border-radius:5px;padding:5px 8px;background:#fff;}
+  .summary-box.highlight{background:var(--suave);border-color:var(--acc2);}
+  .s-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:0 0 2px;}
+  .s-val{font-size:13px;font-weight:700;color:var(--acc);font-style:italic;font-family:var(--math);}
+  .s-unit{font-size:8px;color:var(--muted);}
+  /* Los lienzos del panel, ya como imagen */
+  .res-section .bsa-fig-lienzo{margin:2px 0 4px;}
+  .res-section .bsa-fig-lienzo img{max-height:100mm;}
+  /* Teléfono: la tarjeta se apila y el resumen va de dos en dos */
+  @media screen and (max-width:640px){
+    .fig-card{flex-direction:column;}
+    .fig-card-dib{flex:0 0 auto;width:100%;max-width:230px;margin:0 auto;}
+    .croq-svg{max-width:200px;}
+    .summary-grid{grid-template-columns:repeat(2,1fr);}
+    .eq-body{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}
   }
+`;
 
-  const mainCv  = document.getElementById('mainCanvas');
-  const compCv  = document.getElementById('compositeCanvas');
-  const finalCv = document.getElementById('finalCanvas');
-  const mainImg  = recortarLienzo(mainCv);
-  const compImg  = recortarLienzo(compCv);
-  const finalImg = recortarLienzo(finalCv);
+// El encaje de la figura (cajaDibujoInforme, encajarDibujoInforme,
+// lienzoTemporalInforme, marcoLienzoInforme) vive en core/comun.js.
 
-  const resultsPanel = document.getElementById('resultsPanel');
-  let body = resultsPanel ? resultsPanel.innerHTML : '';
-  const imgStyle='max-width:100%;width:auto;height:auto;max-height:290px;border-radius:8px;border:1px solid #ddd;display:block;margin:6px auto;';
-  if(compImg) body=body.replace(/<canvas id="compositeCanvas"[^>]*><\/canvas>/,
-    '<img src="'+compImg+'" style="'+imgStyle+'">');
-  if(finalImg) body=body.replace(/<canvas id="finalCanvas"[^>]*><\/canvas>/,
-    '<img src="'+finalImg+'" style="'+imgStyle+'">');
-  // cualquier lienzo restante se elimina: en papel quedaría en blanco
-  body=body.replace(/<canvas[^>]*><\/canvas>/g,'');
+// ── La figura del informe ──
+// Se dibuja en el lienzo del editor AGRANDADO un momento a un tamaño fijo:
+// canvas y ctx son const y render() lee canvas.clientWidth, así que no se puede
+// cambiar por otro lienzo. Todo ocurre dentro de la misma pulsación y despues()
+// lo repone antes de que el navegador pinte: el alumno no ve el cambio.
+// Recortar la vista TAL COMO ESTABA dejaba cortada la segunda columna de cotas
+// de la derecha, y en el teléfono el lienzo es estrecho. Ahora:
+//  1. Sin rejilla, ejes, selección, figura fantasma ni recuadro isométrico, el
+//     modelo se encaja MIDIENDO el dibujo (encajarDibujoInforme): las cadenas
+//     de cotas y los rótulos no escalan con el zoom. La medida ignora lo que
+//     el tema traza de borde a borde: los ejes que pasan por C, la leyenda de
+//     la esquina y, en 3D, la raya entre planta y alzado y sus rótulos.
+//  2. El lienzo se ajusta a ese dibujo (con sitio para la leyenda abajo, o para
+//     los rótulos de las vistas arriba) y un marco blanco corta esos ejes.
+// despues() repone el tamaño del lienzo, la vista, la selección y la
+// visibilidad, y redibuja.
+const FIG_INFORME_CEN = {ancho:820, alto:580, ancho3d:1100, alto3d:560, res:2,
+  margen:16, holgura:18, marco:6, anchoMin:240, leyenda:34, banda3d:40, vistaMin:300};
 
-  const encabezadoImg = mainImg
-    ? '<div style="margin-bottom:12px;page-break-inside:avoid;"><h3 style="font-size:11px;font-weight:700;'
-      +'color:#0f5c56;margin-bottom:5px;font-family:Inter,sans-serif;text-transform:uppercase;letter-spacing:.5px;">'
-      +'Secci\u00f3n analizada</h3>'
-      +'<img src="'+mainImg+'" style="'+imgStyle+'"></div>'
-    : '';
+function _tamLienzoInformeCen(ancho, alto, res){
+  canvas.style.width = ancho + 'px'; canvas.style.height = alto + 'px';
+  canvas.width = Math.round(ancho*res); canvas.height = Math.round(alto*res);
+  ctx.setTransform(res, 0, 0, res, 0, 0);
+}
 
-  const dt = new Date().toLocaleString('es-PE',{dateStyle:'medium', timeStyle:'short'});
+// 2D (sección y alambre): los dos ejes que pasan por el centroide van de borde
+// a borde y la leyenda está fija abajo a la izquierda (drawResultsOverlay, 04-).
+function _ignorarInformeCen2D(){
+  if(!results || !VIS.centroide) return null;
+  const sp = worldToScreen(results.xbar, results.ybar);
+  const H = canvas.clientHeight, finLey = 7 + (results.hetero ? 214 : 118) + 4;
+  return (x, y)=> Math.abs(y - sp.y) <= 1.6 || Math.abs(x - sp.x) <= 1.6
+               || (x <= finLey && y >= H - 31);
+}
 
-  // El HTML de resultsArea incluye fórmulas renderizadas por KaTeX (spans .katex, .mfrac, etc.).
-  // La ventana de impresión es un documento nuevo y no hereda ese CSS, así que hay que
-  // copiarlo explícitamente o las fórmulas salen sin estilo (números y símbolos amontonados).
-  const katexStyleEl = document.getElementById('katex-css');
-  const katexCss = katexStyleEl ? katexStyleEl.textContent : '';
+function _figuraInformeCen2D(){
+  const f = FIG_INFORME_CEN;
+  if(!figuresBBox()) return;
+  _tamLienzoInformeCen(f.ancho, f.alto, f.res);
+  const W = f.ancho, H = f.alto;
+  const caja = ()=>{
+    const b = figuresBBox();
+    return {x0:b.x0, x1:b.x1, y0:b.y0, y1:b.y1, xc:(b.x0 + b.x1)/2, yc:(b.y0 + b.y1)/2};
+  };
+  // Punto de partida: el encuadre de fitView(); la medida lo corrige.
+  const c0 = caja();
+  let s = Math.min(W*0.7/Math.max(c0.x1 - c0.x0, 1e-9), H*0.7/Math.max(c0.y1 - c0.y0, 1e-9));
+  if(!isFinite(s) || s <= 0) s = 1;
+  viewScale = Math.max(1e-4, Math.min(s, 20000));
+  viewTx = W/2 - c0.xc*viewScale;
+  viewTy = H/2 + c0.yc*viewScale;
+  const r = encajarDibujoInforme({
+    ancho: W, alto: H, margen: f.margen,
+    medir: ()=>{ render(); return cajaDibujoInforme(canvas, {ignorar: _ignorarInformeCen2D()}); },
+    modelo: ()=>{
+      const c = caja(), p0 = worldToScreen(c.x0, c.y1), p1 = worldToScreen(c.x1, c.y0);
+      return {x0:p0.x, y0:p0.y, x1:p1.x, y1:p1.y};
+    },
+    escalar: (k, dx, dy)=>{
+      const c = caja(), p = worldToScreen(c.xc, c.yc);
+      viewScale *= k;
+      viewTx = p.x + dx - c.xc*viewScale;
+      viewTy = p.y + dy + c.yc*viewScale;
+    }
+  });
+  if(!r.ok) console.warn('Informe PDF: la figura de la sección no cabe entera en su lienzo.');
+  if(!r.caja) return;
+  // Lienzo a la medida del dibujo, con la franja de la leyenda debajo
+  const B = r.caja, hol = f.holgura;
+  const ley = (results && VIS.centroide) ? f.leyenda : 0;
+  let x0 = B.x0 - hol, x1 = B.x1 + hol;
+  if(x1 - x0 < f.anchoMin){ const e = (f.anchoMin - (x1 - x0))/2; x0 -= e; x1 += e; }
+  const y0 = B.y0 - hol;
+  const W2 = Math.ceil(x1 - x0), H2 = Math.ceil(B.y1 + hol - y0 + ley);
+  _tamLienzoInformeCen(W2, H2, f.res);
+  viewTx -= x0; viewTy -= y0;
+  render();
+  marcoLienzoInforme(ctx, W2, H2, f.marco);
+}
 
-  // Mismo lenguaje visual que el Cap. 10: Inter para rótulos y STIX Two Text
-  // para números y fórmulas, igual que en pantalla. @page sin margen + padding
-  // en mm para que el contenido use todo el ancho útil de la hoja.
-  const printCss = `
-    *{box-sizing:border-box;margin:0;padding:0;}
-    :root{--math:'STIX Two Text','Times New Roman',Georgia,serif;
-          --sans:Inter,'Helvetica Neue',Arial,sans-serif;
-          --grn:#0f5c56;--grn2:#0b3f3a;--card:#f4f9f7;--border:#c8e0d8;
-          --text:#1a1a1a;--muted:#5a7570;}
-    body{font-family:var(--sans);font-size:10.5px;background:#fff;color:var(--text);
-      padding:12mm 9mm 14mm;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    .pdf-header{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--grn2);
-      padding-bottom:7px;margin-bottom:10px;}
-    .pdf-title{font-size:17px;font-weight:800;color:var(--grn);}
-    .pdf-sub{font-size:10px;color:var(--muted);}
-    .pdf-date{margin-left:auto;font-size:9px;color:var(--muted);}
-    .res-section{margin-bottom:8px;}
-    .res-section-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;
-      color:var(--grn);border-bottom:1.5px solid var(--grn2);padding-bottom:4px;margin:9px 0 6px;}
-    .res-section-title .num{width:18px;height:18px;border-radius:50%;background:var(--grn2);
-      display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;
-      color:#fff;flex:none;}
-    .proc-block{background:var(--card);border:1px solid var(--border);border-radius:6px;
-      padding:6px 10px;margin-bottom:6px;page-break-inside:avoid;}
-    .proc-block.proc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px 18px;}
-    .proc-col{min-width:0;}
-    .proc-sub{font-size:9px;font-weight:700;color:var(--grn);text-transform:uppercase;
-      letter-spacing:.5px;margin-bottom:4px;}
-    .eq-row{margin:1px 0;}
-    .eq-body{font-family:var(--math);font-size:11px;color:var(--text);line-height:1.5;margin:1px 0;}
-    .eq-body .katex{font-size:1.05em;color:var(--text);}
-    .eq-body .v{color:var(--grn);font-weight:700;}
-    /* ── Tablas: mismo diseño que el Cap. 10 ── */
-    .fig-tabla,.tabla-res{width:100%;border-collapse:collapse;font-family:var(--math);
-      font-size:11px;page-break-inside:avoid;}
-    .fig-tabla th,.tabla-res th{padding:3px 6px;text-align:left;font-size:9px;font-weight:700;
-      color:var(--grn);text-transform:uppercase;letter-spacing:.4px;
-      border-bottom:1.5px solid var(--border);background:var(--card);font-family:var(--sans);}
-    .fig-tabla td,.tabla-res td{padding:2px 6px;border-bottom:1px solid var(--border);
-      font-family:var(--math);vertical-align:middle;}
-    .tabla-res .fila-total td,.fig-tabla tfoot td,.tabla-res tfoot td{font-weight:700;
-      border-top:2px solid var(--border);background:var(--card);color:var(--grn);}
-    .num-cell,.v{color:var(--grn);font-style:italic;font-family:var(--math);}
-    /* ── Tarjeta por figura: tabla a la izquierda, croquis a la derecha ── */
-    .fig-card{display:flex;gap:12px;align-items:stretch;background:var(--card);
-      border:1px solid var(--border);border-radius:6px;padding:7px 10px;margin-bottom:7px;
-      page-break-inside:avoid;break-inside:avoid;}
-    .fig-card-datos{flex:1;min-width:0;display:flex;flex-direction:column;}
-    .fig-card-h{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;
-      font-family:var(--sans);margin-bottom:6px;flex-wrap:wrap;}
-    .fig-card-dib{flex:0 0 175px;display:flex;align-items:stretch;}
-    .fig-card-dib .croq{width:100%;margin:0;padding:5px 7px 4px;border:1px solid var(--border);
-      border-radius:6px;background:#fff;display:flex;flex-direction:column;justify-content:center;}
-    .croq-h{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
-    .croq-n{width:14px;height:14px;border-radius:50%;background:var(--grn2);color:#fff;
-      font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;}
-    .croq-t{font-size:9px;font-weight:700;line-height:1.2;font-family:var(--sans);}
-    .croq-t i{color:#c0392b;font-style:normal;font-size:8px;}
-    .croq-svg{width:100%;max-width:165px;height:auto;display:block;margin:0 auto;}
-    .croq-d{display:flex;justify-content:space-between;gap:6px;font-size:8px;color:var(--muted);
-      border-top:1px solid var(--border);padding-top:3px;margin-top:3px;font-family:var(--math);}
-    /* ── Cajas resumen ── */
-    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:7px;
-      page-break-inside:avoid;}
-    .summary-box{border:1px solid var(--border);border-radius:5px;padding:5px 8px;}
-    .summary-box.highlight{background:var(--card);border-color:var(--grn2);}
-    .s-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;
-      margin-bottom:2px;font-family:var(--sans);}
-    .s-val{font-size:13px;font-weight:700;color:var(--grn);font-style:italic;font-family:var(--math);}
-    .s-unit{font-size:8px;color:var(--muted);}
-    .teoria{border-left:3px solid var(--grn);background:var(--card);border-radius:5px;
-      padding:6px 9px;margin-bottom:7px;page-break-inside:avoid;}
-    .teoria-t{font-size:9px;font-weight:700;color:var(--grn);text-transform:uppercase;
-      letter-spacing:.4px;margin-bottom:3px;}
-    .fig-color-dot{display:inline-block!important;width:8px!important;height:8px!important;
-      min-width:8px!important;border-radius:50%!important;margin-right:5px!important;
-      vertical-align:middle!important;flex-shrink:0!important;}
-    img{max-width:100%;}
-    .wm-seal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-      width:340px;height:340px;opacity:.07;z-index:9999;pointer-events:none;}
-    .wm-seal svg{width:100%;height:100%;}
-    .pdf-foot{margin-top:10px;text-align:center;font-size:8.5px;color:var(--muted);
-      border-top:1px solid var(--border);padding-top:6px;letter-spacing:.3px;}
-    @page{size:A4 portrait;margin:0;}
-    @media print{ body{padding:12mm 9mm 14mm;} }
-  `;
+// 3D: dos vistas de ancho A con el mismo viewTx y viewTy (21-). Los rótulos de
+// las vistas van arriba (y < 36), la raya que las separa en x = A y los ejes
+// por C cruzan cada vista (marcarCentroide3d).
+function _ignorarInformeCen3D(A){
+  const f = FIG_INFORME_CEN;
+  const hayC = !!(results && results.es3d && VIS.centroide);
+  const xC = hayC ? viewTx + results.xbar*viewScale : 0;
+  const yP = hayC ? viewTy - results.ybar*viewScale : 0;
+  const yA = hayC ? viewTy - results.zbar*viewScale : 0;
+  return (x, y)=>{
+    if(y < f.banda3d - 4) return true;
+    if(!hayC) return false;
+    const enAlzado = x >= A;
+    return Math.abs((enAlzado ? x - A : x) - xC) <= 1.6 || Math.abs(y - (enAlzado ? yA : yP)) <= 1.6;
+  };
+}
 
-  // Sello de agua, idéntico al del Cap. 10 salvo el color de acento del capítulo.
-  const wmSeal = '<div class="wm-seal"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">'
-    + '<defs><path id="stp" d="M 26,100 A 74,74 0 0 1 174,100"/><path id="sbt" d="M 26,100 A 74,74 0 0 0 174,100"/></defs>'
-    + '<circle cx="100" cy="100" r="94" fill="none" stroke="#0b3f3a" stroke-width="2.5"/>'
-    + '<circle cx="100" cy="100" r="80" fill="none" stroke="#0b3f3a" stroke-width="1"/>'
-    + '<text font-family="Inter,sans-serif" font-size="9" font-weight="800" fill="#0b3f3a" letter-spacing="1">'
-    + '<textPath href="#stp" startOffset="50%" text-anchor="middle">BEAM &amp; SECTION ANALYSIS</textPath></text>'
-    + '<text font-family="Inter,sans-serif" font-size="10.5" font-weight="600" fill="#0b3f3a" letter-spacing="1">'
-    + '<textPath href="#sbt" startOffset="50%" text-anchor="middle">by Luis Alejandro Bazán Campos</textPath></text>'
-    + '<text x="100" y="106" font-family="Inter,sans-serif" font-size="16" font-weight="800" fill="#0b3f3a" text-anchor="middle">BSA</text>'
-    + '<line x1="62" y1="118" x2="138" y2="118" stroke="#0b3f3a" stroke-width="1"/>'
-    + '<text x="100" y="133" font-family="Inter,sans-serif" font-size="9" fill="#0b3f3a" text-anchor="middle" letter-spacing="1">ESTÁTICA</text>'
-    + '</svg></div>';
+function _figuraInformeCen3D(){
+  const f = FIG_INFORME_CEN;
+  if(!bbox3d()) return;
+  _tamLienzoInformeCen(f.ancho3d, f.alto3d, f.res);
+  const A = f.ancho3d/2, H = f.alto3d;
+  const caja = ()=>{ const b = bbox3d(); return Object.assign({xc:(b.x0 + b.x1)/2, vc:(b.v0 + b.v1)/2}, b); };
+  const c0 = caja();
+  let s = Math.min(A*0.6/Math.max(c0.x1 - c0.x0, 1e-9), (H - f.banda3d)*0.6/Math.max(c0.v1 - c0.v0, 1e-9));
+  if(!isFinite(s) || s <= 0) s = 1;
+  viewScale = Math.max(1e-4, Math.min(s, 20000));
+  viewTx = A/2 - c0.xc*viewScale;
+  viewTy = (H + f.banda3d)/2 + c0.vc*viewScale;
+  // Una caja por vista (sin la raya del medio) y en coordenadas de la vista
+  const medir = ()=>{
+    render();
+    const ig = _ignorarInformeCen3D(A);
+    const p = cajaDibujoInforme(canvas, {zona:{x0:0, y0:0, x1:A - 3, y1:H}, ignorar:ig});
+    const q = cajaDibujoInforme(canvas, {zona:{x0:A + 3, y0:0, x1:2*A, y1:H}, ignorar:ig});
+    const cajas = [p, q && {x0:q.x0 - A, x1:q.x1 - A, y0:q.y0, y1:q.y1}].filter(Boolean);
+    if(!cajas.length) return null;
+    return {x0:Math.min(...cajas.map(c=>c.x0)), y0:Math.min(...cajas.map(c=>c.y0)),
+            x1:Math.max(...cajas.map(c=>c.x1)), y1:Math.max(...cajas.map(c=>c.y1))};
+  };
+  const r = encajarDibujoInforme({
+    ancho: A, alto: H,
+    margen: {izq:f.margen, der:f.margen, arr:f.banda3d + 8, aba:f.margen},
+    medir: medir,
+    modelo: ()=>{
+      const c = caja();
+      return {x0:viewTx + c.x0*viewScale, x1:viewTx + c.x1*viewScale,
+              y0:viewTy - c.v1*viewScale, y1:viewTy - c.v0*viewScale};
+    },
+    escalar: (k, dx, dy)=>{
+      const c = caja();
+      const sx = viewTx + c.xc*viewScale, sy = viewTy - c.vc*viewScale;
+      viewScale *= k;
+      viewTx = sx + dx - c.xc*viewScale;
+      viewTy = sy + dy + c.vc*viewScale;
+    }
+  });
+  if(!r.ok) console.warn('Informe PDF: la figura del cuerpo no cabe entera en su lienzo.');
+  if(!r.caja) return;
+  // Lienzo a la medida: dos vistas iguales y la franja de los rótulos arriba
+  const B = r.caja, hol = f.holgura, T = f.banda3d;
+  let x0 = B.x0 - hol;
+  const ancho = B.x1 + hol - x0, A2 = Math.ceil(Math.max(ancho, f.vistaMin));
+  x0 -= (A2 - ancho)/2;
+  const y0 = B.y0 - hol;
+  const H2 = Math.ceil(B.y1 + hol - y0 + T);
+  _tamLienzoInformeCen(2*A2, H2, f.res);
+  viewTx -= x0; viewTy += T - y0;
+  render();
+  marcoLienzoInforme(ctx, 2*A2, H2, f.marco);
+}
 
-  let html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>BSA \u2014 Centro de Gravedad y Centroide</title>';
-  html += '<link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">';
-  html += '<style>'+katexCss+'</style><style>'+printCss+'</style></head><body>';
-  html += wmSeal;
-  html += '<div class="pdf-header"><div><div class="pdf-title">BSA \u2014 Centro de Gravedad y Centroide</div><div class="pdf-sub">by Luis Alejandro Baz\u00e1n Campos</div></div><div class="pdf-date">Generado: '+dt+'</div></div>';
-  html += encabezadoImg + body;
-  html += '<div class="pdf-foot">BSA \u00b7 by Luis Alejandro Baz\u00e1n Campos</div>';
-  html += '</body></html>';
-
-  pdfWin.document.write(html);
-  pdfWin.document.close();
-  pdfWin.focus();
-  setTimeout(function(){ pdfWin.print(); }, 700);
+function downloadPDF(){
+  const tituloEditor = modoEspacio === '3d'      ? 'Cuerpo analizado — planta y alzado'
+                     : modoEspacio === 'alambre' ? 'Alambre analizado'
+                     :                             'Sección analizada';
+  let guardado = null;
+  return bsaInformeRapido({
+    panel: 'resultsPanel',
+    hayResultados: () => !!results,
+    sinResultados: 'Primero calcula el centroide.',
+    tema: 'Centroide',
+    acento: {acc:'#0f5c56', acc2:'#0b3f3a', suave:'#f4f9f7', borde:'#c8e0d8'},
+    antes: ()=>{
+      // Primero se guarda todo lo que se va a tocar: despues() lo necesita
+      // aunque algo falle a medias. También una copia de los píxeles del
+      // editor, que despues() vuelve a pintar: redibujar tras reasignar el
+      // búfer no da los mismos píxeles aunque la vista sea idéntica (Chrome
+      // suaviza distinto los rótulos tras el cambio de tamaño y las lecturas
+      // con getImageData; ni un render() más ni dos lo arreglaban).
+      const copia = document.createElement('canvas');
+      copia.width = canvas.width; copia.height = canvas.height;
+      try{ if(copia.width && copia.height) copia.getContext('2d').drawImage(canvas, 0, 0); }catch(e){}
+      guardado = {sw:canvas.style.width, sh:canvas.style.height, cw:canvas.width, ch:canvas.height,
+        viewTx:viewTx, viewTy:viewTy, viewScale:viewScale,
+        grilla:VIS.grilla, ejes:VIS.ejes, iso:VIS.iso,
+        selectedFigId:selectedFigId, selFiguras:selFiguras, selectedFigType:selectedFigType, ghostPos:ghostPos,
+        copia:copia};
+      VIS.grilla = false; VIS.ejes = false; VIS.iso = false;
+      selectedFigId = null; selFiguras = []; selectedFigType = null; ghostPos = null;
+      if(modoEspacio === '3d') _figuraInformeCen3D(); else _figuraInformeCen2D();
+    },
+    despues: ()=>{
+      if(!guardado) return;
+      const g = guardado;
+      guardado = null;
+      canvas.style.width = g.sw; canvas.style.height = g.sh;
+      canvas.width = g.cw; canvas.height = g.ch;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      viewTx = g.viewTx; viewTy = g.viewTy; viewScale = g.viewScale;
+      VIS.grilla = g.grilla; VIS.ejes = g.ejes; VIS.iso = g.iso;
+      selectedFigId = g.selectedFigId; selFiguras = g.selFiguras;
+      selectedFigType = g.selectedFigType; ghostPos = g.ghostPos;
+      render();
+      // Y encima, los píxeles de antes del informe (el fondo es opaco y el
+      // tamaño el mismo: la copia tapa el lienzo entero, píxel a píxel).
+      const c = g.copia;
+      if(c && c.width && c.width === canvas.width && c.height === canvas.height){
+        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(c, 0, 0); ctx.restore();
+      }
+    },
+    figuras: [{titulo: tituloEditor, lienzo: 'mainCanvas'}],
+    cssTema: CSS_INFORME_CEN
+  });
 }
 
 function drawCompositeFigure(canvasId) {

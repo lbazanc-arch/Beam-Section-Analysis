@@ -306,7 +306,7 @@ function renderResults(res, u4, u2, u1){
   let html = `<div class="results-wrap">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
     <h2 style="font-size:18px;font-weight:900;color:var(--grn2);margin:0;">Solución completa</h2>
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+    <div data-bsa-pantalla style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <span style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Notación:</span>
       <button class="notbtn${notationExp===0?' active':''}" id="not-0" onclick="setNotation(0)">Auto</button>
       <button class="notbtn${notationExp===2?' active':''}" id="not-2" onclick="setNotation(2)">×10²</button>
@@ -664,7 +664,7 @@ function renderResults(res, u4, u2, u1){
     // ── ROTACIÓN DE EJES EN EL PUNTO P ──
     const angv = (axisAngle!==null && isFinite(axisAngle)) ? axisAngle : '';
     html += `
-      <div class="proc-block" style="margin-top:10px;">
+      <div class="proc-block" data-bsa-pantalla style="margin-top:10px;">
         <div class="proc-subtitle">Rotar los ejes en el punto P</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
           Gira los ejes un ángulo θ medido <b>respecto al eje X</b> (positivo antihorario) y obtén
@@ -762,7 +762,7 @@ function htmlRigidez(res){
   const qTras = mayor && Math.abs(mayor.pIx+mayor.tIx) > 1e-12 ? mayor.tIx/(mayor.pIx+mayor.tIx)*100 : 0;
   return '<div class="proc-block" style="margin-top:12px">'
     + '<div class="proc-subtitle">Dónde está la rigidez</div>'
-    + '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Franja clara: inercia propia Ī; oscura: traslado A·d² (rojo si resta). Pasa el ratón para ver la parte.</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Franja clara: inercia propia Ī; oscura: traslado A·d² (rojo si resta).<span data-bsa-pantalla> Pasa el ratón para ver la parte.</span></div>'
     + '<table class="tabla" style="width:100%"><thead><tr><th>Parte</th><th style="width:38%">Ī<sub>xG</sub></th><th style="width:38%">Ī<sub>yG</sub></th></tr></thead><tbody>'
     + filas.map(r=>'<tr onmouseenter="resaltarFigura('+r.fig.id+')" onmouseleave="resaltarFigura(null)" style="cursor:default">'
       + '<td style="white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+r.color+';margin-right:5px;vertical-align:middle"></span>'+(r.i+1)+' · '+esc(r.nom)+(r.fig.sign<0?' (hueco)':'')+'</td>'

@@ -147,11 +147,113 @@ function aplicarVariacion(){
   const antes = resultado.fuerzas;      // el original nunca se sobrescribe
   const dm = document.getElementById('dclMod');
   if(dm) dm.innerHTML = svgArmadura({fuerzas:res.fuerzas, etiqueta:'valor',
-                                     color:'natural', cargas:mapa});
+                                     color:'natural', cargas:mapa, reacciones:res.reacciones});
   const dmb = document.getElementById('dclModBox');
   if(dmb) dmb.style.borderColor = 'var(--acc)';
   const box = document.getElementById('compBox');
-  if(box) box.innerHTML = tablaComparativa(antes, res.fuerzas);
+  if(box) box.innerHTML = tablaReaccionesComparadas(resultado.reacciones, res.reacciones)
+                        + tablaMomentosComparados(resultado.reacciones, res.reacciones, mapa)
+                        + tablaComparativa(antes, res.fuerzas);
+}
+
+// ── Comparativa de reacciones y de momentos ──
+// Cada reacción con el nombre de la tabla de reacciones del informe: R_xA y R_yA
+// en un pasador; R_yC (o R_xC) en un rodillo sobre un eje; R_C en un rodillo
+// inclinado, que es UNA incógnita con dirección. `val` lleva el signo de su
+// convenio (+x, +y, o el sentido declarado del rodillo) y (ux, uy) es esa
+// dirección, así que la fuerza sobre el nudo es val·(ux, uy).
+function listaReacciones(reac){
+  const out = [];
+  nodos.forEach(n=>{
+    const rr = reac && reac[n.id];
+    if(!rr) return;
+    if(rr.inclinado){
+      const ar = rr.ang*Math.PI/180;
+      out.push({clave:n.id + ':d', nudo:n, sub:n.nombre, val:rr.mag || 0, ux:Math.cos(ar), uy:Math.sin(ar)});
+    } else {
+      if(rr.rx !== undefined) out.push({clave:n.id + ':x', nudo:n, sub:'x' + n.nombre, val:rr.rx, ux:1, uy:0});
+      if(rr.ry !== undefined) out.push({clave:n.id + ':y', nudo:n, sub:'y' + n.nombre, val:rr.ry, ux:0, uy:1});
+    }
+  });
+  return out;
+}
+function nombreReaccionHtml(r){ return '<i>R</i><sub><i>' + r.sub + '</i></sub>'; }
+// Magnitud con una flecha del sentido real (un signo delante lo repetiría). Sobre
+// un eje, la flecha basta. Fuera de un eje (rodillo inclinado) la flecha se gira
+// al ángulo exacto —redondearla a 45° decía «↑» de una reacción a 70°— y se añade
+// la dirección como en la tabla de reacciones (bsaTextoAnguloAgudo).
+function valorConSentido(val, ux, uy){
+  if(esCero(val)) return dec(0,'f');
+  const fx = val*ux, fy = val*uy, m = Math.hypot(fx, fy);
+  if(Math.abs(ux) < 1e-9 || Math.abs(uy) < 1e-9)
+    return dec(Math.abs(val),'f') + ' ' + (Math.abs(fx) > Math.abs(fy) ? (fx > 0 ? '→' : '←') : (fy > 0 ? '↑' : '↓'));
+  const giro = -Math.atan2(fy, fx)*180/Math.PI;
+  return dec(Math.abs(val),'f') + ' <span style="display:inline-block;transform:rotate(' + giro.toFixed(1) + 'deg)">→</span>'
+    + ' <span style="color:var(--muted);font-size:10.5px">(a ' + bsaTextoAnguloAgudo(fx/m, fy/m) + ')</span>';
+}
+function tablaReaccionesComparadas(antes, ahora){
+  const uF = unitFor, B = listaReacciones(ahora);
+  let h = '<div class="proc-sub" style="margin-top:4px">Reacciones: caso original y caso modificado</div>'
+    + '<table class="tabla"><thead><tr><th>Reacción</th><th class="r">Original ('+uF+')</th>'
+    + '<th class="r">Modificado ('+uF+')</th><th class="r">Diferencia ('+uF+')</th></tr></thead><tbody>';
+  listaReacciones(antes).forEach(a=>{
+    const b = B.find(x=>x.clave === a.clave) || {val:0};
+    // La diferencia se mide en el sentido real del caso original (si era nula,
+    // en el del modificado): positiva si la reacción crece en ese sentido.
+    const s0 = !esCero(a.val) ? Math.sign(a.val) : (!esCero(b.val) ? Math.sign(b.val) : 1);
+    const d = s0*(b.val - a.val);
+    const col = esCero(d) ? '#68727f' : (d > 0 ? '#c0392b' : '#15803d');
+    const cambio = (!esCero(a.val) && !esCero(b.val) && Math.sign(a.val) !== Math.sign(b.val))
+      ? ' <b style="color:#c0392b;font-size:10px">¡cambió de sentido!</b>' : '';
+    h += '<tr><td>' + nombreReaccionHtml(a) + '</td>'
+      + '<td class="r">' + valorConSentido(a.val, a.ux, a.uy) + '</td>'
+      + '<td class="r"><b>' + valorConSentido(b.val, a.ux, a.uy) + '</b></td>'
+      + '<td class="r"><span style="color:' + col + ';font-weight:700">' + (!esCero(d) && d > 0 ? '+' : '') + dec(esCero(d) ? 0 : d,'f') + '</span>' + cambio + '</td></tr>';
+  });
+  h += '</tbody></table>'
+    + '<div class="hint-sm" style="margin:5px 0 10px">Flecha: sentido real. Diferencia = modificado − original, en el sentido original.</div>';
+  return h;
+}
+// Momentos respecto del apoyo fijo: el punto de la ecuación ΣM del informe
+// (13-, el pasador cuando hay pasador y rodillo). En una armadura los apoyos no
+// tienen momento de reacción; lo que se compara es el momento de cada carga y
+// de cada reacción respecto de ese punto, y su suma, que es cero en los dos casos.
+function centroMomentosVariacion(){
+  return nodos.find(n=>n.apoyo === 'fijo') || nodos.find(n=>n.apoyo === 'movil') || null;
+}
+function tablaMomentosComparados(antes, ahora, mapa){
+  const O = centroMomentosVariacion();
+  if(!O) return '';
+  const uM = unitFor + '·' + unitLen;
+  const mom = (x, y, fx, fy) => (x - O.x)*fy - (y - O.y)*fx;     // antihorario positivo
+  const filas = [];
+  nodos.forEach(n=>{
+    const c0 = {fx:n.fx || 0, fy:n.fy || 0}, c1 = mapa[n.id] || c0;
+    if(esCero(c0.fx) && esCero(c0.fy) && esCero(c1.fx) && esCero(c1.fy)) return;
+    filas.push({nom:'Carga en ' + n.nombre, m0:mom(n.x, n.y, c0.fx, c0.fy), m1:mom(n.x, n.y, c1.fx, c1.fy)});
+  });
+  const B = listaReacciones(ahora);
+  listaReacciones(antes).forEach(a=>{
+    const b = B.find(x=>x.clave === a.clave) || {val:0};
+    filas.push({nom:nombreReaccionHtml(a), m0:mom(a.nudo.x, a.nudo.y, a.val*a.ux, a.val*a.uy),
+                m1:mom(a.nudo.x, a.nudo.y, b.val*a.ux, b.val*a.uy)});
+  });
+  const num = v => dec(Math.abs(v) < 1e-9*Math.max(1, escalaDelProblema()) ? 0 : v,'f');
+  let h = '<div class="proc-sub">Momentos respecto de ' + O.nombre + '</div>'
+    + '<table class="tabla"><thead><tr><th>Fuerza</th><th class="r">Original ('+uM+')</th>'
+    + '<th class="r">Modificado ('+uM+')</th><th class="r">Diferencia ('+uM+')</th></tr></thead><tbody>';
+  let s0 = 0, s1 = 0;
+  filas.forEach(f=>{
+    s0 += f.m0; s1 += f.m1;
+    const d = f.m1 - f.m0;
+    h += '<tr><td>' + f.nom + '</td><td class="r">' + num(f.m0) + '</td><td class="r"><b>' + num(f.m1) + '</b></td>'
+      + '<td class="r">' + (d > 1e-9 ? '+' : '') + num(d) + '</td></tr>';
+  });
+  h += '<tr style="border-top:2px solid var(--border2)"><td><b>Σ<i>M</i><sub><i>' + O.nombre + '</i></sub></b></td>'
+    + '<td class="r"><b>' + num(s0) + '</b></td><td class="r"><b>' + num(s1) + '</b></td><td class="r">' + num(s1 - s0) + '</td></tr>'
+    + '</tbody></table>'
+    + '<div class="hint-sm" style="margin:5px 0 10px">Antihorario positivo. Los apoyos no tienen momento de reacción: cada fila es el momento de esa fuerza respecto de ' + O.nombre + '.</div>';
+  return h;
 }
 
 function tablaComparativa(antes, ahora){

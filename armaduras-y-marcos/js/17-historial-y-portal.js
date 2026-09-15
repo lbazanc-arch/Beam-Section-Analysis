@@ -59,6 +59,12 @@ function instantanea(){
     nodos: nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre, apoyo:n.apoyo,
                           apAng:n.apAng, apAngDib:n.apAngDib, fx:n.fx, fy:n.fy, cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:n.tope})),
     barras: barras.map(b=>({id:b.id, a:b.a, b:b.b})),
+    // La línea de corte manual también: Transformar la mueve o la borra, y al
+    // deshacer tiene que volver con los nudos.
+    corte: corte ? {x1:corte.x1, y1:corte.y1, x2:corte.x2, y2:corte.y2} : null,
+    // Y las unidades: los números de arriba están en ellas. Sin esto, deshacer un
+    // cambio de unidades devolvía la armadura en metros con el chip en cm.
+    unidades: {len: unitLen, fuerza: unitFor},
     nodoSeq, barraSeq
   });
 }
@@ -73,6 +79,17 @@ function registrarCambio(){
 
 function restaurarInstantanea(txt){
   const e = JSON.parse(txt);
+  // Un toque de Carga en espera apunta a ids del estado que se abandona.
+  cancelarToqueCarga();
+  // Si la instantánea está en otras unidades, lo que NO viaja en ella (la vista,
+  // los admisibles evaluados) se pasa a esas unidades antes de adoptarlas.
+  if(e.unidades && (e.unidades.len !== unitLen || e.unidades.fuerza !== unitFor)
+     && LEN_A_M[e.unidades.len] && FOR_A_KN[e.unidades.fuerza]){
+    convertirUnidadesFueraDelModelo(LEN_A_M[unitLen]/LEN_A_M[e.unidades.len],
+                                    FOR_A_KN[unitFor]/FOR_A_KN[e.unidades.fuerza]);
+    unitLen = e.unidades.len; unitFor = e.unidades.fuerza;
+    pintarChipUnidades();
+  }
   nodos = e.nodos.map(n=>({id:n.id, x:n.x, y:n.y, nombre:n.nombre||'',
             apoyo:n.apoyo||null, apAng:(n.apAng!==undefined?n.apAng:AP_ANG_POR_DEFECTO),
             apAngDib:(n.apAngDib!==undefined?n.apAngDib:AP_ANG_POR_DEFECTO), fx:n.fx||0, fy:n.fy||0,
@@ -80,12 +97,10 @@ function restaurarInstantanea(txt){
   barras = e.barras.map(b=>({id:b.id, a:b.a, b:b.b}));
   normalizarCargasArm();
   nodoSeq = e.nodoSeq; barraSeq = e.barraSeq;
+  corte = e.corte ? Object.assign({}, e.corte) : null; corteDrag = null;
   // La selección puede apuntar a elementos que ya no existen tras restaurar.
-  selNodos = selNodos.filter(id=>nodos.some(n=>n.id===id));
-  selBarras = selBarras.filter(id=>barras.some(b=>b.id===id));
-  if(selBarra !== null && !barras.some(b=>b.id===selBarra)) selBarra = null;
-  if(selNodoInfo !== null && !nodos.some(n=>n.id===selNodoInfo)) selNodoInfo = null;
-  resultado = null;
+  depurarSeleccion();
+  invalidarResultados();
   reNombrar(); refrescar();
 }
 
@@ -176,6 +191,7 @@ function _avisarRestosDeMarco(e){
 }
 
 function cargarProyecto(id){
+  cancelarToqueCarga();              // la espera de Carga era del modelo anterior
   const it = histItems.find(x=>x.id===id);
   if(!it || !it.estado){ aviso('Ese ejercicio no tiene datos para abrir.', 'error'); return; }
   const e = it.estado;
@@ -188,13 +204,18 @@ function cargarProyecto(id){
               apAngDib:(n.apAngDib!==undefined?n.apAngDib:AP_ANG_POR_DEFECTO), fx:n.fx||0, fy:n.fy||0,
               cargas:(n.cargas||[]).map(c=>Object.assign({}, c)), tope:null}));
     barras = (e.barras||[]).map(b=>({id:b.id, a:b.a, b:b.b}));
+    // La selección era del modelo anterior: con otros ids marcaría otros nudos.
+    selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null; selNodo = null;
+    // Y la línea de corte: el archivo no guarda ninguna (estadoActual no la lleva).
+    corte = null; corteDrag = null;
     _avisarRestosDeMarco(e);
     normalizarCargasArm();           // y sin magnitud + dirección en las cargas
     nodoSeq = nodos.reduce((m,n)=>Math.max(m,n.id), 0);
     barraSeq = barras.reduce((m,b)=>Math.max(m,b.id), 0);
-    if(e.unidades){ unitLen = e.unidades.len || unitLen; unitFor = e.unidades.fuerza || unitFor; }
-    if(e.decimales) DEC = e.decimales;
-    resultado = null;
+    if(e.unidades){ unitLen = e.unidades.len || unitLen; unitFor = e.unidades.fuerza || unitFor; pintarChipUnidades(); }
+    // Y el chip de decimales, igual que hace applyDecModal (10-) al cambiarlos.
+    if(e.decimales){ DEC = e.decimales; document.getElementById('chipDec').textContent = textoDecimales(); }
+    invalidarResultados();
     reNombrar(); centrar(); refrescar();
     cerrarHistorial();
   }catch(err){ aviso('No se pudo abrir el ejercicio.', 'error'); }

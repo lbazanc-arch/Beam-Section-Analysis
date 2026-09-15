@@ -65,6 +65,17 @@ let edNodo = null, edTramo = null, edApoyo = null, edCarga = null;
 // Tipo de carga ('P'|'U'|'T'|'M') elegido en el menú «Cargas» mientras la
 // herramienta 'carga' está activa; setTool lo vacía al cambiar de herramienta.
 let tipoCargaPendiente = null;
+// Toque simple con la herramienta 'carga' en espera (2026-09-14, decisión del
+// profesor): no abre la ventana en el acto, sino tras UMBRAL_DOBLE_TOQUE_MS,
+// para que un doble toque sobre una carga ya puesta la edite en vez de crear
+// otra. Guarda {tId, tipo, destino} (destino con ids, no objetos) o null.
+// Van aquí, antes de cualquier pieza que arme el temporizador (CLAUDE.md §5.3).
+// La espera tiene que DURAR MÁS que la ventana del doble toque del puente
+// táctil (350 ms en 18-, medidos desde el mismo touchstart que llama a onDown):
+// si vence antes, la ventana de carga nueva ya está abierta, tapa el lienzo y el
+// segundo toque cae en ella, no en onDbl. 400 deja margen a un hilo ocupado.
+const UMBRAL_DOBLE_TOQUE_MS = 400;
+let toqueCargaPendiente = null;
 
 const LEN_A_M = {m:1, cm:0.01, ft:0.3048};
 const FOR_A_KN = {kN:1, N:0.001, ton:9.80665, lb:0.00444822};

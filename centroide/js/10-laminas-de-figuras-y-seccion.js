@@ -1,3 +1,16 @@
+// Recalcular «en caliente» (2026-09-15): añadir un material o borrar uno sin
+// uso, cambiar γ ↔ ρ, el tipo de cuerpo, las unidades o los decimales repintan el
+// resultado que ya estaba a la vista, y desplazar la página hasta él sacaba de la
+// vista el campo que el alumno acababa de usar. Esas rutas recalculan con
+// recalcularSinDesplazar; solo Calcular (y cargar un ejemplo o un ejercicio)
+// lleva la vista al resultado. Lo consultan renderResults, renderResults3d (21-)
+// y renderResultsAlambre (24-) antes de programar el scrollIntoView.
+let resultadoSinDesplazar = false;
+function recalcularSinDesplazar(fn){
+  resultadoSinDesplazar = true;
+  try{ return (fn || calculate)(); }
+  finally{ resultadoSinDesplazar = false; }
+}
 function renderResults(res, u4, u2, u1){
   currentU4=u4; currentU2=u2; currentU1=u1;
   const rp = document.getElementById('resultsPanel');
@@ -7,7 +20,7 @@ function renderResults(res, u4, u2, u1){
   const ra = document.getElementById('resultsArea');
   if(ra){ ra.style.display='block'; }
 
-  setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
+  if(!resultadoSinDesplazar) setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
 
   const f  = v => fmtVal(v);
   const nL = v => decFix(v,'len');

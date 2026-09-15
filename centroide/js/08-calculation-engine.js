@@ -172,5 +172,5 @@ function eliminarFiguraSel(){
   figures = figures.filter(f=>selFiguras.indexOf(f.id) < 0);
   if(selFiguras.indexOf(selectedFigId) >= 0) selectFigure(null);
   selFiguras = [];
-  results = null; renderFigList(); actualizarInfoSel(); render();
+  invalidarResultados(); renderFigList(); actualizarInfoSel(); render();
 }

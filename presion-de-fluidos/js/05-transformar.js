@@ -97,9 +97,15 @@ function applyTransformar(){
     aviso('Indica un ángulo de giro distinto de cero.'); return;
   }
   registrarCambio();
+  // Topes en modo 'normal' y móviles normales a la compuerta cuyos tramos giran
+  // enteros: se anota, antes de mover nada, la normal de cada uno (ver abajo).
+  const topesNormales = (transModo === 'girar') ? normalesDeTopesAntesDeGirar(t) : [];
   t.destinos.forEach(d=>{ const n=nodos.find(z=>z.id===d.id); if(n){ n.x=d.x; n.y=d.y; } });
   // Al GIRAR, el apoyo gira con la compuerta: el movil porque su reaccion es
   // real y entra en el calculo, y el fijo para que su simbolo no quede torcido.
+  // El tope con direccion dada (modo 'angulo') tambien: su fuerza entra en el
+  // calculo tal cual (direccionIncognita lee tope.ang), y sin girarla quedaria
+  // apuntando como antes contra una compuerta que ya no esta ahi.
   if(transModo === 'girar'){
     const norm = a => { const v = ((a % 360) + 360) % 360; return v > 180 ? v - 360 : v; };
     t.destinos.forEach(d=>{
@@ -107,8 +113,87 @@ function applyTransformar(){
       if(!n) return;
       if(n.apoyo === 'movil') n.apAng     = norm((n.apAng === undefined ? 90 : n.apAng) + t.ang);
       if(n.apoyo === 'fijo')  n.apAngFijo = norm(anguloDibujoApoyoFijo(n) + t.ang);
+      if(n.tope && n.tope.modo === 'angulo'){
+        const a0 = +n.tope.ang;
+        n.tope.ang = norm((isFinite(a0) ? a0 : 0) + t.ang);
+      }
     });
+    corregirLadoDeTopes(topesNormales, t.ang);
   }
-  R = null;
+  // El panel enseñaba la solución de la compuerta antes de transformarla.
+  invalidarResultados();
   closeTransformar(); refrescar();
+}
+
+// ── El lado de un tope normal al girar la compuerta ──
+// Un tope en modo 'normal' no guarda direccion: empuja segun la normal a la
+// compuerta desde la cara que mira a la zona `lado`, asi que la direccion gira
+// sola con los nudos. Lo que puede descolocarse es el LADO. Las zonas son del
+// entorno (zona 1 a −x de la frontera, zona 2 a +x) y no giran, pero la cara
+// que mira a cada una la decide cadenaCompuerta, que recorre la compuerta del
+// extremo mas alto al mas bajo. Si el giro cambia cual de los extremos queda
+// arriba (con una compuerta recta, en cuanto pasa de la horizontal), la cadena
+// se recorre al reves y la cara que el tope tocaba pasa a mirar a la otra zona:
+// con el mismo `lado` el tope saltaria a la cara opuesta y empujaria al reves,
+// y como solo puede empujar el resultado seria falso (o «la compuerta se abre»).
+// Criterio: la normal con la que empujaba, girada con la compuerta, tiene que
+// seguir siendo la normal hacia su lado; si queda opuesta, se cambia 1 ↔ 2.
+// La comparacion es LOCAL (la normal en el nudo del tope), asi que basta con
+// que el giro sea rigido alli: el nudo del tope y el otro extremo de cada
+// tramo que llega a el tienen que girar con la seleccion, es decir, estar
+// seleccionados o caer en el centro de giro (que no se mueve). Entonces esos
+// tramos giran enteros y «la misma cara» tiene sentido aunque el resto de la
+// compuerta, u otra compuerta aparte, no se haya seleccionado. Si alguno de
+// esos tramos se estira o se tuerce, no hay giro que comparar y no se toca.
+// t.invertir no se toca: es relativo a la regla de la cadena, que ya sigue al
+// entorno, y el tramo invertido conserva su cara respecto de sus vecinos.
+// El apoyo MÓVIL normal a la compuerta (apModo 'normal') tiene el mismo
+// problema: su reacción va según la normal hacia la zona `apLado` (2 si falta),
+// y sin corregirla el símbolo saltaba a la otra cara y R cambiaba de signo.
+// Se trata igual que el tope, con el mismo criterio de giro rígido.
+function normalesDeTopesAntesDeGirar(t){
+  if(!tramos.length || !t.ref) return [];
+  const ids = new Set(t.destinos.map(d=>d.id));
+  let ext = Math.max(1, Math.abs(t.ref.x), Math.abs(t.ref.y));
+  nodos.forEach(n=>{ ext = Math.max(ext, Math.abs(n.x), Math.abs(n.y)); });
+  const tol = 1e-9*ext;
+  const giraConLaSeleccion = id => {
+    if(ids.has(id)) return true;
+    const n = nodos.find(z=>z.id===id);
+    return !!n && Math.hypot(n.x - t.ref.x, n.y - t.ref.y) < tol;
+  };
+  const lista = [];
+  nodos.forEach(n=>{
+    const esTope  = !!n.tope && n.tope.modo !== 'angulo';
+    const esMovil = n.apoyo === 'movil' && n.apModo === 'normal';
+    if((!esTope && !esMovil) || !giraConLaSeleccion(n.id)) return;
+    const suyos = tramos.filter(tr=>tr.a === n.id || tr.b === n.id);
+    if(!suyos.length) return;
+    if(!suyos.every(tr=>giraConLaSeleccion(tr.a === n.id ? tr.b : tr.a))) return;
+    if(esTope){
+      const nv = normalCompuertaEnNudo(n, _ladoGiro(n, 'tope'));
+      if(nv) lista.push({n, nv, cual:'tope'});
+    }
+    if(esMovil){
+      const nv = normalCompuertaEnNudo(n, _ladoGiro(n, 'movil'));
+      if(nv) lista.push({n, nv, cual:'movil'});
+    }
+  });
+  return lista;
+}
+// El lado vigente: el del tope (1 si falta) o la cara del móvil (2 si falta).
+function _ladoGiro(n, cual){
+  return (cual === 'movil') ? (n.apLado === 1 ? 1 : 2) : (n.tope.lado || 1);
+}
+function corregirLadoDeTopes(lista, grados){
+  const a = grados*Math.PI/180, cs = Math.cos(a), sn = Math.sin(a);
+  lista.forEach(({n, nv, cual})=>{
+    const gx = nv.x*cs - nv.y*sn, gy = nv.x*sn + nv.y*cs;     // la normal de antes, girada
+    const lado = _ladoGiro(n, cual);
+    const ahora = normalCompuertaEnNudo(n, lado);
+    if(!ahora || gx*ahora.x + gy*ahora.y >= 0) return;
+    const otro = (lado === 2) ? 1 : 2;
+    if(cual === 'movil') n.apLado = otro;
+    else n.tope.lado = otro;
+  });
 }

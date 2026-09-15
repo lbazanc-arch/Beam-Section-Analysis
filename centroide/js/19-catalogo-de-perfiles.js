@@ -196,7 +196,7 @@ function insertarPerfil(i){
   colorIdx++;
   figures.push(fig);
   selectedFigId=fig.id; selectedFigType=null;
-  results = null;                      // el cálculo anterior ya no vale
+  invalidarResultados();               // el cálculo anterior ya no vale
   try{ cerrarMenusZona1(); }catch(e){}
   renderFigList(); selectFigure(fig.id); fitView(); render();
   aviso(p.nom + ' insertado con su centroide en el origen (0, 0).');

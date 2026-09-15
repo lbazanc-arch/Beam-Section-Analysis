@@ -9,6 +9,7 @@ function escaparTexto(s){
 function estadoActual(){
   return {
     nodos: nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,apAng:n.apAng,apModo:n.apModo||'angulo',
+                          apLado:(n.apLado === 1 ? 1 : 2),
                           apAngFijo:anguloDibujoApoyoFijo(n),
                           rotula:n.rotula,tope:n.tope ? Object.assign({}, n.tope) : null})),
     tramos: tramos.map(t=>({id:t.id,a:t.a,b:t.b,tipo:t.tipo,flecha:t.flecha,
@@ -52,23 +53,34 @@ function cargarProyecto(id){
   const e=it.estado;
   try{
     // Archivos de la versión 1: el tope solo traía su ángulo (modo 'angulo')
-    // y el apoyo móvil no tenía modo.
+    // y el apoyo móvil no tenía modo. Sin `apLado` (anteriores al 2026-09-15)
+    // el móvil normal va hacia la zona 2, que es lo que hacía siempre.
     nodos=(e.nodos||[]).map(n=>{
-      const nn = Object.assign({nombre:'', apModo:'angulo'}, n);
+      const nn = Object.assign({nombre:'', apModo:'angulo', apLado:2}, n);
       if(nn.tope && !nn.tope.modo) nn.tope = Object.assign({modo:'angulo', lado:1}, nn.tope);
       return nn;
     });
     tramos=(e.tramos||[]).slice();
-    nodoSeq=nodos.reduce((m,n)=>Math.max(m,n.id),0);
-    tramoSeq=tramos.reduce((m,t)=>Math.max(m,t.id),0);
+    // Los contadores quedan en el máximo id del archivo, para que un nudo, un
+    // tramo o una copia nuevos nunca repitan id. Un id no numérico no cuenta
+    // (Math.max con él daba NaN y ++NaN seguía siendo NaN).
+    const maxId = lista => lista.reduce((m,x)=>{ const v = Number(x && x.id); return isFinite(v) ? Math.max(m,v) : m; }, 0);
+    nodoSeq=maxId(nodos);
+    tramoSeq=maxId(tramos);
     // Peso propio (2026-09-14): los archivos anteriores no lo traen y se abren igual.
     pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
-    pesoSeq=pesos.reduce((m,p)=>Math.max(m,p.id),0); pesoActivo=null;
+    pesoSeq=maxId(pesos); pesoActivo=null;
     if(e.zonas) zonas=e.zonas;
-    if(e.unidades){ unitLen=e.unidades.len||unitLen; unitFor=e.unidades.fuerza||unitFor; }
+    // Con fijarUnidades (06-) cambian también el chip de la barra y los rótulos:
+    // si no, un ejercicio en cm·N se abría con la barra diciendo m · kN.
+    if(e.unidades) fijarUnidades(e.unidades.len||unitLen, e.unidades.fuerza||unitFor);
     if(e.decimales) DEC=e.decimales;
     const eb=document.getElementById('pB'); if(eb && e.ancho) eb.value=e.ancho;
-    R=null; reNombrar(); centrar(); refrescar(); cerrarHistorial();
+    sincronizarAnchoB();
+    // La selección y el resultado eran del ejercicio anterior: con ids que
+    // aquí son otros nudos, Replicar copiaba lo que el alumno no había marcado.
+    vaciarSeleccionPF(); invalidarResultados();
+    reNombrar(); centrar(); refrescar(); cerrarHistorial();
   }catch(err){ aviso('No se pudo abrir el ejercicio.', 'error'); }
 }
 function borrarProyecto(id){
@@ -90,6 +102,41 @@ window.addEventListener('message', ev=>{
   if(hm && hm.classList.contains('show')) pintarHistorial();
 });
 
+
+// ── Ancho b: un paso de deshacer por edición confirmada ────────────────────
+// Teclear en pB oculta el resultado; el paso se abre al CONFIRMAR el valor
+// ('change': al salir del campo, con Enter o con cada flecha), el mismo criterio
+// que los líquidos (editLiquido), y solo si el número cambió (2.50 = 2.5): por
+// tecla, 2.5 dejaba tres pasos con valores que nunca existieron. La instantánea
+// lee b del campo (04-), así que se registra con el b de antes y luego se
+// devuelve el tecleado.
+// Un b tecleado y aún sin confirmar se confirma también ANTES de cualquier otro
+// paso: registrarCambio, deshacer y rehacer (04-) llaman aquí. Hace falta porque
+// el mousedown del lienzo corre antes de que el campo pierda el foco, y en el
+// móvil el touchstart lo retiene: sin esto, el paso del nudo se llevaba el b
+// nuevo, el de b llegaba detrás con el nudo ya puesto y el estado de partida no
+// volvía nunca. Quien escribe pB por código (deshacer, un ejemplo, las
+// unidades, abrir un ejercicio) llama a sincronizarAnchoB.
+let anchoBase = null;        // b confirmado: el que tenía el campo antes de teclear
+let anchoTecleado = false;   // se ha tecleado desde la última confirmación
+function _mismoAncho(a, b){
+  const x = parseFloat(a), y = parseFloat(b);
+  return (isFinite(x) && isFinite(y)) ? x === y : String(a) === String(b);
+}
+function sincronizarAnchoB(){
+  const eb = document.getElementById('pB');
+  anchoBase = eb ? eb.value : null; anchoTecleado = false;
+}
+// Devuelve true si abrió un paso de deshacer.
+function confirmarAnchoPendiente(){
+  const eb = document.getElementById('pB');
+  if(!eb || !anchoTecleado) return false;
+  const antes = anchoBase, nuevo = eb.value;
+  anchoTecleado = false; anchoBase = nuevo;   // antes de registrarCambio, que vuelve a llamar aquí
+  if(antes === null || _mismoAncho(nuevo, antes)) return false;
+  eb.value = antes; registrarCambio(); eb.value = nuevo;
+  return true;
+}
 
 // ── Jerarquía de Esc (criterio cap9): cierra lo más superficial primero ────
 function manejarEsc(){
@@ -180,17 +227,26 @@ window.addEventListener('load', ()=>{
   cv.addEventListener('wheel',e=>{ e.preventDefault(); e.deltaY<0?zoomIn():zoomOut(); },{passive:false});
   window.addEventListener('resize',ajustarCanvas);
   try{ new ResizeObserver(()=>ajustarCanvas()).observe(document.getElementById('canvasArea')); }catch(e){}
-  ['pB'].forEach(id=>{ const e=document.getElementById(id);
-    if(e) e.addEventListener('input',()=>{ R=null; refrescar(); }); });
+  // Ancho b: teclear oculta el resultado, que era del b de antes; el paso de
+  // deshacer lo abre confirmarAnchoPendiente (arriba).
+  const eb=document.getElementById('pB');
+  if(eb){
+    sincronizarAnchoB();
+    eb.addEventListener('focus', ()=>{ if(!anchoTecleado) sincronizarAnchoB(); });
+    eb.addEventListener('input', ()=>{ anchoTecleado = true; invalidarResultados(); refrescar(); });
+    eb.addEventListener('change', ()=>{
+      if(confirmarAnchoPendiente()){ invalidarResultados(); refrescar(); }
+    });
+  }
   const ap=document.getElementById('apAng');
   if(ap) ap.addEventListener('input',actualizarPrevApoyo);
   const apf=document.getElementById('apAngFijo');
   if(apf) apf.addEventListener('input',()=>{
     // El giro del apoyo fijo se ve al instante porque es solo dibujo: no
-    // invalida el resultado, así que R se conserva.
-    const n = nodos.find(z=>z.id===apoyoId);
-    const v = parseFloat(apf.value);
-    if(n && isFinite(v)) n.apAngFijo = v;
+    // invalida el resultado, así que R se conserva. Se guarda el ángulo interno,
+    // el opuesto del campo (06-); el confirmado lo devuelven closeApoyoModal,
+    // setApoyo y toggleRotulaNudo antes de registrar un paso.
+    _previsualizarGiroFijo(nodos.find(z=>z.id===apoyoId));
     actualizarPrevApoyo(); refrescar();
   });
   document.getElementById('chipDec').textContent=textoDecimales();

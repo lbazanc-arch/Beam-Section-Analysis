@@ -78,8 +78,18 @@ function construirLatex(){
   // Figuras y tablas se numeran en el ORDEN en que aparecen en el texto, así
   // que el documento se arma de forma incremental, sección por sección.
   let figN = 0, tablaN = 0, eqN = 0;
-  const figCaption = txt => { figN++;
-    return '\n\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n'; };
+  // Figura y pie en un solo bloque (minipage): no se separan de página y entre
+  // los dos no queda el doble espacio que dejaban dos `center` seguidos. El
+  // tikzpicture se ajusta a lo dibujado; `esc` es la constante de 12-. Las
+  // figuras ya se dibujan dentro del ancho útil (tikzArmaduraCompleta); el
+  // \resizebox es solo la red por si una estimación de rótulos se queda corta:
+  // reduce la figura únicamente si pasa de \linewidth.
+  const figura = (tikz, esc, txt) => { figN++;
+    return '\n\\par\\medskip\\noindent\\begin{minipage}{\\linewidth}\\centering\n'
+      + '\\resizebox{\\ifdim\\width>\\linewidth\\linewidth\\else\\width\\fi}{!}{%\n'
+      + '\\begin{tikzpicture}[scale=' + esc + ']\n' + tikz + '\\end{tikzpicture}}\\par\\vspace{4pt}\n'
+      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '\\par}\n'
+      + '\\end{minipage}\\par\\medskip\n'; };
   // \nopagebreak: el rótulo no se queda huérfano al pie de una página con la
   // tabla en la siguiente.
   const tablaCaption = txt => { tablaN++;
@@ -111,10 +121,22 @@ function construirLatex(){
     + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
     + '\\definecolor{bsaAlerta}{HTML}{DB2777}\n'
     + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
+    + '\\definecolor{bsaNeutro}{HTML}{3D4550}\n'  // incógnitas de las figuras, a trazos (el gris de la pantalla)
     + '\\definecolor{bsaBarra}{HTML}{563AA8}\n'   // barras como en el panel de dibujo
     + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
     + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
     + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
+    // Estilos de las figuras (12-latex.js). La punta de las fuerzas tiene
+    // tamaño FIJO (no crece con el grosor ni con el `scale`), y sus medidas son
+    // las de PUNTA_LARGO_CM y PUNTA_SEMI_CM, con las que se registra la flecha.
+    + '\\tikzset{\n'
+    + '  bsaFuerza/.style={line width=1.1pt, -{Stealth[length=2.4mm, width=1.8mm]}},\n'
+    + '  bsaBarraDCL/.style={line width=1.1pt},\n'
+    + '  bsaRot/.style={font=\\small, inner sep=1pt},\n'
+    + '  bsaAng/.style={font=\\small, inner sep=0.5pt},\n'
+    + '  bsaNudo/.style={font=\\small\\bfseries, inner sep=1pt},\n'
+    + '  bsaCota/.style={font=\\scriptsize, fill=white, inner sep=1pt}\n'
+    + '}\n\n'
     + '\\setlength{\\parskip}{2pt}\n'
     + '\\makeatletter\n'
     + '\\def\\ps@bsa{%\n'
@@ -145,9 +167,8 @@ function construirLatex(){
 
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
-  tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
-    + tikzArmaduraCompleta({cotas:true, valores:false, neutra:true}) + '\\end{tikzpicture}\n\\end{center}\n';
-  tex += figCaption('Modelo de la armadura: nudos, barras, apoyos, cargas aplicadas y cotas.' + _angulosArm(_angulosFigura));
+  tex += figura(tikzArmaduraCompleta({cotas:true, valores:false, neutra:true, escala:ESC_GLOBAL}), ESC_GLOBAL,
+    'Modelo de la armadura: nudos, barras, apoyos, cargas aplicadas y cotas.' + _angulosArm(_angulosFigura));
   tex += '\\subpaso{Objetivo}\n'
     + 'Hallar las reacciones en los apoyos y la fuerza axial en cada barra, indicando si trabaja a '
     + '\\textbf{tracci\\\'on} (T) o a \\textbf{compresi\\\'on} (C).\n';
@@ -179,6 +200,8 @@ function construirLatex(){
     + 'tracci\\\'on, \\textcolor{bsaRoj}{\\rule[0.06cm]{0.45cm}{1.6pt}} compresi\\\'on, '
     + '\\textcolor{bsaAcc}{\\rule[0.06cm]{0.45cm}{1.6pt}} cargas aplicadas, '
     + '\\textcolor{bsaVerde}{\\rule[0.06cm]{0.45cm}{1.6pt}} reacciones. '
+    + 'En los DCL, la fuerza que se despeja va \\tikz[baseline=-0.6ex]\\draw[bsaNeutro, line width=1.1pt, dash pattern=on 3.6pt off 2.2pt] (0,0) -- (0.55,0); '
+    + 'a trazos y saliendo del nudo (tracci\\\'on supuesta); la ya conocida, en trazo continuo con su color y su sentido real. '
     + 'Los ejes $x$ e $y$ son los del plano; los pares se toman positivos en sentido antihorario.\n';
 
   // ══ 2. Determinación ══
@@ -208,9 +231,8 @@ function construirLatex(){
   // Los momentos se toman en el pasador cuando hay pasador y rodillo; entonces
   // el DCL acota los brazos desde ahí en vez de repetir la geometría.
   const centroM = (pines.length===1 && rodillos.length===1) ? pines[0] : null;
-  tex += '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n'
-    + tikzArmaduraCompleta({cotas:!centroM, valores:false, reaccionesIncognita:true, brazosDesde:centroM}) + '\\end{tikzpicture}\n\\end{center}\n';
-  tex += figCaption('DCL global: cargas y reacciones inc\\\'ognita en su sentido positivo'
+  tex += figura(tikzArmaduraCompleta({cotas:!centroM, valores:false, reaccionesIncognita:true, brazosDesde:centroM, escala:ESC_GLOBAL}), ESC_GLOBAL,
+    'DCL global: cargas y reacciones inc\\\'ognita en su sentido positivo'
     + (centroM ? ', con los brazos acotados desde ' + nomN(centroM) + ', el punto respecto al que se toman los momentos' : '')
     + '.' + _angulosArm(_angulosFigura));
   const cargasN = nodos.filter(n=>!esCero(n.fx) || !esCero(n.fy));
@@ -428,9 +450,8 @@ function construirLatex(){
           + (conApoyo ? ' y su reacci\\\'on ya se conoce del paso 2' : '')
           + (i === 0 && conApoyo && incSinReac > 2 ? ' (sin las reacciones tendr\\\'ia ' + incSinReac + ' inc\\\'ognitas, por eso se calcularon antes; ej. 6.3)' : '') + '.'
         : 'En ' + nomN(n) + ' ya se conocen todas las barras: sus dos ecuaciones sirven de comprobaci\\\'on.') + '}\\\\[2pt]\n';
-      const dclA = tikzDCLNudo(n, resultado);
-      tex += '\\begin{center}\\begin{tikzpicture}[scale=0.72]\n' + dclA.tikz + '\\end{tikzpicture}\\end{center}\n';
-      tex += figCaption('DCL del nudo ' + nomN(n) + '.' + _angulosArm(dclA.angulos));
+      const dclA = tikzDCLNudo(n, resultado, ESC_NUDO, nuevas);
+      tex += figura(dclA.tikz, ESC_NUDO, 'DCL del nudo ' + nomN(n) + '.' + _angulosArm(dclA.angulos));
       const nx = ++eqN, ny = ++eqN;
       // La fila de sustitucion va si ALGUN termino cambio respecto de la
       // ecuacion literal; se compara por posicion, porque tsX y txN se llenan
@@ -492,20 +513,15 @@ function construirLatex(){
     const escribirPaso = (items, datos, externas, lado, titulo) => {
       const nomLado = lado.map(id=>nomN(nodos.find(n=>n.id===id))).sort().join(', ');
       tex += '\\subpaso{' + titulo + '\\quad{\\normalfont\\footnotesize\\color{bsaMuted}porci\\\'on: ' + nomLado + '}}\n';
-      const dcl = tikzSeccionPorcion(lado, datos, externas, items);
-      tex += '\\begin{center}\\begin{tikzpicture}[scale=0.78]\n' + dcl.tikz + '\\end{tikzpicture}\\end{center}\n';
+      const dcl = tikzSeccionPorcion(lado, datos, externas, items, ESC_PORCION);
       // Ecuaciones del corte: ΣM respecto del NUDO por el que pasan las otras
-      // incógnitas (o de un punto O rotulado en la figura si no hay nudo) y, para
-      // la última, ΣF_x o ΣF_y con las ya halladas en este corte sustituidas y
-      // citadas. Nunca una suma en un eje inclinado (revisión del PDF).
+      // incógnitas (o de un punto O rotulado en su figura de brazos si no hay
+      // nudo) y, para la última, ΣF_x o ΣF_y con las ya halladas en este corte
+      // sustituidas y citadas. Nunca una suma en un eje inclinado (revisión del PDF).
       const etqC = etiquetasCentros(items);
       let filas = [];
       const vaciar = () => { if(filas.length){ tex += _alineadaArm(filas); filas = []; } };
-      let pie = 'Porci\\\'on aislada por el corte.';
-      const defsO = [];
-      etqC.forEach(c=>{ if(c && !c.esNudo && !defsO.some(d=>d.tex === c.tex)) defsO.push(c); });
-      defsO.forEach(c=>{ pie += ' $' + c.tex + ' = (' + dec(c.x,'len') + ';\\ ' + dec(c.y,'len') + ')$ ' + escLatex(unitLen) + '.'; });
-      tex += figCaption(pie + _angulosArm(dcl.angulos));
+      tex += figura(dcl.tikz, ESC_PORCION, 'Porci\\\'on aislada por el corte.' + _angulosArm(dcl.angulos));
       items.forEach((p, i)=>{
         const nk = ++eqN;
         const terms = [{v:p.coef, tex:_coefAbs(p.coef) + 'F_{' + nomB(p.d.barra) + '}'}]
@@ -516,9 +532,10 @@ function construirLatex(){
           // Antes de la ecuación, la figura de brazos de ESTE centro (R10: las
           // cotas de los brazos, siempre desde el punto de momentos).
           vaciar();
-          const br = tikzBrazosCorte(lado, datos, p, nomC);
-          tex += '\\begin{center}\\begin{tikzpicture}[scale=0.8]\n' + br.tikz + '\\end{tikzpicture}\\end{center}\n';
-          tex += figCaption('Brazos de $\\sum M_{' + nomC + '}$' + (br.enPorcion ? '' : ' ($' + nomC + '$ fuera de la porci\\\'on)') + '.' + _angulosArm(br.angulos));
+          const br = tikzBrazosCorte(lado, datos, p, nomC, ESC_BRAZOS);
+          // Un punto O que no es nudo se define en el pie de la figura que lo dibuja.
+          const defO = (c && !c.esNudo) ? ' $' + c.tex + ' = (' + dec(c.x,'len') + ';\\ ' + dec(c.y,'len') + ')$ ' + escLatex(unitLen) + '.' : '';
+          tex += figura(br.tikz, ESC_BRAZOS, 'Brazos de $\\sum M_{' + nomC + '}$' + (br.enPorcion ? '' : ' ($' + nomC + '$ fuera de la porci\\\'on)') + '.' + defO + _angulosArm(br.angulos));
           etq = '\\circlearrowleft\\!+\\ \\sum M_{' + nomC + '} = 0:\\quad';
         } else {
           etq = (p.eje === 'x') ? '\\xrightarrow{+}\\ \\sum F_x = 0:\\quad' : '+\\!\\uparrow\\ \\sum F_y = 0:\\quad';
@@ -610,12 +627,10 @@ function construirLatex(){
     const resX2 = analizarConEscala(2), resD2 = analizarConEscala(0.5);
     tex += '\\seccion{7. \\textquestiondown Qu\\\'e pasa si cambio la carga?}\n';
     if(!resX2.error){
-      tex += '\\begin{center}\\begin{tikzpicture}[scale=0.9]\n'
-        + tikzArmaduraCompleta({fuerzas:resultado.fuerzas, reacciones:resultado.reacciones, cotas:false, valores:true, factorCargas:1})
-        + '\\end{tikzpicture}\\end{center}\n' + figCaption('DCL con las cargas actuales: fuerza en cada barra.');
-      tex += '\\begin{center}\\begin{tikzpicture}[scale=0.9]\n'
-        + tikzArmaduraCompleta({fuerzas:resX2.fuerzas, reacciones:resX2.reacciones, cotas:false, valores:true, factorCargas:2})
-        + '\\end{tikzpicture}\\end{center}\n' + figCaption('DCL con todas las cargas duplicadas: mismas barras, fuerzas recalculadas.');
+      tex += figura(tikzArmaduraCompleta({fuerzas:resultado.fuerzas, reacciones:resultado.reacciones, cotas:false, valores:true, factorCargas:1, escala:ESC_VARIANTE}),
+        ESC_VARIANTE, 'DCL con las cargas actuales: fuerza en cada barra.');
+      tex += figura(tikzArmaduraCompleta({fuerzas:resX2.fuerzas, reacciones:resX2.reacciones, cotas:false, valores:true, factorCargas:2, escala:ESC_VARIANTE}),
+        ESC_VARIANTE, 'DCL con todas las cargas duplicadas: mismas barras, fuerzas recalculadas.');
     }
     let filasS = '', maxB = null, maxV = -1, cambia = 0;
     barras.forEach((b,i)=>{
@@ -663,10 +678,8 @@ function construirLatex(){
       n.fx = ux*mejorP; n.fy = uy*mejorP; const rF = analizar(); n.fx = fx0; n.fy = fy0;
       const enT = mejorLim > 0;
       filasF += nomN(n) + ' & ' + dec(mag0,'f') + ' & $F_{' + nomB(mejorB) + '}$ & ' + (enT ? 'T' : 'C') + ' & ' + dec(mejorP,'f') + ' & ' + dec(mejorP/mag0,'f') + ' \\\\\n';
-      bloquesF += '\\begin{center}\\begin{tikzpicture}[scale=0.9]\n'
-        + tikzArmaduraCompleta({fuerzas:fF, reacciones:(rF.error ? resultado.reacciones : rF.reacciones), cotas:false, valores:true, factorCargas:(mejorP/mag0), resaltar:mejorB.id})
-        + '\\end{tikzpicture}\\end{center}\n'
-        + figCaption('Carga de falla $P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ': $F_{' + nomB(mejorB) + '}$, resaltada, alcanza su capacidad en ' + (enT ? 'tracci\\\'on' : 'compresi\\\'on') + '.');
+      bloquesF += figura(tikzArmaduraCompleta({fuerzas:fF, reacciones:(rF.error ? resultado.reacciones : rF.reacciones), cotas:false, valores:true, factorCargas:(mejorP/mag0), resaltar:mejorB.id, escala:ESC_VARIANTE}),
+        ESC_VARIANTE, 'Carga de falla $P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ': $F_{' + nomB(mejorB) + '}$, resaltada, alcanza su capacidad en ' + (enT ? 'tracci\\\'on' : 'compresi\\\'on') + '.');
       bloquesF += '\\noindent{\\footnotesize\\textbf{Por qu\\\'e falla esa barra.} Al subir la carga del nudo ' + nomN(n) + ', '
         + 'la fuerza de todas las barras crece, pero no al mismo ritmo: la geometr\\\'ia manda m\\\'as carga a unas que a otras. '
         + 'La primera en llegar a su l\\\'imite es $F_{' + nomB(mejorB) + '}$, que no es la que hoy lleva m\\\'as fuerza, sino la '

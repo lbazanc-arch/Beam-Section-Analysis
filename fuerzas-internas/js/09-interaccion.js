@@ -2,48 +2,111 @@
 //  INTERACCIÓN
 // ═══════════════════════════════════════════════════════════
 
-// ¿hay una carga bajo el cursor?  (para poder seleccionarla y editarla)
-// Una carga de NUDO se busca en su nudo (2026-09-14): antes se situaba con
-// c.tramo, que en ella era un tramo cualquiera (y ahora es null).
+// ── ¿Qué carga hay bajo el cursor? ──
+// Para seleccionarla, borrarla o editarla. Devuelve la MÁS CERCANA, no la
+// primera de la lista (2026-09-14): con una puntual dentro del bloque de una
+// repartida, o dos cargas en el mismo nudo, ganaba la que se hubiera puesto
+// antes aunque el cursor estuviera sobre la otra. Las zonas de acierto calcan
+// lo que pinta `dibujarCarga` (08-): la flecha puntual, de la cola (a 50 px
+// del punto, más su rótulo) a la punta; el anillo del arco del par, de radio
+// 17 (no el disco, que tapaba la punta de una flecha en el mismo punto); y el
+// bloque de la repartida, levantado EN SENTIDO CONTRARIO a la carga con la
+// altura de cada extremo y solo sobre el trozo cargado. Antes el bloque se
+// buscaba siempre encima del tramo y a lo largo de todo él, y la puntual
+// ignoraba el modo de posición (`sDesdePos`). Con las cargas ocultas
+// (Visualización → Cargas) no se toca ninguna: no se edita lo que no se ve.
+// Una carga de NUDO se busca en su nudo, no en c.tramo (que en ella es null).
+const R_ARCO_PAR_PX = 17;       // radio del arco del par en `dibujarCarga`
+const COLA_FLECHA_PX = 50;      // largo de la flecha puntual en `dibujarCarga`
+const TOL_FLECHA_PX = 14;       // acierto sobre una flecha o un arco
+const TOL_BLOQUE_PX = 10;       // acierto fuera del contorno de una repartida
 function cargaEn(mx,my){
+  if(!VIS.cargas) return null;
+  let mejor = null, dMejor = Infinity;
   for(const c of cargas){
-    const enNudo = (c.destino === 'nudo');
-    let g = null, px = 0, py = 0;
-    if(enNudo){
-      const nn = nodo(c.nudo); if(!nn) continue;
-      g = geoDeCarga(c);                 // ejes locales, para perp y axial
-      [px,py] = aPantalla(nn.x, nn.y);
-    } else {
-      const t = tramos.find(z=>z.id===c.tramo); g = t && geoTramo(t);
-      if(!g) continue;
-    }
-    if(!enNudo && (c.tipo==='U' || c.tipo==='T')){
-      // el bloque de la distribuida, por encima del tramo
-      const [ax,ay]=aPantalla(g.a.x,g.a.y), [bx,by]=aPantalla(g.b.x,g.b.y);
-      const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy; if(l2<1) continue;
-      let s=((mx-ax)*dx+(my-ay)*dy)/l2;
-      if(s<0||s>1) continue;
-      const px=ax+s*dx, py=ay+s*dy;
-      if(my < py && my > py-40 && Math.abs(mx-px) < 400) return c;
-    } else {
-      if(!enNudo){
-        const s = Math.max(0, Math.min(g.L, c.pos||0));
-        [px,py]=aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
-      }
-      if(c.tipo==='M'){ if(Math.hypot(mx-px,my-py)<22) return c; continue; }
-      // Puntual en cualquier dirección: se mide la distancia al TRAZO de la
-      // flecha, que nace a 52 px del punto en sentido contrario a la carga.
-      const d = dirCarga(c, g);
-      const sg = (c.mag < 0) ? -1 : 1;
-      const vx = d.x*sg, vy = -d.y*sg;
-      const qx = px - vx*52, qy = py - vy*52;
-      const ex = px - vx*52 + vx*52, ey = py - vy*52 + vy*52;   // el punto
-      const dx = ex-qx, dy = ey-qy, l2 = dx*dx+dy*dy;
-      const u = l2 > 1 ? Math.max(0, Math.min(1, ((mx-qx)*dx+(my-qy)*dy)/l2)) : 0;
-      if(Math.hypot(mx-(qx+u*dx), my-(qy+u*dy)) < 14) return c;
-    }
+    const d = distanciaACarga(c, mx, my);
+    if(d < dMejor){ dMejor = d; mejor = c; }
   }
-  return null;
+  return mejor;
+}
+// Distancia en píxeles del cursor a lo dibujado de la carga; Infinity si no la
+// toca. La repartida se dibuja DEBAJO de las demás, así que su distancia lleva
+// un recargo: una flecha o un par que caen dentro de su bloque ganan.
+function distanciaACarga(c, mx, my){
+  const enNudo = (c.destino === 'nudo');
+  let g = null, px = 0, py = 0;
+  if(enNudo){
+    const nn = nodo(c.nudo); if(!nn) return Infinity;
+    g = geoDeCarga(c);                 // ejes locales, para perp y axial
+    [px,py] = aPantalla(nn.x, nn.y);
+  } else {
+    const t = tramos.find(z=>z.id===c.tramo); g = t && geoTramo(t);
+    if(!g) return Infinity;
+  }
+  if(c.tipo==='U' || c.tipo==='T'){
+    if(enNudo) return Infinity;        // no se dibuja: no hay nada que tocar
+    const d = distanciaABloque(c, g, mx, my);
+    return (d <= TOL_BLOQUE_PX) ? d + TOL_FLECHA_PX : Infinity;
+  }
+  if(!enNudo){
+    const s = Math.max(0, Math.min(g.L, sDesdePos(c, g, c.pos)));
+    [px,py] = aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
+  }
+  if(c.tipo==='M'){
+    // Distancia al ARCO, no al disco: dentro del arco cae la punta de la flecha
+    // de una puntual en el mismo punto (de 3 a 14 px), y con el disco ganaba
+    // siempre el par. En el centro mismo (r < 3) vale 3: pierde contra una
+    // flecha que llegue a ese punto (su distancia ahí es menor que r) y gana al
+    // bloque de una repartida (14 o más), que se dibuja debajo.
+    const r = Math.hypot(mx-px, my-py);
+    if(r < 3) return 3;
+    const dr = Math.abs(r - R_ARCO_PAR_PX);
+    return (dr <= TOL_FLECHA_PX) ? dr : Infinity;
+  }
+  // Puntual en cualquier dirección: distancia al TRAZO de la flecha, que nace
+  // a 50 px del punto en sentido contrario a la carga; se alarga 10 px más
+  // para cubrir el rótulo del valor, que va tras la cola.
+  const dir = dirCarga(c, g);
+  const sg = (c.mag < 0) ? -1 : 1;
+  const vx = dir.x*sg, vy = -dir.y*sg;             // y de pantalla hacia abajo
+  const largo = COLA_FLECHA_PX + 10;
+  const d = distanciaASegmento(mx, my, px - vx*largo, py - vy*largo, px, py);
+  return (d <= TOL_FLECHA_PX) ? d : Infinity;
+}
+// Distancia al bloque de una repartida tal como lo dibuja `dibujarCarga`: el
+// cuadrilátero entre los extremos del trozo cargado y sus alturas (34 px la
+// mayor, proporcionales al valor y con signo). 0 si el cursor cae dentro.
+function distanciaABloque(c, g, mx, my){
+  const z = trozoCargado(c);
+  if(!z || z.len <= 1e-12) return Infinity;
+  const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
+  const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9);
+  const alt = 34, h1 = alt*w1/wm, h2 = alt*w2/wm;
+  const [ax,ay] = aPantalla(g.a.x+g.ux*z.s1, g.a.y+g.uy*z.s1);
+  const [bx,by] = aPantalla(g.a.x+g.ux*z.s2, g.a.y+g.uy*z.s2);
+  const d = dirCarga(c, g);
+  const ex = -d.x, ey = d.y;
+  const p = [[ax,ay], [ax+ex*h1, ay+ey*h1], [bx+ex*h2, by+ey*h2], [bx,by]];
+  if(dentroDePoligono(mx, my, p)) return 0;
+  let dm = Infinity;
+  for(let i=0, j=p.length-1; i<p.length; j=i++)
+    dm = Math.min(dm, distanciaASegmento(mx, my, p[j][0], p[j][1], p[i][0], p[i][1]));
+  return dm;
+}
+function distanciaASegmento(x, y, x1, y1, x2, y2){
+  const dx = x2-x1, dy = y2-y1, l2 = dx*dx + dy*dy;
+  const u = (l2 > 1e-9) ? Math.max(0, Math.min(1, ((x-x1)*dx + (y-y1)*dy)/l2)) : 0;
+  return Math.hypot(x-(x1+u*dx), y-(y1+u*dy));
+}
+// Par-impar: vale también para el cuadrilátero cruzado de una trapecial que
+// cambia de signo.
+function dentroDePoligono(x, y, p){
+  let dentro = false;
+  for(let i=0, j=p.length-1; i<p.length; j=i++){
+    const [xi,yi] = p[i], [xj,yj] = p[j];
+    if(((yi > y) !== (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi) + xi)) dentro = !dentro;
+  }
+  return dentro;
 }
 // ¿Sigue existiendo el elemento que sostiene la carga? Una carga de nudo cae
 // con su nudo y una de tramo con su tramo. Filtrar todas por c.tramo borraba
@@ -111,23 +174,27 @@ function onDown(e){
   // el nudo, que si no quedaría tapado por los tramos que llegan a él. La
   // ventana se abre con ese destino fijo; al aplicar o cancelar la herramienta
   // sigue armada con el mismo tipo, para poner varias seguidas.
+  // El toque NO actúa en el acto (2026-09-14): queda en espera
+  // UMBRAL_DOBLE_TOQUE_MS por si llega un doble toque, que edita la carga que
+  // haya debajo (`onDbl`). Con el ratón, el segundo mousedown de un doble clic
+  // (e.detail >= 2) no hace nada: detrás llega el dblclick nativo.
   if(tool==='carga'){
-    const distrib = (tipoCargaPendiente==='U' || tipoCargaPendiente==='T');
-    if(n){
-      if(distrib) aviso('Las cargas repartidas van sobre un tramo: toca un tramo.');
-      else nuevaCarga(tipoCargaPendiente, {destino:'nudo', nudo:n.id});
-      return;
-    }
-    const tr = tramoEn(mx, my);
-    if(tr) nuevaCarga(tipoCargaPendiente, {destino:'tramo', tramo:tr.id});
+    if(e.detail >= 2) return;
+    programarToqueCarga(destinoDeToqueCarga(mx, my));
     return;
   }
   if(tool==='nudo'){
-    // construir por nudos: cada clic añade un nudo y lo une al anterior
+    // construir por nudos: cada clic añade un nudo y lo une al anterior. Un clic
+    // sobre un nudo existente que no crea tramo (arranque de la cadena, el mismo
+    // nudo, un tramo repetido: las condiciones de addTramo) solo mueve la cadena:
+    // ni paso de deshacer vacío ni resultados ocultos.
+    const creaTramo = n && primerNodo !== null && primerNodo !== n.id
+      && !tramos.some(t=>(t.a===primerNodo&&t.b===n.id)||(t.a===n.id&&t.b===primerNodo));
+    if(n && !creaTramo){ primerNodo = n.id; refrescar(); return; }
     registrarCambio();
     const nn = n || addNodo(wx,wy);
     if(primerNodo !== null && primerNodo !== nn.id) addTramo(primerNodo, nn.id);
-    primerNodo = nn.id; R=null; refrescar(); return;
+    primerNodo = nn.id; invalidarResultados(); refrescar(); return;
   }
   if(tool==='apoyo'){ if(n) abrirApoyo(n.id); return; }
   if(tool==='sel' || tool==='borrar'){
@@ -181,8 +248,8 @@ function onMove(e){
           mostrarRecuadroSeleccion();
         } else if(gesto.hit.tipo==='nodo'){
           // Arrastrar un nudo ya seleccionado mueve TODO el grupo; arrastrar
-          // uno suelto lo convierte en la única selección.
-          registrarCambio();   // un solo paso de deshacer para todo el arrastre
+          // uno suelto lo convierte en la única selección. El paso de deshacer
+          // se registra en el primer desplazamiento real (más abajo).
           const grupo = marcado(selNodos, gesto.hit.id) ? selNodos.slice() : [gesto.hit.id];
           if(!marcado(selNodos, gesto.hit.id)){ selNodos = grupo; selNodo = gesto.hit.id; }
           gesto.tipo='mover';
@@ -204,12 +271,26 @@ function onMove(e){
       }
     }
     if(gesto.tipo==='mover'){
+      // Primero el ajuste a la rejilla y luego la decisión: un arrastre que el
+      // ajuste deja en el sitio (un temblor de pocos px al tocar un nudo, muy
+      // corriente en el móvil) no es un cambio. Con el primer desplazamiento
+      // REAL, y no antes, se registra el paso de deshacer (uno por arrastre, de
+      // nudo o de tramo) y se ocultan los resultados. Ocultarlos una sola vez
+      // (`gesto.invalidado`) evita vaciar el panel a cada evento del ratón; si
+      // algo recalculase a mitad del arrastre (R vuelve a existir), otra vez.
       const wdx = mouseW[0]-gesto.wx0, wdy = mouseW[1]-gesto.wy0;
-      gesto.origenes.forEach(o=>{
-        const nn=nodo(o.id);
-        if(nn){ nn.x=snap(o.x+wdx); nn.y=snap(o.y+wdy); }
-      });
-      R=null; dibujar();
+      const destinos = gesto.origenes.map(o=>({nn:nodo(o.id), x:snap(o.x+wdx), y:snap(o.y+wdy)}))
+        .filter(d=>d.nn);
+      if(destinos.some(d=>d.nn.x!==d.x || d.nn.y!==d.y)){
+        if(!gesto.registrado){
+          // Las pilas previas, por si el arrastre acaba donde empezó (onUp).
+          gesto.pilasPrevias = {deshacer:pilaDeshacer.slice(), rehacer:pilaRehacer.slice()};
+          registrarCambio(); gesto.registrado = true;
+        }
+        destinos.forEach(d=>{ d.nn.x=d.x; d.nn.y=d.y; });
+        if(!gesto.invalidado || R){ invalidarResultados(); gesto.invalidado = true; }
+      }
+      dibujar();
     } else if(gesto.tipo==='rubber' || gesto.tipo==='rubber-borrar'){
       gesto.x1=mx; gesto.y1=my;
       actualizarRecuadroSeleccion(gesto);
@@ -248,7 +329,7 @@ function onUp(){
         selCargas = selCargas.filter(id=>!marcado(bC,id));
         if(marcado(bN, selNodo)) selNodo = null;
         if(marcado(bT, selTramo)) selTramo = null;
-        reNombrar(); R = null;
+        reNombrar(); invalidarResultados();
       }
       gesto = null;
       refrescar();
@@ -269,7 +350,14 @@ function onUp(){
       selTramo = ts.length ? ts[ts.length-1] : null;
       ocultarRecuadroSeleccion();
     }
-    // gesto.tipo==='mover' ya se aplicó en vivo durante onMove.
+    // gesto.tipo==='mover' ya se aplicó en vivo durante onMove. Si el arrastre
+    // llevó los nudos y los devolvió exactamente a su sitio, el paso registrado
+    // está vacío: se devuelven las pilas de deshacer y rehacer a como estaban.
+    if(gesto.tipo==='mover' && gesto.registrado && gesto.origenes.every(o=>{
+         const nn = nodo(o.id); return !nn || (nn.x===o.x && nn.y===o.y); })){
+      pilaDeshacer = gesto.pilasPrevias.deshacer; pilaRehacer = gesto.pilasPrevias.rehacer;
+      actualizarBotonesHistorial();
+    }
     gesto = null;
     refrescar();
     return;
@@ -323,24 +411,108 @@ let pinchDist = null, ultimoTap = 0, ultimoTapX = 0, ultimoTapY = 0;
 function cancelarGestoEnCurso(){
   if(gesto && gesto.tEsperaId) clearTimeout(gesto.tEsperaId);
   panDrag = null; gesto = null; pinchDist = null;
+  // Un pellizco empieza con un dedo, que ya dejó un toque de carga en espera:
+  // sin esto la ventana se abría al terminar de hacer zoom.
+  cancelarToqueCarga();
   ocultarRecuadroSeleccion();
 }
 function activarEliminar(){
   if(selNodos.length || selTramos.length || selCargas.length){ eliminarSeleccion(); return; }
   setTool('borrar');
 }
+
+// ── Toque simple con la herramienta «Cargas», en espera ──
+// (2026-09-14, decisión del profesor.) Con la herramienta armada, un toque
+// sobre un nudo o un tramo crea una carga nueva allí, y un DOBLE toque sobre
+// una carga ya puesta la edita. Como el primer toque de un doble toque es un
+// toque simple, este no se ejecuta en el acto: se guarda lo tocado (ids) y se
+// ejecuta al vencer UMBRAL_DOBLE_TOQUE_MS (01-), salvo que antes llegue el
+// doble toque (`onDbl`), que cancela la espera. En la zona donde la flecha de
+// una carga toca su nudo, el toque simple es del nudo y el doble, de la carga.
+// Qué hay bajo el cursor para una carga nueva: primero el nudo, que si no
+// quedaría tapado por los tramos que llegan a él. null si no hay nada.
+function destinoDeToqueCarga(mx, my){
+  const n = nodoEn(mx, my);
+  if(n) return {destino:'nudo', nudo:n.id};
+  const tr = tramoEn(mx, my);
+  return tr ? {destino:'tramo', tramo:tr.id} : null;
+}
+function programarToqueCarga(destino){
+  cancelarToqueCarga();
+  if(!destino) return;                  // en vacío no hay nada que esperar
+  const p = {tId:null, tipo:tipoCargaPendiente, destino};
+  p.tId = setTimeout(()=>{
+    if(toqueCargaPendiente !== p) return;
+    toqueCargaPendiente = null;
+    ejecutarToqueCarga(p);
+  }, UMBRAL_DOBLE_TOQUE_MS);
+  toqueCargaPendiente = p;
+}
+function cancelarToqueCarga(){
+  if(toqueCargaPendiente && toqueCargaPendiente.tId) clearTimeout(toqueCargaPendiente.tId);
+  toqueCargaPendiente = null;
+}
+function ventanaModalAbierta(){
+  return !!document.querySelector('.modal-ov.show');
+}
+// Lo que hacía el toque en el acto, con lo guardado REVALIDADO: durante la espera el
+// alumno puede haber cambiado de herramienta, abierto una ventana o deshecho
+// el nudo o el tramo que tocó.
+function ejecutarToqueCarga(p){
+  if(!p || !p.destino) return;
+  if(tool !== 'carga' || tipoCargaPendiente !== p.tipo) return;
+  if(ventanaModalAbierta()) return;
+  const enNudo = (p.destino.destino === 'nudo');
+  if(enNudo ? !nodo(p.destino.nudo) : !tramos.some(t=>t.id===p.destino.tramo)) return;
+  if(enNudo && (p.tipo==='U' || p.tipo==='T')){
+    aviso('Las cargas repartidas van sobre un tramo: toca un tramo.');
+    return;
+  }
+  nuevaCarga(p.tipo, p.destino);
+}
+// Cancelan también la espera:
+// · Cualquier tecla que no sea un modificador suelto. Esc, porque `manejarEsc`
+//   (18-) no la conoce y, con una selección o un aviso que cerrar, no llega a
+//   cambiar de herramienta; y Ctrl+Z y compañía, que cambian el modelo.
+// · Cualquier pulsación FUERA del lienzo: Limpiar, Ejemplo, Deshacer, un menú o
+//   una ventana. `limpiarTodo` y `cargarEjemplo` (12-) reinician nodoSeq y
+//   tramoSeq, así que un id guardado podría acabar señalando otro elemento.
+//   Las pulsaciones sobre el lienzo no cancelan: una es el segundo toque.
+document.addEventListener('keydown', e=>{
+  if(['Shift','Control','Alt','Meta'].indexOf(e.key) < 0) cancelarToqueCarga();
+});
+['pointerdown','touchstart'].forEach(ev=>document.addEventListener(ev, e=>{
+  if(toqueCargaPendiente && e.target !== cv) cancelarToqueCarga();
+}, {capture:true, passive:true}));
+
+// Doble clic o doble toque (el puente táctil de 18- llama aquí).
+// · Herramienta «Cargas»: gana la CARGA bajo el cursor, aunque esté sobre su
+//   nudo, y se edita; sin carga debajo, se hace UNA vez lo que el toque simple.
+// · Cualquier otra herramienta: edita solo el nudo o el tramo, NUNCA una carga
+//   (competían con ellos; decisión del profesor, 2026-09-14). Las cargas se
+//   editan con la herramienta «Cargas» o con el ✎ del panel de elementos.
 function onDbl(e){
   const r=cv.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
+  if(tool==='carga'){
+    const p = toqueCargaPendiente;
+    cancelarToqueCarga();
+    if(ventanaModalAbierta()) return;
+    const c = cargaEn(mx, my);
+    if(c){ editarCarga(c.id); return; }
+    ejecutarToqueCarga(p || {tipo:tipoCargaPendiente, destino:destinoDeToqueCarga(mx, my)});
+    return;
+  }
   const n=nodoEn(mx,my);
   if(n){ abrirNudo(n.id); return; }
-  const c=cargaEn(mx,my);
-  if(c){ editarCarga(c.id); return; }
   const t=tramoEn(mx,my);
   if(t) abrirTramo(t.id);
 }
 
 function setTool(t){
+  // Un toque de carga en espera no sobrevive al cambio de herramienta, ni
+  // siquiera al rearme de 'carga' con otro tipo desde el menú.
+  cancelarToqueCarga();
   tool=t; if(t!=='nudo') primerNodo=null;
   // El tipo de carga elegido en el menú solo vive mientras dura su herramienta.
   if(t!=='carga') tipoCargaPendiente=null;
@@ -359,9 +531,10 @@ function setTool(t){
   document.querySelectorAll('#menuCargas .menu-btn').forEach(b=>
     b.classList.toggle('active', t==='carga' && b.dataset.tipo===tipoCargaPendiente));
   const hints={pan:'Arrastra el lienzo para desplazar la vista.',
-    carga:(tipoCargaPendiente==='U' || tipoCargaPendiente==='T')
+    carga:((tipoCargaPendiente==='U' || tipoCargaPendiente==='T')
       ? 'Toca el tramo donde va la carga.'
-      : 'Toca el tramo o el nudo donde va la carga.',
+      : 'Toca el tramo o el nudo donde va la carga.')
+      + ' · Doble toque sobre una carga para editarla.',
     nudo:'Haz clic para colocar nudos; se van uniendo formando la viga.',
     apoyo:'Haz clic en un nudo para asignarle apoyo o rótula.',
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
@@ -407,45 +580,86 @@ function modoConstruir(m){
   }
   refrescar();
 }
+// Sobre un modelo vacío el tramo parte del origen, pero su nudo A solo se crea al
+// aplicar y dentro del mismo paso de deshacer (_desdeTramoNuevo da un origen sin
+// id). Antes se creaba al abrir la ventana, sin paso: cancelar lo dejaba suelto
+// en el lienzo y deshacer el tramo tampoco lo quitaba.
+function _desdeTramoNuevo(){
+  const v=document.getElementById('tnDesde').value;
+  if(v==='origen') return nodos.length ? null : {id:null, x:0, y:0, nombre:nombreNodo(0)};
+  return nodo(parseInt(v,10)) || null;
+}
 function nuevoTramoPorLongitud(){
-  if(!nodos.length){ addNodo(0,0); reNombrar(); }
   const sel=document.getElementById('tnDesde');
-  // por defecto se engancha al extremo izquierdo, pero se puede elegir cualquiera
-  const izq = nodos.reduce((m,n)=> n.x < m.x ? n : m, nodos[0]);
-  const ult = nodos[nodos.length-1];
-  sel.innerHTML = nodos.map(n=>'<option value="'+n.id+'">Nudo '+n.nombre
-    +' ('+dec(n.x,'len')+' ; '+dec(n.y,'len')+')</option>').join('');
-  sel.value = (tramos.length ? ult.id : izq.id);
+  if(!nodos.length){
+    sel.innerHTML = '<option value="origen">Nudo '+nombreNodo(0)
+      +' ('+dec(0,'len')+' ; '+dec(0,'len')+'), nuevo</option>';
+    sel.value = 'origen';
+  } else {
+    // por defecto se engancha al extremo izquierdo, pero se puede elegir cualquiera
+    const izq = nodos.reduce((m,n)=> n.x < m.x ? n : m, nodos[0]);
+    const ult = nodos[nodos.length-1];
+    sel.innerHTML = nodos.map(n=>'<option value="'+n.id+'">Nudo '+n.nombre
+      +' ('+dec(n.x,'len')+' ; '+dec(n.y,'len')+')</option>').join('');
+    sel.value = (tramos.length ? ult.id : izq.id);
+  }
   prevTramoNuevo();
   document.getElementById('tramoNuevoModal').classList.add('show');
 }
 function cerrarTramoNuevo(){ document.getElementById('tramoNuevoModal').classList.remove('show'); }
+// Coseno y seno de un ángulo en grados, EXACTOS en los múltiplos de 90° (2026-09-15).
+// Math.cos(π/2) no es 0 sino 6.1e-17: un pilar levantado a 90° dejaba el nudo en
+// x = 2.4492935982947064e-16, que el panel de nudos y la ventana Editar nudo enseñaban
+// tal cual, y el informe cambiaba de signo algunas cotas («-0.000»). Antes lo tapaba el
+// ajuste a la rejilla de `addNodo`; con los nudos en la coordenada exacta hace falta aquí.
+function _cosSenGrados(A){
+  if(A%90===0){ const k=(((A/90)%4)+4)%4; return [[1,0],[0,1],[-1,0],[0,-1]][k]; }
+  const rad=A*Math.PI/180;
+  return [Math.cos(rad), Math.sin(rad)];
+}
 function prevTramoNuevo(){
   const el=document.getElementById('tnPrev'); if(!el) return;
-  const id=parseInt(document.getElementById('tnDesde').value,10);
-  const n=nodo(id);
+  const n=_desdeTramoNuevo();
   const L=parseFloat(document.getElementById('tnL').value)||0;
   const A=parseFloat(document.getElementById('tnAng').value)||0;
   if(!n){ el.textContent=''; return; }
-  const rad=A*Math.PI/180;
-  const x2=n.x+L*Math.cos(rad), y2=n.y+L*Math.sin(rad);
+  const [c,s]=_cosSenGrados(A);
+  const x2=n.x+L*c, y2=n.y+L*s;
   el.innerHTML='Desde <b>'+n.nombre+'</b> ('+dec(n.x,'len')+' ; '+dec(n.y,'len')+') '
     +'hasta ('+dec(x2,'len')+' ; '+dec(y2,'len')+') '+unitLen
-    +'<br>Proyecciones: Δx = '+dec(L*Math.cos(rad),'len')+' · Δy = '+dec(L*Math.sin(rad),'len');
+    +'<br>Proyecciones: Δx = '+dec(L*c,'len')+' · Δy = '+dec(L*s,'len');
 }
 function aplicarTramoNuevo(){
-  const id=parseInt(document.getElementById('tnDesde').value,10);
-  const desde=nodo(id);
+  const desde=_desdeTramoNuevo();
   const L=parseFloat(document.getElementById('tnL').value);
   const A=parseFloat(document.getElementById('tnAng').value);
   if(!desde || !isFinite(L) || L<=0 || !isFinite(A)){ aviso('Revisa la longitud y el ángulo.', 'error'); return; }
-  const rad=A*Math.PI/180;
-  const x2=desde.x+L*Math.cos(rad), y2=desde.y+L*Math.sin(rad);
+  const [c,s]=_cosSenGrados(A);
+  const x2=desde.x+L*c, y2=desde.y+L*s;
   // si ya existe un nudo en ese punto, se enlaza en vez de duplicarlo
-  let destino=nodos.find(n=>Math.hypot(n.x-x2,n.y-y2)<1e-6);
-  if(!destino) destino=addNodo(x2,y2);
-  addTramo(desde.id, destino.id);
-  R=null; reNombrar(); cerrarTramoNuevo(); centrar(); refrescar();
+  const destino=nodos.find(n=>Math.hypot(n.x-x2,n.y-y2)<1e-6) || null;
+  // Solo un tramo que se crea de verdad registra paso y oculta los resultados
+  // (2026-09-15). En los casos en que `addTramo` no crea nada —el final sobre el
+  // nudo de partida o un tramo que ya une esos dos nudos— quedaba un paso de
+  // deshacer vacío y el panel oculto sin avisar. La ventana sigue abierta.
+  if(Math.hypot(x2-desde.x, y2-desde.y) < 1e-6){
+    aviso('El final del tramo cae sobre el nudo de partida: revisa la longitud.', 'error'); return;
+  }
+  if(destino && tramos.some(t=>(t.a===desde.id&&t.b===destino.id)||(t.a===destino.id&&t.b===desde.id))){
+    aviso('Ya hay un tramo entre '+desde.nombre+' y '+destino.nombre+'.', 'error'); return;
+  }
+  registrarCambio();
+  // Nudos en la coordenada EXACTA, como en `cargarEjemplo` (12-): `addNodo`
+  // engancha a la rejilla, cuyo paso depende del zoom, y el tramo no salía con
+  // la longitud ni el ángulo escritos. El origen de un modelo vacío se crea
+  // aquí, en el mismo paso que el tramo.
+  const nudoExacto=(x,y)=>{
+    const n={id:++nodoSeq, x, y, nombre:'', apoyo:'libre', rotula:false};
+    nodos.push(n); return n;
+  };
+  const origen = desde.id===null ? nudoExacto(desde.x, desde.y) : desde;
+  addTramo(origen.id, (destino || nudoExacto(x2,y2)).id);
+  invalidarResultados(); reNombrar(); cerrarTramoNuevo(); centrar(); refrescar();
 }
 
 // ── Edición ──
@@ -461,7 +675,14 @@ function aplicarNudo(){
   const n=nodo(edNodo);
   if(n){ const gx=parseFloat(document.getElementById('ndX').value),
               gy=parseFloat(document.getElementById('ndY').value);
-    if(isFinite(gx)) n.x=gx; if(isFinite(gy)) n.y=gy; R=null; }
+    // Aplicar sin tocar los campos, o con uno vacío, no cambia el nudo: los
+    // resultados solo se ocultan si se mueve de verdad.
+    const cambia=(isFinite(gx) && gx!==n.x) || (isFinite(gy) && gy!==n.y);
+    if(cambia){
+      registrarCambio();
+      if(isFinite(gx)) n.x=gx; if(isFinite(gy)) n.y=gy;
+      invalidarResultados();
+    } }
   cerrarNudo(); centrar(); refrescar();
 }
 function abrirTramo(id){
@@ -480,7 +701,12 @@ function aplicarTramo(){
   if(g){
     const L=parseFloat(document.getElementById('trL').value);
     const A=parseFloat(document.getElementById('trAng').value);
-    if(isFinite(L) && L>0 && isFinite(A)){
+    // Los valores que enseñó `abrirTramo` (L a 6 decimales, ángulo a 4) no son
+    // un cambio: ni se reescribe el nudo final con ese redondeo ni se ocultan
+    // los resultados.
+    const mismos=(L === +g.L.toFixed(6) && A === +g.ang.toFixed(4));
+    if(isFinite(L) && L>0 && isFinite(A) && !mismos){
+      registrarCambio();
       const rad=A*Math.PI/180;
       const nx=g.a.x+L*Math.cos(rad), ny=g.a.y+L*Math.sin(rad);
       const ddx=nx-g.b.x, ddy=ny-g.b.y;
@@ -489,13 +715,13 @@ function aplicarTramo(){
       const idx=cad.findIndex(e=>e.t.id===t.id);
       g.b.x=nx; g.b.y=ny;
       if(idx>=0) for(let i=idx+1;i<cad.length;i++){ cad[i].hasta.x+=ddx; cad[i].hasta.y+=ddy; }
-      R=null;
+      invalidarResultados();
     }
   }
   cerrarTramo(); centrar(); refrescar();
 }
 function abrirApoyo(id){
-  edApoyo=id; const n=nodo(id); if(!n) return;
+  edApoyo=id; apAngEnEdicion=null; const n=nodo(id); if(!n) return;
   document.getElementById('apNom').textContent=n.nombre;
   marcarApoyo(); actualizarPrevApoyo();
   document.getElementById('apoyoModal').classList.add('show');
@@ -514,6 +740,9 @@ function marcarApoyo(){
 }
 function elegirApoyo(tipo){
   const n=nodo(edApoyo); if(!n) return;
+  // Pulsar el tipo que el nudo ya tiene no cambia la física (a lo sumo fijaría
+  // el giro por defecto del dibujo del simple): ni paso ni resultados ocultos.
+  if((n.apoyo||'libre') === tipo){ marcarApoyo(); return; }
   registrarCambio();
   n.apoyo=tipo;
   // Un móvil recién puesto desliza en horizontal, o sea reacción vertical.
@@ -521,7 +750,7 @@ function elegirApoyo(tipo){
   // El simple arranca dibujado debajo del nudo. Es un ángulo de DIBUJO y por
   // eso va en otra propiedad: el cálculo le da sus dos reacciones siempre.
   if(tipo === 'simple' && n.apAngDib === undefined) n.apAngDib = AP_ANG_DEF;
-  R=null;
+  invalidarResultados();
   marcarApoyo(); sincroApAng(); actualizarPrevApoyo(); refrescar();
 }
 // El móvil y el simple llevan ángulo, pero NO significan lo mismo:
@@ -553,24 +782,44 @@ function sincroApAng(){
 // suelo, 0° pared derecha, 180° pared izquierda, 90° techo). Lo que se guarda
 // es el opuesto —la dirección en la que empuja la reacción—, que es lo que
 // leen el motor y los dibujos.
+// Un solo paso de deshacer por edición del campo: va enlazado a `oninput`, y cada
+// pulsación que da un número llamaba a registrarCambio («-45» dejaba 2 pasos).
+// Mientras el campo tiene el foco, las pulsaciones sobre el mismo nudo comparten
+// el paso; `blur` o `change` (Intro) cierran la edición.
+let apAngEnEdicion = null;      // id del nudo cuyo ángulo se está tecleando
 function setApAng(v){
   const n = nodo(edApoyo);
   if(!n || (n.apoyo !== 'movil' && n.apoyo !== 'simple')) return;
   const u = parseFloat(v);
   if(!isFinite(u)) return;
   const a = bsaAnguloOpuesto(u);
-  registrarCambio();
-  // Cada tipo guarda en SU propiedad. Mezclarlas metería en el cálculo un
-  // ángulo que en el pasador es solo dibujo; por eso el simple tampoco anula R.
-  if(n.apoyo === 'movil'){ n.apAng = a; R = null; }
-  else n.apAngDib = a;
   const campo = document.getElementById('apAngVal');
+  // El mismo ángulo (con tolerancia y módulo 360; un botón de preajuste con el
+  // valor que ya tiene) no es un cambio. Se compara con `anguloApoyo`, que da el
+  // valor por defecto cuando el campo del nudo no existe: escribirlo no cambia
+  // ni el cálculo ni el dibujo.
+  const dif = Math.abs(((a - anguloApoyo(n)) % 360 + 540) % 360 - 180);
+  if(dif > 1e-9){
+    const tecleando = !!campo && document.activeElement === campo;
+    if(!(tecleando && apAngEnEdicion === n.id)) registrarCambio();
+    if(tecleando && apAngEnEdicion !== n.id){
+      apAngEnEdicion = n.id;
+      const fin = ()=>{ apAngEnEdicion = null; };
+      campo.addEventListener('blur', fin, {once:true});
+      campo.addEventListener('change', fin, {once:true});
+    }
+    // Cada tipo guarda en SU propiedad. Mezclarlas metería en el cálculo un
+    // ángulo que en el pasador es solo dibujo; por eso el simple tampoco anula R.
+    if(n.apoyo === 'movil'){ n.apAng = a; invalidarResultados(); }
+    else n.apAngDib = a;
+  }
   if(campo && document.activeElement !== campo) campo.value = u;
   sincroApAng(); actualizarPrevApoyo(); refrescar();
 }
 function alternarRotula(){
   const n=nodo(edApoyo); if(!n) return;
-  n.rotula=!n.rotula; R=null;
+  registrarCambio();
+  n.rotula=!n.rotula; invalidarResultados();
   marcarApoyo(); actualizarPrevApoyo(); refrescar();
 }
 function actualizarPrevApoyo(){

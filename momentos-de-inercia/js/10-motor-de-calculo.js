@@ -75,7 +75,7 @@ function eliminarFiguraSel(){
     selFiguras = [];
     if(aBorrar.indexOf(selectedFigId) >= 0) selectFigure(null);
     actualizarInfoSel();
-    results = null; renderFigList(); render(); cerrarEdicionSiSobra();
+    invalidarResultados(); renderFigList(); render(); cerrarEdicionSiSobra();
     return;
   }
   if(selectedFigId === null || selectedFigId === undefined || !figures.some(f=>f.id===selectedFigId)){

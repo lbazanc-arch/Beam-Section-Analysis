@@ -1,14 +1,17 @@
 // ── Cargas ──
 // Flujo (2026-09-14, decisión del profesor): el menú «Cargas» solo elige el
 // TIPO y arma la herramienta 'carga'; el destino lo fija el toque en el lienzo
-// (`onDown`, 09-) y la ventana se abre ya con él, sin listas que elegir.
+// y la ventana se abre ya con él, sin listas que elegir. El toque no la abre en
+// el acto: `onDown` (09-) lo deja en espera y `ejecutarToqueCarga` la abre al
+// vencer, salvo que un doble toque (`onDbl`) edite antes la carga de debajo.
 function elegirTipoCarga(tipo){
   if(!tramos.length){ aviso('Primero construye al menos un tramo de viga.', 'error'); return; }
   tipoCargaPendiente = tipo;
   setTool('carga');
 }
 // Carga nueva de `tipo` sobre `destino` = {destino:'tramo', tramo:id} o
-// {destino:'nudo', nudo:id}. La llama `onDown` con lo que se tocó.
+// {destino:'nudo', nudo:id}. La llama `ejecutarToqueCarga` (09-) con lo que se
+// tocó, al vencer la espera del toque o desde `onDbl` si no había carga debajo.
 function nuevaCarga(tipo, destino){
   edCarga = {nuevo:true, tipo};
   abrirCargaModal(tipo, null, destino);
@@ -671,15 +674,15 @@ function aplicarCarga(){
   if(edCarga.nuevo) cargas.push(Object.assign({id:++cargaSeq, tipo:_tipo}, datos));
   else Object.assign(edCarga, datos, {tipo:_tipo});
   // La herramienta 'carga' no se toca: sigue armada con el mismo tipo.
-  R=null; cerrarCarga(); refrescar();
+  invalidarResultados(); cerrarCarga(); refrescar();
 }
-// Doble clic o ✎ del panel: la ventana se reabre con el destino de la carga,
-// que se muestra pero no se cambia.
+// Doble toque con la herramienta «Cargas» (`onDbl`, 09-) o ✎ del panel: la
+// ventana se reabre con el destino de la carga, que se muestra pero no se cambia.
 function editarCarga(id){
   const c=cargas.find(z=>z.id===id); if(!c) return;
   edCarga=c; abrirCargaModal(c.tipo, c);
 }
-function borrarCarga(id){ registrarCambio(); cargas=cargas.filter(c=>c.id!==id); R=null; refrescar(); }
+function borrarCarga(id){ registrarCambio(); cargas=cargas.filter(c=>c.id!==id); invalidarResultados(); refrescar(); }
 
 // ── Eliminar selección ──
 // ═══════════════════════════════════════════════════════════
@@ -697,6 +700,9 @@ function instantanea(){
     tramos: tramos.map(t=>Object.assign({}, t)),
     cargas: cargas.map(c=>Object.assign({}, c)),
     pesos: pesos.map(p=>Object.assign({}, p)),
+    // Las unidades van con el modelo: sus números solo valen en ellas, y deshacer
+    // un cambio de unidades tiene que devolver las dos cosas juntas.
+    unidades: {len:unitLen, fuerza:unitFor},
     nodoSeq, tramoSeq, cargaSeq, pesoSeq
   });
 }
@@ -716,6 +722,19 @@ function restaurarInstantanea(txt){
   nodoSeq = e.nodoSeq; tramoSeq = e.tramoSeq; cargaSeq = e.cargaSeq;
   pesoSeq = e.pesoSeq || pesoSeq;
   if(!pesos.some(p=>p.id === pesoActivo)) pesoActivo = null;
+  // Una instantánea sin unidades (anterior a guardarlas) conserva las actuales.
+  if(e.unidades){
+    const nL = e.unidades.len || unitLen, nF = e.unidades.fuerza || unitFor;
+    // La vista pasa también a las unidades devueltas, conservando el encuadre
+    // (como en presión, 04-): sin esto, deshacer un m → cm dibujaba la viga en
+    // metros con la escala de centímetros, cien veces más pequeña, y la rejilla
+    // enganchaba a pasos de metros. applyUnits, en cambio, recentra.
+    if(nL !== unitLen && LEN_A_M[nL] && LEN_A_M[unitLen]){
+      const k = LEN_A_M[unitLen]/LEN_A_M[nL];
+      vx *= k; vy *= k; escala /= k;
+    }
+    fijarUnidades(nL, nF);   // 15-
+  }
   // La selección puede apuntar a elementos que ya no existen tras restaurar.
   selNodos  = selNodos.filter(id=>nodos.some(n=>n.id===id));
   selTramos = selTramos.filter(id=>tramos.some(t=>t.id===id));
@@ -723,7 +742,8 @@ function restaurarInstantanea(txt){
   if(!nodos.some(n=>n.id===selNodo))   selNodo = null;
   if(!tramos.some(t=>t.id===selTramo)) selTramo = null;
   primerNodo = null;
-  R = null;
+  // El panel enseñaba la solución del modelo de antes de deshacer (12-).
+  invalidarResultados();
   refrescar();
 }
 function deshacer(){
@@ -756,7 +776,7 @@ function eliminarSeleccion(){
   nodos  = nodos.filter(n=>!marcado(selNodos, n.id));
   cargas = cargas.filter(cargaSigueAnclada);   // cada carga cae con su nudo o su tramo
   selNodos=[]; selTramos=[]; selCargas=[]; selNodo=null; selTramo=null;
-  reNombrar(); R=null; refrescar();
+  reNombrar(); invalidarResultados(); refrescar();
 }
 
 // ── El grupo de nudos que abarca la selección actual: los nudos marcados

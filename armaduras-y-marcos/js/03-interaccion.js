@@ -27,6 +27,80 @@ function barraEn(mx, my){
   return mejor;
 }
 
+// La carga de nudo cuya flecha queda bajo (mx,my), en coordenadas de pantalla:
+// {nudo, idx} con idx su posición en n.cargas, o null. Mide con la misma
+// geometría que dibujarCarga (02-), en dos niveles:
+//  1. Si el punto cae dentro de la caja del rótulo del valor de alguna carga,
+//     gana esa carga (entre varias cajas, la de centro más cercano). Sin esto,
+//     un toque sobre el texto de una carga editaba otra cuyo fuste pasaba cerca.
+//  2. Si ninguna caja lo contiene, la del fuste —de la cola a la punta— más
+//     cercano, con 12 px de tolerancia.
+// En los dos, a igualdad de distancia (dos cargas en la misma dirección en un
+// nudo) gana la dibujada en último lugar, que es la que se ve encima.
+// Con las cargas ocultas en Visualización no hay nada que tocar.
+function cargaArmEn(mx, my){
+  if(typeof VIS !== 'undefined' && !VIS.cargas) return null;
+  const TOL = 12;
+  let mejorCaja = null, dCaja = Infinity, mejorFuste = null, dFuste = Infinity;
+  nodos.forEach(n=>{
+    if(!n.cargas || !n.cargas.length) return;
+    const [px,py] = aPantalla(n.x, n.y);
+    n.cargas.forEach((c, idx)=>{
+      const q = compCargaNudo(c);
+      if(esCero(q.fx) && esCero(q.fy)) return;      // no se dibuja: no se toca
+      const mag = Math.hypot(q.fx, q.fy);
+      const ux = q.fx/mag, uy = q.fy/mag;
+      const sx = px - ux*CARGA_FLECHA_COLA,  sy = py + uy*CARGA_FLECHA_COLA;
+      const tx = px - ux*CARGA_FLECHA_PUNTA, ty = py + uy*CARGA_FLECHA_PUNTA;
+      // Rótulo: centrado en (sx, sy-5), 600 11px, como en dibujarCarga.
+      const txt = dec(mag,'f') + ' ' + unitFor;
+      let w = txt.length*6.5;
+      if(ctx){ ctx.save(); ctx.font = '600 11px Inter, sans-serif'; w = ctx.measureText(txt).width; ctx.restore(); }
+      if(Math.abs(mx - sx) <= w/2 + 4 && my >= sy - 20 && my <= sy + 1){
+        const dc = Math.hypot(mx - sx, my - (sy - 9));
+        if(dc <= dCaja){ dCaja = dc; mejorCaja = {nudo:n.id, idx}; }
+      }
+      const dx = tx - sx, dy = ty - sy, L2 = dx*dx + dy*dy;
+      let t = L2 > 0 ? ((mx-sx)*dx + (my-sy)*dy)/L2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(mx - (sx + t*dx), my - (sy + t*dy));
+      if(d <= TOL && d <= dFuste){ dFuste = d; mejorFuste = {nudo:n.id, idx}; }
+    });
+  });
+  return mejorCaja || mejorFuste;
+}
+
+// ── Toque simple con la herramienta Carga, en espera ──
+// El toque simple no actúa en el acto: se guarda lo tocado y se ejecuta tras
+// UMBRAL_DOBLE_TOQUE_MS, por si llega un doble toque o doble clic que edite una
+// carga (intentarAbrirEdicion). Se guardan ids, no objetos: al vencer se
+// revalida que la herramienta siga siendo Carga, que no haya una ventana
+// abierta y que el nudo o la barra sigan existiendo.
+function cancelarToqueCarga(){
+  if(toqueCargaPendiente){ clearTimeout(toqueCargaPendiente.tId); toqueCargaPendiente = null; }
+}
+function armarToqueCarga(ref){
+  cancelarToqueCarga();
+  const p = {ref, tId:0};
+  p.tId = setTimeout(()=>{
+    if(toqueCargaPendiente !== p) return;
+    toqueCargaPendiente = null;
+    if(tool !== 'carga' || document.querySelector('.modal-ov.show')) return;
+    ejecutarToqueCarga(ref);
+  }, UMBRAL_DOBLE_TOQUE_MS);
+  toqueCargaPendiente = p;
+}
+// Lo que hace el toque simple: sobre un nudo abre la ventana de una carga
+// NUEVA; sobre una barra explica por qué no; lo demás no hace nada.
+function ejecutarToqueCarga(ref){
+  if(!ref) return;
+  if(ref.nudo !== undefined){
+    if(nodos.some(z=>z.id === ref.nudo)) nuevaCargaArm({nudo:ref.nudo});
+  } else if(ref.barra !== undefined){
+    if(barras.some(z=>z.id === ref.barra)) aviso('En una armadura las cargas van en los nudos: toca un nudo.');
+  }
+}
+
 function nombreNodo(i){
   // A, B, ... Z, A1, B1 ...
   const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -35,41 +109,74 @@ function nombreNodo(i){
 
 function reNombrar(){ nodos.forEach((n,i)=>n.nombre = nombreNodo(i)); }
 
-function addNodo(x, y){
-  registrarCambio();
+// `sinRegistro`: como en addBarra, quien la llama ya abrió su propio paso de
+// deshacer (generarPlantilla crea todos los nudos y barras en un solo paso).
+function addNodo(x, y, sinRegistro){
+  if(!sinRegistro) registrarCambio();
   const n = {id:++nodoSeq, x:snap(x), y:snap(y), apoyo:null, fx:0, fy:0, cargas:[], nombre:''};
   nodos.push(n); reNombrar(); return n;
 }
 
 // Una barra de armadura: dos fuerzas, siempre articulada, solo N.
-function addBarra(a, b){
+// `sinRegistro`: quien la llama ya abrió su propio paso de deshacer (Replicar
+// crea muchas barras en un solo paso; con uno por barra, el estado anterior
+// salía de la pila de MAX_HISTORIAL).
+function addBarra(a, b, sinRegistro){
   if(a===b) return null;
   if(barras.some(m=>(m.a===a&&m.b===b)||(m.a===b&&m.b===a))) return null;
-  registrarCambio();
+  if(!sinRegistro) registrarCambio();
   const m = {id:++barraSeq, a, b};
   barras.push(m); return m;
+}
+
+// Quita de la selección lo que ya no existe. Sin esto, tras borrar, Replicar y
+// Transformar contaban nudos fantasma, y la cadena de Barra podía unir una
+// barra a un nudo borrado (selNodo).
+function depurarSeleccion(){
+  const hayNodo = id => nodos.some(n=>n.id===id);
+  const hayBarra = id => barras.some(b=>b.id===id);
+  selNodos = selNodos.filter(hayNodo);
+  selBarras = selBarras.filter(hayBarra);
+  if(selBarra !== null && !hayBarra(selBarra)) selBarra = null;
+  if(selNodoInfo !== null && !hayNodo(selNodoInfo)) selNodoInfo = null;
+  if(selNodo !== null && !hayNodo(selNodo)) selNodo = null;
 }
 
 function borrarNodo(id){
   registrarCambio();
   nodos = nodos.filter(n=>n.id!==id);
   barras = barras.filter(b=>b.a!==id && b.b!==id);
-  reNombrar(); resultado = null; refrescar();
+  depurarSeleccion();
+  reNombrar(); invalidarResultados(); refrescar();
 }
-function borrarBarra(id){ registrarCambio(); barras = barras.filter(b=>b.id!==id); resultado = null; refrescar(); }
+function borrarBarra(id){
+  registrarCambio(); barras = barras.filter(b=>b.id!==id);
+  depurarSeleccion(); invalidarResultados(); refrescar();
+}
 
 // Abre la edición de lo que haya bajo (mx,my), en coordenadas de pantalla.
 // La usan tanto el 'dblclick' de ratón como el doble toque táctil, ya que
 // 'dblclick' no se sintetiza de forma fiable en móvil (y menos aún cuando
 // touchstart llama preventDefault()).
+//
+// Con la herramienta Carga, el doble toque edita LA CARGA bajo el cursor (con
+// la flecha tocando el nudo, gana la carga) y nunca el nudo ni la barra. Sin
+// carga debajo, hace UNA vez lo que habría hecho el toque simple que quedó en
+// espera. El doble toque de 18-arranque.js se come el segundo toque sin pasar
+// por onCanvasDown; el doble clic de ratón llega tras dos mousedown.
+// Con las demás herramientas edita SOLO el nudo o la barra, nunca una carga.
 function intentarAbrirEdicion(mx, my){
   const n = nodoEn(mx, my);
-  // Con la herramienta Carga, tocar un nudo es poner una carga, nunca editarlo.
-  // El doble toque de 18-arranque.js se come el segundo toque sin pasar por
-  // onCanvasDown: si la ventana no quedó abierta con el primero, se abre aquí.
   if(tool === 'carga'){
-    const m = document.getElementById('cargaModal');
-    if(n && !(m && m.classList.contains('show'))) nuevaCargaArm({nudo:n.id});
+    const pend = toqueCargaPendiente;
+    cancelarToqueCarga();
+    const abierta = document.querySelector('.modal-ov.show');
+    if(abierta && abierta.id !== 'cargaModal') return;
+    const c = cargaArmEn(mx, my);
+    if(c){ editarCargaArm(c.nudo, c.idx); return; }
+    if(abierta) return;                  // la ventana de la carga ya está abierta
+    if(pend){ ejecutarToqueCarga(pend.ref); return; }
+    if(n) nuevaCargaArm({nudo:n.id});
     return;
   }
   if(n){ abrirEdNodo(n.id); return; }
@@ -89,10 +196,14 @@ function onCanvasDown(e){
     // No hay herramienta de nudo suelto: un nudo existe porque es el extremo de
     // una pieza. La cadena se corta al cambiar de herramienta o con Esc.
     const nn = n || addNodo(wx, wy);
+    let cambio = !n;
     if(selNodo !== null && selNodo !== nn.id){
-      addBarra(selNodo, nn.id);
+      if(addBarra(selNodo, nn.id)) cambio = true;
     }
-    selNodo = nn.id; resultado = null;
+    selNodo = nn.id;
+    // Solo si se creó un nudo o una barra: empezar la cadena sobre un nudo que
+    // ya existe no cambia el modelo y no tiene por qué borrar la solución.
+    if(cambio) invalidarResultados();
     refrescar();
   } else if(tool === 'apoyo'){
     if(n) abrirApoyoModal(n.id);
@@ -100,12 +211,28 @@ function onCanvasDown(e){
     // La ventana aparece solo al tocar un nudo, y la herramienta sigue activa
     // tras Aplicar o Cancelar para poner varias seguidas. Sobre una barra se
     // explica por qué no; sobre zona vacía no pasa nada, como con Apoyo.
-    if(n) nuevaCargaArm({nudo:n.id});
-    else if(barraEn(mx, my)) aviso('En una armadura las cargas van en los nudos: toca un nudo.');
+    // No se actúa en el acto: el toque queda en espera por si es el primero de
+    // un doble toque que edita una carga (armarToqueCarga). En el toque simple
+    // el nudo gana a la flecha de la carga que llega a él.
+    if(e.detail >= 2){
+      // Segundo mousedown de un doble clic: el 'dblclick' nativo llega al
+      // soltar y decide. Se reinicia la espera para que no venza antes.
+      if(toqueCargaPendiente) armarToqueCarga(toqueCargaPendiente.ref);
+      return;
+    }
+    const b = n ? null : barraEn(mx, my);
+    const ref = n ? {nudo:n.id} : (b ? {barra:b.id} : null);
+    if(ref) armarToqueCarga(ref); else cancelarToqueCarga();
   } else if(tool === 'pan'){
     iniciarPan(mx, my);
   } else if(tool === 'corte'){
-    corteDrag = {x1:wx, y1:wy};
+    // Trazar el corte es su propio paso de deshacer: la instantánea guarda
+    // `corte`, y sin paso propio deshacer un cambio anterior al trazado se
+    // llevaba también el corte trazado después. Las pilas previas se guardan
+    // por si el trazado queda en un toque que no cambia nada (onCanvasUp).
+    const pilasAntes = {deshacer: pilaDeshacer.slice(), rehacer: pilaRehacer, corte: corte};
+    registrarCambio();
+    corteDrag = {x1:wx, y1:wy, pilasAntes};
     corte = {x1:wx, y1:wy, x2:wx, y2:wy};
     dibujar();
   } else if(tool === 'sel'){
@@ -137,7 +264,7 @@ function onCanvasMove(e){
   mouseW = aMundo(mx, my);
   if(dragNodo !== null){
     const n = nodos.find(x=>x.id===dragNodo);
-    if(n){ n.x = snap(mouseW[0]); n.y = snap(mouseW[1]); resultado = null; }
+    if(n){ n.x = snap(mouseW[0]); n.y = snap(mouseW[1]); invalidarResultados(); }
   }
   if(panDrag){ moverPan(mx, my); return; }
   if(corteDrag){ corte.x2 = mouseW[0]; corte.y2 = mouseW[1]; dibujar(); }
@@ -168,6 +295,7 @@ function onCanvasMove(e){
         if(selNodos.indexOf(gesto.hitNodo) < 0){ selNodos = grupo; selBarras = []; selBarra = null; selNodoInfo = null; }
         gesto.tipo = 'mover';
         registrarCambio();
+        invalidarResultados();   // una vez, al empezar el arrastre
         gesto.origenes = grupo.map(id=>{
           const nn = nodos.find(z=>z.id===id);
           return nn ? {id, x:nn.x, y:nn.y} : null;
@@ -184,7 +312,7 @@ function onCanvasMove(e){
         const nn = nodos.find(z=>z.id===o.id);
         if(nn){ nn.x = snap(o.x + wdx); nn.y = snap(o.y + wdy); }
       });
-      resultado = null; dibujar();
+      dibujar();
     } else if(gesto.tipo === 'rubber' || gesto.tipo === 'rubber-borrar'){
       gesto.x1 = mx; gesto.y1 = my;
       dibujar();
@@ -194,12 +322,31 @@ function onCanvasMove(e){
   if(dragNodo !== null || (tool==='barra' && selNodo!==null)) dibujar();
 }
 function onCanvasUp(){
+  // Herramienta Carga: la espera del toque simple se cuenta desde el SOLTAR, no
+  // desde el pulsar. Contada desde el mousedown, un doble clic algo lento (Windows
+  // acepta hasta 500 ms entre clics) vencía antes del segundo clic: se abría la
+  // ventana de una carga nueva, que tapa el lienzo, y el 'dblclick' ya no llegaba.
+  // En táctil pasa lo mismo (touchend llama aquí): el puente de 18- acepta el
+  // doble toque hasta 320 ms de touchstart a touchstart, y contando desde el
+  // touchend la espera cubre ese hueco.
+  if(tool === 'carga' && toqueCargaPendiente) armarToqueCarga(toqueCargaPendiente.ref);
   soltarPan();
   if(dragNodo!==null){ dragNodo = null; refrescar(); }
   if(corteDrag){
+    const antes = corteDrag.pilasAntes;
     corteDrag = null;
     const L = Math.hypot(corte.x2-corte.x1, corte.y2-corte.y1);
-    if(L < 1e-6) corte = null;
+    if(L < 1e-6){
+      corte = null;
+      // Un toque sin arrastre no traza nada. Si tampoco había corte, el paso
+      // abierto al pulsar está vacío: se retira y las dos pilas quedan como
+      // estaban (con la de 60 llena, el estado más antiguo no se pierde). Si
+      // había uno, el toque lo borró y el paso se queda para poder deshacerlo.
+      if(antes && !antes.corte){
+        pilaDeshacer = antes.deshacer; pilaRehacer = antes.rehacer;
+        actualizarBotonesHistorial();
+      }
+    }
     refrescar();
     if(metodo === 'secciones' && resultado){
       const c = document.getElementById('corteBox');
@@ -217,6 +364,7 @@ function onCanvasUp(){
     }
     if(gesto.modo === 'borrar'){
       if(gesto.hitNodo!==null || gesto.hitBarra!==null || gesto.tipo==='rubber-borrar') registrarCambio();
+      const nN0 = nodos.length, nB0 = barras.length;
       if(!gesto.moved){
         // Toque simple: borra el elemento tocado, uno por uno.
         if(gesto.hitNodo !== null){
@@ -239,7 +387,10 @@ function onCanvasUp(){
       // que limpiarlo ANTES del último repintado: si no, el recuadro se queda
       // dibujado hasta el siguiente redibujado. Los otros cuatro temas lo ocultan
       // porque el suyo es un <div>, no parte del lienzo.
-      resultado = null; gesto = null; refrescar();
+      // Solo se anula la solución si de verdad se borró algo: un toque en vacío
+      // con Eliminar no cambia el modelo.
+      if(nodos.length !== nN0 || barras.length !== nB0) invalidarResultados();
+      gesto = null; depurarSeleccion(); refrescar();
       return;
     }
     if(!gesto.moved){
@@ -286,6 +437,7 @@ function segmentosCruzan(ax,ay,bx,by, cx,cy,dx,dy){
 }
 
 function setTool(t){
+  cancelarToqueCarga();                  // un toque de Carga en espera no sobrevive al cambio
   tool = t; selNodo = null;
   ['barra','apoyo','carga','corte','sel','pan'].forEach(k=>{
     const el = document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
@@ -299,7 +451,7 @@ function setTool(t){
   const hints = {
     barra:'Barra de armadura: dos fuerzas, solo N. Cada clic coloca un nudo y lo une al anterior; Esc corta la cadena.',
     apoyo:'Haz clic sobre un nudo y elige el tipo de apoyo, o quítalo.',
-    carga:'Toca un nudo para ponerle una carga.',
+    carga:'Toca un nudo para ponerle una carga · doble toque sobre una carga para editarla.',
     corte:'Arrastra una línea que atraviese la armadura de lado a lado.',
     pan:'Arrastra el lienzo para desplazar la vista.',
     sel:'Toca para seleccionar · arrastra un objeto para moverlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar varios (un arrastre rápido solo desplaza el panel) · doble clic para editar.',
@@ -425,6 +577,7 @@ function centrar(){
 }
 
 function limpiarTodo(){
+  cancelarToqueCarga();
   registrarCambio();
   nodos = []; barras = []; nodoSeq = 0; barraSeq = 0;
   selNodo = null; resultado = null; selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null;
@@ -463,7 +616,7 @@ function applyEdNodo(){
     const g = id => parseFloat(document.getElementById(id).value);
     if(isFinite(g('edNx'))) n.x = g('edNx');
     if(isFinite(g('edNy'))) n.y = g('edNy');
-    resultado = null;
+    invalidarResultados();
   }
   closeEdNodo(); refrescar();
 }
@@ -493,9 +646,17 @@ function applyEdBarra(){
   if(b){
     const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
     const g = id => parseFloat(document.getElementById(id).value);
-    if(na){ if(isFinite(g('edBx1'))) na.x = g('edBx1'); if(isFinite(g('edBy1'))) na.y = g('edBy1'); }
-    if(nb){ if(isFinite(g('edBx2'))) nb.x = g('edBx2'); if(isFinite(g('edBy2'))) nb.y = g('edBy2'); }
-    resultado = null;
+    // Lo que el alumno pide para cada coordenada; un campo vacío o no numérico la
+    // deja como estaba. Solo si algo cambia de verdad se abre un paso de deshacer
+    // y se anula la solución: «Aplicar» sin tocar nada no ensucia la pila ni
+    // borra el camino de rehacer.
+    const pide = [[na,'x','edBx1'], [na,'y','edBy1'], [nb,'x','edBx2'], [nb,'y','edBy2']]
+      .filter(([n,k,id]) => n && isFinite(g(id)) && g(id) !== n[k]);
+    if(pide.length){
+      registrarCambio();
+      pide.forEach(([n,k,id]) => { n[k] = g(id); });
+      invalidarResultados();
+    }
   }
   closeEdBarra(); refrescar();
 }

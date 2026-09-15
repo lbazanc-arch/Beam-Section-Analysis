@@ -73,6 +73,20 @@ function kx(tex){
   return '<span class="ktx" data-tex="' + esc + '"></span>';
 }
 
+// Leyenda de los DCL de una sección (nudos o cortes), una sola vez y en HTML:
+// a trazos la incógnita, supuesta en tracción; sólida la fuerza ya conocida.
+// La muestra lleva width y height propios: el PDF rápido (11-) clona el panel con
+// otro CSS y, sin ellos, cada muestra tomaba el ancho entero de la hoja.
+function leyendaDCL(){
+  const muestra = (col, trazos) => '<svg viewBox="0 0 34 10" width="34" height="10" aria-hidden="true">'
+    + '<line x1="1" y1="5" x2="25" y2="5" stroke="' + col + '" stroke-width="2"' + (trazos ? ' stroke-dasharray="5,3"' : '') + '/>'
+    + '<path d="M33 5 L25 1.6 L25 8.4 Z" fill="' + col + '"/></svg>';
+  return '<div class="dcl-leyenda">'
+    + '<span>' + muestra('#3d4550', true) + 'incógnita, supuesta en tracción (sale del nudo)</span>'
+    + '<span>' + muestra('#1d4ed8', false) + 'conocida, en su sentido real y con su valor</span>'
+    + '</div>';
+}
+
 function renderResultados(res){
   const d = res.diag;
   const f = v => dec(v,'f');
@@ -183,11 +197,16 @@ function renderResultados(res){
 
   // ── 4. Método de nudos ──
   if(metodo === 'secciones'){
+    // La leyenda solo si hay figura: el corte manual la pone él mismo antes de
+    // su DCL (renderSeccionCorte, 15-); la secuencia automática, delante del
+    // primer corte, y nada si no encontró ninguno.
+    const cortesHtml = modoCorte === 'auto' ? renderAutoCortes() : renderSeccionCorte();
+    const conLeyenda = modoCorte === 'auto' && cortesHtml.indexOf('<svg') >= 0;
     h += '<div class="res-section">'
       + '<div class="res-title"><div class="num">4</div>'
       + (modoCorte === 'auto' ? 'Resolución automática por cortes' : 'Método de secciones — corte manual')
       + '</div><div id="corteBox">'
-      + (modoCorte === 'auto' ? renderAutoCortes() : renderSeccionCorte())
+      + (conLeyenda ? leyendaDCL() : '') + cortesHtml
       + '</div></div>';
     h += renderTablaFinal(res);
     return h;
@@ -199,6 +218,7 @@ function renderResultados(res){
     + '<div class="verdict"><div class="verdict-t">Orden de resolución</div>'
     + orden.map(p=>'<b>' + p.nodo.nombre + '</b>').join(' \u2192 ')
     + ' <span style="color:var(--muted)">(como máximo dos incógnitas por nudo)</span></div>';
+  h += leyendaDCL();
 
   orden.forEach((paso, i)=>{
     const n = paso.nodo;
@@ -258,7 +278,8 @@ function renderResultados(res){
          + 'Comprobación: todas las barras ya conocidas.</div>';
     }
 
-    h += '</div><div><svg class="joint-svg" id="dcl-'+n.id+'" viewBox="0 0 190 168"></svg></div>';
+    h += '</div><div><svg class="joint-svg" id="dcl-'+n.id+'" viewBox="-120 -105 240 210"></svg>'
+       + '<div class="dcl-ang" id="dcl-'+n.id+'-ang"></div></div>';
     h += '</div></div>';
   });
   h += '</div>';
@@ -305,22 +326,23 @@ function renderTablaFinal(res){
   // ── 6. Variación de cargas ──
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">6</div>¿Qué pasa si cambio las cargas?</div>'
-    + '<div class="hint-sm" style="margin-bottom:8px">Cambia las cargas, pulsa Recalcular y compara con el caso original.</div>'
+    + '<div class="hint-sm" data-bsa-pantalla style="margin-bottom:8px">Cambia las cargas, pulsa Recalcular y compara con el caso original.</div>'
     + '<div class="proc-block"><div class="proc-sub">Cargas aplicadas</div>'
     + '<div id="cargasEdit">' + renderCargasEdit() + '</div>'
     + '</div>'
     + '<div class="dcl-par">'
     + '<div class="proc-block"><div class="proc-sub">Estado inicial</div>'
-    + '<div id="dclIni">' + svgArmadura({etiqueta:'valor', color:'natural'}) + '</div></div>'
+    + '<div id="dclIni">' + svgArmadura({etiqueta:'valor', color:'natural', reacciones:res.reacciones}) + '</div></div>'
     + '<div class="proc-block" id="dclModBox"><div class="proc-sub">Con las cargas modificadas</div>'
     + '<div id="dclMod"><div class="hint-sm">Cambia una carga y pulsa Recalcular para comparar aquí.</div></div></div>'
     + '</div>'
+    + '<div class="hint-sm" style="margin:-4px 0 8px">Reacciones en verde y cargas en morado, en su sentido real y con su valor; el ángulo, si no está sobre un eje.</div>'
     + '<div id="compBox"></div></div>';
 
   // ── 7. Capacidad admisible ──
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">7</div>¿Qué barra falla primero?</div>'
-    + '<div class="hint-sm" style="margin-bottom:8px">Indica la fuerza admisible en tracción y en compresión: se evalúa el aprovechamiento de cada barra y cuál gobierna.</div>'
+    + '<div class="hint-sm" data-bsa-pantalla style="margin-bottom:8px">Indica la fuerza admisible en tracción y en compresión: se evalúa el aprovechamiento de cada barra y cuál gobierna.</div>'
     + '<div class="proc-block">'
     + '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
     + '<label style="font-size:11.5px;font-weight:700">Admisible en tracción</label>'
@@ -334,7 +356,7 @@ function renderTablaFinal(res){
     + '<div id="capBox"></div>'
     + '<div class="proc-block" id="simBlock" style="display:none">'
     + '<div class="proc-sub">Módulo dinámico: aumenta UNA carga y observa qué barra falla primero</div>'
-    + '<div class="hint-sm" style="margin-bottom:8px">Elige la carga que se aumenta (módulo, misma dirección).</div>'
+    + '<div class="hint-sm" data-bsa-pantalla style="margin-bottom:8px">Elige la carga que se aumenta (módulo, misma dirección).</div>'
     + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
     + '<span style="font-size:11px;color:var(--muted);font-weight:700">Carga en el nudo</span>'
     + '<select id="simNodo" onchange="prepararSim()" style="padding:6px 9px;border:1px solid var(--border2);border-radius:7px;font-family:inherit;font-size:12px"></select>'

@@ -1,9 +1,39 @@
 // ═══════════════════════════════════════════════════════════
 //  REPLICAR: copiar la selección desplazada N veces
 // ═══════════════════════════════════════════════════════════
+// La selección solo con ids que existen: tras borrar o abrir otro ejercicio
+// podían quedar ids fantasma, y Replicar registraba un paso de deshacer vacío.
+function depurarSeleccionPF(){
+  selN = selN.filter(id=>nodos.some(n=>n.id===id));
+  selT = selT.filter(id=>tramos.some(t=>t.id===id));
+  if(infoNodo !== null && !nodos.some(n=>n.id===infoNodo)) infoNodo = null;
+  if(infoTramo !== null && !tramos.some(t=>t.id===infoTramo)) infoTramo = null;
+}
+// Vacía la selección entera: limpiar, cargar un ejemplo y abrir un ejercicio.
+function vaciarSeleccionPF(){ selN = []; selT = []; infoNodo = null; infoTramo = null; selNodo = null; }
+// El panel de resultados no puede seguir enseñando la solución de un modelo que
+// ya cambió: se oculta como al limpiar.
+function invalidarResultados(){
+  R = null;
+  const ra = document.getElementById('resultsArea'); if(ra) ra.style.display = 'none';
+  const rp = document.getElementById('resultsPanel'); if(rp){ rp.innerHTML = ''; rp.style.display = 'none'; }
+  const hh = document.getElementById('noResultsHint'); if(hh) hh.style.display = '';
+}
+// Lee la ventana con Number(): parseInt('2.7') daba 2 copias y un campo vacío o
+// ilegible se convertía en silencio en 0 o en 1.
+function _leerReplicar(){
+  const txt = id => { const e = document.getElementById(id); return e ? String(e.value).trim() : ''; };
+  const numero = s => s === '' ? NaN : Number(s);
+  const nrep = numero(txt('repN')), dx = numero(txt('repDx')), dy = numero(txt('repDy'));
+  if(!Number.isInteger(nrep) || nrep < 1 || nrep > 50) return {error:'Repeticiones: un entero de 1 a 50.'};
+  if(!isFinite(dx) || !isFinite(dy)) return {error:'Distancias: escribe números.'};
+  return {dx, dy, nrep};
+}
 function abrirReplicar(){
+  depurarSeleccionPF();
   const idsNodos = nodosDeSeleccion();
   if(!idsNodos.length){
+    refrescar();
     aviso('Marca con "Mover / editar" lo que quieras replicar.');
     return;
   }
@@ -17,57 +47,120 @@ function abrirReplicar(){
 }
 function closeReplicar(){ document.getElementById('repModal').classList.remove('show'); }
 function actualizarPrevRep(){
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const dx = g('repDx'), dy = g('repDy');
-  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
+  const el = document.getElementById('repPrev');
+  if(!el) return;
+  depurarSeleccionPF();
   const idsNodos = nodosDeSeleccion();
   const base = nodos.find(z=>z.id===idsNodos[0]);
-  const el = document.getElementById('repPrev');
-  if(!el || !base) return;
-  let t = 'Desde ('+dec(base.x,'len')+' ; '+dec(base.y,'len')+') '+unitLen+' → ';
+  if(!base){ el.innerHTML = 'No hay nada seleccionado que replicar.'; return; }
+  const v = _leerReplicar();
+  if(v.error){ el.innerHTML = v.error; return; }
+  if(v.dx === 0 && v.dy === 0){ el.innerHTML = 'Indica un desplazamiento en x o en y.'; return; }
+  let t = 'Saldrán <b>' + v.nrep + (v.nrep === 1 ? ' copia' : ' copias') + '</b>. '
+        + 'Desde ('+dec(base.x,'len')+' ; '+dec(base.y,'len')+') '+unitLen+' → ';
   const p = [];
-  for(let i=1;i<=Math.min(nrep,3);i++)
-    p.push('('+dec(base.x+dx*i,'len')+' ; '+dec(base.y+dy*i,'len')+')');
-  el.innerHTML = t + p.join(', ') + (nrep>3 ? ' …' : '');
+  for(let i=1;i<=Math.min(v.nrep,3);i++)
+    p.push('('+dec(base.x+v.dx*i,'len')+' ; '+dec(base.y+v.dy*i,'len')+')');
+  el.innerHTML = t + p.join(', ') + (v.nrep>3 ? ' …' : '');
+}
+// Entre dos nudos solo cabe un tramo, el mismo criterio que addTramo (04-): una
+// copia que cae sobre CUALQUIER tramo que ya une ese par de nudos, en cualquier
+// sentido, se descarta. Con un recto encima de un arco la cadena de la compuerta
+// se rompía, la presión cargaba los dos y el resultado salía falso sin aviso.
+function _tramoEntre(a, b){
+  return tramos.find(t=>(t.a === a && t.b === b) || (t.a === b && t.b === a));
+}
+// ¿El tramo existente tiene la forma de la copia? Misma flecha geométrica: un
+// recto (o un arco de flecha nula) vale 0, y un arco recorrido al revés tiene la
+// flecha cambiada de signo (arcoDeTramo). Solo decide si se avisa.
+function _flechaGeom(t){ return (t.tipo === 'arco') ? (t.flecha || 0) : 0; }
+function _mismaForma(t, a, f, tol){
+  return Math.abs(_flechaGeom(t) - (t.a === a ? f : -f)) <= tol;
 }
 function applyReplicar(){
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const dx = g('repDx'), dy = g('repDy');
-  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
-  if(dx === 0 && dy === 0){ aviso('Indica un desplazamiento en x o en y.'); return; }
+  // Nada se toca ni se registra en deshacer hasta que la selección y los
+  // campos son válidos.
+  depurarSeleccionPF();
   const idsNodos = nodosDeSeleccion();
-  if(!idsNodos.length){ aviso('No hay nada que replicar.', 'error'); return; }
-  registrarCambio();
+  if(!idsNodos.length){ refrescar(); aviso('No hay nada seleccionado que replicar.', 'error'); return; }
+  const v = _leerReplicar();
+  if(v.error){ aviso(v.error, 'error'); return; }
+  const {dx, dy, nrep} = v;
+  if(dx === 0 && dy === 0){ aviso('Indica un desplazamiento en x o en y.'); return; }
   const idsTramos = tramosDeGrupo(idsNodos);
-  const nuevosNodos=[], nuevosTramos=[];
+  // Tolerancia relativa al tamaño del modelo (con el recorrido de las copias).
+  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
+  const tam = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys),
+                       Math.abs(dx)*nrep, Math.abs(dy)*nrep);
+  const tol = 1e-6 * (tam > 0 ? tam : 1);
+  // Un solo paso de deshacer, registrado justo antes del primer cambio: si
+  // todas las copias caen sobre lo que ya existe, no queda un paso vacío.
+  let registrado = false;
+  const registrar = () => { if(!registrado){ registrarCambio(); registrado = true; } };
+  const selNodos = [], selTramos = [];
+  const anadir = (lista, id) => { if(lista.indexOf(id) < 0) lista.push(id); };
+  let creados = 0, unidos = 0;
+  const distintos = new Set();   // tramos existentes que no tienen la forma de la copia
   for(let i=1;i<=nrep;i++){
     const mapaNodo = {};
+    // Una copia que cae sobre un nudo que ya existía (o sobre la copia de una
+    // repetición anterior) REUTILIZA ese nudo, que conserva su apoyo, su rótula
+    // y su tope. Un nudo superpuesto dejaba el tramo copiado fuera de la
+    // cadena de la compuerta: presión por la cara contraria y reacción falsa.
+    const previos = nodos.slice();
     idsNodos.forEach(id=>{
       const o = nodos.find(z=>z.id===id); if(!o) return;
-      const nn = Object.assign({}, o, {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, nombre:'',
+      const x = o.x + dx*i, y = o.y + dy*i;
+      const ya = previos.find(n=>Math.hypot(n.x - x, n.y - y) <= tol);
+      if(ya){ mapaNodo[id] = ya.id; anadir(selNodos, ya.id); unidos++; return; }
+      registrar();
+      const nn = Object.assign({}, o, {id:++nodoSeq, x, y, nombre:'',
                                        tope: o.tope ? Object.assign({}, o.tope) : null});
-      nodos.push(nn); mapaNodo[id] = nn.id; nuevosNodos.push(nn.id);
+      nodos.push(nn); mapaNodo[id] = nn.id; anadir(selNodos, nn.id); creados++;
     });
     idsTramos.forEach(id=>{
       const o = tramos.find(z=>z.id===id); if(!o) return;
-      const nt = Object.assign({}, o, {id:++tramoSeq, a:mapaNodo[o.a], b:mapaNodo[o.b]});
-      tramos.push(nt); nuevosTramos.push(nt.id);
+      const a = mapaNodo[o.a], b = mapaNodo[o.b];
+      if(a === undefined || b === undefined || a === b) return;
+      // Si esos nudos ya los une un tramo, la copia se descarta y queda
+      // seleccionado el existente, con su forma, su peso propio y su cara.
+      const ya = _tramoEntre(a, b);
+      if(ya){
+        anadir(selTramos, ya.id);
+        if(!_mismaForma(ya, a, _flechaGeom(o), tol)) distintos.add(ya.id);
+        return;
+      }
+      registrar();
+      const nt = Object.assign({}, o, {id:++tramoSeq, a, b});
+      tramos.push(nt); anadir(selTramos, nt.id); creados++;
     });
   }
+  closeReplicar();
+  if(!creados){
+    aviso(distintos.size ? 'Las copias caen sobre nudos que ya une otro tramo: no se añadió nada.'
+                         : 'Las copias caen sobre lo que ya existe: no se añadió nada.');
+    return;
+  }
   reNombrar();
-  selN = nuevosNodos; selT = nuevosTramos;
-  infoNodo = nuevosNodos.length ? nuevosNodos[nuevosNodos.length-1] : null;
-  infoTramo = nuevosTramos.length ? nuevosTramos[nuevosTramos.length-1] : null;
-  R = null;
-  closeReplicar(); refrescar();
+  selN = selNodos; selT = selTramos;
+  infoNodo = selNodos.length ? selNodos[selNodos.length-1] : null;
+  infoTramo = selTramos.length ? selTramos[selTramos.length-1] : null;
+  invalidarResultados();
+  refrescar();
+  // Un solo aviso (la caja muestra uno): los nudos unidos y los tramos no copiados.
+  const partes = [];
+  if(unidos) partes.push(unidos === 1 ? 'Se unió 1 nudo que caía sobre un nudo existente'
+                                      : 'Se unieron ' + unidos + ' nudos que caían sobre nudos existentes');
+  if(distintos.size) partes.push(distintos.size + (distintos.size === 1
+      ? ' tramo no se copió: esos nudos ya los une otro tramo'
+      : ' tramos no se copiaron: esos nudos ya los une otro tramo'));
+  if(partes.length) aviso(partes.join('; ') + '.');
 }
 function limpiarTodo(){
   registrarCambio();
-  nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; selN=[]; selT=[]; R=null;
+  nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; vaciarSeleccionPF();
   pesos=[]; pesoSeq=0; pesoActivo=null;
-  document.getElementById('resultsArea').style.display='none';
-  const rp=document.getElementById('resultsPanel'); if(rp){rp.innerHTML='';rp.style.display='none';}
-  const hh=document.getElementById('noResultsHint'); if(hh) hh.style.display='';
+  invalidarResultados();
   refrescar();
 }
 function refrescar(){ dibujar(); pintarListas(); pintarZonas(); }
@@ -75,15 +168,15 @@ function refrescar(){ dibujar(); pintarListas(); pintarZonas(); }
 function toggleActivo(id){
   const t=tramos.find(z=>z.id===id); if(!t) return;
   t.activo = (t.activo === false);
-  R=null; refrescar();
+  invalidarResultados(); refrescar();
 }
 function invertirCara(id){
   const t=tramos.find(z=>z.id===id); if(!t) return;
-  t.invertir = !t.invertir; R=null; refrescar();
+  t.invertir = !t.invertir; invalidarResultados(); refrescar();
 }
 function cambiarFlecha(id,v){
   const t=tramos.find(z=>z.id===id); if(!t) return;
-  t.flecha=parseFloat(v)||0; R=null; refrescar();
+  t.flecha=parseFloat(v)||0; invalidarResultados(); refrescar();
 }
 // Texto corto de la orientación de un tope o apoyo móvil, para las listas.
 // Dice el ángulo como el alumno lo escribió (dónde se apoya, desde dónde
@@ -133,11 +226,17 @@ function pintarListas(){
     : 'Seleccionado: '+[selN.length?selN.length+' nudo(s)':null, selT.length?selT.length+' tramo(s)':null]
       .filter(Boolean).join(' y ');
 }
-function borrarTramo(id){ registrarCambio(); tramos=tramos.filter(t=>t.id!==id); R=null; refrescar(); }
+function borrarTramo(id){
+  registrarCambio(); tramos=tramos.filter(t=>t.id!==id);
+  selT = selT.filter(s=>s!==id); if(infoTramo === id) infoTramo = null;
+  invalidarResultados(); refrescar();
+}
 
 // ── Modal de apoyo ──
 function abrirApoyoModal(id){
-  apoyoId=id; const n=nodos.find(z=>z.id===id); if(!n) return;
+  apoyoId=id; const n=nodos.find(z=>z.id===id);
+  _anotarGiroFijo(n);   // el giro de partida, antes de que se teclee nada
+  if(!n) return;
   document.getElementById('apNom').textContent=n.nombre;
   // Los dos campos enseñan el ángulo del USUARIO (dónde se apoya el nudo);
   // el modelo guarda el opuesto, que es hacia dónde empuja la reacción.
@@ -149,24 +248,82 @@ function abrirApoyoModal(id){
   actualizarPrevApoyo();
   document.getElementById('apoyoModal').classList.add('show');
 }
+// Dos ángulos que señalan la misma dirección (el campo va en (−180, 180] y el
+// modelo puede guardar 270, o arrastrar un redondeo de la media vuelta).
+function _mismoAngulo(a, b){
+  const d = ((Number(a) - Number(b)) % 360 + 360) % 360;
+  return Math.min(d, 360 - d) < 1e-6;
+}
+function _movilNormal(n){ return !!n && n.apoyo === 'movil' && n.apModo === 'normal'; }
+// `apLado` (la cara del móvil normal, que Transformar cambia al girar) solo
+// vale mientras ese móvil normal sigue puesto. Si se quita el apoyo, pasa a
+// fijo o a ángulo, el móvil normal que se ponga después empieza en la zona 2,
+// como un nudo nuevo: si no, heredaba en silencio la cara de un giro anterior.
+function _reiniciarLadoMovil(n, eraNormal){
+  if(!(eraNormal && _movilNormal(n))) n.apLado = 2;
+}
+// Giro del apoyo fijo CONFIRMADO: el de partida al abrir la ventana, o el último
+// que se aplicó. El listener 'input' del campo (09-) escribe en n.apAngFijo lo
+// que se va tecleando, para verlo en el lienzo; antes de comparar o de registrar
+// un paso de deshacer se devuelve el confirmado. Sin eso la instantánea se
+// llevaba un valor a medio escribir («1», «18») que nunca existió, y volver a
+// teclear el mismo ángulo dejaba un paso espurio. Se anota el objeto del nudo:
+// si deshacer lo sustituyó entretanto, no hay nada que devolver.
+let _giroFijoConfirmado = null;   // {n, v}
+function _anotarGiroFijo(n){ _giroFijoConfirmado = n ? {n, v:n.apAngFijo} : null; }
+function _devolverGiroFijo(n){
+  const g = _giroFijoConfirmado;
+  if(!g || g.n !== n) return;
+  if(g.v === undefined) delete n.apAngFijo; else n.apAngFijo = g.v;
+}
+// Vista previa del giro que se está tecleando: el campo dice DÓNDE SE APOYA y el
+// modelo guarda el opuesto (bsaAnguloOpuesto), igual que closeApoyoModal. Solo en
+// un fijo, el único apoyo que enseña ese campo. La llaman el listener 'input' del
+// campo (09-) y toggleRotulaNudo, que devuelve el confirmado para su instantánea
+// y vuelve a poner el tecleado para que el lienzo lo siga enseñando.
+function _previsualizarGiroFijo(n){
+  if(!n || n.apoyo !== 'fijo') return;
+  const gf = document.getElementById('apAngFijo'), vf = parseFloat(gf && gf.value);
+  if(isFinite(vf) && !_mismoAngulo(bsaAnguloOpuesto(vf), anguloDibujoApoyoFijo(n)))
+    n.apAngFijo = bsaAnguloOpuesto(vf);
+}
 function closeApoyoModal(){
   const n=nodos.find(z=>z.id===apoyoId);
   if(n){
+    _devolverGiroFijo(n);
     // 0 grados es una direccion valida (el nudo se apoya en la pared
     // derecha): con `||90` se convertia en silencio en 90, y este angulo SI
     // entra en el calculo. Mismo criterio que el campo del apoyo fijo.
     // El campo dice DONDE SE APOYA; se guarda el opuesto, la direccion de la
     // reaccion, que es lo que consume direccionIncognita.
     const vm=parseFloat(document.getElementById('apAng').value);
-    n.apAng=isFinite(vm)?bsaAnguloOpuesto(vm):90;
+    const apAng = isFinite(vm)?bsaAnguloOpuesto(vm):90;
     const chk = document.getElementById('apNormal');
-    n.apModo = (chk && chk.checked) ? 'normal' : 'angulo';
+    const apModo = (chk && chk.checked) ? 'normal' : 'angulo';
     // Giro del apoyo fijo: solo dibujo (ver anguloDibujoApoyoFijo en 01-).
     const gf = document.getElementById('apAngFijo');
     const vf = parseFloat(gf && gf.value);
-    n.apAngFijo = isFinite(vf) ? bsaAnguloOpuesto(vf) : 90;
+    const apAngFijo = isFinite(vf) ? bsaAnguloOpuesto(vf) : 90;
+    // Solo lo que cambia, y solo en los campos que la ventana enseña para el
+    // apoyo que tiene el nudo (actualizarPrevApoyo oculta los demás): un ángulo
+    // tecleado en el móvil antes de «Quitar» no se guarda en un nudo sin apoyo.
+    // Un paso de deshacer, y el panel de resultados se oculta si cambia algo
+    // que entra en el cálculo (no el giro del fijo).
+    const cambiaCalculo = n.apoyo === 'movil'
+                       && (!_mismoAngulo(apAng, n.apAng===undefined?90:n.apAng)
+                           || apModo !== (n.apModo || 'angulo'));
+    const cambiaDibujo = n.apoyo === 'fijo' && !_mismoAngulo(apAngFijo, anguloDibujoApoyoFijo(n));
+    if(cambiaCalculo || cambiaDibujo){
+      registrarCambio();
+      const eraNormal = _movilNormal(n);
+      if(cambiaCalculo){ n.apAng = apAng; n.apModo = apModo; }
+      if(cambiaDibujo) n.apAngFijo = apAngFijo;
+      _reiniciarLadoMovil(n, eraNormal);
+      if(cambiaCalculo) invalidarResultados();
+    }
   }
-  document.getElementById('apoyoModal').classList.remove('show'); apoyoId=null; R=null; refrescar();
+  _giroFijoConfirmado = null;
+  document.getElementById('apoyoModal').classList.remove('show'); apoyoId=null; refrescar();
 }
 // Deja marcado el apoyo que tiene el nudo (bloque 4, 2026-09-09).
 function marcarApoyoPF(n){
@@ -185,9 +342,11 @@ function marcarApoyoPF(n){
 // atributo de un nudo que no se editaba donde se editan los demás.
 function toggleRotulaNudo(){
   const n = nodos.find(z=>z.id===apoyoId); if(!n) return;
+  _devolverGiroFijo(n);   // la instantánea, sin el giro a medio teclear
   registrarCambio();
+  _previsualizarGiroFijo(n);   // y el tecleado, otra vez a la vista
   n.rotula = !n.rotula;
-  R = null;
+  invalidarResultados();
   actualizarPrevApoyo(); refrescar();
 }
 
@@ -216,22 +375,39 @@ function actualizarPrevApoyo(){
     + (esFijo ? '<br>El giro del apoyo fijo es solo del dibujo: sus dos reacciones no cambian.' : '');
 }
 function setApoyo(t){
-  registrarCambio();
   const n=nodos.find(z=>z.id===apoyoId);
   if(n){
-    n.apoyo=t;
-    if(t==='movil'){
+    _devolverGiroFijo(n);   // el listener de 09- pudo escribir un giro a medias
+    const eraNormal = _movilNormal(n);
+    const apoyo = t || null;
+    let apAng = n.apAng, apModo = n.apModo, apAngFijo = n.apAngFijo;
+    if(apoyo==='movil'){
       const vm=parseFloat(document.getElementById('apAng').value);  // 0 es valido
-      n.apAng=isFinite(vm)?bsaAnguloOpuesto(vm):90;
+      apAng=isFinite(vm)?bsaAnguloOpuesto(vm):90;
       const chk = document.getElementById('apNormal');
-      n.apModo = (chk && chk.checked) ? 'normal' : 'angulo';
+      apModo = (chk && chk.checked) ? 'normal' : 'angulo';
     }
-    if(t==='fijo'){
+    if(apoyo==='fijo'){
       const gf = document.getElementById('apAngFijo');
       const vf = parseFloat(gf && gf.value);
-      if(isFinite(vf)) n.apAngFijo = bsaAnguloOpuesto(vf);     // solo dibujo
+      if(isFinite(vf)) apAngFijo = bsaAnguloOpuesto(vf);     // solo dibujo
     }
-    R=null;
+    // Pulsar el apoyo que el nudo ya tiene, con los mismos campos, no cambia
+    // nada: ni paso de deshacer ni panel oculto. El giro del fijo es dibujo: deja
+    // paso de deshacer pero no oculta el panel, como en closeApoyoModal.
+    const cambiaApoyo = apoyo !== (n.apoyo || null);
+    const cambiaMovil = apoyo==='movil'
+      && (!_mismoAngulo(apAng, n.apAng===undefined?90:n.apAng) || apModo !== (n.apModo || 'angulo'));
+    const cambiaFijo = apoyo==='fijo' && !_mismoAngulo(apAngFijo, anguloDibujoApoyoFijo(n));
+    if(cambiaApoyo || cambiaMovil || cambiaFijo){
+      registrarCambio();
+      n.apoyo = apoyo;
+      if(apoyo==='movil'){ n.apAng = apAng; n.apModo = apModo; }
+      if(cambiaFijo) n.apAngFijo = apAngFijo;
+      _reiniciarLadoMovil(n, eraNormal);
+      if(cambiaApoyo || cambiaMovil) invalidarResultados();
+    }
+    _anotarGiroFijo(n);
   }
   actualizarPrevApoyo(); refrescar();
 }
@@ -269,11 +445,17 @@ function setTopeModo(m){
 }
 function closeTopeModal(){ document.getElementById('topeModal').classList.remove('show'); topeId=null; }
 function applyTope(){
-  registrarCambio();
   const n=nodos.find(z=>z.id===topeId);
-  if(n) n.tope={ang:bsaAnguloOpuesto(parseFloat(document.getElementById('tpAng').value)||0), modo:_topeModo,
-                lado:parseInt(document.getElementById('tpLado').value,10)||1};
-  document.getElementById('topeModal').classList.remove('show'); topeId=null; R=null; refrescar();
+  if(n){
+    const nuevo = {ang:bsaAnguloOpuesto(parseFloat(document.getElementById('tpAng').value)||0), modo:_topeModo,
+                   lado:parseInt(document.getElementById('tpLado').value,10)||1};
+    // Aplicar sin tocar nada no deja paso de deshacer ni oculta el panel.
+    const tp = n.tope;
+    const igual = !!tp && (tp.modo || 'angulo') === nuevo.modo && (tp.lado || 1) === nuevo.lado
+               && _mismoAngulo(tp.ang || 0, nuevo.ang);
+    if(!igual){ registrarCambio(); n.tope = nuevo; invalidarResultados(); }
+  }
+  document.getElementById('topeModal').classList.remove('show'); topeId=null; refrescar();
 }
 // ── Ventana de peso propio (2026-09-14) ──
 // Valores con nombre, en peso por unidad de superficie de placa; mientras la
@@ -315,7 +497,7 @@ function borrarPeso(id){
   pesos = pesos.filter(p=>p.id !== id);
   tramos.forEach(t=>{ if(t.pesoId === id) t.pesoId = null; });
   if(pesoActivo === id) pesoActivo = null;
-  R = null; renderPesos(); refrescar();
+  invalidarResultados(); renderPesos(); refrescar();
 }
 function activarPeso(){ setTool('peso'); abrirPeso(); }
 function asignarPesoATramo(idTramo){
@@ -323,14 +505,14 @@ function asignarPesoATramo(idTramo){
   if(pesoActivo === null){ aviso('Elige antes un valor de peso en la lista.', 'error'); return false; }
   registrarCambio();
   t.pesoId = (t.pesoId === pesoActivo) ? null : pesoActivo;
-  R = null; renderPesos(); refrescar();
+  invalidarResultados(); renderPesos(); refrescar();
   return true;
 }
 function quitarTope(){
-  registrarCambio();
   const n=nodos.find(z=>z.id===topeId);
-  if(n) n.tope=null;
-  document.getElementById('topeModal').classList.remove('show'); topeId=null; R=null; refrescar();
+  // Sin tope que quitar no hay cambio: ni paso de deshacer ni panel oculto.
+  if(n && n.tope){ registrarCambio(); n.tope=null; invalidarResultados(); }
+  document.getElementById('topeModal').classList.remove('show'); topeId=null; refrescar();
 }
 
 // ── Panel de control estándar BSA (dos niveles) ──
@@ -634,17 +816,18 @@ function cerrarEjemplos(){ document.getElementById('ejModal').classList.remove('
 function cargarEjemplo(id){
   const ej = EJEMPLOS.find(e=>e.id === id) || EJEMPLOS[0];
   registrarCambio();
-  nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; selN=[]; selT=[]; R=null; selNodo=null;
+  nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; vaciarSeleccionPF(); R=null;
   pesos=[]; pesoSeq=0; pesoActivo=null;
   // Nudo en coordenada EXACTA: addNodo engancha a la rejilla, cuyo paso
   // depende del zoom.
   const N = (x,y)=>{
-    const n = {id:++nodoSeq, x, y, nombre:'', apoyo:null, apAng:90, apModo:'angulo',
+    const n = {id:++nodoSeq, x, y, nombre:'', apoyo:null, apAng:90, apModo:'angulo', apLado:2,
                apAngFijo:90, rotula:false, tope:null};
     nodos.push(n); return n;
   };
   const b = ej.armar(N);
   const eb=document.getElementById('pB'); if(eb) eb.value = b || 1;
+  if(typeof sincronizarAnchoB === 'function') sincronizarAnchoB();   // 09-
   reNombrar(); centrar(); refrescar(); calcular();
   comprobarEjemploPF(ej);
   cerrarEjemplos();
@@ -662,19 +845,34 @@ function updateUnitsPreview(){
   document.getElementById('upP').textContent = F+'/'+L+'²';
   document.getElementById('upG').textContent = F+'/'+L+'³';
 }
+// Fija las unidades vigentes y sus rótulos. La usan applyUnits y deshacer (04-),
+// que devuelve las unidades de la instantánea junto con sus números.
+function fijarUnidades(nL, nF){
+  unitLen=nL; unitFor=nF;
+  const ch=document.getElementById('chipUnits'); if(ch) ch.textContent=nL+' · '+nF;
+  ['uL5','uL6','uL7'].forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent=nL; });
+  ['uG1','uG2'].forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent=nF+'/'+nL+'³'; });
+}
 function applyUnits(){
   const nL=document.getElementById('selLen').value, nF=document.getElementById('selFor').value;
+  // Con las mismas unidades (o una que no se conoce) no hay nada que convertir
+  // ni paso de deshacer.
+  if((nL===unitLen && nF===unitFor) || !LEN_A_M[nL] || !FOR_A_KN[nF]){ closeUnitsModal(); return; }
   const kL=LEN_A_M[unitLen]/LEN_A_M[nL], kF=FOR_A_KN[unitFor]/FOR_A_KN[nF];
+  // Un solo paso de deshacer, y la instantánea lleva las unidades (04-): sin él,
+  // deshacer devolvía la compuerta de 3 m con la unidad nueva y se leía 3 cm.
+  registrarCambio();
   nodos.forEach(n=>{ n.x*=kL; n.y*=kL; });
   tramos.forEach(t=>{ t.flecha=(t.flecha||0)*kL; });
   const eb=document.getElementById('pB');
   if(eb && eb.value!=='') eb.value=(parseFloat(eb.value)||0)*kL;
+  if(typeof sincronizarAnchoB === 'function') sincronizarAnchoB();   // 09-
   [1,2].forEach(z=>zonas[z].forEach(l=>{ l.niv*=kL; l.g = l.g*kF/(kL*kL*kL); }));
-  unitLen=nL; unitFor=nF;
-  document.getElementById('chipUnits').textContent=nL+' · '+nF;
-  ['uL5','uL6','uL7'].forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent=nL; });
-  ['uG1','uG2'].forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent=nF+'/'+nL+'³'; });
-  R=null; closeUnitsModal(); centrar(); refrescar();
+  // Peso propio: fuerza por unidad de superficie de placa (W = q·b·L, 01-).
+  // Antes no se convertía, y en cm·N la compuerta pesaba 10 veces más.
+  pesos.forEach(p=>{ const v=Number(p.val); if(isFinite(v)) p.val = v*kF/(kL*kL); });
+  fijarUnidades(nL, nF);
+  invalidarResultados(); closeUnitsModal(); centrar(); refrescar();
 }
 function fillDec(id,val){
   const s = document.getElementById(id); if(!s) return;

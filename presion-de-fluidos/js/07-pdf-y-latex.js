@@ -1,32 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-//  PDF
-// ═══════════════════════════════════════════════════════════
-function recortarLienzo(c){
-  if(!c) return null;
-  try{
-    const w = c.width, h = c.height;
-    const dd = c.getContext('2d').getImageData(0,0,w,h).data;
-    let x0=w,y0=h,x1=-1,y1=-1;
-    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
-      const i=(y*w+x)*4; if(dd[i+3]<8) continue;
-      const r2=dd[i],g2=dd[i+1],b2=dd[i+2];
-      const mx=Math.max(r2,g2,b2), mn=Math.min(r2,g2,b2);
-      if((mx-mn)<=18 && mn>=190) continue;
-      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
-    }
-    if(x1<0) return c.toDataURL('image/png');
-    const m=Math.round(Math.min(w,h)*0.02)+6;
-    x0=Math.max(0,x0-m); y0=Math.max(0,y0-m); x1=Math.min(w-1,x1+m); y1=Math.min(h-1,y1+m);
-    const cw=x1-x0+1, ch=y1-y0+1;
-    const t=document.createElement('canvas'); t.width=cw; t.height=ch;
-    const tc=t.getContext('2d'); tc.fillStyle='#fff'; tc.fillRect(0,0,cw,ch);
-    tc.drawImage(c,x0,y0,cw,ch,0,0,cw,ch);
-    return t.toDataURL('image/png');
-  }catch(e){ return c.toDataURL('image/png'); }
-}
-
-// ═══════════════════════════════════════════════════════════
 //  INFORME EN LATEX (texlive.net)
+//  (El PDF rápido, el botón rojo, está al final del archivo: downloadPDF.)
 //  Sigue las reglas R1–R22 de fuerzas-internas/LEEME.md: cada concepto una
 //  sola vez, los números en tabla y los desarrollos en texto, cada reacción
 //  con su nombre completo y su sentido real, brazos acotados desde el punto
@@ -1082,100 +1056,188 @@ function generarPDFLatex(){
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+//  PDF RÁPIDO (botón rojo «PDF», no el de LaTeX)
+//  El mecanismo es de core/comun.js (bsaInformeRapido): pestaña de nivel
+//  superior abierta dentro de la pulsación, resultados clonados y limpios,
+//  cabecera BSA, colofón y barra «Imprimir / Guardar como PDF». Aquí solo va
+//  lo propio del tema: el acento, la figura y el CSS de las clases que pinta
+//  renderResultados (02-), pensado para el papel. Sin body, @page ni pies:
+//  eso lo pone el núcleo.
+// ═══════════════════════════════════════════════════════════
+const CSS_INFORME_PRESION = `
+  .res-section{margin-bottom:10px;}
+  .res-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;
+    color:var(--acc);border-bottom:1.5px solid var(--acc2);padding-bottom:4px;margin:10px 0 6px;
+    break-after:avoid;page-break-after:avoid;}
+  .res-title .num{width:18px;height:18px;border-radius:50%;background:var(--acc2);
+    display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;
+    color:#fff;flex:none;}
+  .proc-block{background:var(--suave);border:1px solid var(--borde);border-radius:6px;
+    padding:6px 10px;margin-bottom:6px;break-inside:avoid;page-break-inside:avoid;}
+  .proc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px 18px;}
+  .proc-col{min-width:0;}
+  .proc-sub{font-size:9px;font-weight:700;color:var(--acc);text-transform:uppercase;
+    letter-spacing:.5px;margin-bottom:4px;break-after:avoid;page-break-after:avoid;}
+  .eq-row{margin:2px 0;break-inside:avoid;page-break-inside:avoid;}
+  .eq-body{font-family:var(--math);font-size:11px;line-height:1.5;}
+  .hint-sm{font-size:9.5px;color:var(--muted);line-height:1.4;margin-top:3px;}
+  .verdict{border-left:3px solid var(--acc);background:var(--suave);border-radius:5px;
+    padding:6px 9px;margin-bottom:6px;font-size:10px;break-inside:avoid;page-break-inside:avoid;}
+  .verdict.ok{border-left-color:#15803d;background:#f0fdf4;}
+  .verdict.bad{border-left-color:#c0392b;background:#fef2f2;}
+  .verdict-t{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);margin-bottom:3px;}
+  .tabla{width:100%;border-collapse:collapse;font-family:var(--math);font-size:11px;margin-bottom:6px;}
+  .tabla th{padding:3px 6px;text-align:left;font-size:8.5px;font-weight:700;color:var(--acc);
+    text-transform:uppercase;letter-spacing:.3px;background:var(--suave);
+    border-bottom:1.5px solid var(--borde);font-family:var(--sans);vertical-align:bottom;}
+  .tabla td{padding:2px 6px;border-bottom:1px solid var(--borde);vertical-align:top;}
+  .tabla .r{text-align:right;white-space:nowrap;}
+  .tabla .fila-total td{font-weight:700;background:var(--suave);color:var(--acc);
+    border-top:1.5px solid var(--borde);}
+  .fig-card{display:flex;gap:10px;align-items:stretch;border:1px solid var(--borde);border-radius:6px;
+    padding:6px 8px;margin-bottom:6px;break-inside:avoid;page-break-inside:avoid;}
+  .fig-card-datos{flex:1;min-width:0;}
+  .fig-card-h{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;font-size:10.5px;margin-bottom:4px;}
+  .fig-card-h .hint-sm{margin:0;}
+  .fig-card-dib{flex:0 0 190px;display:flex;align-items:center;}
+  .fig-card-dib .croq-svg{width:100%;height:auto;border:1px solid var(--borde);border-radius:6px;background:#fff;}
+  .fig-card .proc-block{margin-bottom:0;}
+  @media screen and (max-width:640px){
+    .fig-card{flex-direction:column;}
+    .fig-card-dib{flex:0 0 auto;width:100%;max-width:260px;margin:0 auto;}
+  }
+`;
+
+// El encaje de la figura (cajaDibujoInforme, encajarDibujoInforme,
+// lienzoTemporalInforme, marcoLienzoInforme) vive en core/comun.js.
+
+// ── La figura del informe ──
+// Se dibuja en lienzos propios, no en el del editor: recortar la vista TAL COMO
+// ESTABA dejaba cortado lo que se salía por el borde, y en el teléfono el lienzo
+// es estrecho. Dos pasos:
+//  1. Encaje, en un lienzo de tamaño fijo y SIN el líquido: sus capas llenan la
+//     zona hasta el borde del lienzo y la medida no vería otra cosa. El diagrama
+//     de presión, las resultantes, la cota zP y las reacciones no escalan con el
+//     zoom: encajarDibujoInforme las mide y encaja.
+//  2. Un lienzo a la medida de ese dibujo (más holgura y la superficie libre),
+//     ahora con el líquido tal como lo tenga el alumno en Visualización. Los
+//     rótulos que el dibujo pega al borde (nivel y γ de cada zona, «ZONA 1»)
+//     quedan dentro, y el marco blanco corta el líquido y la frontera de zonas.
+// cv también se cambia un momento: _margenIzq (03-) mide cuánto tapa la columna
+// de control sobre cv, y el lienzo temporal, a la derecha de la pantalla, da 0.
+// despues() devuelve cv, ctx, W, H, la vista y la selección y redibuja.
+const FIG_INFORME_PF = {ancho:820, alto:580, res:2, margen:16, holgura:22, marco:6, anchoMin:420};
+
+// Caja del modelo en coordenadas del mundo: nudos, puntos de los tramos (los
+// curvos se salen de sus nudos) y la superficie libre de cada zona.
+function _cajaModeloPF(){
+  if(!nodos.length) return null;
+  const xs = [], ys = [];
+  nodos.forEach(n=>{ xs.push(n.x); ys.push(n.y); });
+  tramos.forEach(t=>{ (puntosTramo(t, 24) || []).forEach(P=>{ xs.push(P.x); ys.push(P.y); }); });
+  [1, 2].forEach(z=>{ const nv = nivelZona(z); if(isFinite(nv)) ys.push(nv); });
+  return {x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)};
+}
+function _cajaModeloPantallaPF(){
+  const c = _cajaModeloPF();
+  const p0 = aPantalla(c.x0, c.y1), p1 = aPantalla(c.x1, c.y0);
+  return {x0:p0[0], y0:p0[1], x1:p1[0], y1:p1[1]};
+}
+
+// Dibuja la compuerta y devuelve el lienzo final. Cambia cv, ctx, W, H, la vista
+// y VIS.liquidos: quien la llama los ha guardado antes. Cada lienzo creado va a
+// temporales, para quitarlo aunque algo falle a medias.
+function _figuraInformePF(liquidos, temporales){
+  const f = FIG_INFORME_PF;
+  const c0 = _cajaModeloPF();
+  if(!c0) return null;
+  // 1) Encaje sin el líquido
+  const l1 = lienzoTemporalInforme(f.ancho, f.alto, f.res);
+  temporales.push(l1);
+  cv = l1; ctx = l1.getContext('2d'); W = f.ancho; H = f.alto;
+  VIS.liquidos = false;
+  // Punto de partida: el encuadre de centrar(); la medida lo corrige.
+  vx = (c0.x0 + c0.x1)/2; vy = (c0.y0 + c0.y1)/2;
+  escala = Math.max(2, Math.min((W - 340)/Math.max(c0.x1 - c0.x0, 0.5),
+                                (H - 170)/Math.max(c0.y1 - c0.y0, 0.5), 900));
+  const r = encajarDibujoInforme({
+    ancho: W, alto: H, margen: f.margen,
+    medir: ()=>{ dibujar(); return cajaDibujoInforme(l1); },
+    modelo: _cajaModeloPantallaPF,
+    escalar: (k, dx, dy)=>{
+      const c = _cajaModeloPF();
+      const xc = (c.x0 + c.x1)/2, yc = (c.y0 + c.y1)/2;
+      const s = aPantalla(xc, yc);
+      escala *= k;
+      vx = xc - (s[0] + dx - W/2)/escala;
+      vy = yc + (s[1] + dy - H/2)/escala;
+    }
+  });
+  if(!r.ok) console.warn('Informe PDF: la figura de la compuerta no cabe entera en su lienzo.');
+  // 2) Lienzo a la medida del dibujo, con el líquido
+  const M = _cajaModeloPantallaPF(), B = r.caja || M;
+  let x0 = Math.min(B.x0, M.x0) - f.holgura, x1 = Math.max(B.x1, M.x1) + f.holgura;
+  const y0 = Math.min(B.y0, M.y0) - f.holgura, y1 = Math.max(B.y1, M.y1) + f.holgura;
+  // «frontera de zonas» (03-) solo se rotula con el líquido, a la derecha del
+  // último nudo de la compuerta: la medida del paso 1 no lo vio.
+  if(liquidos && (capasOrdenadas(1).length || capasOrdenadas(2).length)){
+    const cad = cadenaCompuerta();
+    if(cad && cad.pts && cad.pts.length){
+      const u = cad.pts[cad.pts.length - 1], pu = aPantalla(u.x, u.y);
+      ctx.save(); ctx.font = '700 10px Inter,sans-serif';
+      const wT = ctx.measureText('frontera de zonas').width;
+      ctx.restore();
+      x1 = Math.max(x1, pu[0] + 7 + wT + f.holgura);
+    }
+  }
+  if(x1 - x0 < f.anchoMin){ const e = (f.anchoMin - (x1 - x0))/2; x0 -= e; x1 += e; }
+  const W2 = Math.ceil(x1 - x0), H2 = Math.ceil(y1 - y0);
+  const l2 = lienzoTemporalInforme(W2, H2, f.res);
+  temporales.push(l2);
+  vx += (W2/2 - W/2 + x0)/escala;
+  vy += (H/2 - y0 - H2/2)/escala;
+  cv = l2; ctx = l2.getContext('2d'); W = W2; H = H2;
+  VIS.liquidos = liquidos;
+  dibujar();
+  marcoLienzoInforme(ctx, W, H, f.marco);
+  return l2;
+}
+
 function downloadPDF(){
-  const rp = document.getElementById('resultsPanel');
-  if(!rp || !rp.innerHTML.trim()){ aviso('Primero pulsa Resolver.', 'error'); return; }
-  const img = recortarLienzo(document.getElementById('mainCanvas'));
-  const dt = new Date().toLocaleString('es-PE',{dateStyle:'medium',timeStyle:'short'});
-  const kEl = document.getElementById('katex-css');
-  const katexCss = kEl ? kEl.textContent : '';
-  const printCss = `
-    *{box-sizing:border-box;margin:0;padding:0;}
-    :root{--math:'STIX Two Text','Times New Roman',Georgia,serif;
-          --sans:Inter,'Helvetica Neue',Arial,sans-serif;
-          --acc:#0f5c56;--acc2:#0b3f3a;--card:#e8f4f1;--border:#c8e0d8;
-          --text:#1a1a1a;--muted:#5a7570;}
-    body{font-family:var(--sans);font-size:10.5px;background:#fff;color:var(--text);
-      padding:12mm 9mm 14mm;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    .pdf-header{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--acc2);
-      padding-bottom:7px;margin-bottom:10px;}
-    .pdf-title{font-size:17px;font-weight:800;color:var(--acc);}
-    .pdf-sub{font-size:10px;color:var(--muted);}
-    .pdf-date{margin-left:auto;font-size:9px;color:var(--muted);}
-    .res-section{margin-bottom:8px;}
-    .res-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;
-      color:var(--acc);border-bottom:1.5px solid var(--acc2);padding-bottom:4px;margin:9px 0 6px;}
-    .res-title .num{width:18px;height:18px;border-radius:50%;background:var(--acc2);
-      display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;
-      color:#fff;flex:none;}
-    .proc-block{background:var(--card);border:1px solid var(--border);border-radius:6px;
-      padding:6px 10px;margin-bottom:6px;page-break-inside:avoid;}
-    .proc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px 18px;}
-    .proc-sub{font-size:9px;font-weight:700;color:var(--acc);text-transform:uppercase;
-      letter-spacing:.5px;margin-bottom:4px;}
-    .eq-body{font-family:var(--math);font-size:11px;line-height:1.5;}
-    .verdict{border-left:3px solid var(--acc);background:var(--card);border-radius:5px;
-      padding:6px 9px;margin-bottom:6px;font-size:10px;page-break-inside:avoid;}
-    .verdict-t{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
-      color:var(--muted);margin-bottom:3px;}
-    .tabla{width:100%;border-collapse:collapse;font-family:var(--math);font-size:11px;
-      page-break-inside:avoid;margin-bottom:6px;}
-    .tabla th{padding:3px 6px;text-align:left;font-size:9px;font-weight:700;color:var(--acc);
-      text-transform:uppercase;background:var(--card);border-bottom:1.5px solid var(--border);
-      font-family:var(--sans);}
-    .tabla td{padding:2px 6px;border-bottom:1px solid var(--border);}
-    .tabla .r{text-align:right;}
-    .tabla .fila-total td{font-weight:700;background:var(--card);color:var(--acc);}
-    .fig-card{display:flex;gap:10px;border:1px solid var(--border);border-radius:6px;padding:6px 8px;margin-bottom:6px;page-break-inside:avoid;}
-    .fig-card-datos{flex:1;min-width:0;}
-    .fig-card-dib{flex:0 0 190px;}
-    .fig-card-h{font-size:10.5px;margin-bottom:4px;}
-    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:7px;
-      page-break-inside:avoid;}
-    .summary-box{border:1px solid var(--border);border-radius:5px;padding:5px 8px;}
-    .summary-box.hl{background:var(--card);}
-    .s-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;margin-bottom:2px;
-      font-family:var(--sans);font-weight:700;}
-    .s-val{font-size:13px;font-weight:700;color:var(--acc);font-style:italic;font-family:var(--math);}
-    .s-unit{font-size:8px;color:var(--muted);}
-    .hint-sm{font-size:9.5px;color:var(--muted);}
-    svg{max-width:100%;height:auto;}
-    img{max-width:100%;}
-    .wm-seal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-      width:340px;height:340px;opacity:.07;z-index:9999;pointer-events:none;}
-    .pdf-foot{margin-top:10px;text-align:center;font-size:8.5px;color:var(--muted);
-      border-top:1px solid var(--border);padding-top:6px;}
-    @page{size:A4 portrait;margin:0;}
-    @media print{ body{padding:12mm 9mm 14mm;} }
-  `;
-  const wmSeal = '<div class="wm-seal"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">'
-    + '<defs><path id="stp" d="M 26,100 A 74,74 0 0 1 174,100"/><path id="sbt" d="M 26,100 A 74,74 0 0 0 174,100"/></defs>'
-    + '<circle cx="100" cy="100" r="94" fill="none" stroke="#0b3f3a" stroke-width="2.5"/>'
-    + '<circle cx="100" cy="100" r="80" fill="none" stroke="#0b3f3a" stroke-width="1"/>'
-    + '<text font-family="Inter,sans-serif" font-size="9" font-weight="800" fill="#0b3f3a" letter-spacing="1">'
-    + '<textPath href="#stp" startOffset="50%" text-anchor="middle">BEAM &amp; SECTION ANALYSIS</textPath></text>'
-    + '<text font-family="Inter,sans-serif" font-size="10.5" font-weight="600" fill="#0b3f3a" letter-spacing="1">'
-    + '<textPath href="#sbt" startOffset="50%" text-anchor="middle">by Luis Alejandro Bazán Campos</textPath></text>'
-    + '<text x="100" y="106" font-family="Inter,sans-serif" font-size="16" font-weight="800" fill="#0b3f3a" text-anchor="middle">BSA</text>'
-    + '<line x1="62" y1="118" x2="138" y2="118" stroke="#0b3f3a" stroke-width="1"/>'
-    + '<text x="100" y="133" font-family="Inter,sans-serif" font-size="9" fill="#0b3f3a" text-anchor="middle" letter-spacing="1">EST\u00c1TICA</text>'
-    + '</svg></div>';
-  let html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">';
-  html += '<title>BSA \u2014 Presi\u00f3n de Fluidos</title>';
-  html += '<link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">';
-  html += '<style>'+katexCss+'</style><style>'+printCss+'</style></head><body>'+wmSeal;
-  html += '<div class="pdf-header"><div><div class="pdf-title">BSA \u2014 Presi\u00f3n de Fluidos</div>'
-        + '<div class="pdf-sub">by Luis Alejandro Baz\u00e1n Campos</div></div>'
-        + '<div class="pdf-date">Generado: '+dt+'</div></div>';
-  if(img) html += '<div style="margin-bottom:12px;page-break-inside:avoid;">'
-    + '<h3 style="font-size:11px;font-weight:700;color:#0f5c56;margin-bottom:5px;font-family:Inter,sans-serif;'
-    + 'text-transform:uppercase;letter-spacing:.5px;">Situaci\u00f3n analizada</h3>'
-    + '<img src="'+img+'" style="max-width:100%;width:auto;max-height:290px;border-radius:8px;'
-    + 'border:1px solid #c8e0d8;display:block;margin:6px auto;"></div>';
-  html += rp.innerHTML;
-  html += '<div class="pdf-foot">Beam &amp; Section Analysis \u00b7 beamsectionanalysis.com</div>';
-  html += '<script>window.onload=function(){setTimeout(function(){window.print();},900);}<\/script></body></html>';
-  const w = window.open('','_blank','width=980,height=760');
-  if(!w){ aviso('El navegador bloque\u00f3 la ventana emergente.', 'error'); return; }
-  w.document.write(html); w.document.close();
+  let guardado = null, lienzo = null;
+  const temporales = [];
+  return bsaInformeRapido({
+    panel: 'resultsPanel',
+    hayResultados: !!(R && !R.error),
+    sinResultados: (R && R.error)
+      ? 'El análisis no se completó: corrige lo que indica el panel de resultados y vuelve a pulsar Resolver.'
+      : 'Primero pulsa Resolver.',
+    tema: 'Presión de fluidos',
+    acento: {acc:'#0f5c56', acc2:'#0b3f3a', suave:'#e8f4f1', borde:'#c8e0d8'},
+    antes: ()=>{
+      // Primero se guarda todo lo que se va a tocar: despues() lo necesita
+      // aunque algo falle a medias.
+      guardado = {cv:cv, ctx:ctx, W:W, H:H, vx:vx, vy:vy, escala:escala,
+        grilla:VIS.grilla, liquidos:VIS.liquidos, selN:selN, selT:selT, gesto:gesto};
+      VIS.grilla = false; selN = []; selT = []; gesto = null;
+      lienzo = _figuraInformePF(guardado.liquidos, temporales);
+    },
+    // Se evalúa después de antes(), que es quien dibuja la figura.
+    figuras: ()=> lienzo ? [{titulo: 'Compuerta analizada', lienzo: lienzo}] : [],
+    despues: ()=>{
+      temporales.splice(0).forEach(c => c.remove());
+      lienzo = null;
+      if(!guardado) return;
+      const g = guardado;
+      guardado = null;
+      cv = g.cv; ctx = g.ctx; W = g.W; H = g.H;
+      vx = g.vx; vy = g.vy; escala = g.escala;
+      VIS.grilla = g.grilla; VIS.liquidos = g.liquidos;
+      selN = g.selN; selT = g.selT; gesto = g.gesto;
+      dibujar();
+    },
+    cssTema: CSS_INFORME_PRESION
+  });
 }

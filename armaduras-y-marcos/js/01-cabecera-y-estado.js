@@ -37,6 +37,19 @@ let gesto = null;        // {tipo:'tap'|'mover'|'rubber', ...} en curso durante 
 // el recuadro de selección/borrado masivo.
 const UMBRAL_ARRASTRE = 4;        // px en pantalla antes de considerarlo arrastre
 const UMBRAL_MANTENER_MS = 450;
+// Con la herramienta Carga, el toque simple sobre un nudo NO abre la ventana en
+// el acto: espera este tiempo por si llega un doble toque o doble clic, que
+// edita la carga que haya debajo (03-interaccion.js). `toqueCargaPendiente` es
+// {ref, tId} mientras dura la espera, y null fuera de ella.
+// Tiene que superar los 320 ms con que el puente táctil de 18- reconoce el doble
+// toque: si no, el segundo toque llega con la ventana nueva ya abierta.
+const UMBRAL_DOBLE_TOQUE_MS = 400;
+let toqueCargaPendiente = null;
+// Geometría de la flecha de una carga de nudo en el lienzo, en px: la cola a
+// CARGA_FLECHA_COLA del nudo y la punta a CARGA_FLECHA_PUNTA. La comparten el
+// dibujo (dibujarCarga, 02-) y la localización (cargaArmEn, 03-).
+const CARGA_FLECHA_COLA = 46;
+const CARGA_FLECHA_PUNTA = 10;
 
 // ── Avisos no bloqueantes (sustituyen a alert) ──
 // Los diálogos nativos del navegador quedan silenciados en móvil: el usuario

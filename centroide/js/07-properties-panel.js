@@ -123,7 +123,7 @@ function updateDim(dimId, val){
   if(!fig) return;
   registrarCambio();
   fig.dims[dimId] = parseFloat(val)||0;
-  results=null; render();
+  invalidarResultados(); render();
 }
 
 // Sector angle input: keeps fig.dims.alpha as the half-angle (θ) regardless of mode.
@@ -134,7 +134,7 @@ function updateSectorAngle(val, isTotal){
   const v = parseFloat(val)||0;
   fig.dims.alpha = isTotal ? v/2 : v;
   buildPropPanel(fig);   // refresh helper line + complementary value
-  results=null; render();
+  invalidarResultados(); render();
 }
 function setSectorAngleMode(mode){
   const fig = figures.find(f=>f.id===selectedFigId);
@@ -160,7 +160,7 @@ function updateFigFromProp(){
     fig.cx = newX-(off.dx*Math.cos(rot)-off.dy*Math.sin(rot));
     fig.cy = newY-(off.dx*Math.sin(rot)+off.dy*Math.cos(rot));
   }
-  results=null; render();
+  invalidarResultados(); render();
 }
 
 function updatePropPanel(){
@@ -187,5 +187,5 @@ function setSign(s){
   fig.sign=s;
   document.getElementById('signPos').classList.toggle('active',s===1);
   document.getElementById('signNeg').classList.toggle('active',s===-1);
-  renderFigList(); results=null; render();
+  renderFigList(); invalidarResultados(); render();
 }

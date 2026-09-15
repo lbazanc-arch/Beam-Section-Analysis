@@ -174,7 +174,7 @@ function placeFigure(type, cx, cy){
   canvas.style.cursor='grab';
   document.getElementById('canvasHint').textContent = `Figura colocada en (${r2(cx)}, ${r2(cy)})`;
   selectFigure(id);
-  results = null;
+  invalidarResultados();
   renderFigList();
   render();
 }
@@ -212,6 +212,7 @@ function renderFigList(){
 function deleteFigure(id){
   registrarCambio();
   figures = figures.filter(f=>f.id!==id);
+  selFiguras = selFiguras.filter(s=>s!==id);   // sin marcas huérfanas
   if(selectedFigId===id) selectFigure(null);
-  results=null; renderFigList(); render();
+  invalidarResultados(); renderFigList(); actualizarInfoSel(); render();
 }

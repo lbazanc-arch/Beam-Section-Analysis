@@ -13,19 +13,34 @@ function updateUnitsPreview(){
   document.getElementById('upF').textContent=F;
   document.getElementById('upM').textContent=F+'·'+L;
 }
+// Unidades vigentes y su rótulo en la barra. La usan applyUnits, abrir un
+// ejercicio y deshacer/rehacer (10-), para que el rótulo no se quede atrás.
+function fijarUnidades(len, fuerza){
+  unitLen=len; unitFor=fuerza;
+  const ch=document.getElementById('chipUnits'); if(ch) ch.textContent=len+' · '+fuerza;
+}
 function applyUnits(){
   const nL=document.getElementById('selLen').value, nF=document.getElementById('selFor').value;
+  if(nL===unitLen && nF===unitFor){ closeUnitsModal(); return; }   // sin cambio no hay paso
   const kL=LEN_A_M[unitLen]/LEN_A_M[nL], kF=FOR_A_KN[unitFor]/FOR_A_KN[nF];
+  // Un campo que no es número (la pos de una carga de nudo) se deja como está:
+  // multiplicado daba NaN.
+  const esc=(v,k)=>(v===undefined || v===null || v==='' || !isFinite(Number(v))) ? v : Number(v)*k;
+  // Un solo paso de deshacer, y la instantánea lleva las unidades (10-): sin
+  // él, deshacer devolvía la viga de 4 m con la unidad nueva y se leía 4 cm.
+  registrarCambio();
   nodos.forEach(n=>{ n.x*=kL; n.y*=kL; });
   cargas.forEach(c=>{
-    c.pos*=kL;
-    if(c.tipo==='M') c.mag*=kF*kL;                    // momento = fuerza x longitud
-    else if(c.tipo==='U'||c.tipo==='T'){ c.mag*=kF/kL; c.mag2*=kF/kL; }  // fuerza por unidad
-    else c.mag*=kF;
+    c.pos=esc(c.pos,kL);
+    c.posFin=esc(c.posFin,kL);                         // fin de la repartida: antes no se escalaba
+    if(c.tipo==='M') c.mag=esc(c.mag,kF*kL);          // momento = fuerza x longitud
+    else if(c.tipo==='U'||c.tipo==='T'){ c.mag=esc(c.mag,kF/kL); c.mag2=esc(c.mag2,kF/kL); }  // fuerza por unidad
+    else c.mag=esc(c.mag,kF);
   });
-  unitLen=nL; unitFor=nF;
-  document.getElementById('chipUnits').textContent=nL+' · '+nF;
-  R=null; closeUnitsModal(); centrar(); refrescar();
+  // El peso propio es fuerza por unidad de longitud, como U y T (02-).
+  pesos.forEach(p=>{ p.val=esc(p.val,kF/kL); });
+  fijarUnidades(nL, nF);
+  invalidarResultados(); closeUnitsModal(); centrar(); refrescar();
 }
 function fillDec(id,val){
   const s=document.getElementById(id); if(!s) return;
@@ -252,14 +267,23 @@ function cargarEstadoDesdeArchivo(e, nombreArchivo, version){
     tramos=(e.tramos||[]).slice();
     cargas=normalizarCargas((e.cargas||[]).map(c=>Object.assign({}, c)));
     pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
-    nodoSeq=nodos.reduce((m,n)=>Math.max(m,n.id),0);
-    tramoSeq=tramos.reduce((m,t)=>Math.max(m,t.id),0);
-    cargaSeq=cargas.reduce((m,c)=>Math.max(m,c.id),0);
-    pesoSeq=pesos.reduce((m,p)=>Math.max(m,p.id),0);
+    // Cada contador queda en el mayor id del archivo, para que un nudo, tramo o
+    // carga nuevos (o las copias de Replicar) nunca repitan uno. Un id que no
+    // sea número no cuenta: con Math.max a secas dejaba el contador en NaN.
+    const mayorId = lista=>lista.reduce((m,o)=>{
+      const v = Number(o && o.id); return isFinite(v) ? Math.max(m, v) : m;
+    }, 0);
+    nodoSeq=mayorId(nodos); tramoSeq=mayorId(tramos);
+    cargaSeq=mayorId(cargas); pesoSeq=mayorId(pesos);
     pesoActivo=null;
-    if(e.unidades){ unitLen=e.unidades.len||unitLen; unitFor=e.unidades.fuerza||unitFor; }
+    // La selección y el nudo inicial eran del ejercicio anterior: con ellos,
+    // Replicar copiaba los nudos del abierto que tuvieran esos mismos ids.
+    selNodos=[]; selTramos=[]; selCargas=[]; selNodo=null; selTramo=null; primerNodo=null;
+    // Con fijarUnidades el rótulo de la barra cambia también: antes seguía
+    // enseñando las unidades del ejercicio anterior.
+    if(e.unidades) fijarUnidades(e.unidades.len||unitLen, e.unidades.fuerza||unitFor);
     if(e.decimales) DEC=e.decimales;
-    R=null; reNombrar(); centrar(); refrescar(); cerrarHistorial();
+    reNombrar(); invalidarResultados(); centrar(); refrescar(); cerrarHistorial();
     aviso('Ejercicio abierto desde "'+nombreArchivo+'".');
   }catch(err){
     aviso('No se pudo abrir el ejercicio: el archivo tiene un formato inesperado.', 'error');
@@ -274,10 +298,15 @@ function estadoActual(){
   // `apAng` (dirección de la reacción del móvil) y `apAngDib` (giro del símbolo
   // del simple) se guardan desde la v2: antes se perdían al guardar, y el
   // ejercicio se reabría con todos los apoyos en su posición por defecto.
+  // El peso propio —la lista `pesos` y el `pesoId` de cada tramo— se guarda
+  // desde el 2026-09-15: antes se perdía y el ejercicio se reabría sin él.
+  // `pesoSeq` no hace falta (al abrir se toma el mayor id) y `pesoActivo` es de
+  // la interfaz. Un archivo sin `pesos` abre con la lista vacía.
   return {nodos:nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,rotula:n.rotula,
                                apAng:n.apAng, apAngDib:n.apAngDib})),
-          tramos:tramos.map(t=>({id:t.id,a:t.a,b:t.b})),
+          tramos:tramos.map(t=>({id:t.id,a:t.a,b:t.b,pesoId:t.pesoId})),
           cargas:cargas.slice(),
+          pesos:pesos.map(p=>({id:p.id,nom:p.nom,val:p.val})),
           unidades:{len:unitLen,fuerza:unitFor}, decimales:DEC};
 }
 // ═══════════════════════════════════════════════════════════

@@ -94,11 +94,10 @@ function setModoEspacio(m, opts){
   if(head) head.textContent = es3 ? 'Insertar sólido' : (esAl ? 'Insertar tramo' : 'Insertar figura');
   if(cambia && !opts.sinLimpiar){
     figures = []; selectedFigId = null; selectedFigType = null; selFiguras = [];
-    results = null; colorIdx = 0; ghostPos = null;
+    colorIdx = 0; ghostPos = null;
     document.querySelectorAll('.fig-btn').forEach(x=>x.classList.remove('selected'));
     selectFigure(null); renderFigList(); actualizarInfoSel();
-    const rp = document.getElementById('resultsPanel'); if(rp) rp.style.display = 'none';
-    const nh = document.getElementById('noResultsHint'); if(nh) nh.style.display = '';
+    invalidarResultados();
   }
   const hint = document.getElementById('canvasHint');
   if(hint) hint.textContent = es3
@@ -399,7 +398,7 @@ function onMouseMove3d(e){
         f.cx = o.cx + dx;
         if(gv.id === 'planta') f.cy = o.cy + dv; else f.cz = o.cz + dv;
       });
-      updatePropPanel(); results = null; render();
+      updatePropPanel(); invalidarResultados(); render();
     } else if(gesto.tipo === 'pan-temporal'){
       viewTx = dragViewStart.x + (sp.x - dragStart.x);
       viewTy = dragViewStart.y + (sp.y - dragStart.y);
@@ -448,7 +447,7 @@ function onMouseUp3d(){
         figures = figures.filter(f => aBorrar.indexOf(f.id) < 0);
         if(aBorrar.indexOf(selectedFigId) >= 0) selectFigure(null);
         selFiguras = selFiguras.filter(id => aBorrar.indexOf(id) < 0);
-        results = null; renderFigList();
+        invalidarResultados(); renderFigList();
       }
       actualizarInfoSel(); render(); gesto = null; canvas.style.cursor = 'default'; return;
     }
@@ -532,7 +531,7 @@ function placeSolid(type){
   document.getElementById('canvasHint').textContent =
     def.name + ' colocado con el centro de su base en el origen (0, 0, 0). Arrástralo en la planta o en el alzado, o usa el panel.';
   selectFigure(id);
-  results = null; renderFigList(); render();
+  invalidarResultados(); renderFigList(); render();
 }
 
 function anclaSolido(fig){
@@ -550,7 +549,7 @@ function alternarVolteo(){
   const fig = figures.find(f=>f.id===selectedFigId); if(!fig) return;
   registrarCambio();
   recolocarPorAncla(fig, f=>{ f.volteado = !f.volteado; });
-  results = null; buildPropPanel3d(fig); render();
+  invalidarResultados(); buildPropPanel3d(fig); render();
 }
 function buildPropPanel3d(fig){
   const def = SOLID_DEFS[fig.type];
@@ -612,7 +611,7 @@ function updateDim3d(dimId, val){
   const fig = figures.find(f=>f.id===selectedFigId); if(!fig) return;
   registrarCambio();
   recolocarPorAncla(fig, f=>{ f.dims[dimId] = parseFloat(val)||0; });
-  updatePropPanel3d(); results = null; render();
+  updatePropPanel3d(); invalidarResultados(); render();
 }
 // Posición del ancla y giro escritos en el panel: el ancla se queda donde
 // dice el alumno y el centroide se recoloca con el giro nuevo.
@@ -624,7 +623,7 @@ function updateFigFromProp3d(){
   if(def.vertices) fig.rotation = num('rotation');
   const off = solidAnchorOffsetFig(fig, fig.activeAnchor||'BM');
   fig.cx = num('posX') - off.dx; fig.cy = num('posY') - off.dy; fig.cz = num('posZ') - off.dz;
-  results = null; render();
+  invalidarResultados(); render();
 }
 function updatePropPanel3d(){
   const fig = figures.find(f=>f.id===selectedFigId); if(!fig) return;
@@ -763,7 +762,7 @@ function renderResults3d(res){
   const rp = document.getElementById('resultsPanel'); if(rp) rp.style.display = 'block';
   const hint = document.getElementById('noResultsHint'); if(hint) hint.style.display = 'none';
   const ra = document.getElementById('resultsArea'); if(ra) ra.style.display = 'block';
-  setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
+  if(!resultadoSinDesplazar) setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);   // 10-
   const f = v => fmtVal(v), nL = v => decFix(v,'len');
   const het = res.hetero, simb = matSimbolo();
   const Wsim = (matMagnitud==='densidad') ? 'm' : 'W';

@@ -52,7 +52,7 @@ function placeFigure(type, cx, cy){
   document.getElementById('canvasHint').textContent =
     'Figura colocada con su centroide en el origen (0, 0). Arr\u00e1strala o usa el panel para moverla.';
   selectFigure(id);
-  results = null;
+  invalidarResultados();
   renderFigList();
   render();
 }
@@ -108,5 +108,9 @@ function deleteFigure(id){
   registrarCambio();
   figures = figures.filter(f=>f.id!==id);
   if(selectedFigId===id) selectFigure(null);
-  results=null; renderFigList(); render(); cerrarEdicionSiSobra();
+  // La figura borrada sale también de la marca de Mover / editar: si no,
+  // Replicar y Transformar seguían contando un id que ya no existe.
+  selFiguras = selFiguras.filter(s=>s!==id);
+  actualizarInfoSel();
+  invalidarResultados(); renderFigList(); render(); cerrarEdicionSiSobra();
 }

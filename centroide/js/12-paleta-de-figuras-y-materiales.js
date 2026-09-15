@@ -75,20 +75,23 @@ function renderMatUnidades(){
 }
 function _matValTxt(m){ return (m.valIng !== undefined && m.valIng !== null) ? decFix(m.valIng,'len') : decFix(m.val,'len'); }
 function _matUniTxt(m){ return m.uIng || m.unidad || ''; }
+// Criterio de deshacer y de resultados de los materiales (2026-09-15): un paso
+// de deshacer por cambio real, registrado antes de tocar el modelo. Lo que
+// cambia el peso de alguna figura (asignar material, espesor, borrar un
+// material en uso) oculta el resultado, como cualquier edición del panel de
+// propiedades (07-); lo que no cambia ningún número (γ ↔ ρ, añadir un material
+// o borrar uno sin usar) recalcula a la vista, como el cambio de unidades.
 function setMagnitud(m){
   const cambia = (matMagnitud !== m);
+  if(cambia) registrarCambio();
   matMagnitud=m;
   // Al cambiar de magnitud el valor escrito deja de tener sentido: se conserva
   // el número en la unidad del sistema y se olvida la unidad de entrada.
   if(cambia) MATS.forEach(x=>{ x.valIng = null; x.uIng = null; });
   MATS.forEach(x=>{ x.unidad = uGamma(); });
-  renderMatUnidades();
-  const a=document.getElementById('mag-peso'), b=document.getElementById('mag-dens');
-  if(a) a.classList.toggle('active', m==='peso');
-  if(b) b.classList.toggle('active', m==='densidad');
-  renderMats();
+  pintarTipoDeCuerpo();
   if(selectedFigId){ const fg=figures.find(f=>f.id===selectedFigId); if(fg) buildPropPanel(fg); }
-  if(results) calculate();
+  if(results) recalcularSinDesplazar();     // 10-: sin mover la página
   render();
 }
 function addMaterial(){
@@ -98,20 +101,26 @@ function addMaterial(){
   const u=uGamma();     // unidad del sistema, la que usa el cálculo
   const msg=document.getElementById('mat-msg');
   if(!isFinite(v)||v<=0){ if(msg){msg.style.color='#c0392b';msg.textContent='Escribe un valor mayor que cero.';} return; }
+  registrarCambio();
   MATS.push({id:++matSeq, val:+gammaAlSistema(v, uIng).toPrecision(10), unidad:u, valIng:v, uIng});
   const inp=document.getElementById('mat-val'); if(inp){ inp.value=''; inp.focus(); }
   if(msg){ msg.style.color='var(--muted)'; msg.textContent=''; }
   renderMats();
   if(selectedFigId){ const fg=figures.find(f=>f.id===selectedFigId); if(fg) buildPropPanel(fg); }
+  // La lista de materiales del resultado lo incluye. Sin desplazar la página: el
+  // foco acaba de volver a #mat-val para escribir el siguiente (10-).
+  if(results) recalcularSinDesplazar();
 }
 function delMaterial(id){
   const usados=figures.filter(f=>f.matId===id).length;
   if(usados && !confirm('Hay '+usados+' figura(s) usando '+matSimbolo()+id+'.\nSi lo eliminas, quedarán sin material asignado. ¿Continuar?')) return;
+  registrarCambio();
   MATS=MATS.filter(m=>m.id!==id);
   figures.forEach(f=>{ if(f.matId===id) f.matId=null; });
   renderMats();
   if(selectedFigId){ const fg=figures.find(f=>f.id===selectedFigId); if(fg) buildPropPanel(fg); }
-  if(results) calculate();
+  if(usados) invalidarResultados();
+  else if(results) recalcularSinDesplazar();
   render();
 }
 function renderMats(){
@@ -135,32 +144,47 @@ function renderMats(){
 function asignarMaterial(v){
   const fig=figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  const nuevo = v ? Number(v) : null;
+  if((fig.matId || null) === nuevo) return;
   registrarCambio();
-  fig.matId = v ? Number(v) : null;
-  if(results) calculate();
+  fig.matId = nuevo;
+  invalidarResultados();
   render();
 }
 function updateThickness(v){
   const fig=figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  const t = parseFloat(v)||1;
+  if(t === (fig.thickness || 1)) return;
   registrarCambio();
-  fig.thickness = parseFloat(v)||1;
-  if(results) calculate();
+  fig.thickness = t;
+  invalidarResultados();
   render();
 }
 
 // ── Homogéneo / heterogéneo ──
-function setModoCuerpo(m){
-  modoCuerpo=m;
+// Pinta el tipo de cuerpo, la magnitud y los materiales tal como están en el
+// modelo, sin tocarlo. La usan setModoCuerpo, setMagnitud, abrir un ejercicio
+// (restaurarCuerpoDeArchivo, 11-) y deshacer (restaurarInstantanea, 15-).
+function pintarTipoDeCuerpo(){
+  const het = (modoCuerpo==='heterogeneo');
   const h=document.getElementById('modo-homo'), e=document.getElementById('modo-het');
-  if(h) h.classList.toggle('active', m==='homogeneo');
-  if(e) e.classList.toggle('active', m==='heterogeneo');
+  if(h) h.classList.toggle('active', !het);
+  if(e) e.classList.toggle('active', het);
   const hint=document.getElementById('modo-hint');
-  if(hint) hint.textContent = m==='heterogeneo'
+  if(hint) hint.textContent = het
     ? 'Cada figura lleva su propio material: G se separa del centroide.'
     : 'Un solo material: G coincide con el centroide.';
   const mp=document.getElementById('matPanel');
-  if(mp) mp.style.display = (m==='heterogeneo') ? 'block' : 'none';
+  if(mp) mp.style.display = het ? 'block' : 'none';
+  const a=document.getElementById('mag-peso'), b=document.getElementById('mag-dens');
+  if(a) a.classList.toggle('active', matMagnitud!=='densidad');
+  if(b) b.classList.toggle('active', matMagnitud==='densidad');
+  renderMatUnidades();
+  renderMats();
+}
+function setModoCuerpo(m){
+  modoCuerpo=m;
   if(m==='heterogeneo'){
     if(!MATS.length){
       // dos valores de arranque, para que el alumno los edite
@@ -169,9 +193,9 @@ function setModoCuerpo(m){
     // las figuras ya dibujadas toman el primer material, y el alumno lo cambia
     figures.forEach(f=>{ if(!f.matId) f.matId=MATS[0].id; });
   }
-  renderMats();
+  pintarTipoDeCuerpo();
   if(selectedFigId){ const fg=figures.find(f=>f.id===selectedFigId); if(fg) buildPropPanel(fg); }
-  if(results) calculate();
+  if(results) recalcularSinDesplazar();
   render();
 }
 
@@ -183,10 +207,16 @@ function setUnit(u){
 // Cambia de unidad CONVIRTIENDO todas las medidas y posiciones,
 // de modo que la sección física permanece idéntica.
 function convertUnits(newU){
+  escalarModeloAUnidad(newU);
+  refrescarTrasUnidades();
+}
+// Reescala posiciones, medidas, espesores y el punto P a la longitud nueva.
+// No redibuja ni recalcula: eso es refrescarTrasUnidades.
+function escalarModeloAUnidad(newU){
   const oldU = unit;
   // Antes se salía aquí si la longitud no cambiaba, así que un cambio de SOLO
   // la fuerza no volvía a dibujar ni a recalcular: los resultados quedaban
-  // con el número viejo bajo la etiqueta nueva. Ahora la función siempre
+  // con el número viejo bajo la etiqueta nueva. Ahora convertUnits siempre
   // termina refrescando; el bucle de geometría solo se salta si de verdad
   // no hay nada que reescalar.
   if(newU!==oldU){
@@ -195,6 +225,9 @@ function convertUnits(newU){
       if(fig.cx!==undefined) fig.cx = +(fig.cx*k).toFixed(9);
       if(fig.cy!==undefined) fig.cy = +(fig.cy*k).toFixed(9);
       if(fig.cz!==undefined) fig.cz = +(fig.cz*k).toFixed(9);   // sólidos 3D
+      // El espesor es una longitud (W = γ·A·t): sin convertirlo, el peso de un
+      // cuerpo heterogéneo salía multiplicado por k al cambiar de unidad.
+      if(typeof fig.thickness==='number' && isFinite(fig.thickness)) fig.thickness = +(fig.thickness*k).toPrecision(12);
       if(fig.dims){
         for(const key in fig.dims){
           if(ANGLE_DIMS[key]) continue;                 // los ángulos no se convierten
@@ -209,10 +242,14 @@ function convertUnits(newU){
     }
     setUnit(newU);
   }
+}
+// Repinta la lista, el panel de propiedades y el lienzo, y recalcula si había
+// resultado. applyUnitsModal lo llama con los materiales ya reconvertidos.
+function refrescarTrasUnidades(){
   if(typeof renderFigList==='function') renderFigList();
   try{ const fg=figures.find(f=>f.id===selectedFigId); if(fg) buildPropPanel(fg); }catch(e){}
   render();
-  if(results && typeof calculate==='function'){ try{ calculate(); }catch(e){} }
+  if(results && typeof calculate==='function'){ try{ recalcularSinDesplazar(); }catch(e){} }
 }
 
 function openUnitsModal(){
@@ -240,6 +277,11 @@ function applyUnitsModal(){
   const oldLen = unit, oldForce = unitForce;
   const newLen = document.getElementById('selUnit').value;
   const newForce = (document.getElementById('selForce')||{}).value || unitForce;
+  // Con las mismas unidades no hay nada que convertir ni paso que deshacer.
+  if(newLen === oldLen && newForce === oldForce){ closeUnitsModal(); return; }
+  // Un solo paso de deshacer; la instantánea lleva las unidades (15-), así que
+  // deshacer no devuelve las medidas viejas con la unidad nueva.
+  registrarCambio();
 
   const k  = LEN_FAC_I[oldLen]/LEN_FAC_I[newLen];      // longitud: nuevo = viejo*k
   const kF = FOR_A_KN[oldForce]/FOR_A_KN[newForce];    // fuerza:   nuevo = viejo*kF
@@ -252,11 +294,15 @@ function applyUnitsModal(){
   });
 
   unitForce = newForce;
-  convertUnits(newLen);
+  escalarModeloAUnidad(newLen);
   // Los materiales con unidad propia se reconvierten desde el valor escrito:
   // así no acumulan redondeos al cambiar de sistema varias veces.
   reconvertirMateriales();
   renderMats();
+  // Se repinta y recalcula con los materiales ya en la unidad nueva. Antes
+  // convertUnits recalculaba primero y el resultado y el panel de propiedades
+  // mostraban γ con el número nuevo y la etiqueta vieja (m.unidad).
+  refrescarTrasUnidades();
   closeUnitsModal();
 }
 
@@ -297,7 +343,9 @@ function applyDecModal(){
   DEC={len:g('selDecLen'), area:g('selDecArea')};
   syncDecTag(); closeDecModal();
   render();
-  if(results) renderResults(results, currentU4, currentU2, currentU1);
+  // calculate elige el cálculo del modo. renderResults es el del 2D: en 3D lanzaba y
+  // los decimales no llegaban, y en alambre ponía el panel plano con sus datos.
+  if(results) recalcularSinDesplazar();
 }
 function zoomIn(){ viewScale*=1.2; render(); }
 function zoomOut(){ viewScale/=1.2; render(); }
@@ -361,10 +409,10 @@ function fitView(){
 }
 function resetAll(){
   registrarCambio();
-  figures=[]; selectedFigId=null; selectedFigType=null; results=null; colorIdx=0;
+  figures=[]; selectedFigId=null; selectedFigType=null; selFiguras=[]; colorIdx=0;
   extraPoint=null;
-  selectFigure(null); renderFigList();
-  document.getElementById('resultsPanel').style.display='none';
+  selectFigure(null); renderFigList(); actualizarInfoSel();
+  invalidarResultados();
   render();
 }
 // Ejemplo de referencia del capítulo: silueta compuesta por 18 figuras, con

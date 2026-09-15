@@ -18,8 +18,14 @@ function instantanea(){
       if(f.perfil) c.perfil = Object.assign({}, f.perfil);
       return c;
     }),
-    figIdCounter, colorIdx, selectedFigId
+    figIdCounter, colorIdx, selectedFigId, unit
   });
+}
+
+// Mayor id de las figuras del modelo (0 si no hay ninguna). El contador de ids
+// nunca debe quedar por debajo: una figura nueva o una copia repetiría un id.
+function maxIdFiguras(){
+  return figures.reduce((m,f)=>(typeof f.id==='number' && isFinite(f.id) && f.id>m) ? f.id : m, 0);
 }
 
 function restaurar(txt){
@@ -30,9 +36,20 @@ function restaurar(txt){
     if(f.perfil) c.perfil = Object.assign({}, f.perfil);
     return c;
   });
-  figIdCounter = d.figIdCounter || 0;
+  figIdCounter = Math.max(d.figIdCounter || 0, maxIdFiguras());
   colorIdx = d.colorIdx || 0;
-  results = null;
+  // Las medidas de la instantánea están en SU unidad: se restauran con ella.
+  // El punto P no va en la instantánea y se lleva a esa unidad.
+  if(d.unit && d.unit !== unit){
+    const k = LEN_FAC_I[unit]/LEN_FAC_I[d.unit];
+    if(extraPoint){ extraPoint.x = +(extraPoint.x*k).toFixed(9); extraPoint.y = +(extraPoint.y*k).toFixed(9); }
+    setUnit(d.unit);
+  }
+  // La marca de Mover / editar no va en la instantánea: se depura de los ids
+  // que ya no existen, o Replicar registraría un paso vacío sobre fantasmas.
+  selFiguras = selFiguras.filter(id=>figures.some(f=>f.id===id));
+  try{ actualizarInfoSel(); }catch(e){}
+  invalidarResultados();
   selectFigure(d.selectedFigId != null && figures.some(f=>f.id===d.selectedFigId)
                ? d.selectedFigId : null);
   try{ renderFigList(); }catch(e){}

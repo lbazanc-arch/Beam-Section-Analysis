@@ -107,6 +107,10 @@ function histSnapshot(){
 }
 function histRestore(s){
   figures=JSON.parse(JSON.stringify(s.figures));
+  // El archivo no guarda el contador de ids: sin esto, una figura nueva, un
+  // perfil o una copia de Replicar repetían los ids del ejercicio abierto.
+  figIdCounter=Math.max(figIdCounter, maxIdFiguras());
+  selFiguras=[];
   if(typeof s.colorIdx==='number') colorIdx=s.colorIdx;
   if(s.unit) setUnit(s.unit);
   extraPoint = s.extraPoint?JSON.parse(JSON.stringify(s.extraPoint)):null;
@@ -114,6 +118,8 @@ function histRestore(s){
   if(s.DEC) DEC=JSON.parse(JSON.stringify(s.DEC));
   if(typeof s.notationExp==='number') notationExp=s.notationExp;
   selectedFigId=null; selectedFigType=null;
+  actualizarInfoSel();
+  invalidarResultados();
   syncDecTag();
   renderFigList();
   fitView();
@@ -320,7 +326,7 @@ function insertarPerfil(i){
   colorIdx++;
   figures.push(fig);
   selectedFigId=fig.id; selectedFigType=null;
-  results = null;                      // el calculo anterior ya no vale
+  invalidarResultados();               // el calculo anterior ya no vale
   cerrarMenuFiguras();
   renderFigList(); selectFigure(fig.id); fitView(); render();
   aviso(p.nom + ' insertado con su centroide en el origen (0, 0).');
@@ -418,7 +424,9 @@ function convertUnits(newU){
   }
   setUnit(newU);
   if(typeof renderFigList==='function') renderFigList();
-  if(typeof syncPropsPanel==='function'){ try{ syncPropsPanel(); }catch(e){} }
+  // El panel de propiedades muestra ya las medidas convertidas: si no, editar
+  // un campo leía las posiciones viejas y movía la figura.
+  try{ const fg=figures.find(f=>f.id===selectedFigId); if(fg) buildPropPanel(fg); }catch(e){}
   render();
   if(results && typeof calculate==='function'){ try{ calculate(); }catch(e){} }
 }
@@ -435,7 +443,11 @@ function updateUnitsPreview(){
   document.getElementById('uiPrev').textContent=u+'\u2074';
 }
 function applyUnitsModal(){
-  convertUnits(document.getElementById('selUnit').value);
+  const nu = document.getElementById('selUnit').value;
+  if(nu === unit){ closeUnitsModal(); return; }   // sin cambio no hay paso
+  // Un solo paso de deshacer; la instantánea lleva la unidad (22-).
+  registrarCambio();
+  convertUnits(nu);
   closeUnitsModal();
 }
 
@@ -548,10 +560,11 @@ function resetAll(){
   // Limpiar es reversible: se guarda el estado antes de vaciarlo.
   cerrarEdicionSiSobra_forzar();
   if(figures.length) registrarCambio();
-  figures=[]; selectedFigId=null; selectedFigType=null; results=null; colorIdx=0;
+  figures=[]; selectedFigId=null; selectedFigType=null; colorIdx=0;
   extraPoint=null;
-  selectFigure(null); renderFigList();
-  document.getElementById('resultsPanel').style.display='none';
+  selFiguras=[];   // Limpiar y cargar un ejemplo no dejan nada marcado
+  selectFigure(null); renderFigList(); actualizarInfoSel();
+  invalidarResultados();
   render();
 }
 // ═══════════════════════════════════════════════════════════

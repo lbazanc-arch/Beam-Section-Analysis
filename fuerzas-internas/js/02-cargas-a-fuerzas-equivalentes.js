@@ -269,12 +269,15 @@ function elegirPeso(id){
   pesoActivo = (pesoActivo === id) ? null : id;
   renderPesos(); refrescar();
 }
+// Borrar y asignar ocultan el panel de resultados (`invalidarResultados`, 12-):
+// con `R = null` a secas seguía enseñando la solución sin el cambio de peso.
 function borrarPeso(id){
+  if(!pesos.some(p=>p.id === id)) return;     // sin peso que borrar no hay paso
   registrarCambio();
   pesos = pesos.filter(p=>p.id !== id);
   tramos.forEach(t=>{ if(t.pesoId === id) t.pesoId = null; });
   if(pesoActivo === id) pesoActivo = null;
-  R = null; renderPesos(); refrescar();
+  invalidarResultados(); renderPesos(); refrescar();
 }
 // Herramienta: mientras está activa, tocar un tramo le asigna el valor
 // elegido (o se lo quita, si ya lo tenía).
@@ -292,7 +295,7 @@ function asignarPesoATramo(idTramo){
   }
   registrarCambio();
   t.pesoId = (t.pesoId === pesoActivo) ? null : pesoActivo;
-  R = null; renderPesos(); refrescar();
+  invalidarResultados(); renderPesos(); refrescar();
   return true;
 }
 

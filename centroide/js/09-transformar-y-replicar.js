@@ -135,46 +135,96 @@ function applyTransformar(){
     f.cx = d.cx; f.cy = d.cy; f.rotation = d.rotation;
     if(f.es3d && typeof d.cz === 'number') f.cz = d.cz;
   });
-  results = null;
+  invalidarResultados();
   closeTransformar();
   updatePropPanel(); renderFigList(); actualizarInfoSel(); render();
 }
 
 // ── Replicar selección (copiar figuras desplazadas N veces) ──
+// Deja en la selección solo las figuras que siguen existiendo: una marca
+// huérfana (figura borrada, ejercicio reabierto) no se puede replicar.
+function depurarSeleccion(){
+  selFiguras = selFiguras.filter(id=>figures.some(f=>f.id===id));
+  return selFiguras;
+}
+// El contador de ids nunca queda por debajo del mayor id del modelo: si no,
+// una figura nueva repite id y editar o borrar una toca también la otra.
+function asegurarContadorFiguras(){
+  figures.forEach(f=>{ const n = Number(f.id); if(isFinite(n) && n > figIdCounter) figIdCounter = n; });
+}
+// Tras cambiar el modelo el panel no puede seguir enseñando la solución
+// anterior: se oculta y vuelve la pista de «sin resultados».
+function invalidarResultados(){
+  results = null;
+  const rp = document.getElementById('resultsPanel'); if(rp) rp.style.display = 'none';
+  const nh = document.getElementById('noResultsHint'); if(nh) nh.style.display = '';
+}
+// Lee la ventana SIN corregir nada en silencio: devuelve {error} si las
+// repeticiones no son un entero de 1 a 50 o si una distancia no es un número.
+function leerReplicar(){
+  const es3 = (modoEspacio === '3d');
+  const num = id => {
+    const e = document.getElementById(id);
+    const t = e ? String(e.value).trim() : '';
+    return t === '' ? NaN : Number(t);
+  };
+  const nrep = num('repN');
+  if(!Number.isInteger(nrep) || nrep < 1 || nrep > 50) return {error:'Repeticiones: un entero de 1 a 50.'};
+  const dx = num('repDx'), dy = num('repDy'), dz = es3 ? num('repDz') : 0;
+  if(!isFinite(dx) || !isFinite(dy) || !isFinite(dz)) return {error:'Distancias: escribe números.'};
+  return {dx, dy, dz, nrep, es3};
+}
 function abrirReplicar(){
+  depurarSeleccion(); actualizarInfoSel();
   if(!selFiguras.length){
     aviso('Elige la herramienta Mover / editar y marca al menos una figura para replicar.');
     return;
   }
-  document.getElementById('repSub').textContent =
-    'Se replicarán ' + selFiguras.length + ' figura(s), desplazándolas la distancia indicada tantas veces como pidas.';
+  // La ayuda es de una línea y no hace falta para abrir la ventana; cuántas
+  // figuras y copias saldrán lo dice la vista previa.
+  const sub = document.getElementById('repSub');
+  if(sub) sub.textContent = (modoEspacio === '3d')
+    ? 'Copias desplazadas dx, dy, dz, tantas como pidas.'
+    : 'Copias desplazadas dx, dy, tantas como pidas.';
   actualizarPrevRep();
   document.getElementById('repModal').classList.add('show');
 }
 function closeReplicar(){ document.getElementById('repModal').classList.remove('show'); }
 function actualizarPrevRep(){
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const es3 = (modoEspacio === '3d');
-  const dx = g('repDx'), dy = g('repDy'), dz = es3 ? g('repDz') : 0;
-  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
-  const base = figures.find(f=>f.id===selFiguras[0]);
   const el = document.getElementById('repPrev');
-  if(!el || !base) return;
-  const z = v => es3 ? ' ; ' + decP(v,'len') : '';
-  let t = 'Desde (' + decP(base.cx,'len') + ' ; ' + decP(base.cy,'len') + z(base.cz||0) + ') ' + unit + ' → ';
+  if(!el) return;
+  const v = leerReplicar();
+  if(v.error){ el.textContent = v.error; return; }
+  const {dx, dy, dz, nrep, es3} = v;
+  const sel = selFiguras.filter(id=>figures.some(f=>f.id===id));
+  const base = figures.find(f=>f.id===sel[0]);
+  if(!base){ el.textContent = ''; return; }
+  if(dx === 0 && dy === 0 && dz === 0){
+    el.textContent = es3 ? 'Indica un desplazamiento en x, y o z.' : 'Indica un desplazamiento en x o en y.';
+    return;
+  }
+  const nCop = sel.length * nrep;
+  const z = w => es3 ? ' ; ' + decP(w,'len') : '';
+  let t = (nCop === 1 ? 'Saldrá 1 copia. ' : 'Saldrán ' + nCop + ' copias. ')
+        + 'Desde (' + decP(base.cx,'len') + ' ; ' + decP(base.cy,'len') + z(base.cz||0) + ') ' + unit + ' → ';
   const p = [];
   for(let i=1;i<=Math.min(nrep,3);i++)
     p.push('(' + decP(base.cx+dx*i,'len') + ' ; ' + decP(base.cy+dy*i,'len') + z((base.cz||0)+dz*i) + ')');
   el.innerHTML = t + p.join(', ') + (nrep>3 ? ' …' : '');
 }
 function applyReplicar(){
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const es3 = (modoEspacio === '3d');
-  const dx = g('repDx'), dy = g('repDy'), dz = es3 ? g('repDz') : 0;
-  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
+  const v = leerReplicar();
+  if(v.error){ aviso(v.error, 'error'); return; }
+  const {dx, dy, dz, nrep, es3} = v;
   if(dx === 0 && dy === 0 && dz === 0){ aviso(es3 ? 'Indica un desplazamiento en x, y o z.' : 'Indica un desplazamiento en x o en y.'); return; }
-  registrarCambio();
-  const orig = selFiguras.slice();
+  const orig = depurarSeleccion().slice();
+  if(!orig.length){
+    actualizarInfoSel(); closeReplicar();
+    aviso('Ya no queda ninguna figura marcada para replicar.');
+    return;
+  }
+  asegurarContadorFiguras();
+  registrarCambio();   // toda la réplica es un solo paso de deshacer
   const nuevas = [];
   for(let i=1;i<=nrep;i++){
     orig.forEach(id=>{
@@ -189,7 +239,7 @@ function applyReplicar(){
       nuevas.push(nf.id);
     });
   }
-  results = null;
+  invalidarResultados();
   selFiguras = nuevas;
   selectFigure(nuevas.length ? nuevas[nuevas.length-1] : null);
   closeReplicar(); renderFigList(); actualizarInfoSel(); render();

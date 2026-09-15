@@ -56,21 +56,181 @@ function generarPDFLatex(){
   }
 }
 
+// ═══ Informe rápido: el botón rojo «PDF» (no el de LaTeX) ═══
+// Lo común —abrir la pestaña dentro de la pulsación, limpiar el panel, cabecera
+// BSA, colofón, KaTeX, A4 con márgenes, imprimir solo en el ordenador y esperar
+// al botón en el móvil— es de bsaInformeRapido (core/comun.js). Aquí queda solo
+// lo del tema:
+//  · La figura de la viga se dibuja APARTE, en un lienzo oculto de tamaño fijo
+//    (lienzoTemporalInforme), sin rejilla, ejes, leyenda ni selección. El lienzo de
+//    pantalla no sirve: los ejes lo cruzan de lado a lado (el recorte no
+//    recortaba nada) y en un teléfono al encuadre le quedan unos 115 px. La
+//    vista se ENCAJA midiendo el propio dibujo (encajarDibujoInforme): con un margen
+//    fijo, las cotas, las cargas o una reacción podían quedar cortadas por el
+//    borde. dibujar() solo usa ctx, W, H y la vista, así que basta cambiarlos un
+//    momento; despues() lo devuelve todo y redibuja, también si algo falla.
+//  · Las casillas de grupos y los botones Generar / Todos / Ninguno / Ver
+//    diagramas se van solos (son controles). Las dos instrucciones que los
+//    acompañan se marcan con data-bsa-pantalla mientras se limpia. Los
+//    diagramas salen tal como estén generados en pantalla.
+//  · El CSS del panel de resultados (_cssInformeRapidoFI), con tamaños de papel.
+//    La versión anterior copiaba las <style> de la página, pero estilos.css va
+//    en un <link>: el informe salía sin ningún estilo.
+const FIG_INFORME_FI = {ancho:820, alto:580, res:2, margen:16};
+
+function _cssInformeRapidoFI(){
+  return [
+    ':root{--mf:var(--math);--acc-l:var(--suave);--card:#fff;--border:#e0e4e8;--border2:#ccd2d8;',
+    '--nor:#0e9f6e;--cor:#d94f5c;--mom:#8b5cf6;--reac:#15803d}',
+    // Secciones numeradas
+    '.bsa-cuerpo .res-section{margin:0 0 16px}',
+    '.bsa-cuerpo .res-title{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;',
+    'color:var(--acc);letter-spacing:.3px;margin:0 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);',
+    'break-after:avoid;page-break-after:avoid}',
+    '.bsa-cuerpo .res-title .num{flex:none;width:19px;height:19px;border-radius:50%;background:var(--acc2);',
+    'color:#fff;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800}',
+    '.bsa-cuerpo .hint-sm{font-size:9.5px;color:var(--muted);line-height:1.4}',
+    // Veredicto y bloques de ecuaciones
+    '.bsa-cuerpo .verdict{border-left:4px solid var(--acc);background:var(--suave);border-radius:7px;',
+    'padding:8px 11px;margin:0 0 8px;font-size:10.5px;break-inside:avoid;page-break-inside:avoid}',
+    '.bsa-cuerpo .verdict.ok{border-left-color:#15803d;background:#f0fdf4}',
+    '.bsa-cuerpo .verdict.bad{border-left-color:var(--cor);background:#fef2f2}',
+    '.bsa-cuerpo .verdict-t{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;',
+    'margin-bottom:3px;color:var(--muted)}',
+    '.bsa-cuerpo .proc-block{background:#fff;border:1px solid var(--border);border-radius:8px;',
+    'padding:9px 11px;margin:0 0 8px;break-inside:avoid;page-break-inside:avoid}',
+    '.bsa-cuerpo .eq-row{margin:2px 0}',
+    '.bsa-cuerpo .eq-body{font-family:var(--mf);font-size:11.5px;line-height:1.6}',
+    // Tablas
+    '.bsa-cuerpo .tabla{width:100%;border-collapse:collapse;font-family:var(--mf);font-size:10.5px;',
+    'margin:0 0 8px;border-bottom:1px solid var(--border2)}',
+    '.bsa-cuerpo .tabla th{padding:4px 7px;text-align:left;font:800 8px/1.3 var(--sans);color:var(--acc);',
+    'text-transform:uppercase;letter-spacing:.5px;background:var(--suave);border-bottom:2px solid var(--border2)}',
+    '.bsa-cuerpo .tabla td{padding:3.5px 7px;border-bottom:1px solid var(--border)}',
+    '.bsa-cuerpo .tabla .r{text-align:right}',
+    // Método de las ecuaciones: un bloque por subtramo con su DCL
+    '.bsa-cuerpo .sub-tramo-cab{font:800 11px/1.3 var(--sans);color:#26415e;margin:12px 0 5px;',
+    'padding-bottom:3px;border-bottom:2px solid #e3e8ee;break-after:avoid;page-break-after:avoid}',
+    '.bsa-cuerpo .dcl-caja{border:1px solid #e3e8ee;border-radius:8px;padding:8px 10px;margin:0 0 8px;',
+    'background:#fbfcfe;break-inside:avoid;page-break-inside:avoid}',
+    '.bsa-cuerpo .dcl-rango{font:700 10.5px/1.4 var(--sans);margin-bottom:4px}',
+    '.bsa-cuerpo .dcl-nota{font-weight:500;color:var(--muted);font-size:9.5px}',
+    '.bsa-cuerpo .dcl-svg{display:block;width:100%;max-width:120mm;height:auto;margin:4px auto}',
+    '.bsa-cuerpo .dcl-ecs{margin-top:6px}',
+    '.bsa-cuerpo .dcl-extremos{font:500 10px/1.5 var(--sans);color:#3c4652;margin-top:5px;',
+    'padding-top:5px;border-top:1px dashed #e3e8ee}',
+    '.bsa-cuerpo .dcl-saltos{font:500 10px/1.5 var(--sans);color:#3c4652;margin:6px 0 4px}',
+    // Diagramas DFN · DFC · DMF: un grupo entero por bloque, sin estirarse
+    '.bsa-cuerpo #diagWrap>div{margin-bottom:12px!important;break-inside:avoid;page-break-inside:avoid}',
+    '.bsa-cuerpo #diagWrap>div>div:first-child{font-size:10.5px!important;break-after:avoid;page-break-after:avoid}',
+    '.bsa-cuerpo #diagWrap .proc-block>svg{max-width:165mm;margin:0 auto}',
+    '.bsa-cuerpo .vd-stats{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}',
+    '.bsa-cuerpo .vd-stat{flex:1 1 150px;border:1px solid var(--border2);border-left:3px solid var(--acc);',
+    'border-radius:7px;padding:5px 8px;font-size:9.5px;line-height:1.5;background:#fff}',
+    '.bsa-cuerpo .vd-stat-t{font-weight:800;font-size:9.5px;margin-bottom:1px}'
+  ].join('');
+}
+
+// El encaje de la figura (cajaDibujoInforme, encajarDibujoInforme,
+// lienzoTemporalInforme, marcoLienzoInforme) vive en core/comun.js.
+
+// Caja del modelo en coordenadas del mundo: los nudos.
+function _cajaModeloFI(){
+  if(!nodos.length) return null;
+  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
+  return {x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)};
+}
+
+// Dibuja la viga en el lienzo temporal y la encaja. Cambia ctx, W, H y la
+// vista: quien la llama los ha guardado antes. El lienzo va a temporales NADA
+// MÁS CREARLO, para que despues() lo quite aunque el encaje o dibujar() fallen
+// a medias (si no, quedaba en el documento un lienzo oculto por cada fallo).
+function _figuraInformeFI(temporales){
+  const f = FIG_INFORME_FI;
+  const c0 = _cajaModeloFI();
+  if(!c0) return null;
+  const lienzo = lienzoTemporalInforme(f.ancho, f.alto, f.res);
+  temporales.push(lienzo);
+  ctx = lienzo.getContext('2d');
+  W = f.ancho; H = f.alto;
+  // Punto de partida: el encuadre de centrar(); la medida lo corrige.
+  vx = (c0.x0 + c0.x1)/2; vy = (c0.y0 + c0.y1)/2;
+  escala = Math.max(0.02, Math.min((W - 260)/Math.max(c0.x1 - c0.x0, 1),
+                                   (H - 180)/Math.max(c0.y1 - c0.y0, 1), 400));
+  const r = encajarDibujoInforme({
+    ancho: W, alto: H, margen: f.margen,
+    medir: function(){ dibujar(); return cajaDibujoInforme(lienzo); },
+    modelo: function(){
+      const c = _cajaModeloFI();
+      const p0 = aPantalla(c.x0, c.y1), p1 = aPantalla(c.x1, c.y0);
+      return {x0:p0[0], y0:p0[1], x1:p1[0], y1:p1[1]};
+    },
+    escalar: function(k, dx, dy){
+      const c = _cajaModeloFI();
+      const xc = (c.x0 + c.x1)/2, yc = (c.y0 + c.y1)/2;
+      const s = aPantalla(xc, yc);
+      escala *= k;
+      vx = xc - (s[0] + dx - W/2)/escala;
+      vy = yc + (s[1] + dy - H/2)/escala;
+    }
+  });
+  if(!r.ok) console.warn('Informe PDF: la figura de la viga no cabe entera en su lienzo.');
+  return lienzo;
+}
+
 function downloadPDF(){
-  const rp=document.getElementById('resultsPanel');
-  if(!rp||!rp.innerHTML.trim()){ aviso('Primero pulsa Calcular.', 'error'); return; }
-  const w=window.open('','_blank','width=980,height=760');
-  if(!w){ aviso('El navegador bloqueó la ventana emergente.', 'error'); return; }
-  const kEl=document.getElementById('katex-css');
-  let styles='';
-  document.querySelectorAll('style').forEach(s=>{ styles+='<style>'+s.textContent+'</style>'; });
-  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
-    +'<title>BSA — Fuerzas Internas</title>'+styles
-    +'<style>@page{size:A4 portrait;margin:12mm;} body{background:#fff;padding:0;}</style>'
-    +'</head><body><h2 style="color:#2563eb">BSA — Fuerzas Internas</h2>'
-    +rp.innerHTML+'</body></html>');
-  w.document.close();
-  setTimeout(()=>{ try{ w.print(); }catch(e){} }, 700);
+  const rp = document.getElementById('resultsPanel');
+  const hay = !!(R && !R.error && rp && rp.style.display !== 'none' && rp.innerHTML.trim());
+  let guardado = null, lienzo = null;
+  const marcados = [];
+  const temporales = [];    // lienzos creados en antes(), también si algo falla
+  return bsaInformeRapido({
+    panel: 'resultsPanel',
+    hayResultados: hay,
+    sinResultados: (R && R.error)
+      ? 'La viga no se pudo resolver: corrige el modelo y pulsa Calcular.'
+      : 'Primero pulsa Calcular.',
+    tema: 'Fuerzas internas',
+    acento: {acc:'#2563eb', acc2:'#1e3a8a', suave:'#eef3ff', borde:'#e0e4e8'},
+    cssTema: _cssInformeRapidoFI(),
+    // Las ayudas de los dos métodos (06-) acaban en «El desarrollo completo va
+    // en el PDF.»: el resto de la ayuda sí va al papel, esa frase no.
+    limpiar: {reemplazarTexto: [[/\s*El desarrollo completo va en el PDF\./g, '']]},
+    antes: function(){
+      // Primero se guarda todo lo que se va a tocar: despues() lo necesita
+      // aunque algo falle a medias.
+      guardado = {ctx:ctx, W:W, H:H, vx:vx, vy:vy, escala:escala,
+        grilla:VIS.grilla, ejes:VIS.ejes, leyenda:VIS.leyenda,
+        selNodos:selNodos, selTramos:selTramos, selCargas:selCargas,
+        selNodo:selNodo, selTramo:selTramo};
+      rp.querySelectorAll('.res-section > .hint-sm').forEach(function(el){
+        if(/columna de control|pulsa Generar/i.test(el.textContent)){
+          el.setAttribute('data-bsa-pantalla', '');
+          marcados.push(el);
+        }
+      });
+      VIS.grilla = false; VIS.ejes = false; VIS.leyenda = false;
+      selNodos = []; selTramos = []; selCargas = []; selNodo = null; selTramo = null;
+      lienzo = _figuraInformeFI(temporales);
+    },
+    figuras: function(){
+      return lienzo ? [{titulo:'Viga analizada', lienzo:lienzo}] : [];
+    },
+    despues: function(){
+      marcados.forEach(function(el){ el.removeAttribute('data-bsa-pantalla'); });
+      temporales.splice(0).forEach(function(c){ c.remove(); });
+      lienzo = null;
+      if(!guardado) return;
+      const g = guardado;
+      guardado = null;
+      ctx = g.ctx; W = g.W; H = g.H;
+      vx = g.vx; vy = g.vy; escala = g.escala;
+      VIS.grilla = g.grilla; VIS.ejes = g.ejes; VIS.leyenda = g.leyenda;
+      selNodos = g.selNodos; selTramos = g.selTramos; selCargas = g.selCargas;
+      selNodo = g.selNodo; selTramo = g.selTramo;
+      dibujar();
+    }
+  });
 }
 
 // ── Jerarquía de Esc (criterio cap9): cierra lo más superficial primero ────

@@ -310,7 +310,7 @@ function renderResultsAlambre(res){
   const rp = document.getElementById('resultsPanel'); if(rp) rp.style.display = 'block';
   const hint = document.getElementById('noResultsHint'); if(hint) hint.style.display = 'none';
   const ra = document.getElementById('resultsArea'); if(ra) ra.style.display = 'block';
-  setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
+  if(!resultadoSinDesplazar) setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);   // 10-
   const f = v => fmtVal(v), nL = v => decFix(v,'len');
   const U = utex(u1);
   let html = '';

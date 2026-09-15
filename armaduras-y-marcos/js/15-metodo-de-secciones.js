@@ -48,9 +48,12 @@ function analizarCorte(){
   if(comps.length !== 2)
     return {valido:false, motivo:'no-separa', cortadas, partes:comps.length};
 
-  // Las barras ya conocidas (fuerza cero) no cuentan como incógnita
-  const cero = miembrosCero().map(c=>c.barra);
-  const incog = cortadas.filter(b=>cero.indexOf(b.id) < 0);
+  // Las barras ya conocidas (fuerza cero) no cuentan como incógnita. `cero` son
+  // solo las de fuerza cero QUE CRUZA EL CORTE (ids): miembrosCero() devuelve las
+  // de toda la armadura, y la figura y el texto de la porción las daban por cortadas.
+  const ceroTodas = miembrosCero().map(c=>c.barra);
+  const incog = cortadas.filter(b=>ceroTodas.indexOf(b.id) < 0);
+  const cero = cortadas.filter(b=>ceroTodas.indexOf(b.id) >= 0).map(b=>b.id);
   if(incog.length > 3)
     return {valido:false, motivo:'muchas', cortadas, incog, cero};
 
@@ -170,8 +173,19 @@ function resolverSeccion(info){
 }
 
 // ── Dibujo de la porción aislada ──
+// Mismos criterios que el DCL de nudo en pantalla (dibujarDCL, 09-): las barras
+// cortadas que se despejan en este corte van A TRAZOS, en gris neutro, saliendo
+// de la porción (tracción supuesta) y rotuladas F_BC; las ya resueltas en un
+// corte anterior, SÓLIDAS sobre su barra, en su color y su sentido real y con su
+// valor; las de fuerza cero conocidas, en trazo fino gris «F_AB = 0». Reacciones
+// (verde) y cargas (acento) llegan al nudo en su sentido real y con su valor; el
+// rodillo inclinado es UNA reacción con el arco de su ángulo agudo. Nada se pisa:
+// todo va al registro de 12- y los rótulos se colocan al final. Las letras de
+// los ángulos siguen el orden de tikzSeccionPorcion (barras cortadas y cargas);
+// el arco del rodillo inclinado, que el PDF dibuja por componentes, va el último
+// para no cambiarlas. Los valores de los ángulos, en una línea bajo la figura.
 function svgPorcion(info, sol){
-  const W2 = 620, H2 = 340, M = 58;
+  const W2 = 620, H2 = 340, M = 70;
   const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
   const y0 = Math.min(...ys), y1 = Math.max(...ys);
@@ -180,10 +194,15 @@ function svgPorcion(info, sol){
   const ox = (W2-dx*k)/2 - x0*k, oy = (H2-dy*k)/2 + y1*k;
   const P = (x,y)=>[x*k+ox, oy-y*k];
   const enLado = id => info.lado.indexOf(id) >= 0;
-  let s = '<svg viewBox="0 0 '+W2+' '+H2+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">';
-  s += '<rect x="0" y="0" width="'+W2+'" height="'+H2+'" fill="#fff"/>';
+  const coincide = (n, x, y) => Math.abs(n.x-x) < 1e-6 && Math.abs(n.y-y) < 1e-6;
+  const reg = crearRegistro(SVG_ESC);
+  const L = 50, g = 6, R = g + L;
+  const gen = letrasGriegas(), arcos = [], arcosFin = [], pend = [];
+  const ocupPorNudo = {}, ocupDe = n => (ocupPorNudo[n.id] = ocupPorNudo[n.id] || _angulosBarras(n).map(a => -a));
+  const valorF = v => ' = ' + dec(Math.abs(v),'f') + ' ' + unitFor;
+  let s = '';
 
-  // parte descartada, muy tenue
+  // parte descartada, muy tenue (no se registra: un rótulo puede ir encima)
   barras.forEach(b=>{
     if(enLado(b.a) && enLado(b.b)) return;
     const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
@@ -200,62 +219,125 @@ function svgPorcion(info, sol){
     const col = esCero(f) ? '#9aa3ad' : (f>0 ? '#1d4ed8' : '#c0392b');
     s += '<line x1="'+ax.toFixed(1)+'" y1="'+ay.toFixed(1)+'" x2="'+bx.toFixed(1)+'" y2="'+by.toFixed(1)
        + '" stroke="'+col+'" stroke-width="3"/>';
+    reg.seg(ax, ay, bx, by, 1.5, 'barra', {radialDe:[na.id, nb.id]});
   });
   // línea del corte
   if(corte){
     const [cx1,cy1] = P(corte.x1,corte.y1), [cx2,cy2] = P(corte.x2,corte.y2);
     s += '<line x1="'+cx1.toFixed(1)+'" y1="'+cy1.toFixed(1)+'" x2="'+cx2.toFixed(1)+'" y2="'+cy2.toFixed(1)
-       + '" stroke="#c0392b" stroke-width="2" stroke-dasharray="8,5"/>';
+       + '" stroke="#c0392b" stroke-width="2" stroke-dasharray="8,5" opacity=".7"/>';
+    reg.seg(cx1, cy1, cx2, cy2, 1, 'corte');
   }
-  // fuerzas de las barras cortadas, dibujadas hacia afuera (tracción supuesta)
-  sol.datos.forEach((d,i)=>{
-    const [px,py] = P(d.px, d.py);
-    const ux = d.ux, uy = -d.uy;
-    const L = 62;
-    const ex = px+ux*L, ey = py+uy*L;
-    const val = sol.pasos[i] ? sol.pasos[i].val : null;
-    const col = (val!==null && isFinite(val)) ? (val>0 ? '#1d4ed8' : '#c0392b') : '#7c5cd6';
-    s += '<line x1="'+px.toFixed(1)+'" y1="'+py.toFixed(1)+'" x2="'+ex.toFixed(1)+'" y2="'+ey.toFixed(1)
-       + '" stroke="'+col+'" stroke-width="2.6"/>'
-       + '<polygon points="0,0 -10,-4.5 -10,4.5" fill="'+col+'" transform="translate('+ex.toFixed(1)+','+ey.toFixed(1)
-       + ') rotate('+(Math.atan2(uy,ux)*180/Math.PI).toFixed(1)+')"/>'
-       + '<text x="'+(px+ux*(L+18)).toFixed(1)+'" y="'+(py+uy*(L+18)).toFixed(1)
-       + '" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="'+col
-       + '" text-anchor="middle">F' + d.nombre + '</text>';
-  });
-  // cargas y reacciones de la porción
-  sol.externas.forEach(e=>{
-    const [px,py] = P(e.x,e.y);
-    const mag = Math.hypot(e.fx,e.fy);
-    if(mag < 1e-9) return;
-    const ux = e.fx/mag, uy = -e.fy/mag;
-    const col = e.et.charAt(0)==='R' ? '#15803d' : '#c0392b';
-    const sx = px-ux*40, sy = py-uy*40;
-    s += '<line x1="'+sx.toFixed(1)+'" y1="'+sy.toFixed(1)+'" x2="'+(px-ux*9).toFixed(1)+'" y2="'+(py-uy*9).toFixed(1)
-       + '" stroke="'+col+'" stroke-width="2.4"/>'
-       + '<polygon points="0,0 -9,-4 -9,4" fill="'+col+'" transform="translate('+(px-ux*8).toFixed(1)+','+(py-uy*8).toFixed(1)
-       + ') rotate('+(Math.atan2(uy,ux)*180/Math.PI).toFixed(1)+')"/>'
-       + '<text x="'+sx.toFixed(1)+'" y="'+(sy-6).toFixed(1)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'
-       + col+'" text-anchor="middle">'+e.et+' = '+dec(mag,'f')+'</text>';
-  });
-  // nudos
+  // nudos (se pintan al final, encima de las flechas) y centros de momentos
+  let puntos = '';
   nodos.forEach(n=>{
     const [px,py] = P(n.x,n.y);
     const dentro = enLado(n.id);
-    s += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+(dentro?5:3.5)+'" fill="'
+    puntos += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+(dentro?5:3.5)+'" fill="'
        + (dentro?'#563aa8':'#dfe3e8')+'" stroke="#fff" stroke-width="1.5"/>';
-    if(dentro) s += '<text x="'+(px+8).toFixed(1)+'" y="'+(py-8).toFixed(1)
-       + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">'+n.nombre+'</text>';
+    if(dentro) reg.caja(px, py, 10, 10, 'punto', {nudo:n.id, radialDe:[n.id]});
   });
-  // centros de momentos usados
   sol.pasos.forEach(p=>{
     if(p.tipo !== 'momento' || !p.centro) return;
     const [px,py] = P(p.centro.x, p.centro.y);
     if(px < -60 || px > W2+60 || py < -60 || py > H2+60) return;
-    s += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4" fill="none" stroke="#563aa8" stroke-width="1.6" stroke-dasharray="2,2"/>';
+    puntos += '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4" fill="none" stroke="#563aa8" stroke-width="1.6" stroke-dasharray="2,2"/>';
+    if(!nodos.some(n=>enLado(n.id) && coincide(n, p.centro.x, p.centro.y))) reg.caja(px, py, 10, 10, 'punto', {nudo:'O'});
   });
-  s += '</svg>';
-  return s;
+
+  // Barras cortadas que se despejan aquí: incógnitas, saliendo de la porción.
+  const incogIds = sol.datos.map(d=>d.barra.id);
+  sol.datos.forEach(d=>{
+    const nd = d.nd || d.nodoDentro;   // 'nd' en modo auto, 'nodoDentro' en modo manual
+    const [px,py] = P(d.px, d.py);
+    const ux = d.ux, uy = -d.uy;
+    s += _svgFlecha(reg, px+ux*g, py+uy*g, px+ux*R, py+uy*R, SVG_COL.incog, {trazos:'5,3', extra:{radialDe:[nd.id]}});
+    pend.push({ex:px+ux*R, ey:py+uy*R, dx:ux, dy:uy, r:{v:'F', s:d.nombre}, col:SVG_COL.incog, largo:L});
+    arcos.push({ux, uy, col:SVG_COL.incog, radio:24, ox:px, oy:py});
+  });
+  // Barras cortadas ya conocidas: las resueltas en un corte anterior (en
+  // `externas`, con su valor) y las de fuerza cero, sobre su barra.
+  const conocida = (b, v) => {
+    const dentro = enLado(b.a) ? b.a : b.b;
+    const nd = nodos.find(z=>z.id===dentro), nf = nodos.find(z=>z.id === (dentro===b.a ? b.b : b.a));
+    const Lb = Math.hypot(nf.x-nd.x, nf.y-nd.y), ux = (nf.x-nd.x)/Lb, uy = -(nf.y-nd.y)/Lb;
+    const [px,py] = P(nd.x, nd.y), extra = {radialDe:[nd.id]}, nom = nombreBarra(b);
+    let col;
+    if(esCero(v)){
+      col = SVG_COL.cero;
+      s += _svgTrazoCero(reg, px+ux*g, py+uy*g, px+ux*R, py+uy*R, extra);
+      pend.push({ex:px+ux*R, ey:py+uy*R, dx:ux, dy:uy, r:{v:'F', s:nom, t:' = 0'}, col, largo:L});
+      return;
+    }
+    col = v > 0 ? SVG_COL.ten : SVG_COL.com;
+    s += v > 0 ? _svgFlecha(reg, px+ux*g, py+uy*g, px+ux*R, py+uy*R, col, {extra})
+               : _svgFlecha(reg, px+ux*R, py+uy*R, px+ux*g, py+uy*g, col, {extra});
+    pend.push({ex:px+ux*R, ey:py+uy*R, dx:ux, dy:uy, col, largo:L,
+               r:{v:'F', s:nom, t:' = ' + dec(Math.abs(v),'f') + ' ' + (v > 0 ? 'T' : 'C')}});
+  };
+  const yaDibujadas = incogIds.slice();
+  sol.externas.forEach(e=>{
+    if(!e.barra || e.conocida === undefined || yaDibujadas.indexOf(e.barra.id) >= 0) return;
+    yaDibujadas.push(e.barra.id);
+    conocida(e.barra, e.conocida);
+  });
+  (info.cero || []).forEach(c=>{
+    const b = typeof c === 'object' ? c : barras.find(x=>x.id===c);
+    // Solo las que cruza este corte: una barra entera fuera de la porción no actúa sobre ella.
+    if(!b || yaDibujadas.indexOf(b.id) >= 0 || !esCero(resultado.fuerzas[b.id] || 0)
+       || !(info.cortadas || []).some(x=>x.id===b.id)) return;
+    yaDibujadas.push(b.id);
+    conocida(b, 0);
+  });
+
+  // Fuerzas aplicadas en un nudo de la porción, por el lado que decide ladoCarga.
+  const fuerzaNudo = (n, ux, uy, col, rot, lista, eje) => {
+    const [px,py] = P(n.x, n.y);
+    const c = ladoCarga(n, px, py, ux, uy, {reg, L, hueco:g, ocupados:ocupDe(n).concat(eje || []), lateral:16*Math.sqrt(SVG_ESC)});
+    s += _svgFlecha(reg, c.x1, c.y1, c.x2, c.y2, col, {extra: c.lateral === 0 ? {radialDe:[n.id]} : {nudo:n.id}});
+    ocupDe(n).push(c.ang);
+    pend.push({ex:c.ex, ey:c.ey, dx:c.rx, dy:c.ry, r:rot, col, largo:L});
+    lista.push({ux, uy, col, radio:18, ox:c.x1, oy:c.y1});
+  };
+  // Reacciones: ya conocidas, en su sentido real y con su valor.
+  nodos.filter(n=>enLado(n.id)).forEach(n=>{
+    const rr = resultado.reacciones[n.id];
+    if(!rr) return;
+    if(rr.inclinado){
+      if(esCero(rr.mag)) return;
+      const ar = rr.ang*Math.PI/180, sg = rr.mag > 0 ? 1 : -1;
+      fuerzaNudo(n, sg*Math.cos(ar), -sg*Math.sin(ar), SVG_COL.reac, {v:'R', s:n.nombre, t:valorF(rr.mag)}, arcosFin);
+    } else {
+      if(rr.ry !== undefined && !esCero(rr.ry)) fuerzaNudo(n, 0, rr.ry > 0 ? -1 : 1, SVG_COL.reac, {v:'R', s:'y' + n.nombre, t:valorF(rr.ry)}, []);
+      if(rr.rx !== undefined && !esCero(rr.rx)) fuerzaNudo(n, rr.rx > 0 ? 1 : -1, 0, SVG_COL.reac, {v:'R', s:'x' + n.nombre, t:valorF(rr.rx)}, []);
+    }
+  });
+  // Cargas de la porción: con su valor, esquivando barras, reacciones y el eje del apoyo.
+  sol.externas.forEach(e=>{
+    if(e.barra || e.et.charAt(0) === 'R') return;
+    const mag = Math.hypot(e.fx, e.fy);
+    if(mag < 1e-9) return;
+    const n = nodos.find(z=>coincide(z, e.x, e.y));
+    if(!n) return;
+    const eje = n.apoyo ? [{ang:180 - anguloDibujoApoyo(n), tol:30}] : [];
+    fuerzaNudo(n, e.fx/mag, -e.fy/mag, SVG_COL.carga, {t:dec(mag,'f') + ' ' + unitFor}, arcos, eje);
+  });
+
+  const angulos = [];
+  arcos.concat(arcosFin).forEach(a=>{
+    const ar = _svgArco(reg, a.ox, a.oy, a.ux, a.uy, a.col, gen, a.radio);
+    if(ar.svg){ s += ar.svg; angulos.push({letra:ar.letra, valor:ar.valor}); }
+  });
+  s += puntos;
+  nodos.forEach(n=>{
+    if(!enLado(n.id)) return;
+    const [px,py] = P(n.x,n.y);
+    s += _svgNombreNudo(reg, px, py, n.nombre, n.id, 12, null, 5);
+  });
+  pend.forEach(p=>{ s += _svgRotuloTrasExtremo(reg, p.ex, p.ey, p.dx, p.dy, p.r, p.col, p.largo); });
+  const lin = _svgLineaAngulos(angulos);
+  return _svgEnvolver(s, reg, {x0:0, y0:0, x1:W2, y1:H2}, 4)
+    + (lin ? '<div class="dcl-ang">' + lin + '</div>' : '');
 }
 
 // ── Bloque de resultados del método de secciones ──
@@ -288,9 +370,12 @@ function renderSeccionCorte(){
     + (info.cero.length ? ' (' + info.cero.length + ' de fuerza cero)' : '')
     + ', <b>' + info.incog.length + ' incógnita(s)</b>. Porción analizada: nudos <b>' + nomLado + '</b>.</div>';
 
+  // La leyenda de los trazos va aquí, dentro de #corteBox y justo antes de la
+  // figura: solo sale si hay DCL y se rehace con el corte (03- repinta #corteBox).
+  h += leyendaDCL();
   h += '<div class="proc-block"><div class="proc-sub">Diagrama de cuerpo libre de la porción</div>'
     + svgPorcion(info, sol)
-    + '<div class="hint-sm" style="margin-top:5px">Barras cortadas supuestas en tracción (salen de la porción); círculos punteados = centros de momentos.</div></div>';
+    + '<div class="hint-sm" style="margin-top:5px">Círculos punteados: centros de momentos.</div></div>';
 
   sol.pasos.forEach((p, i)=>{
     const d = p.d;

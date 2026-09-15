@@ -122,32 +122,61 @@ function applyTransformar(){
     if(!f) return;
     f.cx = d.cx; f.cy = d.cy; f.rotation = d.rotation;
   });
-  results = null;
+  invalidarResultados();
   closeTransformar();
   updatePropPanel(); renderFigList(); actualizarInfoSel(); render();
 }
 
+// Ids marcados que siguen existiendo, sin repetir. La marca de Mover / editar
+// puede quedarse con ids de figuras ya borradas (deshacer, borrados de otro
+// camino): Replicar solo trabaja con lo que de verdad está en el modelo.
+function seleccionReplicable(){
+  const vistos = new Set();
+  return selFiguras.filter(id=>{
+    if(vistos.has(id) || !figures.some(f=>f.id===id)) return false;
+    vistos.add(id); return true;
+  });
+}
+
+// Lee la ventana Replicar sin inventar valores: un campo vacío o con texto no
+// vale 0 ni 1, es un error que se avisa (antes se aplicaba en silencio).
+function leerCamposReplicar(){
+  const campo = id => { const e = document.getElementById(id); return e ? String(e.value).trim() : ''; };
+  const num = id => { const s = campo(id); return s === '' ? NaN : Number(s); };
+  const nrep = num('repN'), dx = num('repDx'), dy = num('repDy');
+  if(!(Number.isInteger(nrep) && nrep >= 1 && nrep <= 50)) return {error:'Repeticiones: un entero de 1 a 50.'};
+  if(!isFinite(dx) || !isFinite(dy)) return {error:'Distancias: escribe números.'};
+  if(dx === 0 && dy === 0) return {error:'Indica un desplazamiento en x o en y.'};
+  return {dx, dy, nrep};
+}
+
 function actualizarPrevRep(){
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const dx = g('repDx'), dy = g('repDy');
-  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
-  const base = figures.find(f=>f.id===selFiguras[0]);
   const el = document.getElementById('repPrev');
-  if(!el || !base) return;
-  let t = 'Desde (' + decP(base.cx,'len') + ' ; ' + decP(base.cy,'len') + ') ' + unit + ' → ';
+  if(!el) return;
+  const ids = seleccionReplicable();
+  if(!ids.length){ el.textContent = 'No hay figuras marcadas que replicar.'; return; }
+  const c = leerCamposReplicar();
+  if(c.error){ el.textContent = c.error; return; }
+  const base = figures.find(f=>f.id===ids[0]);
   const p = [];
-  for(let i=1;i<=Math.min(nrep,3);i++)
-    p.push('(' + decP(base.cx+dx*i,'len') + ' ; ' + decP(base.cy+dy*i,'len') + ')');
-  el.innerHTML = t + p.join(', ') + (nrep>3 ? ' …' : '');
+  for(let i=1;i<=Math.min(c.nrep,3);i++)
+    p.push('(' + decP(base.cx+c.dx*i,'len') + ' ; ' + decP(base.cy+c.dy*i,'len') + ')');
+  const total = c.nrep * ids.length;
+  el.textContent = 'Saldrán ' + total + ' copia' + (total>1?'s':'') + ' (' + c.nrep + ' × '
+    + ids.length + ' figura' + (ids.length>1?'s':'') + '). Desde ('
+    + decP(base.cx,'len') + ' ; ' + decP(base.cy,'len') + ') ' + unit + ' → '
+    + p.join(', ') + (c.nrep>3 ? ' …' : '');
 }
 
 function abrirReplicar(){
+  selFiguras = seleccionReplicable();
+  actualizarInfoSel();
   if(!selFiguras.length){
     aviso('Elige la herramienta Mover / editar y marca al menos una figura para replicar.');
     return;
   }
-  document.getElementById('repSub').textContent =
-    'Se replicarán ' + selFiguras.length + ' figura(s), desplazándolas la distancia indicada tantas veces como pidas.';
+  // El recuento va en la vista previa: la ventana ya no tiene #repSub y
+  // escribir en él lanzaba un TypeError que impedía abrirla.
   actualizarPrevRep();
   document.getElementById('repModal').classList.add('show');
 }
@@ -155,29 +184,53 @@ function abrirReplicar(){
 function closeReplicar(){ document.getElementById('repModal').classList.remove('show'); }
 
 function applyReplicar(){
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const dx = g('repDx'), dy = g('repDy');
-  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
-  if(dx === 0 && dy === 0){ aviso('Indica un desplazamiento en x o en y.'); return; }
-  registrarCambio();
-  const orig = selFiguras.slice();
+  // 1) Solo ids que existen; sin ninguno no se registra paso de deshacer.
+  const orig = seleccionReplicable();
+  selFiguras = orig;
+  if(!orig.length){
+    actualizarInfoSel(); actualizarPrevRep();
+    aviso('Marca al menos una figura con Mover / editar para replicarla.');
+    return;
+  }
+  // 2) Campos válidos, o no se aplica nada.
+  const c = leerCamposReplicar();
+  if(c.error){ aviso(c.error); actualizarPrevRep(); return; }
+  registrarCambio();   // toda la réplica es UN paso de deshacer
+  // El contador nunca por debajo del mayor id: las copias no repiten ninguno.
+  figIdCounter = Math.max(figIdCounter, maxIdFiguras());
   const nuevas = [];
-  for(let i=1;i<=nrep;i++){
+  for(let i=1;i<=c.nrep;i++){
     orig.forEach(id=>{
       const o = figures.find(z=>z.id===id);
       if(!o) return;
       const nf = Object.assign({}, o, {dims:Object.assign({},o.dims)});
+      if(o.perfil) nf.perfil = Object.assign({}, o.perfil);
       nf.id = ++figIdCounter;
-      nf.cx = o.cx + dx*i;
-      nf.cy = o.cy + dy*i;
+      nf.cx = o.cx + c.dx*i;
+      nf.cy = o.cy + c.dy*i;
       figures.push(nf);
       nuevas.push(nf.id);
     });
   }
-  results = null;
+  // Las copias quedan seleccionadas y la vista no se mueve (CLAUDE.md §7).
   selFiguras = nuevas;
-  selectFigure(nuevas.length ? nuevas[nuevas.length-1] : null);
+  invalidarResultados();
+  selectFigure(nuevas[nuevas.length-1]);
   closeReplicar(); renderFigList(); actualizarInfoSel(); render();
+}
+
+// El panel de resultados no puede seguir enseñando una solución que ya no
+// corresponde al modelo. Vuelve al estado de arranque (área oculta, pista lista
+// para cuando se muestre): el círculo de Mohr y su deslizador desaparecen con
+// él, en vez de quedar a la vista sin responder (mohrGirar sale si no hay results).
+function invalidarResultados(){
+  results = null;
+  const rp = document.getElementById('resultsPanel');
+  if(rp) rp.style.display = 'none';
+  const hint = document.getElementById('noResultsHint');
+  if(hint) hint.style.display = '';
+  const ra = document.getElementById('resultsArea');
+  if(ra) ra.style.display = 'none';
 }
 
 function actualizarInfoSel(){

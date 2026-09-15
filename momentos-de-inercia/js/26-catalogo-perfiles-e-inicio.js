@@ -4,41 +4,274 @@
 window.addEventListener('load', ()=>{ try{ setHerramienta('pan'); }catch(e){} resizeCanvas(); fitView(); });
 window.addEventListener('resize', resizeCanvas);
 
+// ── Informe rápido (botón rojo «PDF», no el de LaTeX) ──
+// Lo arma bsaInformeRapido de core/comun.js: abre la pestaña dentro de la
+// pulsación, clona el panel de resultados sin controles (cada lienzo pasa a
+// imagen recortada), pone cabecera y colofón comunes y, en el ordenador,
+// imprime solo. Aquí queda lo propio del tema:
+//  - el círculo de Mohr se redibuja a triple resolución CON el giro que tenga
+//    en pantalla, y después se deja como estaba;
+//  - lo que no va al papel: el recuadro para escribir el punto P, la sección
+//    del punto si no hay punto, y el bloque del deslizador si θ = 0 (sin giro
+//    no hay resultado que enseñar). La barra de notación, «Rotar ejes» y la
+//    pista de la rigidez llevan data-bsa-pantalla en 23-;
+//  - CSS_INFORME_IN, el CSS de las clases del panel pensado para el papel.
+function _opcionesMohrPantalla(){
+  if(!results || !(Math.abs(mohrTheta) > 1e-9)) return {};
+  const rt = rotateInertia(results.Ix, results.Iy, results.Ixy, mohrTheta);
+  rt.ang = mohrTheta;
+  return {rot: rt};
+}
+// res: resolución del lienzo (3 para el papel); sin ella, la de la pantalla.
+function _redibujarMohr(res){
+  if(!results) return;
+  const extra = res ? {res: res} : {};
+  if(document.getElementById('mohrCanvas'))
+    drawMohr({Ix:results.Ix, Iy:results.Iy, Ixy:results.Ixy}, 'mohrCanvas',
+      Object.assign({}, _opcionesMohrPantalla(), extra));
+  const ep = computeExtraPoint(results);
+  if(ep && document.getElementById('mohrCanvasP'))
+    drawMohr({Ix:ep.IxP, Iy:ep.IyP, Ixy:ep.IxyP}, 'mohrCanvasP',
+      Object.assign({}, ep.rot ? {rot: ep.rot} : {}, extra));
+}
+
+const CSS_INFORME_IN = [
+  // Los nombres del tema (los estilos en línea del panel usan --grn2, --muted…)
+  ':root{--grn:#041d56;--grn2:#0d3a8f;--grn3:#0d3a8f;--card:#f7f9fc;--bg:#ffffff;',
+  '  --border:#d5dce6;--border2:#c8ccd4;--muted:#5f6b76;--green:#2f9e6f;--mf:var(--math)}',
+  '.results-wrap{padding:0;max-width:none;margin:0}',
+  '.results-wrap h2{font-size:14px!important;color:var(--grn)!important}',
+  // Secciones
+  '.res-section{margin-bottom:12px}',
+  '.res-section-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;color:var(--grn);',
+  '  letter-spacing:.3px;border-bottom:1.5px solid var(--grn2);padding-bottom:4px;margin:10px 0 7px;',
+  '  break-after:avoid;page-break-after:avoid}',
+  '.res-section-title .num{width:18px;height:18px;border-radius:50%;background:var(--grn2);color:#fff;flex:none;',
+  '  display:inline-flex;align-items:center;justify-content:center;font:800 9px/1 var(--sans)}',
+  '.proc-block{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:7px 10px;',
+  '  margin-bottom:7px;break-inside:avoid;page-break-inside:avoid}',
+  '.proc-subtitle{font-size:9px;font-weight:700;color:var(--grn2);text-transform:uppercase;letter-spacing:.5px;',
+  '  margin-bottom:4px;break-after:avoid;page-break-after:avoid}',
+  // Ecuaciones
+  '.eq-row{display:flex;align-items:baseline;gap:8px;padding:1px 0}',
+  '.eq-lbl{flex:none;font-size:10px;color:var(--muted)}.eq-lbl:empty{display:none}',
+  '.eq-body{min-width:0;max-width:100%;font-family:var(--mf);font-size:11px;line-height:1.6;color:var(--text)}',
+  '.eq-body .katex{font-size:1.05em}',
+  '.eq-sep{height:1px;background:var(--border);margin:5px 0}',
+  // Tarjeta de cada figura con su croquis
+  '.fig-card{display:flex;gap:10px;align-items:flex-start}',
+  '.fig-card-datos{flex:1;min-width:0}',
+  '.fig-card-dib{flex:0 0 150px}',
+  '.croq{width:100%;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 7px 5px}',
+  '.croq-h{display:flex;align-items:center;gap:5px;margin-bottom:3px}',
+  '.croq-n{flex:none;width:15px;height:15px;border-radius:50%;background:var(--grn2);color:#fff;font-size:8.5px;',
+  '  font-weight:800;display:flex;align-items:center;justify-content:center}',
+  '.croq-t{font-size:9px;font-weight:700;line-height:1.25}',
+  '.croq-t i{color:#c0392b;font-style:normal;font-size:8px}',
+  '.croq-svg{display:block;width:100%;height:auto}',
+  '.croq-d{display:flex;justify-content:space-between;gap:6px;font-size:8px;color:var(--muted);',
+  '  border-top:1px solid var(--border);padding-top:4px;margin-top:3px}',
+  // Tablas
+  '.fig-table,.steiner-table,.tabla{width:100%;border-collapse:collapse}',
+  '.fig-table{font-size:10px;margin-bottom:4px}',
+  '.fig-table th,.steiner-table th,.tabla th{font-family:var(--sans);font-size:8.5px;font-weight:700;color:var(--grn2);',
+  '  text-transform:uppercase;letter-spacing:.3px;line-height:1.2;text-align:left;vertical-align:bottom;',
+  '  background:var(--suave);border-bottom:1.5px solid var(--border);padding:3px 5px}',
+  '.fig-table td,.steiner-table td,.tabla td{padding:2px 5px;border-bottom:1px solid var(--border);vertical-align:middle}',
+  '.fig-table td,.steiner-table td{font-family:var(--mf)}',
+  '.fig-table tfoot td,.steiner-table tfoot td{font-weight:700;color:var(--grn);background:var(--suave);',
+  '  border-top:1.5px solid var(--grn2)}',
+  '.fig-table .num-cell,.steiner-table .num{color:var(--grn2);font-style:italic;font-variant-numeric:tabular-nums}',
+  '.fig-table .name-cell{font-family:var(--sans);font-weight:600}',
+  '.steiner-table{font-size:8.5px}',
+  '.steiner-table th{text-align:center;padding:3px 4px}',
+  '.steiner-table td{text-align:center;white-space:nowrap;padding:2px 4px}',
+  '.steiner-table th:first-child,.steiner-table td:first-child{text-align:left}',
+  '.tabla{font-size:9.5px}',
+  '.sign-pos{color:#1a8a72;font-weight:700}.sign-neg{color:#c0392b;font-weight:700}',
+  // Cajas de resultados
+  '.summary-grid,.principal-grid{display:grid;gap:5px;margin:6px 0 8px;break-inside:avoid;page-break-inside:avoid}',
+  '.summary-grid{grid-template-columns:repeat(4,1fr)}',
+  '.principal-grid{grid-template-columns:repeat(3,1fr)}',
+  '.summary-box,.principal-box{min-width:0;background:#fff;border:1px solid var(--border);border-radius:5px}',
+  '.summary-box{padding:5px 8px}',
+  '.principal-box{padding:6px;text-align:center}',
+  '.summary-box.highlight,.principal-box.main{background:var(--suave);border-color:#9fb3d9}',
+  '.s-lbl,.p-lbl{font-family:var(--sans);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}',
+  '.s-val,.p-val{font-family:var(--mf);font-weight:700;font-style:italic;color:var(--grn);overflow-wrap:anywhere}',
+  '.s-val{font-size:13px}.p-val{font-size:15px}',
+  '.s-unit,.p-unit{font-size:8px;color:var(--muted)}',
+  // Recuadros de aviso (signo de Pxy, unidades mezcladas)
+  '.verdict{margin:8px 0;padding:6px 10px;background:#fff;border:1px solid var(--border);',
+  '  border-left:3px solid var(--grn2);border-radius:6px;break-inside:avoid;page-break-inside:avoid}',
+  '.verdict.bad{border-left-color:#c0392b;background:#fef2f2}',
+  '.verdict-t{font-size:9px;font-weight:800;color:var(--grn);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}',
+  '.verdict.bad .verdict-t{color:#c0392b}',
+  // Teléfono: el croquis debajo de su tabla y las cajas de dos en dos
+  '@media screen and (max-width:640px){',
+  '  .fig-card{flex-direction:column}',
+  '  .fig-card-dib{flex:none;width:100%;max-width:240px;margin:0 auto}',
+  '  .summary-grid,.principal-grid{grid-template-columns:repeat(2,1fr)}',
+  '}'
+].join('\n');
+
+// El encaje de la figura (cajaDibujoInforme, encajarDibujoInforme,
+// lienzoTemporalInforme, marcoLienzoInforme) vive en core/comun.js.
+
+// ── La figura del informe ──
+// Se dibuja en el lienzo del editor AGRANDADO un momento a un tamaño fijo:
+// canvas y ctx son const y render() lee canvas.clientWidth, así que no se puede
+// cambiar por otro lienzo. Todo ocurre dentro de la misma pulsación y despues()
+// lo repone antes de que el navegador pinte: el alumno no ve el cambio.
+// Recortar la vista TAL COMO ESTABA dejaba cortada la segunda columna de cotas
+// de la derecha, y en el teléfono el lienzo es estrecho. Ahora:
+//  1. Sin rejilla, ejes, selección ni figura fantasma, el modelo se encaja
+//     MIDIENDO el dibujo (encajarDibujoInforme): las cadenas de cotas y los
+//     rótulos no escalan con el zoom. La medida ignora las rectas que el tema
+//     traza de lado a lado (05-): los ejes principales por C, los ejes u-v
+//     girados y los ejes del punto P.
+//  2. El lienzo se ajusta a ese dibujo y un marco blanco corta esas rectas.
+// despues() repone el tamaño del lienzo, la vista, la selección y la
+// visibilidad, y redibuja.
+const FIG_INFORME_IN = {ancho:820, alto:580, res:2, margen:16, holgura:18, marco:6, anchoMin:200};
+
+function _tamLienzoInformeIn(ancho, alto, res){
+  canvas.style.width = ancho + 'px'; canvas.style.height = alto + 'px';
+  canvas.width = Math.round(ancho*res); canvas.height = Math.round(alto*res);
+  ctx.setTransform(res, 0, 0, res, 0, 0);
+}
+
+// Rectas que drawResultsOverlay (05-) traza a lo largo de todo el lienzo, como
+// [x, y, ángulo] en px de pantalla (la dirección es (cos a, −sen a)).
+function _ignorarInformeIn(){
+  if(!results || !VIS.centroide) return null;
+  const rectas = [];
+  const par = (x, y, grados)=>{ const a = grados*Math.PI/180; rectas.push([x, y, a], [x, y, a + Math.PI/2]); };
+  const sp = worldToScreen(results.xbar, results.ybar);
+  par(sp.x, sp.y, results.thetaP);
+  if(typeof mohrTheta === 'number' && Math.abs(mohrTheta) > 1e-9) par(sp.x, sp.y, mohrTheta);
+  let ep = null;
+  try{ ep = computeExtraPoint(results); }catch(e){ ep = null; }
+  if(ep){
+    const pp = worldToScreen(ep.x, ep.y);
+    par(pp.x, pp.y, ep.thetaP);
+    if(ep.rot) par(pp.x, pp.y, ep.rot.ang);
+  }
+  const R = rectas.map(([x, y, a])=>[x, y, Math.sin(a), Math.cos(a)]);
+  return (x, y)=> R.some(([cx, cy, s, c])=> Math.abs((x - cx)*s + (y - cy)*c) <= 2.2);
+}
+
+function _figuraInformeIn(){
+  const f = FIG_INFORME_IN;
+  if(!figuresBBox()) return;
+  _tamLienzoInformeIn(f.ancho, f.alto, f.res);
+  const W = f.ancho, H = f.alto;
+  const caja = ()=>{
+    const b = figuresBBox();
+    return {x0:b.x0, x1:b.x1, y0:b.y0, y1:b.y1, xc:(b.x0 + b.x1)/2, yc:(b.y0 + b.y1)/2};
+  };
+  // Punto de partida: el encuadre de fitView(); la medida lo corrige.
+  const c0 = caja();
+  let s = Math.min(W*0.7/Math.max(c0.x1 - c0.x0, 1e-9), H*0.7/Math.max(c0.y1 - c0.y0, 1e-9));
+  if(!isFinite(s) || s <= 0) s = 1;
+  viewScale = Math.max(1e-4, Math.min(s, 20000));
+  viewTx = W/2 - c0.xc*viewScale;
+  viewTy = H/2 + c0.yc*viewScale;
+  const r = encajarDibujoInforme({
+    ancho: W, alto: H, margen: f.margen,
+    medir: ()=>{ render(); return cajaDibujoInforme(canvas, {ignorar: _ignorarInformeIn()}); },
+    modelo: ()=>{
+      const c = caja(), p0 = worldToScreen(c.x0, c.y1), p1 = worldToScreen(c.x1, c.y0);
+      return {x0:p0.x, y0:p0.y, x1:p1.x, y1:p1.y};
+    },
+    escalar: (k, dx, dy)=>{
+      const c = caja(), p = worldToScreen(c.xc, c.yc);
+      viewScale *= k;
+      viewTx = p.x + dx - c.xc*viewScale;
+      viewTy = p.y + dy + c.yc*viewScale;
+    }
+  });
+  if(!r.ok) console.warn('Informe PDF: la figura de la sección no cabe entera en su lienzo.');
+  if(!r.caja) return;
+  // Lienzo a la medida del dibujo
+  const B = r.caja, hol = f.holgura;
+  let x0 = B.x0 - hol, x1 = B.x1 + hol;
+  if(x1 - x0 < f.anchoMin){ const e = (f.anchoMin - (x1 - x0))/2; x0 -= e; x1 += e; }
+  const y0 = B.y0 - hol;
+  const W2 = Math.ceil(x1 - x0), H2 = Math.ceil(B.y1 + hol - y0);
+  _tamLienzoInformeIn(W2, H2, f.res);
+  viewTx -= x0; viewTy -= y0;
+  render();
+  marcoLienzoInforme(ctx, W2, H2, f.marco);
+}
+
 function downloadPDF(){
-  if(!results){aviso('Primero calcula el momento de inercia.');return;}
-  const mainCv=document.getElementById('mainCanvas');
-  const mohrCv=document.getElementById('mohrCanvas');
-  const compCv=document.getElementById('compositeCanvas');
-  // Re-render Mohr diagrams at high resolution → crisp, larger images in the PDF
-  const epPDF = computeExtraPoint(results);
-  const mohrPCv=document.getElementById('mohrCanvasP');
-  if(mohrCv) drawMohr({Ix:results.Ix,Iy:results.Iy,Ixy:results.Ixy},'mohrCanvas',{res:3});
-  if(mohrPCv && epPDF) drawMohr({Ix:epPDF.IxP,Iy:epPDF.IyP,Ixy:epPDF.IxyP},'mohrCanvasP',Object.assign({res:3}, epPDF.rot?{rot:epPDF.rot}:{}));
-  const mainImg=mainCv?mainCv.toDataURL('image/png'):null;
-  const mohrImg=mohrCv?mohrCv.toDataURL('image/png'):null;
-  const mohrPImg=(mohrPCv&&epPDF)?mohrPCv.toDataURL('image/png'):null;
-  const compImg=compCv?compCv.toDataURL('image/png'):null;
-  // Restore normal on-screen resolution
-  if(mohrCv) drawMohr({Ix:results.Ix,Iy:results.Iy,Ixy:results.Ixy},'mohrCanvas');
-  if(mohrPCv && epPDF) drawMohr({Ix:epPDF.IxP,Iy:epPDF.IyP,Ixy:epPDF.IxyP},'mohrCanvasP', epPDF.rot?{rot:epPDF.rot}:undefined);
-  let body=document.getElementById('resultsPanel').innerHTML;
-  const mohrStyle='width:100%;height:auto;max-height:265px;border-radius:8px;border:1px solid #ddd;display:block;object-fit:contain;';
-  if(mohrImg) body=body.replace(/<canvas id="mohrCanvas"[^>]*><\/canvas>/,'<img src="'+mohrImg+'" style="'+mohrStyle+'">');
-  if(mohrPImg) body=body.replace(/<canvas id="mohrCanvasP"[^>]*><\/canvas>/,'<img src="'+mohrPImg+'" style="'+mohrStyle+'">');
-  if(compImg) body=body.replace(/<canvas id="compositeCanvas"[^>]*><\/canvas>/,
-    '<img src='+compImg+' style="width:100%;height:175px;border-radius:8px;border:1px solid #ddd;display:block;object-fit:contain;background:#f0f4f2;">');
-  const mainSnap=mainImg?'<div style="margin-bottom:12px;page-break-inside:avoid;"><h3 style="font-size:11px;font-weight:700;color:#1a7a62;margin-bottom:5px;font-family:Inter,sans-serif;text-transform:uppercase;letter-spacing:.5px;">Vista del panel — figuras y ejes principales</h3><img src="'+mainImg+'" style="width:100%;max-height:300px;border-radius:6px;border:1px solid #ccc;display:block;object-fit:contain;background:#ffffff;"></div>':'';
-  const dt=new Date().toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
-  const pdfWin=window.open('','_blank','width=980,height=760');
-  if(!pdfWin){aviso('Permite ventanas emergentes para el PDF.', 'error');return;}
-  const katexCss=(document.getElementById('katex-css')||{}).textContent||'';
-  const css='*{box-sizing:border-box;margin:0;padding:0;}:root{--math:\'STIX Two Text\',\'Times New Roman\',Georgia,serif;--sans:Inter,\'Helvetica Neue\',Arial,sans-serif;--grn:#c9930f;--grn2:#041d56;--card:#f4f9f7;--border:#c8e0d8;--text:#1a1a1a;--muted:#5a7570;}body{font-family:var(--sans);font-size:10.5px;background:#fff;color:var(--text);padding:12mm 9mm 14mm;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.pdf-header{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--grn2);padding-bottom:7px;margin-bottom:10px;}.pdf-title{font-size:17px;font-weight:800;color:var(--grn);}.pdf-sub{font-size:10px;color:var(--muted);}.pdf-date{margin-left:auto;font-size:9px;color:var(--muted);}.res-section-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;color:var(--grn);border-bottom:1.5px solid var(--grn2);padding-bottom:4px;margin:9px 0 6px;}.res-section-title .num{width:18px;height:18px;border-radius:50%;background:var(--grn2);display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;flex:none;}.proc-block{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:6px;page-break-inside:avoid;}.proc-subtitle{font-size:9px;font-weight:700;color:var(--grn);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}.eq-body{font-family:var(--math);font-size:11px;color:var(--text);line-height:1.5;margin:1px 0;}.eq-body .katex{font-size:1.05em;color:var(--text);}.eq-body .v{color:var(--grn);font-weight:700;}.fig-table,.steiner-table{width:100%;border-collapse:collapse;font-family:var(--math);font-size:11px;page-break-inside:avoid;}.fig-table th,.steiner-table th{padding:3px 6px;text-align:left;font-size:9px;font-weight:700;color:var(--grn);text-transform:uppercase;letter-spacing:.4px;border-bottom:1.5px solid var(--border);background:var(--card);font-family:var(--sans);}.fig-table td,.steiner-table td{padding:2px 6px;border-bottom:1px solid var(--border);font-family:var(--math);vertical-align:middle;}.fig-table tfoot td,.steiner-table tfoot td{font-weight:700;border-top:2px solid var(--border);background:var(--card);color:var(--grn);}.steiner-table{width:100%;font-size:8.5px;}.steiner-table th{white-space:normal;line-height:1.15;vertical-align:bottom;text-align:center;padding:3px 4px;}.steiner-table td{white-space:nowrap;text-align:center;padding:3px 4px;}.steiner-table td:first-child{text-align:left;}.steiner-table .num{background:none;color:var(--grn);font-style:italic;}.num-cell,.num{color:var(--grn);font-style:italic;font-family:var(--math);}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:7px;page-break-inside:avoid;}.summary-box{border:1px solid var(--border);border-radius:5px;padding:5px 8px;}.summary-box.highlight{background:var(--card);border-color:var(--grn2);}.s-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;font-family:var(--sans);}.s-val{font-size:13px;font-weight:700;color:var(--grn);font-style:italic;font-family:var(--math);}.s-unit{font-size:8px;color:var(--muted);}.principal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:7px;page-break-inside:avoid;}.principal-box{border:1px solid var(--border);border-radius:5px;padding:6px;text-align:center;}.principal-box.main{background:var(--card);border-color:var(--grn2);}.p-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;font-family:var(--sans);}.p-val{font-size:15px;font-weight:700;color:var(--grn);font-style:italic;font-family:var(--math);}.fig-color-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle;}.name-cell{font-weight:600;font-family:var(--sans);}.sign-pos{color:#1a8a72;font-weight:700;}.sign-neg{color:#c0392b;font-weight:700;}.notbtn,.notation-bar{display:none!important;}.point-input{display:none!important;}.point-tool:not(.has-point){display:none!important;}.res-section{margin-bottom:8px;}img{max-width:100%;}.fig-color-dot{display:inline-block!important;width:8px!important;height:8px!important;min-width:8px!important;border-radius:50%!important;margin-right:5px!important;vertical-align:middle!important;flex-shrink:0!important;flex-grow:0!important;}.mth-sqrt{display:inline-flex;align-items:flex-start;}.mth-rad{font-size:1.2em;line-height:0.9;padding-right:1px;}.mth-cnt{border-top:1.5px solid currentColor;padding:1px 3px 0 1px;margin-top:3px;}.mth-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 2px;}.mth-num{border-bottom:1.5px solid currentColor;padding:0 4px;text-align:center;}.mth-den{padding:1px 4px;text-align:center;}.wm-seal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:340px;height:340px;opacity:.07;z-index:9999;pointer-events:none;}.wm-seal svg{width:100%;height:100%;}.pdf-foot{margin-top:10px;text-align:center;font-size:8.5px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px;letter-spacing:.3px;}@page{size:A4 portrait;margin:0;}@media print{body{padding:12mm 9mm 14mm;}}';
-  const wmSeal='<div class="wm-seal"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><defs><path id="stp" d="M 26,100 A 74,74 0 0 1 174,100"/><path id="sbt" d="M 26,100 A 74,74 0 0 0 174,100"/></defs><circle cx="100" cy="100" r="94" fill="none" stroke="#041d56" stroke-width="2.5"/><circle cx="100" cy="100" r="80" fill="none" stroke="#041d56" stroke-width="1"/><text font-family="Inter,sans-serif" font-size="9" font-weight="800" fill="#041d56" letter-spacing="1"><textPath href="#stp" startOffset="50%" text-anchor="middle">BEAM &amp; SECTION ANALYSIS</textPath></text><text font-family="Inter,sans-serif" font-size="10.5" font-weight="600" fill="#041d56" letter-spacing="1"><textPath href="#sbt" startOffset="50%" text-anchor="middle">by Luis Alejandro Bazán Campos</textPath></text><text x="100" y="106" font-family="Inter,sans-serif" font-size="16" font-weight="800" fill="#041d56" text-anchor="middle">BSA</text><line x1="62" y1="118" x2="138" y2="118" stroke="#041d56" stroke-width="1"/><text x="100" y="133" font-family="Inter,sans-serif" font-size="9" fill="#041d56" text-anchor="middle" letter-spacing="1">ESTÁTICA</text></svg></div>';
-  const pdfFoot='<div class="pdf-foot">BSA · by Luis Alejandro Bazán Campos</div>';
-  pdfWin.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>BSA \u2014 Momento de Inercia</title><link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"><style>'+katexCss+'</style><style>'+css+'</style></head><body>'+wmSeal+'<div class="pdf-header"><span style="font-size:18px">\ud83d\udccf</span><div><div class="pdf-title">BSA \u2014 Momentos de Inercia</div><div class="pdf-sub">by Luis Alejandro Bazán Campos</div></div><div class="pdf-date">Generado: '+dt+'</div></div>'+mainSnap+body+pdfFoot+'</body></html>');
-  pdfWin.document.close();
-  pdfWin.focus();
-  setTimeout(function(){pdfWin.print();},1400);
+  let giro = null;          // bloque del deslizador de Mohr, si se aparta del papel
+  let guardado = null;      // lienzo, vista, selección y visibilidad, para reponerlos
+  return bsaInformeRapido({
+    tema: 'Momentos de inercia',
+    acento: {acc:'#0d3a8f', acc2:'#041d56', suave:'#eef2fb', borde:'#d5dce6'},
+    hayResultados: ()=> !!results,
+    sinResultados: 'Primero calcula el momento de inercia.',
+    antes(){
+      // Primero se guarda todo lo que se va a tocar: despues() lo necesita
+      // aunque algo falle a medias. También una copia de los píxeles del
+      // editor, que despues() vuelve a pintar: redibujar tras reasignar el
+      // búfer no da los mismos píxeles aunque la vista sea idéntica (Chrome
+      // suaviza distinto los rótulos tras el cambio de tamaño y las lecturas
+      // con getImageData; ni un render() más ni dos lo arreglaban).
+      const copia = document.createElement('canvas');
+      copia.width = canvas.width; copia.height = canvas.height;
+      try{ if(copia.width && copia.height) copia.getContext('2d').drawImage(canvas, 0, 0); }catch(e){}
+      guardado = {sw:canvas.style.width, sh:canvas.style.height, cw:canvas.width, ch:canvas.height,
+        viewTx:viewTx, viewTy:viewTy, viewScale:viewScale, grilla:VIS.grilla, ejes:VIS.ejes,
+        selectedFigId:selectedFigId, selFiguras:selFiguras, selectedFigType:selectedFigType,
+        ghostPos:ghostPos, resaltada:_figResaltada, copia:copia};
+      // La figura de cabecera, sin rejilla ni ejes: los rótulos X e Y van en
+      // los bordes del lienzo y cuentan como dibujo, así que el recorte salía
+      // casi del tamaño del lienzo entero, con franjas vacías.
+      VIS.grilla = false; VIS.ejes = false;
+      selectedFigId = null; selFiguras = []; selectedFigType = null; ghostPos = null; _figResaltada = null;
+      _figuraInformeIn();
+      _redibujarMohr(3);
+      const sl = document.getElementById('mohrSlider');
+      const bloque = sl ? sl.closest('.proc-block') : null;
+      if(bloque && !(Math.abs(mohrTheta) > 1e-9)){
+        bloque.setAttribute('data-bsa-pantalla', '');
+        giro = bloque;
+      }
+    },
+    despues(){
+      if(giro) giro.removeAttribute('data-bsa-pantalla');
+      _redibujarMohr(0);
+      if(guardado){
+        const g = guardado;
+        guardado = null;
+        canvas.style.width = g.sw; canvas.style.height = g.sh;
+        canvas.width = g.cw; canvas.height = g.ch;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        viewTx = g.viewTx; viewTy = g.viewTy; viewScale = g.viewScale;
+        VIS.grilla = g.grilla; VIS.ejes = g.ejes;
+        selectedFigId = g.selectedFigId; selFiguras = g.selFiguras;
+        selectedFigType = g.selectedFigType; ghostPos = g.ghostPos; _figResaltada = g.resaltada;
+        render();
+        // Y encima, los píxeles de antes del informe (el fondo es opaco y el
+        // tamaño el mismo: la copia tapa el lienzo entero, píxel a píxel).
+        const c = g.copia;
+        if(c && c.width && c.width === canvas.width && c.height === canvas.height){
+          ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(c, 0, 0); ctx.restore();
+        }
+      }
+    },
+    figuras: [{titulo: 'Sección analizada — figuras y ejes principales', lienzo: 'mainCanvas'}],
+    limpiar: {
+      quitar: '.point-input,.point-tool:not(.has-point)',
+      // Con θ ≠ 0 el bloque del deslizador sí sale; su rótulo de pantalla es
+      // una orden («Gira los ejes…») que en el papel no tiene sentido.
+      reemplazarTexto: [['Gira los ejes y mira el círculo', 'Ejes girados θ en el círculo de Mohr']]
+    },
+    cssTema: CSS_INFORME_IN
+  });
 }
 
 // Cotas de la sección compuesta en la vista de resultados. Delega en el mismo

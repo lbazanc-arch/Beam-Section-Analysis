@@ -142,11 +142,12 @@ function dibujarReaccion(n, R){
     if(f.arco) ladoLetra = dibujarArcoReaccion(f);
     if(!principal || f.arco || (porElApoyo && !principal.arco)) principal = f;
   });
-  // Columna de valores, con unidad
+  // Columna de valores, con unidad. Van en magnitud: la flecha ya dice el sentido real,
+  // y un signo delante lo repetiría (y contradiría al dibujo).
   const lineas = [];
   if(R.inclinado) lineas.push('R=' + dec(R.mag,'f') + ' ' + unitFor);
-  if(R.rx !== undefined) lineas.push('Rx=' + dec(R.rx,'f') + ' ' + unitFor);
-  if(R.ry !== undefined) lineas.push('Ry=' + dec(R.ry,'f') + ' ' + unitFor);
+  if(R.rx !== undefined) lineas.push('Rx=' + dec(Math.abs(R.rx),'f') + ' ' + unitFor);
+  if(R.ry !== undefined) lineas.push('Ry=' + dec(Math.abs(R.ry),'f') + ' ' + unitFor);
   if(R.m !== undefined) lineas.push('M=' + dec(R.m,'f'));
   if(!lineas.length) return;
   ctx.save();
@@ -193,7 +194,9 @@ function dibujarCarga(n){
               : ((!esCero(n.fx||0) || !esCero(n.fy||0)) ? _cargasNudoDeComponentes(n.fx||0, n.fy||0) : []);
   if(!lista.length) return;
   const [px,py] = aPantalla(n.x, n.y);
-  const L = 46;
+  // Cola y punta en constantes de 01-: cargaArmEn (03-) localiza la flecha con
+  // la misma geometría, para el doble toque que edita una carga.
+  const L = CARGA_FLECHA_COLA, P = CARGA_FLECHA_PUNTA;
   lista.forEach(c=>{
     const q = compCargaNudo(c);
     if(esCero(q.fx) && esCero(q.fy)) return;
@@ -203,9 +206,9 @@ function dibujarCarga(n){
     // todas parten del mismo punto y se distinguen por su propia dirección
     const sx = px - ux*L, sy = py + uy*L;
     ctx.strokeStyle = '#c0392b'; ctx.fillStyle = '#c0392b'; ctx.lineWidth = 2.4;
-    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(px - ux*11, py + uy*11); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(px - ux*(P+1), py + uy*(P+1)); ctx.stroke();
     const ang = Math.atan2(-uy, ux);
-    ctx.save(); ctx.translate(px - ux*10, py + uy*10); ctx.rotate(ang);
+    ctx.save(); ctx.translate(px - ux*P, py + uy*P); ctx.rotate(ang);
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-11,-5); ctx.lineTo(-11,5); ctx.closePath(); ctx.fill();
     ctx.restore();
     ctx.font = '600 11px Inter, sans-serif'; ctx.fillStyle = '#c0392b';

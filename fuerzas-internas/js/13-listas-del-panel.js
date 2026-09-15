@@ -169,28 +169,48 @@ function htmlArbolCargas(){
   }).join('');
 }
 
+// Las ediciones del panel registran UN paso de deshacer por edición, y ninguno si
+// el elemento no existe, el valor no es un número o no cambia el modelo (antes
+// algunas no lo registraban y deshacer se llevaba también la acción previa, y
+// otras dejaban un paso vacío). Solo con un cambio real se ocultan los resultados.
 function editNodo(id,campo,v){
   const n=nodo(id), val=parseFloat(v);
-  if(n && isFinite(val)){ n[campo]=val; R=null; } refrescar();
+  if(n && isFinite(val) && n[campo]!==val){ registrarCambio(); n[campo]=val; invalidarResultados(); } refrescar();
 }
 function editTramo(id,campo,v){
   const t=tramos.find(z=>z.id===id), g=t&&geoTramo(t), val=parseFloat(v);
-  if(!g || !isFinite(val)) return;
+  if(!g || !isFinite(val)){ refrescar(); return; }
+  // Como en `aplicarTramo` (09-): con L = 0 el nudo final caería sobre el
+  // inicial y con L < 0 el tramo se invertiría.
+  if(campo==='L' && !(val > 0)){ aviso('La longitud debe ser mayor que cero.', 'error'); refrescar(); return; }
   const L = campo==='L' ? val : g.L;
   const A = campo==='A' ? val : g.ang;
   const rad=A*Math.PI/180;
   const nx=g.a.x+L*Math.cos(rad), ny=g.a.y+L*Math.sin(rad);
   const ddx=nx-g.b.x, ddy=ny-g.b.y;
+  // La misma longitud y el mismo ángulo dejan el nudo final donde estaba (salvo
+  // el redondeo de cos y sen): no hay cambio.
+  if(Math.hypot(ddx,ddy) <= 1e-9*Math.max(1, g.L)){ refrescar(); return; }
+  registrarCambio();
   const cad=cadena(); const idx=cad.findIndex(e=>e.t.id===t.id);
   g.b.x=nx; g.b.y=ny;
   if(idx>=0) for(let i=idx+1;i<cad.length;i++){ cad[i].hasta.x+=ddx; cad[i].hasta.y+=ddy; }
-  R=null; centrar(); refrescar();
+  invalidarResultados(); centrar(); refrescar();
 }
-function editApoyo(id,v){ registrarCambio(); const n=nodo(id); if(n){ n.apoyo=v; R=null; } refrescar(); }
-function editRotula(id,v){ registrarCambio(); const n=nodo(id); if(n){ n.rotula=v; R=null; } refrescar(); }
+function editApoyo(id,v){
+  const n=nodo(id);
+  if(n && (n.apoyo||'libre')!==v){ registrarCambio(); n.apoyo=v; invalidarResultados(); }
+  refrescar();
+}
+function editRotula(id,v){
+  const n=nodo(id);
+  if(n && !!n.rotula!==!!v){ registrarCambio(); n.rotula=v; invalidarResultados(); }
+  refrescar();
+}
 function editCargaMag(id,v){
   const c=cargas.find(z=>z.id===id), val=parseFloat(v);
-  if(c && isFinite(val)){ c.mag=val; if(c.tipo==='U') c.mag2=val; R=null; } refrescar();
+  const cambia = c && isFinite(val) && (c.mag!==val || (c.tipo==='U' && c.mag2!==val));
+  if(cambia){ registrarCambio(); c.mag=val; if(c.tipo==='U') c.mag2=val; invalidarResultados(); } refrescar();
 }
 function borrarNodo(id){
   registrarCambio();
@@ -198,13 +218,17 @@ function borrarNodo(id){
   nodos=nodos.filter(n=>n.id!==id);
   // Con el nudo caen sus cargas de nudo y las de los tramos que llegaban a él.
   cargas=cargas.filter(cargaSigueAnclada);
-  reNombrar(); R=null; refrescar();
+  // Lo borrado sale también de la selección (12-): un id fantasma hacía que
+  // Replicar contara nudos que ya no están y registrara un paso vacío.
+  quitarSeleccionInexistente();
+  reNombrar(); invalidarResultados(); refrescar();
 }
 function borrarTramo(id){
   registrarCambio();
   tramos=tramos.filter(t=>t.id!==id);
   // Solo caen las cargas de ese tramo: las de sus nudos se quedan en ellos.
   cargas=cargas.filter(cargaSigueAnclada);
-  R=null; refrescar();
+  quitarSeleccionInexistente();
+  invalidarResultados(); refrescar();
 }
 function refrescar(){ dibujar(); pintarListas(); }

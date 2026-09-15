@@ -61,7 +61,7 @@ function setApoyo(tipo){
     n.apoyo = tipo;
     if(tipo === 'movil' && n.apAng === undefined) n.apAng = AP_ANG_POR_DEFECTO;
     if(tipo === 'fijo' && n.apAngDib === undefined) n.apAngDib = AP_ANG_POR_DEFECTO;
-    resultado = null;
+    invalidarResultados();
   }
   actualizarPrevApoyo();
   refrescar();
@@ -81,7 +81,7 @@ function setApAng(ang){
   if(!isFinite(v)) return;
   const a = normalizarAnguloArm(bsaAnguloOpuesto(v));
   registrarCambio();
-  if(n.apoyo === 'movil'){ n.apAng = a; resultado = null; }
+  if(n.apoyo === 'movil'){ n.apAng = a; invalidarResultados(); }
   else { n.apAngDib = a; }
   actualizarPrevApoyo();
   refrescar();
@@ -196,8 +196,8 @@ function eliminarSeleccion(){
   barras = barras.filter(b => selBarras.indexOf(b.id) < 0
                            && selNodos.indexOf(b.a) < 0 && selNodos.indexOf(b.b) < 0);
   nodos = nodos.filter(n => selNodos.indexOf(n.id) < 0);
-  selNodos = []; selBarras = []; selBarra = null;
-  reNombrar(); resultado = null; refrescar();
+  selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null;
+  reNombrar(); invalidarResultados(); refrescar();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -327,64 +327,193 @@ function applyTransformar(){
       if(n.apoyo === 'movil') n.apAng    = normalizarAnguloArm(anguloReaccionApoyo(n) + t.ang);
       else                    n.apAngDib = normalizarAnguloArm(anguloDibujoApoyo(n)  + t.ang);
     });
+    // Las cargas de los nudos girados giran con ellos, igual que los apoyos:
+    // una vertical en una armadura girada 90° pasa a horizontal. Sin esto la
+    // armadura girada cargaría de otra manera y los esfuerzos cambiarían.
+    t.destinos.forEach(d=>{
+      const n = nodos.find(z=>z.id===d.id);
+      if(n && (n.cargas || []).length) girarCargasNudo(n, t.ang);
+    });
   }
-  resultado = null;
+  transformarCorte(t);
+  invalidarResultados();
   closeTransformar();
   refrescar();
 }
 
+// Gira la dirección de cada carga del nudo `grados` (antihorario) sin tocar
+// su magnitud, ni siquiera el signo: una vertical girada 180° no pasa a ser
+// una vertical negativa, sino una inclinada con su ángulo INTERNO (hacia donde
+// apunta, CLAUDE.md §7). Solo vuelve a 'y' o 'x' si queda justo en el sentido
+// positivo de esa dirección (abajo o derecha). Luego recompone n.fx/n.fy.
+function girarCargasNudo(n, grados){
+  const a = grados*Math.PI/180, cs = Math.cos(a), sn = Math.sin(a);
+  const EPS = 1e-9;
+  n.cargas = (n.cargas || []).map(c=>{
+    const v = vectorCarga(c.dir || 'y', c.ang);
+    const vx = v.x*cs - v.y*sn, vy = v.x*sn + v.y*cs;
+    if(Math.abs(vx) < EPS && vy < 0) return {dir:'y', mag:c.mag, ang:0};
+    if(Math.abs(vy) < EPS && vx > 0) return {dir:'x', mag:c.mag, ang:0};
+    return {dir:'ang', mag:c.mag, ang:normalizarAnguloArm(Math.atan2(vy, vx)*180/Math.PI)};
+  });
+  recomponerCargaNudo(n);
+}
+
+// La línea de corte manual del método de secciones vive en coordenadas del
+// mundo: si se mueven TODOS los nudos, el corte los acompaña con la misma
+// transformación; si solo una parte, deja de cortar lo que cortaba y se borra
+// (el alumno lo vuelve a trazar). Es la regla de cualquier gesto que mueva
+// nudos —la ventana Transformar y el arrastre de Mover / editar—, para que los
+// dos dejen el corte igual. `ids`: los nudos movidos; `mueve(x, y)` devuelve
+// [x', y'] con la transformación aplicada a esos nudos.
+function ajustarCorteArm(ids, mueve){
+  if(!corte) return;
+  const todos = nodos.length > 0 && nodos.every(n=>ids.indexOf(n.id) >= 0);
+  if(!todos){ corte = null; corteDrag = null; return; }
+  const p1 = mueve(corte.x1, corte.y1), p2 = mueve(corte.x2, corte.y2);
+  corte = {x1:p1[0], y1:p1[1], x2:p2[0], y2:p2[1]};
+}
+
+function transformarCorte(t){
+  ajustarCorteArm(t.destinos.map(d=>d.id), (x, y)=>{
+    if(transModo === 'mover') return [x + t.dx, y + t.dy];
+    const g = t.ang*Math.PI/180, cs = Math.cos(g), sn = Math.sin(g);
+    const ux = x - t.ref.x, uy = y - t.ref.y;
+    return [t.ref.x + ux*cs - uy*sn, t.ref.y + ux*sn + uy*cs];
+  });
+}
+
+// ── Replicar ──
+// Qué se copia: los nudos marcados más los extremos de las barras marcadas, y
+// todas las barras con sus dos extremos en ese conjunto (como tramosDeGrupo de
+// fuerzas internas). Vale marcar solo nudos tocándolos, solo barras o las dos
+// cosas. Solo cuenta lo que existe: un borrado puede dejar ids viejos.
+function grupoReplicar(){
+  const idsN = [];
+  const pon = id => { if(idsN.indexOf(id) < 0 && nodos.some(n=>n.id===id)) idsN.push(id); };
+  selNodos.forEach(pon);
+  barras.forEach(b=>{ if(selBarras.indexOf(b.id) >= 0){ pon(b.a); pon(b.b); } });
+  const idsB = barras.filter(b=>idsN.indexOf(b.a) >= 0 && idsN.indexOf(b.b) >= 0).map(b=>b.id);
+  return {nodos:idsN, barras:idsB};
+}
+// Lee la ventana sin corregir nada en silencio: un campo vacío no es 0 y las
+// repeticiones tienen que ser un entero de 1 a 50. `error` dice qué falla.
+function leerReplicar(){
+  const num = id => {
+    const e = document.getElementById(id);
+    const s = e ? String(e.value).trim() : '';
+    return s === '' ? NaN : Number(s);
+  };
+  const dx = num('repDx'), dy = num('repDy'), n = num('repN');
+  let error = null;
+  if(!isFinite(dx) || !isFinite(dy)) error = 'Escribe las dos distancias; pon 0 en la que no se desplace.';
+  else if(!Number.isInteger(n) || n < 1 || n > 50) error = 'Las repeticiones deben ser un número entero entre 1 y 50.';
+  else if(dx === 0 && dy === 0) error = 'Indica un desplazamiento en x o en y.';
+  return {dx, dy, n, error};
+}
+// Tras un cambio que anula la solución, el panel no puede seguir enseñando la
+// anterior: se vacía como en limpiarTodo (#corteBox va dentro del panel).
+// Toda acción de la interfaz que cambia el modelo la llama, en vez de poner solo
+// `resultado = null`: un panel visible con el resultado anulado enseñaba una
+// solución que ya no era la del dibujo. No la llaman resolver() (07-), que pinta
+// el panel, ni cargarEjemplo (05-), que resuelve al terminar.
+function invalidarResultados(){
+  resultado = null;
+  const ra = document.getElementById('resultsArea'); if(ra) ra.style.display = 'none';
+  const rp = document.getElementById('resultsPanel'); if(rp){ rp.innerHTML = ''; rp.style.display = 'none'; }
+  const h = document.getElementById('noResultsHint'); if(h) h.style.display = '';
+}
+
 function abrirReplicar(){
-  if(!selNodos.length){
-    aviso('Elige la herramienta Seleccionar y marca al menos un nudo para replicar.');
+  if(!grupoReplicar().nodos.length){
+    aviso('Marca con "Mover / editar" lo que quieras replicar.');
     return;
   }
-  document.getElementById('repSub').textContent =
-    'Se replicarán ' + selNodos.length + ' nudo(s)'
-    + (selBarras.length ? ' y las barras seleccionadas cuyos dos extremos estén marcados' : '')
-    + ', desplazándolos la distancia indicada tantas veces como pidas.';
+  // La ayuda de la ventana es fija y de una línea; lo que depende de la
+  // selección (cuántos nudos, barras y copias) lo cuenta la vista previa.
   actualizarPrevRep();
-  document.getElementById('repModal').classList.add('show');
+  const m = document.getElementById('repModal');
+  if(m) m.classList.add('show');
 }
 function closeReplicar(){ document.getElementById('repModal').classList.remove('show'); }
 function actualizarPrevRep(){
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const dx = g('repDx'), dy = g('repDy');
-  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
-  const base = nodos.find(n=>n.id===selNodos[0]);
   const el = document.getElementById('repPrev');
-  if(!el || !base) return;
-  let t = 'Desde (' + dec(base.x,'len') + ' ; ' + dec(base.y,'len') + ') → ';
+  if(!el) return;
+  const g = grupoReplicar(), r = leerReplicar();
+  if(!g.nodos.length){ el.textContent = 'No hay nada marcado para replicar.'; return; }
+  if(r.error){ el.textContent = r.error; return; }
+  const base = nodos.find(n=>n.id===g.nodos[0]);
   const p = [];
-  for(let i=1;i<=Math.min(nrep,3);i++)
-    p.push('(' + dec(base.x+dx*i,'len') + ' ; ' + dec(base.y+dy*i,'len') + ')');
-  el.innerHTML = t + p.join(', ') + (nrep>3 ? ' …' : '');
+  for(let i=1;i<=Math.min(r.n,3);i++)
+    p.push('(' + dec(base.x+r.dx*i,'len') + ' ; ' + dec(base.y+r.dy*i,'len') + ')');
+  const nN = g.nodos.length, nB = g.barras.length;
+  el.innerHTML = 'Saldrán <b>' + r.n + (r.n === 1 ? ' copia' : ' copias') + '</b> de '
+    + nN + (nN === 1 ? ' nudo' : ' nudos') + ' y ' + nB + (nB === 1 ? ' barra' : ' barras')
+    + ' · nudo ' + base.nombre + ': (' + dec(base.x,'len') + ' ; ' + dec(base.y,'len') + ') → '
+    + p.join(', ') + (r.n>3 ? ' …' : '');
 }
 function applyReplicar(){
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const dx = g('repDx'), dy = g('repDy');
-  const nrep = Math.max(1, Math.min(50, parseInt(document.getElementById('repN').value) || 1));
-  if(dx === 0 && dy === 0){ aviso('Indica un desplazamiento en x o en y.'); return; }
-  registrarCambio();
-  const orig = selNodos.slice();
-  const barrasRep = barras.filter(b => selBarras.indexOf(b.id) >= 0
-                    && orig.indexOf(b.a) >= 0 && orig.indexOf(b.b) >= 0);
+  const g = grupoReplicar();
+  if(!g.nodos.length){ aviso('Marca con "Mover / editar" lo que quieras replicar.'); return; }
+  const r = leerReplicar();
+  if(r.error){ aviso(r.error, 'error'); return; }
+  const dx = r.dx, dy = r.dy, nrep = r.n;
+  // Plantilla tomada ANTES de copiar: si un nudo marcado recibe las cargas de
+  // una copia que cae sobre él, las copias siguientes no deben arrastrarlas.
+  const plantilla = g.nodos.map(id=>{
+    const o = nodos.find(z=>z.id===id);
+    return {id, x:o.x, y:o.y, apoyo:o.apoyo, apAng:o.apAng, apAngDib:o.apAngDib,
+            cargas:(o.cargas||[]).map(c=>Object.assign({}, c))};
+  });
+  const pares = barras.filter(b=>g.barras.indexOf(b.id) >= 0).map(b=>[b.a, b.b]);
+  // Tolerancia para reconocer un nudo que ya está: relativa al tamaño del
+  // modelo con las copias, y nunca mayor que una milésima del paso, para que una
+  // copia no se confunda con su propio original.
+  const xs = nodos.map(z=>z.x).concat(plantilla.map(o=>o.x + dx*nrep));
+  const ys = nodos.map(z=>z.y).concat(plantilla.map(o=>o.y + dy*nrep));
+  const tam = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const tol = Math.min(1e-6*tam, 1e-3*Math.hypot(dx, dy));
+  registrarCambio();   // un solo paso de deshacer para toda la réplica
   const nuevosN = [], nuevasB = [];
+  const marca = (lista, id) => { if(lista.indexOf(id) < 0) lista.push(id); };
+  let unidos = 0;
   for(let i=1;i<=nrep;i++){
     const mapa = {};
-    orig.forEach(id=>{
-      const o = nodos.find(z=>z.id===id);
-      if(!o) return;
-      const nn = {id:++nodoSeq, x:o.x+dx*i, y:o.y+dy*i, apoyo:o.apoyo, apAng:o.apAng, apAngDib:o.apAngDib, fx:o.fx, fy:o.fy, cargas:(o.cargas||[]).map(c=>Object.assign({}, c)), nombre:''};
-      nodos.push(nn); mapa[id] = nn.id; nuevosN.push(nn.id);
+    plantilla.forEach(o=>{
+      const x = o.x + dx*i, y = o.y + dy*i;
+      const cargas = o.cargas.map(c=>Object.assign({}, c));
+      // La copia que cae sobre un nudo que ya está —del modelo o de una copia
+      // anterior— lo reutiliza: el nudo conserva su apoyo y sus ángulos, y las
+      // cargas de la copia se suman a las suyas.
+      const hay = nodos.find(z=>Math.abs(z.x - x) <= tol && Math.abs(z.y - y) <= tol);
+      if(hay){
+        hay.cargas = (hay.cargas || []).concat(cargas);
+        recomponerCargaNudo(hay);
+        mapa[o.id] = hay.id; marca(nuevosN, hay.id); unidos++;
+        return;
+      }
+      const nn = {id:++nodoSeq, x, y, apoyo:o.apoyo, apAng:o.apAng, apAngDib:o.apAngDib,
+                  fx:0, fy:0, cargas, nombre:''};
+      recomponerCargaNudo(nn);
+      nodos.push(nn); mapa[o.id] = nn.id; marca(nuevosN, nn.id);
     });
-    barrasRep.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ const nb = addBarra(mapa[b.a], mapa[b.b]);
-      if(nb) nuevasB.push(nb.id); } });
+    pares.forEach(par=>{
+      const na = mapa[par[0]], nb = mapa[par[1]];
+      if(na === undefined || nb === undefined || na === nb) return;
+      // addBarra descarta el par repetido; la barra que ya unía esos dos
+      // nudos pasa a ser la de la copia (y queda marcada con ella).
+      const m = addBarra(na, nb, true)
+             || barras.find(z=>(z.a===na && z.b===nb) || (z.a===nb && z.b===na));
+      if(m) marca(nuevasB, m.id);
+    });
   }
-  reNombrar(); resultado = null;
+  reNombrar(); invalidarResultados();
   // Las copias quedan seleccionadas y la vista no se mueve, como en los demás
   // temas: así se puede seguir replicando o transformando el resultado.
-  selNodos = nuevosN; selBarras = nuevasB; selBarra = null;
+  selNodos = nuevosN; selBarras = nuevasB; selBarra = null; selNodoInfo = null;
   closeReplicar(); refrescar();
+  if(unidos === 1) aviso('Se unió 1 nudo que caía sobre un nudo existente.');
+  else if(unidos > 1) aviso('Se unieron ' + unidos + ' nudos que caían sobre nudos existentes.');
 }
 
 // ── Pestañas Nudos / Barras / Cargas ──

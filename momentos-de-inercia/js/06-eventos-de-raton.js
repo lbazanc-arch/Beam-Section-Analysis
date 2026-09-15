@@ -174,7 +174,7 @@ function onMouseMove(e){
     if(gesto && gesto.tipo === 'mover' && gesto.origenes && gesto.origenes.length > 1){
       const wdx = wp.x - gesto.wx0, wdy = wp.y - gesto.wy0;
       gesto.origenes.forEach(o=>{ const g=figures.find(z=>z.id===o.id); if(g){ g.cx=o.cx+wdx; g.cy=o.cy+wdy; } });
-      updatePropPanel(); results=null; render();
+      updatePropPanel(); invalidarResultados(); render();
       return;
     }
     const fig = figures.find(f=>f.id===dragFigId);
@@ -197,7 +197,7 @@ function onMouseMove(e){
       // Live edge snap during drag
       if(figures.length > 1) trySnapFigure(fig);
       updatePropPanel();
-      results=null; render();
+      invalidarResultados(); render();
     }
     return;
   }
@@ -458,7 +458,7 @@ function onMouseUp(){
         figures = figures.filter(f => aBorrar.indexOf(f.id) < 0);
         if(aBorrar.indexOf(selectedFigId) >= 0) selectFigure(null);
         selFiguras = selFiguras.filter(id => aBorrar.indexOf(id) < 0);
-        results = null; renderFigList(); cerrarEdicionSiSobra();
+        invalidarResultados(); renderFigList(); cerrarEdicionSiSobra();
         aviso(aBorrar.length === 1 ? 'Figura eliminada.'
                                    : aBorrar.length + ' figuras eliminadas.');
       }

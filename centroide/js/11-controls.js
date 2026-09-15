@@ -107,21 +107,106 @@ function histSnapshot(){
     extraPoint: extraPoint?JSON.parse(JSON.stringify(extraPoint)):null,
     axisAngle,
     DEC:JSON.parse(JSON.stringify(DEC)),
-    notationExp
+    notationExp,
+    // El cuerpo y sus materiales (2026-09-15): sin ellos un ejercicio heterogéneo
+    // se abría homogéneo, con otra unidad de fuerza, y el peso y G salían distintos.
+    modoCuerpo, matMagnitud, unitForce,
+    MATS: MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad, valIng:m.valIng, uIng:m.uIng})),
+    matSeq
   }};
 }
+// Valores con los que arranca el tema (01-): los toma un archivo que no los trae.
+const CUERPO_INICIAL = {modoCuerpo, matMagnitud, unitForce};
+// Tipo de cuerpo, magnitud, unidad de fuerza y materiales de un archivo. Uno
+// anterior a guardarlos abre homogéneo y con la fuerza por defecto, sin
+// materiales; un matId que no apunte a un material del archivo queda sin asignar.
+function restaurarCuerpoDeArchivo(s, modo){
+  const conMats = Array.isArray(s.MATS);
+  unitForce   = (s.unitForce && FOR_A_KN[s.unitForce]) ? s.unitForce : CUERPO_INICIAL.unitForce;
+  matMagnitud = (s.matMagnitud === 'densidad' || s.matMagnitud === 'peso') ? s.matMagnitud : CUERPO_INICIAL.matMagnitud;
+  // El alambre es siempre homogéneo (24-alambres.js).
+  modoCuerpo  = (s.modoCuerpo === 'heterogeneo' && modo !== 'alambre') ? 'heterogeneo' : 'homogeneo';
+  MATS = (conMats ? s.MATS : [])
+    .filter(m=>m && isFinite(Number(m.id)) && isFinite(Number(m.val)))
+    .map(m=>{
+      const o = {id:Number(m.id), val:Number(m.val), unidad:uGamma()};
+      if(m.valIng !== undefined && m.valIng !== null && m.uIng){ o.valIng = Number(m.valIng); o.uIng = m.uIng; }
+      return o;
+    });
+  matSeq = MATS.reduce((mx, m)=>Math.max(mx, m.id), Number(s.matSeq) || 0);
+  figures.forEach(f=>{ if(f.matId != null && !MATS.some(m=>m.id === f.matId)) f.matId = null; });
+  pintarTipoDeCuerpo();                                   // 12-
+}
 function histRestore(s){
+  // Primero, que el archivo sirva (2026-09-15): una lista de figuras, y cada una de
+  // un tipo que conozca el modo del archivo, con medidas y posición. Si no, no se toca
+  // ni el modelo ni el resultado; la excepción la convierte en aviso quien abre
+  // (_cargarEjercicioTexto en 18-, histLoad). Mirar solo «lista de objetos» dejaba
+  // pasar figures:[{}] o type:'xyz', que lanzaban luego en figArea (19-) con el
+  // modelo ya sustituido, y deshacer no lo recuperaba: abrir no registra paso.
+  if(!s || typeof s !== 'object' || !Array.isArray(s.figures))
+    throw new Error('El ejercicio no trae la lista de figuras.');
   // Los archivos anteriores al modo 3D no traen modoEspacio: son 2D.
   const modo = (s.modoEspacio === '3d' || s.modoEspacio === 'alambre') ? s.modoEspacio : '2d';
-  if(modo !== modoEspacio) setModoEspacio(modo, {sinLimpiar:true, sinAjustar:true});
+  const defs = (modo === '3d') ? SOLID_DEFS : FIG_DEFS;
+  const num = v => (typeof v === 'number' && isFinite(v));
+  const figuraValida = f => !!f && typeof f === 'object'
+    && Object.prototype.hasOwnProperty.call(defs, f.type)
+    && !!f.dims && typeof f.dims === 'object'
+    && num(f.cx) && num(f.cy) && (modo !== '3d' || num(f.cz));
+  if(!s.figures.every(figuraValida))
+    throw new Error('El ejercicio trae figuras que no se reconocen.');
+  // Si aun así algo lanza a mitad de abrirlo, se vuelve al modelo, la vista y el
+  // resultado de antes y se relanza: el aviso sale igual y no se pierde nada.
+  const previo = {inst: instantanea(), res: !!results,
+    extraPoint: extraPoint ? JSON.parse(JSON.stringify(extraPoint)) : null, axisAngle,
+    DEC: JSON.parse(JSON.stringify(DEC)), notationExp,
+    selectedFigId, selectedFigType, selFiguras: selFiguras.slice(), viewTx, viewTy, viewScale};
+  try{ _abrirEstadoDeArchivo(s, modo); }
+  catch(e){
+    try{
+      selectedFigId = previo.selectedFigId; selectedFigType = previo.selectedFigType;
+      selFiguras = previo.selFiguras;
+      restaurarInstantanea(previo.inst);                   // 15-: figuras, modo, unidades y materiales
+      extraPoint = previo.extraPoint; axisAngle = previo.axisAngle;
+      DEC = previo.DEC; notationExp = previo.notationExp; syncDecTag();
+      viewTx = previo.viewTx; viewTy = previo.viewTy; viewScale = previo.viewScale;
+      render();
+      if(previo.res) recalcularSinDesplazar();              // 10-
+    }catch(err){}
+    throw e;
+  }
+}
+// Aplica al tema un estado que histRestore ya dio por bueno.
+function _abrirEstadoDeArchivo(s, modo){
+  // El panel no puede seguir con la solución del modelo anterior: si calculate()
+  // rechaza el archivo (sin figuras), results quedaba con el cálculo viejo. Va
+  // antes de cambiar de modo: pasar a alambre con un cuerpo heterogéneo llama a
+  // setModoCuerpo, que recalculaba el modelo viejo en el modo nuevo y avisaba.
+  invalidarResultados();
+  // Las figuras entran ANTES que el modo: setModoEspacio repinta, y el 3D pintando
+  // las figuras planas que quedaban lanzaba en verticesSolido (20-): un ejercicio 3D
+  // no se abría desde un panel 2D con figuras.
   figures=JSON.parse(JSON.stringify(s.figures));
+  if(modo !== modoEspacio) setModoEspacio(modo, {sinLimpiar:true, sinAjustar:true});
+  // El contador pasa a ser >= el mayor id del archivo, o las figuras nuevas
+  // (y las copias de Replicar) repetirían ids. Un id repetido o no numérico
+  // —archivos guardados antes de este arreglo— se renumera al abrir.
+  asegurarContadorFiguras();
+  { const vistos = new Set();
+    figures.forEach(f=>{
+      if(typeof f.id !== 'number' || !isFinite(f.id) || vistos.has(f.id)) f.id = ++figIdCounter;
+      vistos.add(f.id);
+    }); }
   if(typeof s.colorIdx==='number') colorIdx=s.colorIdx;
   if(s.unit) setUnit(s.unit);
+  restaurarCuerpoDeArchivo(s, modo);      // tras la unidad: uGamma() depende de ella
   extraPoint = s.extraPoint?JSON.parse(JSON.stringify(s.extraPoint)):null;
   axisAngle  = (typeof s.axisAngle==='number')?s.axisAngle:null;
   if(s.DEC) DEC=JSON.parse(JSON.stringify(s.DEC));
   if(typeof s.notationExp==='number') notationExp=s.notationExp;
-  selectedFigId=null; selectedFigType=null;
+  selectedFigId=null; selectedFigType=null; selFiguras=[];
+  selectFigure(null); actualizarInfoSel();
   syncDecTag();
   renderFigList();
   fitView();

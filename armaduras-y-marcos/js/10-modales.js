@@ -12,16 +12,43 @@ function updateUnitsPreview(){
   document.getElementById('upL').textContent = document.getElementById('selLen').value;
   document.getElementById('upF').textContent = document.getElementById('selFor').value;
 }
+// Cambiar de unidades convierte TODO lo que guarda un número con unidad: las
+// coordenadas de los nudos, sus cargas (magnitudes y resultante), la línea de
+// corte y, fuera del modelo, lo de convertirUnidadesFueraDelModelo. Es UN paso de
+// deshacer, y la instantánea lleva las unidades (17-), así que deshacer devuelve
+// los números y las unidades juntos. Con las mismas unidades no hace nada.
 function applyUnits(){
   const nL = document.getElementById('selLen').value;
   const nF = document.getElementById('selFor').value;
+  if((nL === unitLen && nF === unitFor) || !LEN_A_M[nL] || !FOR_A_KN[nF]){ closeUnitsModal(); return; }
   const kL = LEN_A_M[unitLen]/LEN_A_M[nL];
   const kF = FOR_A_KN[unitFor]/FOR_A_KN[nF];
+  registrarCambio();
   nodos.forEach(n=>{ n.x *= kL; n.y *= kL; n.fx *= kF; n.fy *= kF; (n.cargas||[]).forEach(c=>{ c.mag = (c.mag||0)*kF; }); });
+  if(corte) corte = {x1:corte.x1*kL, y1:corte.y1*kL, x2:corte.x2*kL, y2:corte.y2*kL};
+  corteDrag = null;
+  convertirUnidadesFueraDelModelo(kL, kF);
   unitLen = nL; unitFor = nF;
+  pintarChipUnidades();
+  invalidarResultados(); closeUnitsModal(); centrar(); refrescar();
+}
+// Lo que tiene unidad y NO va en la instantánea de deshacer: la vista (se escala
+// para que la imagen en pantalla no cambie), la posición del ratón en el mundo y
+// los admisibles ya evaluados del «¿qué barra falla primero?» (08-) con lo que
+// se deriva de ellos. La usan applyUnits y restaurarInstantanea (17-) cuando la
+// instantánea está en otras unidades. kL y kF multiplican un valor en las
+// unidades actuales para pasarlo a las nuevas.
+function convertirUnidadesFueraDelModelo(kL, kF){
+  vx *= kL; vy *= kL;
+  escala = Math.max(0.02, Math.min(escala/kL, 4000));
+  if(mouseW) mouseW = [mouseW[0]*kL, mouseW[1]*kL];
+  if(typeof simCap !== 'undefined' && simCap) simCap = {T:simCap.T*kF, C:simCap.C*kF};
+  if(typeof simP0 !== 'undefined') simP0 *= kF;
+  if(typeof simA !== 'undefined') Object.keys(simA).forEach(k=>{ simA[k] *= kF; });
+}
+function pintarChipUnidades(){
   const cu = document.getElementById('chipUnits');
-  if(cu) cu.textContent = nL + ' \u00b7 ' + nF;
-  resultado = null; closeUnitsModal(); centrar(); refrescar();
+  if(cu) cu.textContent = unitLen + ' \u00b7 ' + unitFor;
 }
 
 function fillDec(id, val){
@@ -103,7 +130,7 @@ function quitarCarga(id){
   const n = nodos.find(z=>z.id===id); if(!n) return;
   registrarCambio();
   n.cargas = []; n.fx = 0; n.fy = 0;
-  resultado = null;
+  invalidarResultados();
   refrescar();
 }
 
@@ -202,7 +229,7 @@ function borrarCargaArm(id, idx){
   const n = nodos.find(z=>z.id === id); if(!n || !n.cargas) return;
   registrarCambio();
   n.cargas.splice(idx, 1); recomponerCargaNudo(n);
-  resultado = null; refrescar();
+  invalidarResultados(); refrescar();
 }
 function _cargaDeRefArm(){
   if(!edCargaArm || edCargaArm.nuevo) return null;
@@ -274,7 +301,7 @@ function aplicarCargaArm(){
   else n.cargas[edCargaArm.idx] = {dir, mag, ang};
   recomponerCargaNudo(n);
   cerrarCargaArm();
-  resultado = null; refrescar();
+  invalidarResultados(); refrescar();
 }
 function dibujarCroquisCargaArm(){
   const cont = document.getElementById('cgCroquis'); if(!cont || !edCargaArm) return;

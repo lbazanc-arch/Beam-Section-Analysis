@@ -11,8 +11,8 @@ function instantanea(){
       rotation:f.rotation, sign:f.sign, color:f.color,
       anchor:f.anchor, activeAnchor:f.activeAnchor, name:f.name, etiqueta:f.etiqueta,
       matId:f.matId, thickness:f.thickness, angleMode:f.angleMode})),
-    figIdCounter, colorIdx, modoEspacio,
-    modoCuerpo, MATS: MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad})), matSeq
+    figIdCounter, colorIdx, modoEspacio, unit, unitForce,
+    modoCuerpo, matMagnitud, MATS: MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad, valIng:m.valIng, uIng:m.uIng})), matSeq
   });
 }
 
@@ -26,20 +26,33 @@ function registrarCambio(){
 
 function restaurarInstantanea(txt){
   const e = JSON.parse(txt);
-  // El modo (2D/3D) se restaura ANTES que las figuras, sin vaciar el panel.
-  if(e.modoEspacio && e.modoEspacio !== modoEspacio) setModoEspacio(e.modoEspacio, {sinLimpiar:true, sinAjustar:true});
+  // El resultado caduca ANTES de cambiar de modo, como en histRestore (11-): pasar
+  // a alambre con un cuerpo heterogéneo llama a setModoCuerpo, que recalculaba el
+  // modelo viejo en el modo nuevo y avisaba «En el modo Alambre solo entran
+  // segmentos y arcos.».
+  invalidarResultados();
+  // Las figuras entran ANTES que el modo, y el modo sin vaciar el panel:
+  // setModoEspacio repinta, y el 3D pintando las figuras planas que quedaban lanzaba
+  // en verticesSolido (20-), así que rehacer de un 2D con figuras a un 3D se rompía.
   figures = e.figures.map(f=>Object.assign({}, f, {dims:Object.assign({},f.dims)}));
+  if(e.modoEspacio && e.modoEspacio !== modoEspacio) setModoEspacio(e.modoEspacio, {sinLimpiar:true, sinAjustar:true});
   figIdCounter = e.figIdCounter; colorIdx = e.colorIdx;
-  modoCuerpo = e.modoCuerpo; MATS = e.MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad})); matSeq = e.matSeq;
+  asegurarContadorFiguras();
+  // Las medidas de la instantánea están en SUS unidades: se restauran con
+  // ellas. El punto P no va en la instantánea y se lleva a esa unidad.
+  if(e.unit && e.unit !== unit){
+    const k = LEN_FAC_I[unit]/LEN_FAC_I[e.unit];
+    if(extraPoint){ extraPoint.x = +(extraPoint.x*k).toFixed(9); extraPoint.y = +(extraPoint.y*k).toFixed(9); }
+    setUnit(e.unit);
+  }
+  if(e.unitForce) unitForce = e.unitForce;
+  modoCuerpo = e.modoCuerpo; MATS = e.MATS.map(m=>({id:m.id, val:m.val, unidad:m.unidad, valIng:m.valIng, uIng:m.uIng})); matSeq = e.matSeq;
+  if(e.matMagnitud) matMagnitud = e.matMagnitud;
+  // Botones de tipo de cuerpo y de magnitud, panel de materiales y su lista (12-).
+  try{ pintarTipoDeCuerpo(); }catch(err){}
   // La selección puede apuntar a figuras que ya no existen tras restaurar.
   if(!figures.some(f=>f.id===selectedFigId)) selectedFigId = null;
   selFiguras = selFiguras.filter(id=>figures.some(f=>f.id===id));
-  results = null;
-  try{
-    const h = document.getElementById('modo-homo'), he = document.getElementById('modo-het');
-    if(h) h.classList.toggle('active', modoCuerpo==='homogeneo');
-    if(he) he.classList.toggle('active', modoCuerpo==='heterogeneo');
-  }catch(e){}
   selectFigure(selectedFigId);
   renderFigList(); actualizarInfoSel(); render();
 }

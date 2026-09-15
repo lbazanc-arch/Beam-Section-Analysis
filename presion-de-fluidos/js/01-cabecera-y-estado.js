@@ -42,6 +42,7 @@ function renderKatex(root){
 //  y fuerza de los topes.
 // ═══════════════════════════════════════════════════════════
 let nodos = [];     // {id,x,y,nombre,apoyo:null|'fijo'|'movil',apAng,apModo:'angulo'|'normal',
+                    //  apLado:1|2 (cara del móvil normal: su reacción va hacia esa zona; sin el campo, 2),
                     //  apAngFijo (giro del apoyo fijo: SOLO dibujo, nunca cálculo),
                     //  rotula:bool,tope:null|{ang,modo:'normal'|'angulo',lado:1|2}}
 let tramos = [];    // {id,a,b,tipo:'recto'|'arco',flecha,activo,invertir,pesoId}
@@ -149,14 +150,14 @@ function addLiquido(z){
   const c = capasOrdenadas(z);
   const nivPrev = c.length ? c[c.length-1].niv - 1 : 0;
   zonas[z].push({g:9.81, niv:nivPrev});
-  R = null; refrescar();
+  invalidarResultados(); refrescar();   // 06-: el panel era del líquido de antes
 }
-function borrarLiquido(z,i){ registrarCambio(); zonas[z].splice(i,1); R=null; refrescar(); }
+function borrarLiquido(z,i){ registrarCambio(); zonas[z].splice(i,1); invalidarResultados(); refrescar(); }
 function editLiquido(z,i,campo,v){
   registrarCambio();
   const val = parseFloat(v);
   if(isFinite(val)) zonas[z][i][campo] = val;
-  R = null; refrescar();
+  invalidarResultados(); refrescar();
 }
 function pintarZonas(){
   [1,2].forEach(z=>{
@@ -327,7 +328,10 @@ function direccionIncognita(u){
   if(u.tipo==='Ry') return {x:0,y:1};
   if(u.tipo==='R'){
     if(u.n.apModo === 'normal'){
-      const nv = normalCompuertaEnNudo(u.n, 2);
+      // Normal hacia la zona `apLado` (2 si falta: archivos anteriores y nudos
+      // nuevos). Al girar, Transformar la cambia 1 ↔ 2 si la cadena de la
+      // compuerta se invierte, para que el móvil siga en la misma cara (05-).
+      const nv = normalCompuertaEnNudo(u.n, u.n.apLado === 1 ? 1 : 2);
       if(nv) return nv;
     }
     const a = (u.n.apAng===undefined?90:u.n.apAng)*Math.PI/180;
