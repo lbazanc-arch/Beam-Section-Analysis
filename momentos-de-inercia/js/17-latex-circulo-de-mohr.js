@@ -466,7 +466,13 @@ function tikzCroquisFigura(fig, anchoCm){
       obst, null, [0.16, 0.28, 0.42, 0.58, 0.76])[0];
     const dd = Math.hypot(puesto.cx-anclaX, puesto.cy-anclaY);
     if(dd > 0.30){
-      s += '\\draw[black!45, line width=0.22pt] ('+n(puesto.cx)+','+n(puesto.cy)+') -- ('+n(anclaX)+','+n(anclaY)+');\n';
+      // La guía se para un poco antes del borde de la caja de β (0.30 × 0.26, la
+      // que se le dio al colocador): la letra no lleva fondo y, si la guía llegase
+      // a su centro, la tacharía.
+      const ux = (puesto.cx-anclaX)/dd, uy = (puesto.cy-anclaY)/dd;
+      const sB = Math.min(Math.abs(ux) < 1e-6 ? Infinity : 0.15/Math.abs(ux),
+                          Math.abs(uy) < 1e-6 ? Infinity : 0.13/Math.abs(uy)) + 0.05;
+      s += '\\draw[black!45, line width=0.22pt] ('+n(puesto.cx-ux*sB)+','+n(puesto.cy-uy*sB)+') -- ('+n(anclaX)+','+n(anclaY)+');\n';
     }
     s += '\\node[font=\\small, inner sep=1pt] at ('+n(puesto.cx)+','+n(puesto.cy)+') {$\\beta$};\n';
   }

@@ -246,6 +246,31 @@ function crearColocador(minSepDeg, pasoRadio){
   };
 }
 
+// Extremo de la guía de un rótulo desplazado. La guía sale de (ax, ay) hacia el
+// centro del rótulo (lx, ly), pero se detiene un poco antes del borde de su caja
+// w×h: los rótulos no llevan fondo y, si llegase al centro, tacharía el texto.
+// Devuelve null si el rótulo queda tan cerca que no hay guía que trazar.
+function _finGuiaRotulo(ax, ay, lx, ly, w, h){
+  const ox = lx - ax, oy = ly - ay, d = Math.hypot(ox, oy);
+  if(d < 1e-6) return null;
+  const ux = ox/d, uy = oy/d;
+  const s = Math.min(Math.abs(ux) < 1e-6 ? Infinity : (w/2)/Math.abs(ux),
+                     Math.abs(uy) < 1e-6 ? Infinity : (h/2)/Math.abs(uy)) + 0.05;
+  if(s >= d) return null;
+  return [lx - ux*s, ly - uy*s];
+}
+// Caja aproximada de un rótulo: cuenta los glifos visibles (\theta vale uno;
+// \, y los signos $ _ ^ { } no ocupan) con un ancho según el tamaño de letra.
+// Solo sirve para parar la guía en el borde, no pretende medir. La caja se da
+// en UNIDADES DE LA FIGURA: el `scale` del tikzpicture encoge las coordenadas
+// pero no la letra, así que en esas unidades el rótulo mide 1/escala veces más
+// que en cm de papel, y la caja se divide por la escala que se le pase.
+function _cajaRotuloArm(txt, tam, escala){
+  const e = escala || 1;
+  const glifos = String(txt).replace(/\\[,;:!]/g, '').replace(/\\[a-zA-Z]+/g, 'x').replace(/[$_^{}]/g, '').length;
+  return tam === 'tiny' ? {w: (glifos*0.11 + 0.06)/e, h: 0.22/e} : {w: (glifos*0.17 + 0.10)/e, h: 0.36/e};
+}
+
 // Arco de ángulo respecto del eje MÁS CERCANO, horizontal o vertical, con un
 // trazo punteado desde el nudo que enseña de qué línea se mide (R21: el DCL lo
 // más limpio posible). El ángulo es siempre agudo y no pasa de 45°: si la barra
@@ -283,7 +308,11 @@ function arcoAngulo(ux, uy, col, gen, radio, ox, oy, colocadorLetras){
   const lx = (ox + pos.radio*Math.cos(midDeg*Math.PI/180)).toFixed(3), ly = (oy + pos.radio*Math.sin(midDeg*Math.PI/180)).toFixed(3);
   if(pos.desplazada){
     const ax = (ox + (R2+0.10)*Math.cos(midDeg*Math.PI/180)).toFixed(3), ay = (oy + (R2+0.10)*Math.sin(midDeg*Math.PI/180)).toFixed(3);
-    tikz += '\\draw[' + col + '!50, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + lx + ',' + ly + ');\n';
+    // 0.72 es la escala más pequeña con que se dibuja un arco (el DCL de nudo,
+    // 13-construirlatex.js): con ella la caja nunca se queda corta.
+    const caja = _cajaRotuloArm(letra, 'tiny', 0.72);
+    const fin = _finGuiaRotulo(parseFloat(ax), parseFloat(ay), parseFloat(lx), parseFloat(ly), caja.w, caja.h);
+    if(fin) tikz += '\\draw[' + col + '!50, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + fin[0].toFixed(3) + ',' + fin[1].toFixed(3) + ');\n';
   }
   tikz += '\\node[font=\\tiny, text=' + col + '] at (' + lx + ',' + ly + ') {$' + letra + '$};\n';
   return {tikz, letra, valor:acuteDeg, lx:parseFloat(lx), ly:parseFloat(ly)};
@@ -462,7 +491,10 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
     const lx = (px + pos.radio*Math.cos(angDeg*Math.PI/180)).toFixed(3), ly = (py + pos.radio*Math.sin(angDeg*Math.PI/180)).toFixed(3);
     if(pos.desplazada){
       const ax = (px + (Lf0+0.10)*Math.cos(angDeg*Math.PI/180)).toFixed(3), ay = (py + (Lf0+0.10)*Math.sin(angDeg*Math.PI/180)).toFixed(3);
-      s += '\\draw[' + col + '!55, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + lx + ',' + ly + ');\n';
+      // La figura va con scale=0.78 (13-construirlatex.js, DCL de la sección).
+      const caja = _cajaRotuloArm('$F_{' + escLatex(d.nombre) + '}$', 'small', 0.78);
+      const fin = _finGuiaRotulo(parseFloat(ax), parseFloat(ay), parseFloat(lx), parseFloat(ly), caja.w, caja.h);
+      if(fin) s += '\\draw[' + col + '!55, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + fin[0].toFixed(3) + ',' + fin[1].toFixed(3) + ');\n';
     }
     s += '\\node[font=\\small, text=' + col + ', inner sep=1.5pt] at (' + lx + ',' + ly + ') {$F_{' + escLatex(d.nombre) + '}$};\n';
     ocupados.push([parseFloat(lx), parseFloat(ly)]);
@@ -496,7 +528,11 @@ function tikzSeccionPorcion(lado, datosCorte, externas, itemsSol){
         const angB = Math.atan2(by,bx)*180/Math.PI;
         const posB = clcB.ubicar(angB, Lf0+0.35);
         const lx = (px + posB.radio*bx).toFixed(3), ly = (py + posB.radio*by).toFixed(3);
-        if(posB.desplazada) s += '\\draw[' + col + '!55, line width=0.3pt] (' + (px+(Lf0+0.10)*bx).toFixed(3) + ',' + (py+(Lf0+0.10)*by).toFixed(3) + ') -- (' + lx + ',' + ly + ');\n';
+        if(posB.desplazada){
+          const caja = _cajaRotuloArm('$F_{' + escLatex(nombreBarra(e.barra)) + '}$', 'small', 0.78);   // scale=0.78, como arriba
+          const fin = _finGuiaRotulo(px+(Lf0+0.10)*bx, py+(Lf0+0.10)*by, parseFloat(lx), parseFloat(ly), caja.w, caja.h);
+          if(fin) s += '\\draw[' + col + '!55, line width=0.3pt] (' + (px+(Lf0+0.10)*bx).toFixed(3) + ',' + (py+(Lf0+0.10)*by).toFixed(3) + ') -- (' + fin[0].toFixed(3) + ',' + fin[1].toFixed(3) + ');\n';
+        }
         s += '\\node[font=\\small, text=' + col + ', inner sep=1.5pt] at (' + lx + ',' + ly + ') {$F_{' + escLatex(nombreBarra(e.barra)) + '}$};\n';
         ocupados.push([parseFloat(lx), parseFloat(ly)]);
         return;
@@ -616,7 +652,10 @@ function tikzDCLNudo(n, res){
     ocup.push([parseFloat(lx), parseFloat(ly)]);
     if(pos.desplazada){
       const ax = ((radioBase-0.10)*Math.cos(angDeg*Math.PI/180)).toFixed(3), ay = ((radioBase-0.10)*Math.sin(angDeg*Math.PI/180)).toFixed(3);
-      tikz += '\\draw[' + col + '!55, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + lx + ',' + ly + ');\n';
+      // La figura va con scale=0.72 (13-construirlatex.js, DCL de nudo).
+      const caja = _cajaRotuloArm(texto, 'small', 0.72);
+      const fin = _finGuiaRotulo(parseFloat(ax), parseFloat(ay), parseFloat(lx), parseFloat(ly), caja.w, caja.h);
+      if(fin) tikz += '\\draw[' + col + '!55, line width=0.3pt] (' + ax + ',' + ay + ') -- (' + fin[0].toFixed(3) + ',' + fin[1].toFixed(3) + ');\n';
     }
     tikz += '\\node[font=\\small, text=' + col + ', inner sep=1.5pt] at (' + lx + ',' + ly + ') {' + texto + '};\n';
     return tikz;

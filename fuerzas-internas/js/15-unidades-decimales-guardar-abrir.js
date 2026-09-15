@@ -340,16 +340,42 @@ function tzOcupar(x0, y0, x1, y1){
   _tzCajas.push({x0:Math.min(x0,x1), y0:Math.min(y0,y1),
                  x1:Math.max(x0,x1), y1:Math.max(y0,y1)});
 }
-function tzChoca(c){
-  return _tzCajas.some(q => c.x0 < q.x1 && c.x1 > q.x0 && c.y0 < q.y1 && c.y1 > q.y0);
+// `sinGuias` no cuenta las cajas de las guías ya dibujadas (las marcadas `guia`).
+function tzChoca(c, sinGuias){
+  return _tzCajas.some(q => !(sinGuias && q.guia)
+    && c.x0 < q.x1 && c.x1 > q.x0 && c.y0 < q.y1 && c.y1 > q.y0);
+}
+// ¿El trazo (x0,y0)–(x1,y1) atraviesa la caja de algún RÓTULO ya colocado?
+// Las cajas de rótulo llevan `rot`; las de geometría no cuentan, porque la
+// guía siempre nace dentro de lo que rotula. Recorte de Liang–Barsky contra la
+// caja encogida 0.02, para no descartar una guía que solo roza una esquina.
+function tzGuiaCruza(x0, y0, x1, y1){
+  const dx = x1-x0, dy = y1-y0;
+  return _tzCajas.some(q => {
+    if(!q.rot) return false;
+    const bx0 = q.x0+0.02, bx1 = q.x1-0.02, by0 = q.y0+0.02, by1 = q.y1-0.02;
+    let t0 = 0, t1 = 1;
+    const p = [-dx, dx, -dy, dy], r = [x0-bx0, bx1-x0, y0-by0, by1-y0];
+    for(let i=0;i<4;i++){
+      if(Math.abs(p[i]) < 1e-12){ if(r[i] < 0) return false; continue; }
+      const t = r[i]/p[i];
+      if(p[i] < 0) t0 = Math.max(t0, t); else t1 = Math.min(t1, t);
+      if(t0 > t1) return false;
+    }
+    return true;
+  });
 }
 // Reserva un trazo como cadena de cajitas, para que ningún rótulo lo tape.
+// Los extremos de cada trozo se ordenan ANTES de sumar la holgura: si se suma
+// antes, en un trazo que va hacia la izquierda o hacia abajo la caja sale
+// recortada g por cada lado en vez de ensanchada, y deja un hueco en cada junta
+// justo por donde pasa la recta (un rótulo podía volver a pisar la barra).
 function tzOcuparTrazo(x1, y1, x2, y2, w){
   const g = w || 0.09, n = 6;
   for(let m=0;m<n;m++){
     const f0=m/n, f1=(m+1)/n;
-    tzOcupar(x1+(x2-x1)*f0-g, y1+(y2-y1)*f0-g,
-             x1+(x2-x1)*f1+g, y1+(y2-y1)*f1+g);
+    const xa=x1+(x2-x1)*f0, ya=y1+(y2-y1)*f0, xb=x1+(x2-x1)*f1, yb=y1+(y2-y1)*f1;
+    tzOcupar(Math.min(xa,xb)-g, Math.min(ya,yb)-g, Math.max(xa,xb)+g, Math.max(ya,yb)+g);
   }
 }
 // Reserva el interior del bloque de una carga repartida: (A,B) sobre el eje,
@@ -367,6 +393,12 @@ function tzOcuparBloque(A, B, ex, ey, h1, h2){
     tzOcupar(Math.min.apply(null,xs), Math.min.apply(null,ys),
              Math.max.apply(null,xs), Math.max.apply(null,ys));
   }
+}
+// Reserva un arco (el de un par o el de un momento de reacción) como el
+// cuadrado que lo contiene: radio r alrededor de (cx,cy), más la holgura g.
+function tzOcuparArco(cx, cy, r, g){
+  const s = r + (g || 0);
+  tzOcupar(cx-s, cy-s, cx+s, cy+s);
 }
 // Extensión de todo lo reservado hasta ahora (flechas, rótulos, bloques).
 // Sirve para arrancar las cotas MÁS ALLÁ de lo dibujado, en vez de a una
@@ -386,6 +418,7 @@ function tzExtension(){
 function tzTextoFijo(x, y, txt, opts){
   const w = tzAncho(txt, opts), h = tzAlto(txt, opts);
   tzOcupar(x-w/2, y-h/2, x+w/2, y+h/2);
+  _tzCajas[_tzCajas.length-1].rot = true;
   return '\\node[' + (opts || 'font=\\scriptsize') + ', fill=white, inner sep=1pt] at ('
        + x.toFixed(3) + ',' + y.toFixed(3) + ') {' + txt + '};\n';
 }
@@ -395,6 +428,9 @@ function tzTextoFijo(x, y, txt, opts){
 // así no cabe, el rótulo NO se omite: se lleva al último escalón y se une con
 // una guía fina al punto que rotula, porque un valor que falta es peor que uno
 // alejado (y sin la guía no se sabría a qué fuerza pertenece).
+// Un sitio cuya guía atravesaría otro rótulo se descarta como si estuviera
+// ocupado (2026-09-14): la guía gris que cruzaba el valor de una repartida se
+// leía en el PDF como la flecha de la puntual pasando por encima del texto.
 function tzTexto(x, y, txt, opts, dirX, dirY){
   const w = tzAncho(txt, opts), h = tzAlto(txt, opts);
   const dx0 = (dirX === undefined) ? 0 : dirX;
@@ -405,27 +441,80 @@ function tzTexto(x, y, txt, opts, dirX, dirY){
   const paso = h + 0.08;
   const nodo = (ox, oy) => '\\node[' + (opts || 'font=\\scriptsize') + '] at ('
       + (x+ox).toFixed(3) + ',' + (y+oy).toFixed(3) + ') {' + txt + '};\n';
-  const guia = (ox, oy) => {
+  // Extremo de la guía, o null si no hace falta. La guía acaba en el BORDE de
+  // la caja del rótulo, donde la corta la recta que viene del punto. Antes
+  // paraba a una fracción fija del ancho y, con un desplazamiento sobre todo
+  // horizontal, entraba en el texto y lo tachaba.
+  const finGuia = (ox, oy) => {
     const d = Math.hypot(ox, oy);
-    if(d < 0.62) return '';
-    // la guía llega al borde del rótulo, no a su centro
-    const fx = x + ox - (ox/d)*(w*0.32), fy = y + oy - (oy/d)*(h*0.55);
-    return '\\draw[gray!55, line width=.25pt] (' + x.toFixed(3) + ',' + y.toFixed(3)
-         + ') -- (' + fx.toFixed(3) + ',' + fy.toFixed(3) + ');\n';
+    if(d < 0.62) return null;
+    const ux = ox/d, uy = oy/d;
+    const sx = (Math.abs(ux) < 1e-6) ? Infinity : (w/2)/Math.abs(ux);
+    const sy = (Math.abs(uy) < 1e-6) ? Infinity : (h/2)/Math.abs(uy);
+    const s = Math.min(sx, sy) + 0.05;
+    if(s >= d - 0.05) return null;         // la caja ya llega al punto: nada que unir
+    return {x: x + ox - ux*s, y: y + oy - uy*s};
   };
-  for(let k=0;k<14;k++){
-    for(const lado of (k===0 ? [0] : [0,-1,1,-2,2])){
-      const ox = ex*paso*k + lx*lado*w*0.55, oy = ey*paso*k + ly*lado*w*0.55;
-      const c = {x0:x+ox-w/2, y0:y+oy-h/2, x1:x+ox+w/2, y1:y+oy+h/2};
-      if(!tzChoca(c)){
+  // La guía dibujada también se reserva, para que un rótulo colocado DESPUÉS
+  // no caiga encima de ella (el otro sentido del mismo cruce).
+  const guia = (ox, oy) => {
+    const f = finGuia(ox, oy);
+    if(!f) return '';
+    const n0 = _tzCajas.length;
+    tzOcuparTrazo(x, y, f.x, f.y, 0.03);
+    for(let i=n0;i<_tzCajas.length;i++) _tzCajas[i].guia = true;
+    return '\\draw[gray!55, line width=.25pt] (' + x.toFixed(3) + ',' + y.toFixed(3)
+         + ') -- (' + f.x.toFixed(3) + ',' + f.y.toFixed(3) + ');\n';
+  };
+  // Dos pasadas. La estricta exige además que el sitio no pise una guía ya
+  // dibujada y que su propia guía no cruce otro rótulo. Si en una figura
+  // apretada no queda ninguno así, la segunda acepta lo que se aceptaba antes
+  // (libre de dibujo y de rótulos): sin ella el rótulo acababa en el último
+  // escalón, a 5 cm, con una guía que cruzaba media figura, que es peor que
+  // rozar una guía corta.
+  for(const estricta of [true, false]){
+    for(let k=0;k<14;k++){
+      for(const lado of (k===0 ? [0] : [0,-1,1,-2,2])){
+        const ox = ex*paso*k + lx*lado*w*0.55, oy = ey*paso*k + ly*lado*w*0.55;
+        const c = {x0:x+ox-w/2, y0:y+oy-h/2, x1:x+ox+w/2, y1:y+oy+h/2, rot:true};
+        if(tzChoca(c, !estricta)) continue;
+        if(estricta){
+          const f = finGuia(ox, oy);
+          if(f && tzGuiaCruza(x, y, f.x, f.y)) continue;
+        }
         _tzCajas.push(c);
         return guia(ox, oy) + nodo(ox, oy);
       }
     }
   }
   const ox = ex*paso*14, oy = ey*paso*14;
-  _tzCajas.push({x0:x+ox-w/2, y0:y+oy-h/2, x1:x+ox+w/2, y1:y+oy+h/2});
+  _tzCajas.push({x0:x+ox-w/2, y0:y+oy-h/2, x1:x+ox+w/2, y1:y+oy+h/2, rot:true});
   return guia(ox, oy) + nodo(ox, oy);
+}
+// ── Rótulo con sitios preferidos ──
+// `candidatos` es una lista de centros {x,y} en orden de preferencia. Se prueba
+// cada uno tal cual, sin escalones ni desplazamientos, y se usa el primero
+// libre: sirve cuando un rótulo tiene pocos sitios naturales (las esquinas de un
+// nudo, las diagonales de un par, el centro o los cuartos de una repartida) y
+// apartarse en escalones lo alejaría de lo que nombra. Si ninguno está libre,
+// cae a tzTexto con su búsqueda en (dirX,dirY) y su guía, desde `origen` si se
+// da y si no desde el primer candidato. `origen` sirve cuando los candidatos
+// están al costado de lo que se rotula: la guía nace en el punto de arranque de
+// tzTexto, y desde un candidato apartado salía de un hueco vacío (el interior
+// del bloque de una repartida), no de la flecha que nombra.
+function tzTextoEn(candidatos, txt, opts, dirX, dirY, origen){
+  if(!candidatos || !candidatos.length) return '';
+  const w = tzAncho(txt, opts), h = tzAlto(txt, opts);
+  for(const p of candidatos){
+    const c = {x0:p.x-w/2, y0:p.y-h/2, x1:p.x+w/2, y1:p.y+h/2, rot:true};
+    if(!tzChoca(c)){
+      _tzCajas.push(c);
+      return '\\node[' + (opts || 'font=\\scriptsize') + '] at ('
+           + p.x.toFixed(3) + ',' + p.y.toFixed(3) + ') {' + txt + '};\n';
+    }
+  }
+  const o = origen || candidatos[0];
+  return tzTexto(o.x, o.y, txt, opts, dirX, dirY);
 }
 
 // Cadena de cotas VERTICAL: misma lógica, pero los niveles se apilan hacia
@@ -578,7 +667,10 @@ function _angulosFiguraTex(lista){
 // desde el eje más cercano (trazo punteado), con su letra griega colocada por
 // tzTexto. (ox,oy) es la cola; (ux,uy) la dirección de la flecha hacia el nudo.
 // Mismo criterio que el lienzo (bsaAnguloAgudoEje) y que armaduras.
-function tikzArcoReaccionFI(ox, oy, ux, uy, gen){
+// `pend` (opcional): lista de rótulos pendientes. Si se da, la letra no se
+// coloca aquí sino que se deja en ella como {x,y,txt,opts,dir}, para que la
+// figura la coloque cuando ya tenga reservada toda su geometría (tikzViga).
+function tikzArcoReaccionFI(ox, oy, ux, uy, gen, pend){
   const ag = bsaAnguloAgudoEje(ux, uy);
   if(ag.grados < 4) return '';
   const rayDeg = ag.desdeV ? (uy >= 0 ? 90 : -90) : (ux >= 0 ? 0 : 180);
@@ -593,7 +685,10 @@ function tikzArcoReaccionFI(ox, oy, ux, uy, gen){
   q += '\\draw[bsaReac!70, line width=0.45pt] (' + F3(ox + R2*cr) + ',' + F3(oy + R2*sr)
      + ') arc [start angle=' + rayDeg + ', end angle=' + endDeg.toFixed(2) + ', radius=' + R2 + '];\n';
   const am = (rayDeg + endDeg)/2*Math.PI/180;
-  q += tzTexto(ox + 0.72*Math.cos(am), oy + 0.72*Math.sin(am), '$' + letra + '$', 'font=\\tiny, color=bsaReac', Math.cos(am), Math.sin(am));
+  const rot = {x:ox + 0.72*Math.cos(am), y:oy + 0.72*Math.sin(am), txt:'$' + letra + '$',
+               opts:'font=\\tiny, color=bsaReac', dir:[Math.cos(am), Math.sin(am)]};
+  if(pend) pend.push(rot);
+  else q += tzTexto(rot.x, rot.y, rot.txt, rot.opts, rot.dir[0], rot.dir[1]);
   _angulosFiguraFI.push({letra, valor:ag.grados});
   return q;
 }

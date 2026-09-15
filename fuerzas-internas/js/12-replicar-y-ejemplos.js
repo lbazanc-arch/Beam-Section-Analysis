@@ -39,7 +39,13 @@ function applyReplicar(){
   if(!idsNodos.length){ aviso('No hay nada que replicar.', 'error'); return; }
   registrarCambio();
   const idsTramos = tramosDeGrupo(idsNodos);
-  const idsCargas = selCargas.filter(id=>{ const c=cargas.find(z=>z.id===id); return c && idsTramos.indexOf(c.tramo)>=0; });
+  // Las cargas marcadas se separan por DESTINO. Una de nudo cuelga de c.nudo y
+  // no de c.tramo: la nueva guarda tramo:null (nunca entraba por el filtro de
+  // tramos) y la de un archivo antiguo puede traer un tramo cualquiera relleno,
+  // que la copiaba con ese tramo pero con el nudo ORIGINAL y la duplicaba allí.
+  const cargasMarcadas = selCargas.map(id=>cargas.find(z=>z.id===id)).filter(Boolean);
+  const cargasTramo = cargasMarcadas.filter(c=>c.destino!=='nudo' && idsTramos.indexOf(c.tramo)>=0);
+  const cargasNudo  = cargasMarcadas.filter(c=>c.destino==='nudo' && idsNodos.indexOf(c.nudo)>=0);
   const nuevosNodos=[], nuevosTramos=[], nuevasCargas=[];
   for(let i=1;i<=nrep;i++){
     const mapaNodo = {};
@@ -52,13 +58,27 @@ function applyReplicar(){
       const o = tramos.find(z=>z.id===id); if(!o) return;
       const nt = Object.assign({}, o, {id:++tramoSeq, a:mapaNodo[o.a], b:mapaNodo[o.b]});
       tramos.push(nt); nuevosTramos.push(nt.id);
-      idsCargas.forEach(cid=>{
-        const c = cargas.find(z=>z.id===cid);
-        if(c && c.tramo===id){
-          const nc = Object.assign({}, c, {id:++cargaSeq, tramo:nt.id});
-          cargas.push(nc); nuevasCargas.push(nc.id);
+      cargasTramo.forEach(c=>{
+        if(c.tramo!==id) return;
+        const nc = Object.assign({}, c, {id:++cargaSeq, tramo:nt.id, nudo:null});
+        // Una posición dada por coordenada del PLANO (coordX o coordY en marco
+        // global) es absoluta: `sDesdePos` le resta la del nudo inicial. Copiada
+        // tal cual quedaba fuera del tramo nuevo y se pegaba a un extremo. La
+        // réplica es una traslación pura, así que basta sumar el desplazamiento;
+        // sobre el eje o en marco local la posición ya es relativa al tramo.
+        const d = c.basePos==='coordX' ? dx*i : c.basePos==='coordY' ? dy*i : 0;
+        if(d && marcoDeCarga(c)!=='local'){
+          nc.pos = (Number(c.pos)||0) + d;
+          if(c.posFin!==undefined && c.posFin!==null) nc.posFin = (Number(c.posFin)||0) + d;
         }
+        cargas.push(nc); nuevasCargas.push(nc.id);
       });
+    });
+    // Las de nudo, una vez por réplica y ya con mapaNodo completo.
+    cargasNudo.forEach(c=>{
+      if(mapaNodo[c.nudo]===undefined) return;
+      const nc = Object.assign({}, c, {id:++cargaSeq, nudo:mapaNodo[c.nudo], tramo:null});
+      cargas.push(nc); nuevasCargas.push(nc.id);
     });
   }
   reNombrar();

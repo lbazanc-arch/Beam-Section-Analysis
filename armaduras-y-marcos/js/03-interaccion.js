@@ -64,6 +64,14 @@ function borrarBarra(id){ registrarCambio(); barras = barras.filter(b=>b.id!==id
 // touchstart llama preventDefault()).
 function intentarAbrirEdicion(mx, my){
   const n = nodoEn(mx, my);
+  // Con la herramienta Carga, tocar un nudo es poner una carga, nunca editarlo.
+  // El doble toque de 18-arranque.js se come el segundo toque sin pasar por
+  // onCanvasDown: si la ventana no quedó abierta con el primero, se abre aquí.
+  if(tool === 'carga'){
+    const m = document.getElementById('cargaModal');
+    if(n && !(m && m.classList.contains('show'))) nuevaCargaArm({nudo:n.id});
+    return;
+  }
   if(n){ abrirEdNodo(n.id); return; }
   const b = barraEn(mx, my);
   if(b) abrirEdBarra(b.id);
@@ -88,6 +96,12 @@ function onCanvasDown(e){
     refrescar();
   } else if(tool === 'apoyo'){
     if(n) abrirApoyoModal(n.id);
+  } else if(tool === 'carga'){
+    // La ventana aparece solo al tocar un nudo, y la herramienta sigue activa
+    // tras Aplicar o Cancelar para poner varias seguidas. Sobre una barra se
+    // explica por qué no; sobre zona vacía no pasa nada, como con Apoyo.
+    if(n) nuevaCargaArm({nudo:n.id});
+    else if(barraEn(mx, my)) aviso('En una armadura las cargas van en los nudos: toca un nudo.');
   } else if(tool === 'pan'){
     iniciarPan(mx, my);
   } else if(tool === 'corte'){
@@ -273,15 +287,19 @@ function segmentosCruzan(ax,ay,bx,by, cx,cy,dx,dy){
 
 function setTool(t){
   tool = t; selNodo = null;
-  ['barra','apoyo','corte','sel','pan'].forEach(k=>{
+  ['barra','apoyo','carga','corte','sel','pan'].forEach(k=>{
     const el = document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
   const bd = document.getElementById('btnDel');
   if(bd) bd.classList.toggle('active', t==='borrar');
+  // Sin nudos no hay dónde poner una carga; se avisa, pero la herramienta
+  // queda activa para cuando se dibuje la armadura.
+  if(t==='carga' && !nodos.length) aviso('Primero dibuja la armadura.', 'error');
   const hints = {
     barra:'Barra de armadura: dos fuerzas, solo N. Cada clic coloca un nudo y lo une al anterior; Esc corta la cadena.',
     apoyo:'Haz clic sobre un nudo y elige el tipo de apoyo, o quítalo.',
+    carga:'Toca un nudo para ponerle una carga.',
     corte:'Arrastra una línea que atraviese la armadura de lado a lado.',
     pan:'Arrastra el lienzo para desplazar la vista.',
     sel:'Toca para seleccionar · arrastra un objeto para moverlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar varios (un arrastre rápido solo desplaza el panel) · doble clic para editar.',

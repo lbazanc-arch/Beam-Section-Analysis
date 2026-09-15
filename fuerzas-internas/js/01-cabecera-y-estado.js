@@ -62,6 +62,9 @@ let panDrag = null, mouseW = null;
 const VIS = {grilla:true, ejes:true, cotas:true, cargas:true, peso:true, apoyos:true, leyenda:true};
 function setVis(cual, valor){ VIS[cual] = !!valor; dibujar(); }
 let edNodo = null, edTramo = null, edApoyo = null, edCarga = null;
+// Tipo de carga ('P'|'U'|'T'|'M') elegido en el menú «Cargas» mientras la
+// herramienta 'carga' está activa; setTool lo vacía al cambiar de herramienta.
+let tipoCargaPendiente = null;
 
 const LEN_A_M = {m:1, cm:0.01, ft:0.3048};
 const FOR_A_KN = {kN:1, N:0.001, ton:9.80665, lb:0.00444822};

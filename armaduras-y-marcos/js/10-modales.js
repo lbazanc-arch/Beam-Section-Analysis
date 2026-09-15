@@ -180,16 +180,22 @@ function normalizarCargasNodo(n){
 // UNA ventana declara UNA carga, con la forma de la de fuerzas-internas:
 // campos a la izquierda, croquis a la derecha y validacion antes de aplicar.
 // Las cargas ya puestas se editan una por fila en el panel de elementos.
-let edCargaArm = null;          // {nuevo, nudo, nudo0, idx}
+// La ventana se abre SIEMPRE sobre un nudo ya elegido —tocándolo con la
+// herramienta Carga (03-interaccion.js), con «Añadir carga…» de Editar nudo o
+// con el lápiz del panel—, así que no tiene selector: el nudo va en el título
+// y, al editar, queda fijo.
+let edCargaArm = null;          // {nuevo, nudo, idx}
 
 function nuevaCargaArm(ref){
   cerrarCargaArm();
-  if(!nodos.length){ aviso('Primero dibuja la armadura.', 'error'); return; }
-  edCargaArm = {nuevo:true, nudo:(ref && ref.nudo) || nodos[0].id};
+  // Sin nudo no se abre nada: nunca se toma uno por defecto.
+  if(!ref || ref.nudo === undefined || ref.nudo === null) return;
+  if(!nodos.some(z=>z.id === ref.nudo)) return;
+  edCargaArm = {nuevo:true, nudo:ref.nudo};
   abrirCargaArmModal();
 }
 function editarCargaArm(id, idx){
-  edCargaArm = {nuevo:false, nudo:id, nudo0:id, idx};
+  edCargaArm = {nuevo:false, nudo:id, idx};
   abrirCargaArmModal();
 }
 function borrarCargaArm(id, idx){
@@ -200,14 +206,16 @@ function borrarCargaArm(id, idx){
 }
 function _cargaDeRefArm(){
   if(!edCargaArm || edCargaArm.nuevo) return null;
-  const n = nodos.find(z=>z.id === edCargaArm.nudo0);
+  const n = nodos.find(z=>z.id === edCargaArm.nudo);
   return (n && (n.cargas || [])[edCargaArm.idx]) || null;
 }
 function abrirCargaArmModal(){
+  const n = nodos.find(z=>z.id === edCargaArm.nudo);
+  if(!n){ edCargaArm = null; return; }
   const c = _cargaDeRefArm();
-  const selN = document.getElementById('cgNudo');
-  selN.innerHTML = nodos.map(n=>'<option value="' + n.id + '">Nudo ' + n.nombre + '</option>').join('');
-  selN.value = edCargaArm.nudo;
+  // El título dice el nudo: es el único sitio de la ventana donde aparece.
+  document.getElementById('cgTitulo').textContent =
+    (edCargaArm.nuevo ? 'Carga en el nudo ' : 'Editar carga del nudo ') + n.nombre;
   document.getElementById('cgLblMag').textContent = 'Magnitud (' + unitFor + ')';
   document.getElementById('cgMag').value = c ? c.mag : 10;
   // El campo ensena el angulo del USUARIO (de donde viene la carga). Ojo con
@@ -247,8 +255,11 @@ function setDirCargaArm(v){
 }
 function aplicarCargaArm(){
   if(!edCargaArm) return;
-  const n = nodos.find(z=>z.id === parseInt(document.getElementById('cgNudo').value, 10));
-  if(!n){ aviso('Elige un nudo.', 'error'); return; }
+  const n = nodos.find(z=>z.id === edCargaArm.nudo);
+  if(!n){ aviso('Ese nudo ya no existe.', 'error'); cerrarCargaArm(); return; }
+  if(!edCargaArm.nuevo && !(n.cargas || [])[edCargaArm.idx]){
+    aviso('Esa carga ya no existe.', 'error'); cerrarCargaArm(); return;
+  }
   const dir = document.getElementById('cgDir').value;
   // El campo dice DE DONDE VIENE la carga; se guarda hacia donde va.
   const angUsr = parseFloat(document.getElementById('cgAng').value);
@@ -256,14 +267,11 @@ function aplicarCargaArm(){
   const mag = parseFloat(document.getElementById('cgMag').value) || 0;
   if(Math.abs(mag) < 1e-12){ aviso('La magnitud es cero: la carga no har\u00eda nada.', 'error'); return; }
   registrarCambio();
-  // Al editar, la carga original se quita de donde estuviera: asi se puede
-  // moverla de un nudo a otro sin duplicarla.
-  if(!edCargaArm.nuevo){
-    const n0 = nodos.find(z=>z.id === edCargaArm.nudo0);
-    if(n0 && n0.cargas){ n0.cargas.splice(edCargaArm.idx, 1); recomponerCargaNudo(n0); }
-  }
   if(!Array.isArray(n.cargas)) n.cargas = [];
-  n.cargas.push({dir, mag, ang});
+  // Al editar, el nudo es fijo y la carga se reemplaza EN SU SITIO: conserva
+  // su fila en el panel de elementos.
+  if(edCargaArm.nuevo) n.cargas.push({dir, mag, ang});
+  else n.cargas[edCargaArm.idx] = {dir, mag, ang};
   recomponerCargaNudo(n);
   cerrarCargaArm();
   resultado = null; refrescar();
@@ -275,7 +283,7 @@ function dibujarCroquisCargaArm(){
   const _angUsr = parseFloat((document.getElementById('cgAng') || {}).value);
   const ang = bsaAnguloOpuesto(isFinite(_angUsr) ? _angUsr : 90);
   const mag = parseFloat((document.getElementById('cgMag') || {}).value) || 0;
-  const n = nodos.find(z=>z.id === parseInt((document.getElementById('cgNudo') || {}).value, 10));
+  const n = nodos.find(z=>z.id === edCargaArm.nudo);
   const cx = W2/2, cy = H2/2;
   let s = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;height:auto;display:block">'
         + '<rect width="' + W2 + '" height="' + H2 + '" fill="#fff"/>';

@@ -3,11 +3,21 @@
 // ═══════════════════════════════════════════════════════════
 
 // ¿hay una carga bajo el cursor?  (para poder seleccionarla y editarla)
+// Una carga de NUDO se busca en su nudo (2026-09-14): antes se situaba con
+// c.tramo, que en ella era un tramo cualquiera (y ahora es null).
 function cargaEn(mx,my){
   for(const c of cargas){
-    const t = tramos.find(z=>z.id===c.tramo); const g = t && geoTramo(t);
-    if(!g) continue;
-    if(c.tipo==='U' || c.tipo==='T'){
+    const enNudo = (c.destino === 'nudo');
+    let g = null, px = 0, py = 0;
+    if(enNudo){
+      const nn = nodo(c.nudo); if(!nn) continue;
+      g = geoDeCarga(c);                 // ejes locales, para perp y axial
+      [px,py] = aPantalla(nn.x, nn.y);
+    } else {
+      const t = tramos.find(z=>z.id===c.tramo); g = t && geoTramo(t);
+      if(!g) continue;
+    }
+    if(!enNudo && (c.tipo==='U' || c.tipo==='T')){
       // el bloque de la distribuida, por encima del tramo
       const [ax,ay]=aPantalla(g.a.x,g.a.y), [bx,by]=aPantalla(g.b.x,g.b.y);
       const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy; if(l2<1) continue;
@@ -16,8 +26,10 @@ function cargaEn(mx,my){
       const px=ax+s*dx, py=ay+s*dy;
       if(my < py && my > py-40 && Math.abs(mx-px) < 400) return c;
     } else {
-      const s = Math.max(0, Math.min(g.L, c.pos||0));
-      const [px,py]=aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
+      if(!enNudo){
+        const s = Math.max(0, Math.min(g.L, c.pos||0));
+        [px,py]=aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
+      }
       if(c.tipo==='M'){ if(Math.hypot(mx-px,my-py)<22) return c; continue; }
       // Puntual en cualquier dirección: se mide la distancia al TRAZO de la
       // flecha, que nace a 52 px del punto en sentido contrario a la carga.
@@ -32,6 +44,13 @@ function cargaEn(mx,my){
     }
   }
   return null;
+}
+// ¿Sigue existiendo el elemento que sostiene la carga? Una carga de nudo cae
+// con su nudo y una de tramo con su tramo. Filtrar todas por c.tramo borraba
+// las de nudo, que desde el 2026-09-14 guardan tramo:null.
+function cargaSigueAnclada(c){
+  return (c.destino === 'nudo') ? nodos.some(n=>n.id===c.nudo)
+                                : tramos.some(t=>t.id===c.tramo);
 }
 function marcado(lista,id){ return lista.indexOf(id)>=0; }
 function alternar(lista,id){ const i=lista.indexOf(id); i>=0?lista.splice(i,1):lista.push(id); }
@@ -86,6 +105,21 @@ function onDown(e){
     const tr = tramoEn(_mx, _my);
     if(tr) abrirCorteEn(tr, _mx, _my);
     else aviso('Toca sobre un tramo de la viga: ahí se hace el corte.');
+    return;
+  }
+  // Cargas: el tipo ya se eligió en el menú; el toque decide DÓNDE va. Primero
+  // el nudo, que si no quedaría tapado por los tramos que llegan a él. La
+  // ventana se abre con ese destino fijo; al aplicar o cancelar la herramienta
+  // sigue armada con el mismo tipo, para poner varias seguidas.
+  if(tool==='carga'){
+    const distrib = (tipoCargaPendiente==='U' || tipoCargaPendiente==='T');
+    if(n){
+      if(distrib) aviso('Las cargas repartidas van sobre un tramo: toca un tramo.');
+      else nuevaCarga(tipoCargaPendiente, {destino:'nudo', nudo:n.id});
+      return;
+    }
+    const tr = tramoEn(mx, my);
+    if(tr) nuevaCarga(tipoCargaPendiente, {destino:'tramo', tramo:tr.id});
     return;
   }
   if(tool==='nudo'){
@@ -208,7 +242,7 @@ function onUp(){
         cargas = cargas.filter(c=>!marcado(bC, c.id));
         tramos = tramos.filter(t=>!marcado(bT,t.id) && !marcado(bN,t.a) && !marcado(bN,t.b));
         nodos  = nodos.filter(n=>!marcado(bN,n.id));
-        cargas = cargas.filter(c=>tramos.some(t=>t.id===c.tramo));
+        cargas = cargas.filter(cargaSigueAnclada);
         selNodos = selNodos.filter(id=>!marcado(bN,id));
         selTramos = selTramos.filter(id=>!marcado(bT,id));
         selCargas = selCargas.filter(id=>!marcado(bC,id));
@@ -308,7 +342,9 @@ function onDbl(e){
 
 function setTool(t){
   tool=t; if(t!=='nudo') primerNodo=null;
-  ['pan','nudo','apoyo','sel','corte'].forEach(k=>{
+  // El tipo de carga elegido en el menú solo vive mientras dura su herramienta.
+  if(t!=='carga') tipoCargaPendiente=null;
+  ['pan','nudo','apoyo','sel','corte','carga'].forEach(k=>{
     const el=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
@@ -318,7 +354,14 @@ function setTool(t){
   if(bd) bd.classList.toggle('active', t==='borrar');
   const bp = document.getElementById('btnPeso');
   if(bp) bp.classList.toggle('active', t==='peso');
+  // En el menú «Cargas» se marca el tipo armado; el reinicio se limita a su
+  // propia rejilla para no borrar la marca de otros grupos.
+  document.querySelectorAll('#menuCargas .menu-btn').forEach(b=>
+    b.classList.toggle('active', t==='carga' && b.dataset.tipo===tipoCargaPendiente));
   const hints={pan:'Arrastra el lienzo para desplazar la vista.',
+    carga:(tipoCargaPendiente==='U' || tipoCargaPendiente==='T')
+      ? 'Toca el tramo donde va la carga.'
+      : 'Toca el tramo o el nudo donde va la carga.',
     nudo:'Haz clic para colocar nudos; se van uniendo formando la viga.',
     apoyo:'Haz clic en un nudo para asignarle apoyo o rótula.',
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',

@@ -101,7 +101,9 @@ function manejarEsc(){
     selNodos=[]; selTramos=[]; selCargas=[]; selNodo=null; selTramo=null; refrescar(); return;
   }
   // 6) La herramienta de borrado, para no dejarla armada sin darse cuenta
-  if(tool==='borrar'){ setTool('sel'); }
+  if(tool==='borrar'){ setTool('sel'); return; }
+  // 7) La herramienta de cargas con su tipo armado: se vuelve a desplazar
+  if(tool==='carga'){ setTool('pan'); }
 }
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape'){ manejarEsc(); return; }

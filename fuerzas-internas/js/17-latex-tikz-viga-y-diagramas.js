@@ -25,18 +25,56 @@ function tikzViga(conReacciones, sel){
     ? sel.incNodos.indexOf(u.n.id) >= 0
     : (!_idsVis || _ndIds.has(u.n.id));
   const OR = (sel && sel.origen) ? sel.origen : {x:0, y:0, nombre:'O'};
-  let minx=Infinity, maxx=-Infinity;
-  _nd.forEach(n=>{ minx=Math.min(minx,n.x); maxx=Math.max(maxx,n.x); });
+  let minx=Infinity, maxx=-Infinity, miny=Infinity, maxy=-Infinity;
+  _nd.forEach(n=>{ minx=Math.min(minx,n.x); maxx=Math.max(maxx,n.x); miny=Math.min(miny,n.y); maxy=Math.max(maxy,n.y); });
   const spanX = Math.max(maxx-minx, 1e-6);
   const k = Math.min(2.2, 8/spanX);
   const Xn = x => (x-minx)*k, Yn = y => y*k;
+  // Centro de la figura: decide qué lado de una flecha es «de fuera».
+  const cxFig = (Xn(minx)+Xn(maxx))/2, cyFig = (Yn(miny)+Yn(maxy))/2;
   const F = n => n.toFixed(3);
   let out = '';
+  // ── Dos fases (2026-09-14) ──
+  // (A) Se dibuja y se reserva TODA la geometría: tramos, rótulas, puntos de
+  // nudo, apoyos, bloques y flechas de las cargas, arcos de los pares y
+  // reacciones. (B) Solo entonces se colocan los rótulos, que se van dejando en
+  // estas listas como {x,y,txt,opts,dir,candidatos}. Antes cada rótulo se
+  // colocaba en cuanto se dibujaba lo suyo, sin saber lo que venía detrás: los
+  // tramos no se reservaban, el nombre del nudo tenía un sitio fijo que no veía
+  // el arco del par ni las flechas de la repartida, y la flecha de una puntual
+  // atravesaba el valor de la repartida colocado antes que ella. El TikZ de los
+  // rótulos se escribe al final, así que además quedan encima del dibujo.
+  const pendNudos = [], pendPares = [], pendRepartidas = [], pendPuntuales = [], pendW = [], pendReac = [];
+  // Distancia desde la cola de una flecha hasta el centro de su rótulo: media
+  // caja medida en la dirección de la flecha, más la holgura `g` con que se
+  // reservó el trazo y 0.02. Con una distancia fija (0.16) la caja pisaba la
+  // reserva de su propia flecha y el rótulo nunca se quedaba en su cola: subía
+  // un escalón, o se iba de lado con una guía.
+  const sepCola = (txt, op, vx, vy, g) => Math.abs(vx)*tzAncho(txt, op)/2 + Math.abs(vy)*tzAlto(txt, op)/2 + g + 0.02;
   _tr.forEach(t=>{
     const a = nodo(t.a), b = nodo(t.b);
     if(!a||!b) return;
     out += '\\draw[line width=1.6pt, color=bsaAcc2] (' + F(Xn(a.x)) + ',' + F(Yn(a.y)) + ') -- (' + F(Xn(b.x)) + ',' + F(Yn(b.y)) + ');\n';
+    tzOcuparTrazo(Xn(a.x), Yn(a.y), Xn(b.x), Yn(b.y), 0.06);
   });
+  // Reserva el rectángulo local [x0,x1]×[y0,y1] de un símbolo girado `ang`
+  // grados alrededor del nudo (px,py), troceado en celdas: la caja envolvente
+  // de un símbolo girado (el cuadrado de antes) tapaba también las esquinas
+  // libres del nudo, que es donde va su nombre.
+  const ocuparGirado = (px, py, x0, y0, x1, y1, ang) => {
+    const ca = Math.cos(ang*Math.PI/180), sa = Math.sin(ang*Math.PI/180);
+    const ni = Math.max(1, Math.ceil((x1-x0)/0.2)), nj = Math.max(1, Math.ceil((y1-y0)/0.2));
+    for(let i=0;i<ni;i++) for(let j=0;j<nj;j++){
+      const xa = x0+(x1-x0)*i/ni, xb = x0+(x1-x0)*(i+1)/ni;
+      const ya = y0+(y1-y0)*j/nj, yb = y0+(y1-y0)*(j+1)/nj;
+      const xs = [], ys = [];
+      [[xa,ya],[xb,ya],[xa,yb],[xb,yb]].forEach(p=>{
+        xs.push(px + p[0]*ca - p[1]*sa); ys.push(py + p[0]*sa + p[1]*ca);
+      });
+      tzOcupar(Math.min.apply(null,xs), Math.min.apply(null,ys),
+               Math.max.apply(null,xs), Math.max.apply(null,ys));
+    }
+  };
   _nd.forEach(n=>{
     const x = Xn(n.x), y = Yn(n.y);
     if(n.apoyo && n.apoyo !== 'libre'){
@@ -46,10 +84,12 @@ function tikzViga(conReacciones, sel){
       // una columna el muro salía montado sobre la propia viga.
       const emp = (n.apoyo === 'empotrado');
       const aAp = anguloApoyo(n);
-      out += tikzApoyo(x, y, n.apoyo, 1, emp ? anguloEmpotramiento(n) : undefined, aAp);
-      // Si el símbolo gira, su hueco deja de ser la banda de debajo del nudo y
-      // pasa a ser un cuadrado alrededor, como el del empotramiento.
-      if(emp || Math.abs(aAp - 90) > 0.01) tzOcupar(x-0.45, y-0.45, x+0.45, y+0.45);
+      const aMuro = emp ? anguloEmpotramiento(n) : undefined;
+      out += tikzApoyo(x, y, n.apoyo, 1, aMuro, aAp);
+      // Si el símbolo gira, su hueco se reserva girado con él: el muro (cara en
+      // x = 0 y rayas hacia +x local) o el simple/móvil colgando del nudo.
+      if(emp) ocuparGirado(x, y, -0.04, -0.53, 0.20, 0.46, (aMuro === undefined ? 180 : aMuro));
+      else if(Math.abs(aAp - 90) > 0.01) ocuparGirado(x, y, -0.42, -0.62, 0.42, 0.02, aAp - 90);
       else tzOcupar(x-0.42, y-0.62, x+0.42, y+0.02);
     }
   });
@@ -58,20 +98,43 @@ function tikzViga(conReacciones, sel){
       out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.8pt] (' + F(Xn(n.x)) + ',' + F(Yn(n.y)) + ') circle (0.09);\n';
   });
   _nd.forEach(n=>{
-    const x = F(Xn(n.x)), y = F(Yn(n.y));
-    out += '\\filldraw[color=bsaAcc2] (' + x + ',' + y + ') circle (0.045);\n';
-    out += '\\node[above right, font=\\scriptsize\\bfseries, color=bsaAcc2] at (' + x + ',' + y + ') {' + escLatex(n.nombre) + '};\n';
-    // El nombre del nudo es intocable: reserva su hueco antes que nada.
-    tzOcupar(+x, +y+0.06, +x+0.30, +y+0.34);
+    const x = Xn(n.x), y = Yn(n.y);
+    out += '\\filldraw[color=bsaAcc2] (' + F(x) + ',' + F(y) + ') circle (0.045);\n';
+    tzOcupar(x-0.10, y-0.10, x+0.10, y+0.10);      // el punto y, si la hay, la rótula
+    // El nombre busca la primera esquina libre, empezando arriba a la derecha
+    // (donde iba siempre). Las esquinas se separan lo justo para que la caja
+    // del rótulo no toque el punto del nudo ni la banda de un tramo recto. Si
+    // un par en el nudo las tapa todas, se prueban las mismas esquinas por
+    // fuera de su arco (`ey2`) y, por último, apartadas en horizontal más allá
+    // del rayado de un muro (`ex2`: el voladizo con repartida y momento de
+    // empotramiento), antes de escapar hacia arriba, que con una repartida a
+    // cada lado subía el nombre por encima del bloque. `ex3` queda más allá
+    // del medio ancho de un apoyo simple o móvil (0.42): un apoyo intermedio
+    // con repartida a los dos lados tapaba las otras doce esquinas y su nombre
+    // subía por encima de las cargas con una guía que cruzaba el bloque.
+    const txt = escLatex(n.nombre), op = 'font=\\scriptsize\\bfseries, color=bsaAcc2';
+    const wN = tzAncho(txt, op), hN = tzAlto(txt, op);
+    const ex = wN/2 + 0.08, ey = hN/2 + 0.11, ey2 = hN/2 + 0.42, ex2 = wN/2 + 0.26, ex3 = wN/2 + 0.48;
+    pendNudos.push({x, y, txt, opts:op, dir:[0, 1],
+      candidatos:[{x:x+ex,  y:y+ey},  {x:x-ex,  y:y+ey},  {x:x+ex,  y:y-ey},  {x:x-ex,  y:y-ey},
+                  {x:x+ex,  y:y+ey2}, {x:x-ex,  y:y+ey2}, {x:x+ex,  y:y-ey2}, {x:x-ex,  y:y-ey2},
+                  {x:x+ex2, y:y+ey},  {x:x-ex2, y:y+ey},  {x:x+ex2, y:y-ey},  {x:x-ex2, y:y-ey},
+                  {x:x+ex3, y:y-ey},  {x:x-ex3, y:y-ey}]});
   });
   // Primero las repartidas y después el resto: el bloque relleno tapaba las
   // flechas y los momentos que caían en su mismo tramo.
+  // En el DCL, la resultante W de cada repartida se reserva aquí y su valor
+  // pasa a la fase B con los demás rótulos: colocado después, junto a su
+  // flecha, ya no encontraba sitio y se iba lejos con una guía.
   if(conReacciones && R && !R.error){
     cargasConPeso().filter(c=>(c.tipo==='U'||c.tipo==='T') && _cgVis(c)).forEach(c=>{
       const a = accionesDeCarga(c)[0]; if(!a) return;
       const Fm = Math.hypot(a.fx, a.fy); if(Fm < 1e-9) return;
       const x = Xn(a.x), y = Yn(a.y), ex = a.fx/Fm, ey = a.fy/Fm;
       tzOcuparTrazo(x-ex*1.35, y-ey*1.35, x-ex*0.08, y-ey*0.08, 0.10);
+      const labW = '$W=' + dec(Fm,'f') + '$\\,' + escLatex(unitFor), opW = 'font=\\tiny, color=bsaDist!60!black';
+      const sW = 1.35 + sepCola(labW, opW, ex, ey, 0.10);
+      pendW.push({x:x-ex*sW, y:y-ey*sW, txt:labW, opts:opW, dir:[-ex, -ey]});
     });
   }
   const _cgs = cargas.filter(_cgVis);
@@ -104,28 +167,62 @@ function tikzViga(conReacciones, sel){
         out += '\\draw[-{Latex[length=2.2mm]}, color=bsaCarga, line width=1.1pt] ('
              + F(x1) + ',' + F(y1) + ') -- (' + F(x2) + ',' + F(y2) + ');\n';
         tzOcuparTrazo(x1, y1, x2, y2, 0.07);
+        const lab = dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor);
+        const opP = 'font=\\tiny, color=bsaCarga';
         if(paralela){
           const n2x = -_g2.uy, n2y = _g2.ux;
           const s2 = (n2y < 0) ? -1 : 1;
-          out += tzTexto((x1+x2)/2 + n2x*s2*0.24, (y1+y2)/2 + n2y*s2*0.24,
-                         dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor),
-                         'font=\\tiny, color=bsaCarga', n2x*s2, n2y*s2);
+          pendPuntuales.push({x:(x1+x2)/2 + n2x*s2*0.24, y:(y1+y2)/2 + n2y*s2*0.24,
+                              txt:lab, opts:opP, dir:[n2x*s2, n2y*s2]});
         } else if(vy > 0.5){
           // apunta hacia arriba: su cola queda bajo la viga, en la zona de
-          // las cotas, así que el valor se pone al costado de la flecha
+          // las cotas, así que el valor se pone al costado de la flecha.
+          // Sitios, primero hacia fuera de la viga y luego del otro lado: a media
+          // flecha (el de siempre), junto a la cola y media caja más allá de
+          // ella. Con una repartida también hacia arriba su bloque cuelga bajo la
+          // viga y tapa la media flecha; con un solo sitio el rótulo caía a
+          // tzTexto, y su guía nacía en ese punto, vacío y dentro del bloque, a
+          // 0.62 de la flecha. Si ninguno cabe, tzTexto arranca en la propia
+          // flecha (`origen`), para que la guía salga de ella.
           const s = (x <= (Xn(minx)+Xn(maxx))/2) ? -1 : 1;
-          const lab2 = dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor);
-          out += tzTexto((x1+x2)/2 + s*(tzAncho(lab2, 'font=\\tiny')/2 + 0.14), (y1+y2)/2,
-                         lab2, 'font=\\tiny, color=bsaCarga', s, 0);
+          const dxP = tzAncho(lab, 'font=\\tiny')/2 + 0.14, hP = tzAlto(lab, opP);
+          const fMas = -(hP/2)/0.75;                 // la flecha mide 0.75
+          const cand = [];
+          [s, -s].forEach(sd=>[0.5, 0, fMas].forEach(f=>cand.push(
+            {x:x1 + (x2-x1)*f + sd*dxP, y:y1 + (y2-y1)*f})));
+          pendPuntuales.push({x:cand[0].x, y:cand[0].y, txt:lab, opts:opP, dir:[s, 0],
+                              candidatos:cand, origen:{x:(x1+x2)/2, y:(y1+y2)/2}});
         } else {
-          out += tzTexto(x1 - vx*0.16, y1 - vy*0.16,
-                         dec(Math.abs(c.mag),'f')+'\\,'+escLatex(unitFor),
-                         'font=\\tiny, color=bsaCarga', -vx, -vy);
+          // En la cola de la flecha; si está ocupada, un escalón más allá (el
+          // primer sitio que ya probaba tzTexto, sin guía). Si tampoco cabe, AL
+          // COSTADO de la flecha, junto a su cola (y media caja hacia la punta o
+          // más allá de la cola), primero del lado de fuera de la estructura. En
+          // el DCL la flecha discontinua de la resultante W de una repartida en
+          // la misma vertical tapa la cola y el escalón, y tzTexto se llevaba el
+          // valor de lado, con una guía, hasta encima del nudo vecino (o del
+          // tramo de al lado, si el suyo era corto).
+          const sP = sepCola(lab, opP, vx, vy, 0.07);
+          const wP = tzAncho(lab, opP), hP = tzAlto(lab, opP);
+          const nx = -vy, ny = vx;                  // normal a la flecha
+          const semiN = Math.abs(nx)*wP/2 + Math.abs(ny)*hP/2;
+          const semiV = Math.abs(vx)*wP/2 + Math.abs(vy)*hP/2;
+          const sF = (nx*(x1-cxFig) + ny*(y1-cyFig) < 0) ? -1 : 1;
+          const s2 = sP + hP + 0.08;
+          const cand = [{x:x1 - vx*sP, y:y1 - vy*sP}, {x:x1 - vx*s2, y:y1 - vy*s2}];
+          [sF, -sF].forEach(sd=>[0, semiV, -semiV].forEach(tv=>cand.push(
+            {x:x1 + nx*sd*(semiN + 0.14) + vx*tv, y:y1 + ny*sd*(semiN + 0.14) + vy*tv})));
+          pendPuntuales.push({x:cand[0].x, y:cand[0].y, txt:lab, opts:opP, dir:[-vx, -vy], candidatos:cand});
         }
       } else {
         out += '\\draw[-{Latex[length=2mm]}, color=bsaMomento, line width=1.1pt] (' + F(x+0.3) + ',' + F(y) + ') arc (0:300:0.3);\n';
-        out += tzTexto(x+0.62, y+0.22, dec(Math.abs(c.mag),'mom')+'\\,'+escLatex(unidadMomento()),
-                       'font=\\tiny, color=bsaMomento', 1, 1);
+        tzOcuparArco(x, y, 0.30, 0.06);
+        // El valor va en la primera diagonal libre, con la esquina más cercana
+        // de su caja a unos 0.55 del nudo: fuera del arco y sin pisar el nombre.
+        const lab = dec(Math.abs(c.mag),'mom')+'\\,'+escLatex(unidadMomento());
+        const opM = 'font=\\tiny, color=bsaMomento';
+        const ex = tzAncho(lab, opM)/2 + 0.38, ey = tzAlto(lab, opM)/2 + 0.38;
+        pendPares.push({x, y, txt:lab, opts:opM, dir:[1, 1],
+          candidatos:[{x:x+ex, y:y+ey}, {x:x-ex, y:y+ey}, {x:x+ex, y:y-ey}, {x:x-ex, y:y-ey}]});
       }
     } else {
       const z = trozoCargado(c);
@@ -154,18 +251,62 @@ function tikzViga(conReacciones, sel){
              + F(xi+ex*0.05) + ',' + F(yi+ey*0.05) + ');\n';
       }
       tzOcuparBloque({x:ax, y:ay}, {x:bx, y:by}, ex, ey, h1, h2);
+      // Separación del valor sobre el borde del bloque: media caja del rótulo
+      // medida en la dirección en que se levanta, más 0.07. Sobre una viga es
+      // el 0.20 de siempre; sobre una columna, con la carga horizontal, cuenta
+      // el ancho del texto y el rótulo ya no arranca dentro del bloque.
+      const opD = 'font=\\tiny, color=bsaDist';
+      const sep = t => Math.abs(ex)*tzAncho(t, opD)/2 + Math.abs(ey)*tzAlto(t, opD)/2 + 0.07;
+      // ── Sitios para un valor de la repartida (2026-09-14) ──
+      // Antes solo se probaban el centro y los cuartos, y en un tramo corto con
+      // una puntual en medio los tres chocaban con su flecha (media caja del
+      // rótulo, 0.62, frente a medio cuarto de un bloque de 2 cm, 0.50). El
+      // rótulo caía entonces a tzTexto, subía justo encima de la cola de la
+      // flecha, le quitaba el sitio a «8.00 kN» y la guía de este lo cruzaba.
+      // Ahora, en orden: (1) el sitio preferido `f0` (centro o extremo); (2) a lo
+      // largo del bloque, sobre su borde, hasta los cuartos o hasta donde el
+      // rótulo aún cabe entero sobre el bloque (`haciaDentro`: el valor de un
+      // extremo de una trapecial solo se corre hacia dentro y como mucho media
+      // caja, para que siga tocando la vertical de su extremo: más adentro se
+      // leería como la intensidad en otro punto); (3) en la normal del
+      // sitio preferido, subiendo de 0.06 en 0.06, que lo apila por encima de
+      // lo que ocupe esa vertical (la flecha de la puntual y su valor) sin guía,
+      // porque sigue sobre su propio bloque. El valor de un extremo sube como
+      // mucho 0.60: por encima quedaba junto al nombre y al par del nudo, lejos
+      // de su carga, y es mejor la búsqueda de tzTexto con su guía. El de una
+      // uniforme puede subir más, porque sigue en el eje del bloque, donde en
+      // el DCL está también su resultante W. El borde se toma del lado hacia el
+      // que se levanta el bloque: con una intensidad negativa, el opuesto.
+      const Lb = Math.hypot(bx-ax, by-ay);
+      const hEn = f => h1 + (h2-h1)*Math.max(0, Math.min(1, f));
+      const sitios = (t, f0, haciaDentro) => {
+        const semi = (Lb > 1e-9) ? (Math.abs(bx-ax)*tzAncho(t, opD)/2 + Math.abs(by-ay)*tzAlto(t, opD)/2)/Lb : 0;
+        const fr = (Lb > 1e-9) ? semi/Lb : 0;          // media caja, en fracción del bloque
+        const pto = (f, sube) => {
+          const ha = hEn(f - fr), hb = hEn(f + fr);
+          const hv = (Math.abs(ha) >= Math.abs(hb)) ? ha : hb;
+          const d = hv + ((hv < 0) ? -1 : 1)*(sep(t) + sube);
+          return {x:ax+(bx-ax)*f + ex*d, y:ay+(by-ay)*f + ey*d};
+        };
+        const lista = [pto(f0, 0)];
+        const dmax = haciaDentro ? Math.min(0.25, fr) : Math.max(0.25, 0.5 - fr);
+        for(let j=1;j<=4;j++){
+          const df = dmax*j/4;
+          if(haciaDentro) lista.push(pto(f0 + haciaDentro*df, 0));
+          else lista.push(pto(f0 - df, 0), pto(f0 + df, 0));
+        }
+        for(let j=1, nSub = haciaDentro ? 10 : 40; j<=nSub; j++) lista.push(pto(f0, 0.06*j));
+        const sg = (hEn(f0) < 0) ? -1 : 1;
+        return {x:lista[0].x, y:lista[0].y, txt:t, opts:opD, dir:[ex*sg, ey*sg], candidatos:lista};
+      };
       // Trapecial: los dos extremos llevan valor distinto y hay que verlos.
       if(Math.abs(w1-w2) > 1e-9){
-        out += tzTexto(ax+ex*(h1+0.20), ay+ey*(h1+0.20), dec(Math.abs(w1),'f'),
-                       'font=\\tiny, color=bsaDist', ex, ey);
-        out += tzTexto(bx+ex*(h2+0.20), by+ey*(h2+0.20),
-                       dec(Math.abs(w2),'f')+'\\,'+escLatex(uDist()),
-                       'font=\\tiny, color=bsaDist', ex, ey);
+        const t1 = dec(Math.abs(w1),'f'), t2 = dec(Math.abs(w2),'f')+'\\,'+escLatex(uDist());
+        pendRepartidas.push(sitios(t1, 0, 1));
+        pendRepartidas.push(sitios(t2, 1, -1));
       } else {
-        const hm = (h1+h2)/2;
-        out += tzTexto((ax+bx)/2+ex*(hm+0.20), (ay+by)/2+ey*(hm+0.20),
-                       dec(Math.abs(w1),'f')+'\\,'+escLatex(uDist()),
-                       'font=\\tiny, color=bsaDist', ex, ey);
+        const t1 = dec(Math.abs(w1),'f')+'\\,'+escLatex(uDist());
+        pendRepartidas.push(sitios(t1, 0.5, 0));
       }
     }
   });
@@ -176,10 +317,13 @@ function tikzViga(conReacciones, sel){
       const d = (u.ang !== undefined) ? {x:Math.cos(u.ang), y:Math.sin(u.ang)}
               : (u.tipo==='Rx' ? {x:1,y:0} : (u.tipo==='Ry' ? {x:0,y:1} : null));
       const nom = simbReaccion(u);
+      const opR = 'font=\\tiny, color=bsaReac';
       if(!d){
         out += '\\draw[-{Latex[length=1.8mm]}, color=bsaReac, line width=1pt] ('
              + F(x+0.34) + ',' + F(y-0.34) + ') arc (0:280:0.34);\n';
-        out += tzTexto(x+0.55, y-0.55, '$'+nom+'$', 'font=\\tiny, color=bsaReac', 1, -1);
+        // `arc` arranca en (x+0.34, y-0.34): su centro queda en (x, y-0.34)
+        tzOcuparArco(x, y-0.34, 0.34, 0.06);
+        pendReac.push({x:x+0.55, y:y-0.55, txt:'$'+nom+'$', opts:opR, dir:[1, -1]});
         return;
       }
       // El rodillo inclinado (2026-09-14, criterio de armaduras): la flecha nace
@@ -199,20 +343,33 @@ function tikzViga(conReacciones, sel){
       out += '\\draw[-{Latex[length=2mm]}, color=bsaReac, line width=1.1pt] ('
            + F(x-d.x*L1) + ',' + F(y-d.y*L1) + ') -- (' + F(x-d.x*L0) + ',' + F(y-d.y*L0) + ');\n';
       tzOcuparTrazo(x-d.x*L1, y-d.y*L1, x-d.x*L0, y-d.y*L0, 0.07);
-      if(inclinada) out += tikzArcoReaccionFI(x-d.x*L1, y-d.y*L1, d.x, d.y, genAng);
+      if(inclinada) out += tikzArcoReaccionFI(x-d.x*L1, y-d.y*L1, d.x, d.y, genAng, pendReac);
       if(!inclinada && Math.abs(d.y) > 0.5){
         // vertical: el rótulo va al costado de la flecha, hacia afuera de la
         // viga, y no debajo de su cola, donde se metía entre las cotas.
         const s = (x <= (Xn(minx)+Xn(maxx))/2) ? -1 : 1;
         const wl = tzAncho('$'+nom+'$', 'font=\\tiny');
-        out += tzTexto(x + s*(wl/2 + 0.14), y - d.y*(L1+L0)/2, '$'+nom+'$',
-                       'font=\\tiny, color=bsaReac', s, 0);
+        pendReac.push({x:x + s*(wl/2 + 0.14), y:y - d.y*(L1+L0)/2, txt:'$'+nom+'$', opts:opR, dir:[s, 0]});
       } else {
-        out += tzTexto(x-d.x*(L1+0.18), y-d.y*(L1+0.18), '$'+nom+'$',
-                       'font=\\tiny, color=bsaReac', -d.x, -d.y);
+        pendReac.push({x:x-d.x*(L1+0.18), y:y-d.y*(L1+0.18), txt:'$'+nom+'$', opts:opR, dir:[-d.x, -d.y]});
       }
     });
   }
+
+  // ── Fase B: rótulos, con toda la geometría ya reservada ──
+  // Primero los nombres de nudo, después los valores de las cargas y por
+  // último los nombres de las reacciones. Entre las cargas, de menos sitios a
+  // más: los pares (cuatro diagonales), las puntuales (la cola de su flecha),
+  // las resultantes W del DCL (la cola de la suya) y al final las repartidas,
+  // que pueden correrse a lo largo de su bloque o apilarse encima. Con las
+  // repartidas antes, su valor ocupaba la cola de la puntual. Se colocan AQUÍ,
+  // antes de las cotas, porque las cotas arrancan más allá de todo lo reservado.
+  let rotulos = '';
+  pendNudos.concat(pendPares, pendPuntuales, pendW, pendRepartidas, pendReac).forEach(r=>{
+    rotulos += r.candidatos
+      ? tzTextoEn(r.candidatos, r.txt, r.opts, r.dir[0], r.dir[1], r.origen)
+      : tzTexto(r.x, r.y, r.txt, r.opts, r.dir[0], r.dir[1]);
+  });
 
   // ── Cotas ──
   let minY = Infinity;
@@ -244,8 +401,7 @@ function tikzViga(conReacciones, sel){
         out += '\\draw[-{Latex[length=2mm]}, color=bsaDist!60!black, dashed, line width=1pt] ('
              + F(x-ex*L1) + ',' + F(y-ey*L1) + ') -- (' + F(x-ex*0.08) + ',' + F(y-ey*0.08) + ');\n';
         tzOcuparTrazo(x-ex*L1, y-ey*L1, x-ex*0.08, y-ey*0.08, 0.06);
-        out += tzTexto(x-ex*(L1+0.22), y-ey*(L1+0.22), '$W=' + dec(Fm,'f') + '$\\,' + escLatex(unitFor),
-                       'font=\\tiny, color=bsaDist!60!black', -ex, -ey);
+        // su valor ya se colocó en la fase B (pendW)
       }
       anota(a.x, a.y, a.fx, a.fy);
     });
@@ -314,7 +470,7 @@ function tikzViga(conReacciones, sel){
       out += '\\node[rotate=90, font=\\scriptsize, color=black!75, fill=white, inner sep=1pt] at ('
            + F(xx) + ',' + F((y0+y1)/2) + ') {' + dec(Math.abs(yv-OR.y),'len') + '\\,' + escLatex(unitLen) + '};\n';
     });
-    return out;
+    return out + rotulos;
   }
 
   // ── Figura del modelo: primero las posiciones de las cargas (niveles
@@ -375,7 +531,7 @@ function tikzViga(conReacciones, sel){
       }
     }
   }
-  return out;
+  return out + rotulos;
 }
 
 // ═══════════════════════════════════════════════════════════

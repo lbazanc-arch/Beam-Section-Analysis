@@ -116,7 +116,8 @@ function descApoyoCorto(n){
 
 // ── Tecla Esc global ──
 // Cierra la ventana emergente activa (si hay alguna) sin tocar el modelo;
-// si no hay ninguna abierta, cancela la selección actual. No sustituye ni
+// si no hay ninguna abierta, corta la cadena de Barra, luego suelta la
+// herramienta Carga (vuelve a pan) y por último cancela la selección actual. No sustituye ni
 // elimina el botón "Cancelar" de cada modal: es un atajo adicional.
 function manejarEsc(){
   // Antes que nada, la ventana del informe PDF: se superpone a todo lo demás.
@@ -140,6 +141,9 @@ function manejarEsc(){
   // Esc corta la cadena de construcción antes que nada: es lo que se espera
   // mientras se está dibujando nudo a nudo (03-interaccion.js).
   if(selNodo !== null){ selNodo = null; refrescar(); return; }
+  // Con la ventana ya cerrada, Esc suelta la herramienta Carga (que se queda
+  // activa para poner varias seguidas) y vuelve a desplazar el panel.
+  if(tool === 'carga'){ setTool('pan'); return; }
   if(selNodos.length || selBarras.length || selNodoInfo!==null || selBarra!==null){
     selNodos = []; selBarras = []; selBarra = null; selNodoInfo = null;
     gesto = null;

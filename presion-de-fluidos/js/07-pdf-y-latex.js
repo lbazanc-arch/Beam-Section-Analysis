@@ -72,14 +72,17 @@ function tkpOcuparTrazo(x1,y1,x2,y2,w){
     tkpOcupar(x1+(x2-x1)*f0-g, y1+(y2-y1)*f0-g, x1+(x2-x1)*f1+g, y1+(y2-y1)*f1+g);
   }
 }
+// Un rótulo de varias líneas (separadas con \\, en un nodo con align) mide lo
+// que su línea más larga y crece en alto un salto de línea por cada una.
 function tkpAncho(txt, opts){
   const w = /tiny/.test(opts||'') ? 0.115 : (/scriptsize/.test(opts||'') ? 0.135 : 0.16);
-  const limpio = String(txt).replace(/\\[a-zA-Z]+/g, 'x').replace(/[$\\{}^_,]/g, '');
-  return Math.max(1, limpio.length)*w + 0.12;
+  const largo = Math.max(...String(txt).split('\\\\').map(l=>l.replace(/\\[a-zA-Z]+/g, 'x').replace(/[$\\{}^_,]/g, '').length));
+  return Math.max(1, largo)*w + 0.12;
 }
 function tkpAlto(opts){ return /tiny/.test(opts||'') ? 0.24 : 0.30; }
 function tkpTexto(x, y, txt, opts, dirX, dirY){
-  const w = tkpAncho(txt, opts), h = tkpAlto(opts);
+  const lineas = String(txt).split('\\\\').length;
+  const w = tkpAncho(txt, opts), h = tkpAlto(opts) + (lineas-1)*(/tiny/.test(opts||'') ? 0.25 : 0.33);
   const dx0 = (dirX === undefined) ? 0 : dirX, dy0 = (dirY === undefined) ? 1 : dirY;
   const nn = Math.hypot(dx0, dy0) || 1;
   const ex = dx0/nn, ey = dy0/nn, lx = -ey, ly = ex;
@@ -94,8 +97,15 @@ function tkpTexto(x, y, txt, opts, dirX, dirY){
         let s = '';
         const d = Math.hypot(ox, oy);
         if(d > 0.55){
-          const fx = x + ox - (ox/d)*(w*0.32), fy = y + oy - (oy/d)*(h*0.55);
-          s += '\\draw[gray!55, line width=.25pt] (' + F(x) + ',' + F(y) + ') -- (' + F(fx) + ',' + F(fy) + ');\n';
+          // La guía acaba en el borde de la caja del texto, no dentro: antes se
+          // quedaba a 0.32·w del centro y tachaba los rótulos corridos en horizontal.
+          const ux = ox/d, uy = oy/d;
+          const sb = Math.min(Math.abs(ux) > 1e-9 ? (w/2)/Math.abs(ux) : Infinity,
+                              Math.abs(uy) > 1e-9 ? (h/2)/Math.abs(uy) : Infinity) + 0.05;
+          if(sb < d){
+            const fx = x + ox - ux*sb, fy = y + oy - uy*sb;
+            s += '\\draw[gray!55, line width=.25pt] (' + F(x) + ',' + F(y) + ') -- (' + F(fx) + ',' + F(fy) + ');\n';
+          }
         }
         s += '\\node[' + (opts || 'font=\\scriptsize') + ', inner sep=1pt] at (' + F(x+ox) + ',' + F(y+oy) + ') {' + txt + '};\n';
         return s;
@@ -181,7 +191,8 @@ function tkpApoyo(n, X, Y, k){
     out += '\\draw[line width=1pt, color=bsaAcc2] (-0.12,-0.44) circle (0.07); \\draw[line width=1pt, color=bsaAcc2] (0.12,-0.44) circle (0.07);\n';
     out += '\\draw[line width=1pt, color=bsaAcc2] (-0.40,-0.52) -- (0.40,-0.52);\n';
     out += '\\end{scope}\n';
-    tkpOcupar(x-0.45, y-0.6, x+0.45, y+0.1);
+    // la caja gira con el símbolo, como la del apoyo fijo
+    tkpOcuparGirado(x, y, ang, -0.47, -0.6, 0.47, 0);
   }
   if(n.tope){
     const d = direccionIncognita({n, tipo:'T'});
@@ -190,7 +201,9 @@ function tkpApoyo(n, X, Y, k){
     out += '\\filldraw[fill=bsaTope!15, draw=bsaTope, line width=.9pt] (-0.62,-0.22) rectangle (-0.16,0.22);\n';
     for(let i=-2;i<=2;i++) out += '\\draw[bsaTope, line width=.5pt] (-0.62,' + F(i*0.09) + ') -- (-0.76,' + F(i*0.09-0.12) + ');\n';
     out += '\\end{scope}\n';
-    tkpOcupar(x - d.x*0.5 - 0.3, y + d.y*0.5 - 0.3, x - d.x*0.5 + 0.3, y + d.y*0.5 + 0.3);
+    // bloque y rayado en x local ∈ [−0.76, −0.16] sobre d (y hacia arriba): la
+    // caja de antes tenía el signo de y cambiado y caía al otro lado del nudo
+    tkpOcuparGirado(x, y, ang, -0.78, -0.32, -0.14, 0.24);
   }
   return out;
 }
@@ -206,8 +219,76 @@ function tkpCompuerta(opts){
   const F = v => v.toFixed(3);
   let out = '';
   const cad = cadenaCompuerta();
-  const bx0 = X(minx) - 1.3, bx1 = X(maxx) + 1.3;
+  // Rótulos de cada capa: en la superficie libre, «Zona z · nivel …» y «γ = …»
+  // en dos líneas. Se miden ANTES de dibujar para que la franja de líquido de
+  // su lado sea más ancha que el rótulo: con 1.3 cm fijos, el rótulo en una
+  // sola línea (~4.3 cm) cruzaba la compuerta y el símbolo del apoyo.
+  const OPT_ZONA = z => 'font=\\tiny, color=bsaAgua!80!black, align=' + (z===1 ? 'left' : 'right');
+  const etqZona = {1:[], 2:[]}, anchoZona = {1:0, 2:0};
+  [1,2].forEach(z=>{
+    capasOrdenadas(z).forEach((c,i)=>{
+      const txt = (i===0 ? 'Zona ' + z + ' \\textperiodcentered\\ nivel $' + dec(c.niv,'len') + '$\\,' + escLatex(unitLen) + '\\\\' : '')
+                + '$\\gamma = ' + dec(c.g,'f') + '$\\,' + escLatex(unitFor) + '/' + escLatex(unitLen) + '$^3$';
+      etqZona[z].push({c, txt});
+      anchoZona[z] = Math.max(anchoZona[z], tkpAncho(txt, OPT_ZONA(z)));
+    });
+  });
+  let bx0 = X(minx) - Math.max(1.3, anchoZona[1] + 0.35), bx1 = X(maxx) + Math.max(1.3, anchoZona[2] + 0.35);
   const by0 = Y(miny) - 0.7, by1 = Y(maxy) + 0.6;
+  // Primero se dibuja y se reserva todo lo que no se mueve (frontera, tramos,
+  // apoyos y topes); los rótulos de zona van después, para que lo esquiven. El
+  // líquido se pinta debajo de todo, pero se escribe al final, porque la franja
+  // puede ensancharse al colocar los rótulos.
+  let fijos = '';
+  // frontera vertical punteada (subida sobre el primer nudo y bajada desde el último)
+  if(cad && (capasOrdenadas(1).length || capasOrdenadas(2).length)){
+    const P0 = cad.pts[0], P1 = cad.pts[cad.pts.length-1];
+    fijos += '\\draw[bsaMuted, dashed, line width=.5pt] (' + F(X(P0.x)) + ',' + F(Y(P0.y)) + ') -- (' + F(X(P0.x)) + ',' + F(by1) + ');\n';
+    fijos += '\\draw[bsaMuted, dashed, line width=.5pt] (' + F(X(P1.x)) + ',' + F(Y(P1.y)) + ') -- (' + F(X(P1.x)) + ',' + F(by0) + ');\n';
+    tkpOcuparTrazo(X(P0.x), Y(P0.y), X(P0.x), by1, 0.02);
+    tkpOcuparTrazo(X(P1.x), Y(P1.y), X(P1.x), by0, 0.02);
+  }
+  // tramos: reservados de punto a punto (antes, uno de cada cuatro). Margen fino:
+  // tkpAncho ya sobrestima los rótulos, y con más margen el nombre de un nudo al
+  // pie de un tramo se correría sin necesidad.
+  tramos.forEach(t=>{
+    const pts = puntosTramo(t, 40);
+    if(pts.length < 2) return;
+    const seq = pts.map(p=>'(' + F(X(p.x)) + ',' + F(Y(p.y)) + ')').join(' -- ');
+    const estilo = (t.activo === false) ? 'bsaMuted, dashed, line width=1pt' : 'bsaAcc2, line width=1.8pt';
+    fijos += '\\draw[' + estilo + '] ' + seq + ';\n';
+    for(let i=1;i<pts.length;i++) tkpOcuparTrazo(X(pts[i-1].x), Y(pts[i-1].y), X(pts[i].x), Y(pts[i].y), 0.02);
+  });
+  // apoyos y topes
+  nodos.forEach(n=>{ fijos += tkpApoyo(n, X, Y, k); });
+  // rótulos de la superficie libre y de las capas, en el borde exterior de la
+  // franja; si chocan, escapan hacia afuera (zona 1 a −x, zona 2 a +x)
+  const cajasFijas = _tkpCajas.slice();
+  const ponerRotulos = () => {
+    let s = '';
+    const sobra = {1:0, 2:0};
+    [1,2].forEach(z=>{
+      etqZona[z].forEach(e=>{
+        const yTop = Y(Math.min(e.c.niv, maxy + 0.4));
+        const w = tkpAncho(e.txt, OPT_ZONA(z));
+        const h = tkpAlto('tiny') + (e.txt.split('\\\\').length - 1)*0.25;
+        const xc = (z===1) ? bx0 + 0.06 + w/2 : bx1 - 0.06 - w/2;
+        s += tkpTexto(xc, yTop + h/2 + 0.02, e.txt, OPT_ZONA(z), z===1 ? -1 : 1, 0);
+        const q = _tkpCajas[_tkpCajas.length-1];
+        sobra[z] = Math.max(sobra[z], (z===1) ? (bx0 + 0.06) - q.x0 : q.x1 - (bx1 - 0.06));
+      });
+    });
+    return {s, sobra};
+  };
+  let rot = ponerRotulos();
+  // Si un rótulo tuvo que escapar fuera de la franja (p. ej., por el apoyo del
+  // nudo que queda a su altura), la franja crece hasta cubrirlo y se recolocan.
+  if(rot.sobra[1] > 1e-6 || rot.sobra[2] > 1e-6){
+    bx0 -= Math.max(0, rot.sobra[1]);
+    bx1 += Math.max(0, rot.sobra[2]);
+    _tkpCajas = cajasFijas.slice();
+    rot = ponerRotulos();
+  }
   // zonas de líquido, recortadas a su lado de la frontera
   [1,2].forEach(z=>{
     const capas = capasOrdenadas(z);
@@ -234,35 +315,9 @@ function tkpCompuerta(opts){
       out += '\\draw[bsaAgua, line width=' + (i===0 ? '1pt' : '.6pt') + (i===0 ? '' : ', dashed') + '] (' + F(bx0) + ',' + F(yTop) + ') -- (' + F(bx1) + ',' + F(yTop) + ');\n';
     });
     out += '\\end{scope}\n';
-    // rótulos de la superficie libre y de las capas, en el borde exterior
-    const xEtq = (z===1) ? bx0 + 0.06 : bx1 - 0.06;
-    const anc = (z===1) ? 'above right' : 'above left';
-    capas.forEach((c,i)=>{
-      const yTop = Y(Math.min(c.niv, maxy + 0.4));
-      const txt = (i===0 ? 'Zona ' + z + ' \\textperiodcentered\\ nivel $' + dec(c.niv,'len') + '$\\,' + escLatex(unitLen) + ' \\textperiodcentered\\ ' : '')
-                + '$\\gamma = ' + dec(c.g,'f') + '$\\,' + escLatex(unitFor) + '/' + escLatex(unitLen) + '$^3$';
-      out += '\\node[' + anc + ', font=\\tiny, color=bsaAgua!80!black, inner sep=1.5pt] at (' + F(xEtq) + ',' + F(yTop) + ') {' + txt + '};\n';
-      const w = tkpAncho(txt.replace(/\\textperiodcentered/g,'.'), 'tiny');
-      tkpOcupar(z===1 ? xEtq : xEtq - w, yTop, z===1 ? xEtq + w : xEtq, yTop + 0.28);
-    });
   });
-  // frontera vertical punteada (subida sobre el primer nudo y bajada desde el último)
-  if(cad && (capasOrdenadas(1).length || capasOrdenadas(2).length)){
-    const P0 = cad.pts[0], P1 = cad.pts[cad.pts.length-1];
-    out += '\\draw[bsaMuted, dashed, line width=.5pt] (' + F(X(P0.x)) + ',' + F(Y(P0.y)) + ') -- (' + F(X(P0.x)) + ',' + F(by1) + ');\n';
-    out += '\\draw[bsaMuted, dashed, line width=.5pt] (' + F(X(P1.x)) + ',' + F(Y(P1.y)) + ') -- (' + F(X(P1.x)) + ',' + F(by0) + ');\n';
-  }
-  // tramos
-  tramos.forEach(t=>{
-    const pts = puntosTramo(t, 40);
-    if(pts.length < 2) return;
-    const seq = pts.map(p=>'(' + F(X(p.x)) + ',' + F(Y(p.y)) + ')').join(' -- ');
-    const estilo = (t.activo === false) ? 'bsaMuted, dashed, line width=1pt' : 'bsaAcc2, line width=1.8pt';
-    out += '\\draw[' + estilo + '] ' + seq + ';\n';
-    pts.forEach((p,i)=>{ if(i%4===0) tkpOcupar(X(p.x)-0.06, Y(p.y)-0.06, X(p.x)+0.06, Y(p.y)+0.06); });
-  });
-  // apoyos y topes
-  nodos.forEach(n=>{ out += tkpApoyo(n, X, Y, k); });
+  // encima del líquido: frontera, tramos, apoyos y topes, y los rótulos de zona
+  out += fijos + rot.s;
   // nudos y nombres
   nodos.forEach(n=>{
     const x = X(n.x), y = Y(n.y);

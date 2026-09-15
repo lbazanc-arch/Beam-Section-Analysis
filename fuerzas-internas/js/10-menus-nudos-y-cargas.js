@@ -1,28 +1,52 @@
 // ── Cargas ──
-function nuevaCarga(tipo){
+// Flujo (2026-09-14, decisión del profesor): el menú «Cargas» solo elige el
+// TIPO y arma la herramienta 'carga'; el destino lo fija el toque en el lienzo
+// (`onDown`, 09-) y la ventana se abre ya con él, sin listas que elegir.
+function elegirTipoCarga(tipo){
   if(!tramos.length){ aviso('Primero construye al menos un tramo de viga.', 'error'); return; }
-  edCarga = {nuevo:true, tipo};
-  abrirCargaModal(tipo, null);
+  tipoCargaPendiente = tipo;
+  setTool('carga');
 }
-function abrirCargaModal(tipo, c){
+// Carga nueva de `tipo` sobre `destino` = {destino:'tramo', tramo:id} o
+// {destino:'nudo', nudo:id}. La llama `onDown` con lo que se tocó.
+function nuevaCarga(tipo, destino){
+  edCarga = {nuevo:true, tipo};
+  abrirCargaModal(tipo, null, destino);
+}
+// Tramo del destino fijado en la ventana; null si la carga va sobre un nudo.
+function _tramoModal(){
+  if((document.getElementById('cgDestino')||{}).value === 'nudo') return null;
+  const id = parseInt((document.getElementById('cgTramo')||{}).value, 10);
+  return tramos.find(z=>z.id===id) || null;
+}
+function abrirCargaModal(tipo, c, destino){
   const tit={P:'Carga puntual', PX:'Carga puntual',
              U:'Carga uniforme',T:'Carga triangular',M:'Momento concentrado'};
   const distrib = (tipo==='U'||tipo==='T');
+  // El destino es FIJO: el de la carga que se edita o el que se tocó. Desde
+  // aquí una carga no cambia de tramo ni de nudo. Los tres campos ocultos lo
+  // guardan para el resto de la ventana y para aplicarCarga.
+  const dest = c ? ((c.destino === 'nudo') ? {destino:'nudo', nudo:c.nudo}
+                                           : {destino:'tramo', tramo:c.tramo})
+                 : (destino || {destino:'tramo', tramo:null});
+  const enNudo = (dest.destino === 'nudo');
+  const tDest = enNudo ? null : (tramos.find(t=>t.id===dest.tramo) || null);
+  const nDest = enNudo ? (nodo(dest.nudo) || null) : null;
+  document.getElementById('cgDestino').value = enNudo ? 'nudo' : 'tramo';
+  document.getElementById('cgTramo').value = tDest ? tDest.id : '';
+  document.getElementById('cgNudo').value  = nDest ? nDest.id : '';
+  document.getElementById('cgDestinoTxt').innerHTML = enNudo
+    ? 'Sobre el nudo <b>' + (nDest ? nDest.nombre : '?') + '</b>'
+    : 'Sobre el tramo <b>' + (tDest ? nomTramo(tDest) : '?') + '</b>';
+
   document.getElementById('cgTitulo').textContent = tit[tipo]||'Carga';
   document.getElementById('cgSub').textContent = distrib
     ? 'Indica dónde empieza y dónde acaba dentro del tramo, y en qué dirección actúa.'
-    : 'Sobre un tramo, a una distancia de su inicio, o sobre un nudo.';
-
-  const selT=document.getElementById('cgTramo');
-  selT.innerHTML = tramos.map(t=>'<option value="'+t.id+'">Tramo '+nomTramo(t)+'</option>').join('');
-  const selN=document.getElementById('cgNudo');
-  selN.innerHTML = nodos.map(n=>'<option value="'+n.id+'">Nudo '+n.nombre+'</option>').join('');
-
-  // las distribuidas siempre van sobre un tramo
-  document.getElementById('cgFilaDestino').style.display = distrib ? 'none' : '';
-  document.getElementById('cgDestino').value = (c && c.destino) ? c.destino : 'tramo';
-  if(c && c.tramo) selT.value = c.tramo;
-  if(c && c.nudo) selN.value = c.nudo;
+    : (tipo === 'M')
+      ? (enNudo ? 'Indica el valor del momento.'
+                : 'Indica dónde actúa dentro del tramo y el valor del momento.')
+      : (enNudo ? 'Indica la magnitud y la dirección de la carga.'
+                : 'Indica dónde actúa dentro del tramo, su magnitud y su dirección.');
 
   // ── Matriz de doble entrada, adaptada al tipo ──
   // Distribuida variable: las dos columnas y las dos filas completas.
@@ -50,7 +74,7 @@ function abrirCargaModal(tipo, c){
     (tipo==='M') ? ('Momento ('+uMom()+')')
     : distrib ? ('Magnitud ('+uDist()+')') : ('Magnitud ('+unitFor+')');
 
-  const g0 = tramos.length ? geoTramo(tramos.find(t=>t.id===parseInt(selT.value,10))) : null;
+  const g0 = tDest ? geoTramo(tDest) : null;
   document.getElementById('cgPos').value = c ? c.pos : 0;
   document.getElementById('cgFin').value = (c && c.posFin!==undefined && c.posFin!==null)
       ? c.posFin : (g0 ? +g0.L.toFixed(4) : 0);
@@ -84,12 +108,12 @@ function abrirCargaModal(tipo, c){
   cambioDestinoCarga();
   document.getElementById('cargaModal').classList.add('show');
 }
+// Ajusta las filas de la ventana al destino FIJADO al abrirla (ya no hay
+// selector que lo cambie).
 function cambioDestinoCarga(){
   const d = document.getElementById('cgDestino').value;
   const distrib = edCarga && (edCarga.tipo==='U'||edCarga.tipo==='T');
   const enNudo = (!distrib && d==='nudo');
-  document.getElementById('cgFilaTramo').style.display = enNudo ? 'none' : '';
-  document.getElementById('cgFilaNudo').style.display  = enNudo ? '' : 'none';
   // Sobre un nudo no hay distancia que dar: la fila entera de la matriz
   // desaparece y solo queda la magnitud.
   const filaDist = document.getElementById('cgThDist');
@@ -140,44 +164,187 @@ function _arcoParCroquis(x, y, anti, col){
        + F(x1)+','+F(y1)+') rotate('+(-tg).toFixed(1)+')"/>';
 }
 
+// ── Choques de los rótulos del croquis de nudo ─────────────────────
+// Caja aproximada de un texto del SVG: (x,y) es la línea base y `ta` su
+// text-anchor. El ancho se estima por caracteres; basta para saber si el
+// texto pisa una barra, no para medirlo.
+function _cajaTextoCroquis(x, y, texto, ta, fs){
+  const w = String(texto).length*fs*0.62;
+  const x0 = ta === 'start' ? x : (ta === 'end' ? x - w : x - w/2);
+  return {x0, x1: x0 + w, y0: y - fs*0.95, y1: y + fs*0.25};
+}
+// ¿El segmento [x1,y1,x2,y2] corta la caja ensanchada `h`? Recorte de
+// Liang–Barsky: se estrecha el intervalo del parámetro contra los cuatro lados.
+function _segCortaCajaCroquis(sg, c, h){
+  const dx = sg[2]-sg[0], dy = sg[3]-sg[1];
+  const p = [-dx, dx, -dy, dy];
+  const q = [sg[0]-(c.x0-h), (c.x1+h)-sg[0], sg[1]-(c.y0-h), (c.y1+h)-sg[1]];
+  let t0 = 0, t1 = 1;
+  for(let i = 0; i < 4; i++){
+    if(Math.abs(p[i]) < 1e-12){ if(q[i] < 0) return false; continue; }
+    const r = q[i]/p[i];
+    if(p[i] < 0){ if(r > t1) return false; if(r > t0) t0 = r; }
+    else        { if(r < t0) return false; if(r < t1) t1 = r; }
+  }
+  return true;
+}
+// Cuántas cosas ya dibujadas pisa una caja: barras y flecha (con la mitad de
+// su grosor de holgura) y los rótulos ya colocados.
+function _choquesCroquis(caja, segs, cajas){
+  let k = 0;
+  segs.forEach(sg=>{ if(_segCortaCajaCroquis(sg, caja, 2)) k++; });
+  cajas.forEach(c=>{ if(caja.x0 < c.x1 && c.x0 < caja.x1 && caja.y0 < c.y1 && c.y0 < caja.y1) k++; });
+  return k;
+}
+
 // ── Croquis de una carga puesta sobre un NUDO ──────────────────────
 // Antes aquí solo había una frase: el alumno no veía ni hacia dónde tira la
 // carga ni, en el par, en qué sentido gira. Mismo planteamiento que el
 // croquis de nudo de armaduras: el nudo, los tramos que llegan y la flecha.
+// Cada tramo se dibuja con una longitud visible mínima: a escala del más
+// largo, uno corto se quedaba en un par de píxeles y no se veía llegar.
 function _croquisCargaNudo(){
-  const W2 = 240, H2 = 150, F = v => v.toFixed(1), ROJO = '#d94f5c';
+  const W2 = 240, H2 = 180, F = v => v.toFixed(1), ROJO = '#d94f5c', BARRA = '#1e3a8a';
   const n = nodo(parseInt((document.getElementById('cgNudo')||{}).value, 10));
   const cx = W2/2, cy = H2/2;
+  // Radio disponible: deja sitio al nombre del nudo del otro extremo.
+  const RAD = Math.min(W2, H2)/2 - 26;
+  // Direcciones EN PANTALLA (y hacia abajo) ya ocupadas alrededor del nudo;
+  // sirven para que los rótulos no caigan encima de un tramo o de la carga.
+  const ocupadas = [];
+  // Lo mismo, pero como trazos y cajas en pantalla, para colocar el valor del
+  // par y el nombre del nudo donde no pisen nada.
+  const segs = [], cajas = [];
+  const difAng = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+  // Anclaje del texto según el lado hacia el que se aparta del punto.
+  const anclaje = (ux, uy) => ({
+    ta: ux > 0.3 ? 'start' : (ux < -0.3 ? 'end' : 'middle'),
+    dy: uy > 0.3 ? 8 : (uy < -0.3 ? 0 : 3.5)
+  });
   let s = '<svg viewBox="0 0 '+W2+' '+H2+'" style="width:100%;height:auto;display:block">'
         + '<rect width="'+W2+'" height="'+H2+'" fill="#fff"/>';
-  if(n){
-    // Tramos que llegan al nudo, a escala común.
-    const con = tramos.filter(t=>t.a===n.id || t.b===n.id);
-    let esc = 1e-9;
-    con.forEach(t=>{ const o = nodo(t.a===n.id ? t.b : t.a);
-      if(o) esc = Math.max(esc, Math.hypot(o.x-n.x, o.y-n.y)); });
-    const k = 46/Math.max(esc, 1e-9);
-    con.forEach(t=>{ const o = nodo(t.a===n.id ? t.b : t.a); if(!o) return;
-      s += '<line x1="'+cx+'" y1="'+cy+'" x2="'+F(cx+(o.x-n.x)*k)+'" y2="'+F(cy-(o.y-n.y)*k)
-         + '" stroke="#1e3a8a" stroke-width="4" stroke-linecap="round" opacity=".5"/>'; });
-  }
+  // La carga puntual se resuelve antes que los tramos: si llega por el mismo
+  // lado que uno, su flecha pasa por encima del nombre del extremo, así que
+  // ese nombre y el valor de la carga se reparten a los dos costados.
   const tipoC = edCarga ? edCarga.tipo : 'P';
   const magC = parseFloat((document.getElementById('cgMag')||{}).value) || 0;
-  if(tipoC === 'M'){
-    s += _arcoParCroquis(cx, cy, magC >= 0, ROJO)
-       + '<text x="'+cx+'" y="'+(cy-21)+'" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="'+ROJO+'" text-anchor="middle">'
-       + dec(Math.abs(magC),'mom')+' '+(magC>=0?'\u21ba':'\u21bb')+'</text>';
-  } else if(Math.abs(magC) > 1e-12){
+  let uC = null, angCola = 0, ladoV = null;
+  if(tipoC !== 'M' && Math.abs(magC) > 1e-12){
     const _angUsr = parseFloat((document.getElementById('cgAng')||{}).value);
-    const v = dirCarga({dir:_dirModal(), ang:bsaAnguloOpuesto(isFinite(_angUsr)?_angUsr:90)}, null);
+    // La dirección sale de la MISMA geometría que usan el cálculo
+    // (accionesDeCarga, 02-) y el lienzo (dibujarCarga, 08-): geoDeCarga toma el
+    // primer tramo que llega al nudo. Sin ella, «Perp.» y «Axial» se dibujaban
+    // aquí verticales aunque se calcularan según el tramo.
+    const cProv = {destino:'nudo', nudo: n ? n.id : null, tramo:null, dir:_dirModal(),
+                   ang:bsaAnguloOpuesto(isFinite(_angUsr)?_angUsr:90)};
+    const v = dirCarga(cProv, n ? geoDeCarga(cProv) : null);
     const sg = (magC < 0) ? -1 : 1;
-    const ux = v.x*sg, uy = -v.y*sg;
+    uC = {x: v.x*sg, y: -v.y*sg};
+    angCola = Math.atan2(-uC.y, -uC.x)*180/Math.PI;
+  }
+  if(n){
+    // Tramos que llegan al nudo, en su dirección real. La longitud va entre
+    // 0.55 y 1 del radio: conserva qué tramo es más largo sin perder los cortos.
+    const con = tramos.map(t=>{
+        if(t.a !== n.id && t.b !== n.id) return null;
+        const o = nodo(t.a===n.id ? t.b : t.a);
+        return o ? {o, L: Math.hypot(o.x-n.x, o.y-n.y)} : null; })
+      .filter(z=>z && z.L > 1e-12);
+    const esc = Math.max(1e-9, ...con.map(z=>z.L));
+    let rotulos = '';
+    con.forEach(({o, L})=>{
+      const ux = (o.x-n.x)/L, uy = -(o.y-n.y)/L;
+      const Lp = RAD*(0.55 + 0.45*L/esc);
+      const tx = cx + ux*Lp, ty = cy + uy*Lp;
+      const angB = Math.atan2(uy, ux)*180/Math.PI;
+      ocupadas.push(angB);
+      segs.push([cx, cy, tx, ty]);
+      s += '<line x1="'+cx+'" y1="'+cy+'" x2="'+F(tx)+'" y2="'+F(ty)
+         + '" stroke="'+BARRA+'" stroke-width="3.2" stroke-linecap="round"/>'
+         + '<circle cx="'+F(tx)+'" cy="'+F(ty)+'" r="3" fill="'+BARRA+'"/>';
+      // El nombre del otro extremo, junto a la punta y en la prolongación del
+      // tramo; si la carga llega por ese lado, a un costado de la flecha.
+      let lx = ux, ly = uy, sep = 7;
+      if(uC && difAng(angB, angCola) < 35){
+        if(!ladoV){
+          let px = uC.y, py = -uC.x;          // perpendicular a la flecha
+          if(px*ux + py*uy > 0){ px = -px; py = -py; }
+          ladoV = {x: px, y: py};             // costado del valor de la carga
+        }
+        lx = -ladoV.x; ly = -ladoV.y; sep = 6;
+      }
+      const an = anclaje(lx, ly);
+      cajas.push(_cajaTextoCroquis(tx+lx*sep, ty+ly*sep+an.dy, o.nombre, an.ta, 9.5));
+      rotulos += '<text x="'+F(tx+lx*sep)+'" y="'+F(ty+ly*sep+an.dy)+'" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#44505c" text-anchor="'+an.ta+'">'+o.nombre+'</text>';
+    });
+    s += rotulos;
+  }
+  if(tipoC === 'M'){
+    // El valor del par iba siempre encima del nudo, y un tramo que sube lo
+    // tachaba. Se prueba arriba, abajo, izquierda y derecha, fuera del arco, y
+    // se queda la primera posición que no pisa ninguna barra ni rótulo (si
+    // todas pisan algo, la que menos). Sin barras, o con la viga horizontal,
+    // sigue saliendo encima, como siempre.
+    const txtM = dec(Math.abs(magC),'mom')+' '+(magC>=0?'\u21ba':'\u21bb');
+    // `sector`: direcciones que el texto ocupa, para apartar de él el nombre.
+    const posM = [
+      {x: cx,    y: cy-21,  ta: 'middle', sector: [-90, -45, -135]},
+      {x: cx,    y: cy+31,  ta: 'middle', sector: [90, 45, 135]},
+      {x: cx-23, y: cy+3.5, ta: 'end',    sector: [180, 135, -135]},
+      {x: cx+23, y: cy+3.5, ta: 'start',  sector: [0, -45, 45]}
+    ];
+    let pM = posM[0], cajaM = null, menos = Infinity;
+    for(const p of posM){
+      const caja = _cajaTextoCroquis(p.x, p.y, txtM, p.ta, 9.5);
+      const k = _choquesCroquis(caja, segs, cajas);
+      if(k < menos){ menos = k; pM = p; cajaM = caja; }
+      if(k === 0) break;
+    }
+    cajas.push(cajaM);
+    s += _arcoParCroquis(cx, cy, magC >= 0, ROJO)
+       + '<text x="'+pM.x+'" y="'+pM.y+'" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="'+ROJO+'" text-anchor="'+pM.ta+'">'
+       + txtM+'</text>';
+    // El valor del par, si es largo, ocupa todo su sector.
+    ocupadas.push(...pM.sector);
+  } else if(uC){
+    const ux = uC.x, uy = uC.y;
+    // Si la carga llega por el mismo lado que un tramo, su valor va al costado
+    // contrario al nombre de ese extremo, anclado hacia fuera para que el
+    // texto entero quede libre de la flecha.
+    let ox = 0, oy = 0, anV = {ta: 'middle', dy: 3};
+    if(ladoV){ ox = ladoV.x*8; oy = ladoV.y*8; anV = anclaje(ladoV.x, ladoV.y); }
+    ocupadas.push(angCola);
+    segs.push([cx-ux*44, cy-uy*44, cx, cy]);
+    cajas.push(_cajaTextoCroquis(cx-ux*55+ox, cy-uy*55+oy+anV.dy, dec(Math.abs(magC),'f'), anV.ta, 9.5));
     s += _flechaCroquis(cx, cy, ux, uy, 44, ROJO, 2.2)
-       + '<text x="'+F(cx-ux*55)+'" y="'+F(cy-uy*55+3)+'" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="'+ROJO+'" text-anchor="middle">'
+       + '<text x="'+F(cx-ux*55+ox)+'" y="'+F(cy-uy*55+oy+anV.dy)+'" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="'+ROJO+'" text-anchor="'+anV.ta+'">'
        + dec(Math.abs(magC),'f')+'</text>';
   }
-  s += '<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="#1e3a8a" stroke="#fff" stroke-width="2"/>';
-  if(n) s += '<text x="'+(cx+10)+'" y="'+(cy-9)+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="#1b1f24">'+n.nombre+'</text>';
+  s += '<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="'+BARRA+'" stroke="#fff" stroke-width="2"/>';
+  if(n){
+    // El nombre del nudo va en la dirección más despejada, empezando por
+    // arriba a la derecha, que es donde estaba siempre; con un par se aparta
+    // más, porque el arco ocupa un radio de 15 alrededor del nudo.
+    // Las direcciones se ordenan por holgura angular (a igualdad, en el orden
+    // de la lista) y se toma la primera cuya caja no pisa una barra, la flecha
+    // ni otro rótulo; si todas pisan algo, la de más holgura, como antes.
+    const cand = [-45, -135, 45, 135, 0, 180, -90, 90];
+    const d = (tipoC === 'M') ? 28 : 12;
+    const orden = cand.map((a, i)=>({a, i,
+        h: ocupadas.length ? Math.min(...ocupadas.map(o=>difAng(a, o))) : 180}))
+      .sort((p, q)=> Math.abs(p.h - q.h) > 1e-6 ? q.h - p.h : p.i - q.i);
+    const posNombre = a => {
+      const ux = Math.cos(a*Math.PI/180), uy = Math.sin(a*Math.PI/180);
+      const an = anclaje(ux, uy);
+      return {x: cx+ux*d, y: cy+uy*d+an.dy, ta: an.ta};
+    };
+    let pN = posNombre(orden[0].a);
+    for(const o of orden){
+      const p = posNombre(o.a);
+      if(_choquesCroquis(_cajaTextoCroquis(p.x, p.y, n.nombre, p.ta, 10.5), segs, cajas) === 0){ pN = p; break; }
+    }
+    s += '<text x="'+F(pN.x)+'" y="'+F(pN.y)+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="#1b1f24" text-anchor="'+pN.ta+'">'+n.nombre+'</text>';
+  }
   return s + '</svg>';
 }
 
@@ -186,8 +353,12 @@ function dibujarCroquisTramo(){
   const cont=document.getElementById('cgCroquis'); if(!cont) return;
   const enNudo = document.getElementById('cgDestino').value==='nudo'
               && !(edCarga && (edCarga.tipo==='U'||edCarga.tipo==='T'));
+  // El título del croquis dice qué se está enseñando: con la carga sobre un
+  // nudo, «Tramo seleccionado» describía un dibujo que no estaba.
+  const cap = document.getElementById('cgCroquisCap');
+  if(cap) cap.textContent = enNudo ? 'Nudo seleccionado' : 'Tramo seleccionado';
   if(enNudo){ cont.innerHTML = _croquisCargaNudo(); return; }
-  const t = tramos.find(z=>z.id===parseInt(document.getElementById('cgTramo').value,10));
+  const t = _tramoModal();
   const g = t && geoTramo(t);
   if(!g){ cont.innerHTML='<div style="font-size:10.5px;color:#66727e;padding:14px 6px">Sin tramo.</div>'; return; }
 
@@ -317,11 +488,6 @@ function setBasePos(v){
   cambioBasePos();          // convierte los valores y refresca etiquetas
   marcarSeg('cgSegBase', h.value);   // puede haberse revertido si no era válido
 }
-function cambioTramoCarga(){
-  const h = document.getElementById('cgDir');
-  if(h) setDirCarga(h.value);      // misma dirección: solo refresca pista y rótulos
-  dibujarCroquisTramo();
-}
 // Dirección elegida en el modal, con su marco de coordenadas asociado.
 function _dirModal(){ return (document.getElementById('cgDir')||{}).value || 'y'; }
 function _marcoDeDir(v){ return (v === 'perp' || v === 'axial') ? 'local' : 'global'; }
@@ -336,7 +502,7 @@ function setDirCarga(v){
   // Solo importa el cambio de MARCO (global <-> local): pasar de vertical a
   // horizontal no toca las coordenadas.
   if(_marcoDeDir(antes) !== _marcoDeDir(v) && modo !== 'eje'){
-    const t = tramos.find(z=>z.id===parseInt(document.getElementById('cgTramo').value,10));
+    const t = _tramoModal();
     const g = t && geoTramo(t);
     if(g){
       const conv = (id)=>{
@@ -356,7 +522,7 @@ function setDirCarga(v){
   // El campo del ángulo solo tiene sentido en la inclinada.
   const filaAng = document.getElementById('cgFilaAng');
   if(filaAng) filaAng.style.display = (v === 'ang') ? '' : 'none';
-  const t = tramos.find(z=>z.id===parseInt(document.getElementById('cgTramo').value,10));
+  const t = _tramoModal();
   const g = t && geoTramo(t);
   const recto = !g || Math.abs(g.ang) < 0.05;
   const hint = document.getElementById('cgHintDir');
@@ -365,7 +531,8 @@ function setDirCarga(v){
     let txt = (DIR_CARGA[v] ? DIR_CARGA[v].ayuda : '');
     // La inclinada es global, y su ayuda ya dice desde dónde se mide el ángulo:
     // añadirle la coletilla del marco la partiría en dos líneas.
-    if(v === 'ang'){ /* la ayuda basta */ }
+    // Una carga de nudo tampoco lleva coordenadas que explicar.
+    if(v === 'ang' || !t){ /* la ayuda basta */ }
     else if(_marcoDeDir(v) === 'local'){
       txt += ' Las coordenadas se miden entonces desde el nudo inicial del tramo.';
       if(recto) txt += ' En un tramo horizontal, «Perpendicular» coincide con «Vertical».';
@@ -400,7 +567,7 @@ function cambioBasePos(){
   // Antes el número se quedaba igual y pasaba a significar otra cosa, así
   // que la carga saltaba (o desaparecía si caía fuera del tramo).
   if(modo !== _baseAnterior){
-    const t = tramos.find(z=>z.id===parseInt(document.getElementById('cgTramo').value,10));
+    const t = _tramoModal();
     const g = t && geoTramo(t);
     if(g){
       const ejeMuerto = (m) =>
@@ -448,20 +615,35 @@ function cerrarCarga(){ document.getElementById('cargaModal').classList.remove('
 function aplicarCarga(){
   if(!edCarga) return;
   const distrib = (edCarga.tipo==='U'||edCarga.tipo==='T');
-  const destino = distrib ? 'tramo' : document.getElementById('cgDestino').value;
+  // El destino es el fijado al abrir. Una repartida sobre un nudo se rechaza:
+  // antes se forzaba a 'tramo' y caía en un tramo que nadie había elegido.
+  const destino = (document.getElementById('cgDestino').value === 'nudo') ? 'nudo' : 'tramo';
+  if(distrib && destino === 'nudo'){
+    aviso('Las cargas repartidas van sobre un tramo: toca un tramo.', 'error'); return;
+  }
+  const idTramo = parseInt(document.getElementById('cgTramo').value, 10);
+  const idNudo  = parseInt(document.getElementById('cgNudo').value, 10);
+  if((destino === 'nudo') ? !nodo(idNudo) : !tramos.some(t=>t.id===idTramo)){
+    aviso('El ' + destino + ' de esta carga ya no existe.', 'error'); return;
+  }
   const _dir = (edCarga.tipo === 'M') ? null : _dirModal();
   const datos = {
     dir: _dir,
     // Se guarda siempre, aunque la dirección no sea la inclinada: así el
     // alumno que vuelve a «Inclinada» reencuentra el ángulo que había puesto.
-    ang: bsaAnguloOpuesto(parseFloat((document.getElementById('cgAng')||{}).value) || 0),
+    // Campo vacío = 90° del alumno (abajo), lo mismo que dibuja el croquis;
+    // 0 es un valor válido (hacia la izquierda), así que no vale `|| 0`.
+    ang: bsaAnguloOpuesto((v => isFinite(v) ? v : 90)(parseFloat((document.getElementById('cgAng')||{}).value))),
     // El marco de las coordenadas va con la dirección; se guarda aparte
     // porque es lo que leen las funciones de posición.
     orient: _dir ? _marcoDeDir(_dir) : 'global',
     basePos: (document.getElementById('cgBase')||{}).value || 'eje',
     destino,
-    tramo: parseInt(document.getElementById('cgTramo').value,10),
-    nudo: parseInt(document.getElementById('cgNudo').value,10),
+    // Solo el elemento que la sostiene: una carga de nudo no guarda tramo ni
+    // la de tramo nudo. Antes se guardaban los dos selectores, y el tramo de
+    // una carga de nudo era uno cualquiera (el cálculo lo ignora, 02-).
+    tramo: (destino === 'tramo') ? idTramo : null,
+    nudo:  (destino === 'nudo')  ? idNudo  : null,
     pos: parseFloat(document.getElementById('cgPos').value)||0,
     posFin: distrib ? (parseFloat(document.getElementById('cgFin').value)||0) : null,
     mag: parseFloat(document.getElementById('cgMag').value)||0,
@@ -485,10 +667,14 @@ function aplicarCarga(){
     }
   }
   const _tipo = (edCarga.tipo === 'PX') ? 'P' : edCarga.tipo;
+  registrarCambio();          // antes de tocar el modelo, como borrarCarga
   if(edCarga.nuevo) cargas.push(Object.assign({id:++cargaSeq, tipo:_tipo}, datos));
   else Object.assign(edCarga, datos, {tipo:_tipo});
+  // La herramienta 'carga' no se toca: sigue armada con el mismo tipo.
   R=null; cerrarCarga(); refrescar();
 }
+// Doble clic o ✎ del panel: la ventana se reabre con el destino de la carga,
+// que se muestra pero no se cambia.
 function editarCarga(id){
   const c=cargas.find(z=>z.id===id); if(!c) return;
   edCarga=c; abrirCargaModal(c.tipo, c);
@@ -568,7 +754,7 @@ function eliminarSeleccion(){
   tramos = tramos.filter(t=>!marcado(selTramos, t.id)
                         && !marcado(selNodos, t.a) && !marcado(selNodos, t.b));
   nodos  = nodos.filter(n=>!marcado(selNodos, n.id));
-  cargas = cargas.filter(c=>tramos.some(t=>t.id===c.tramo));
+  cargas = cargas.filter(cargaSigueAnclada);   // cada carga cae con su nudo o su tramo
   selNodos=[]; selTramos=[]; selCargas=[]; selNodo=null; selTramo=null;
   reNombrar(); R=null; refrescar();
 }

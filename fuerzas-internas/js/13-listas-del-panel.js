@@ -195,14 +195,16 @@ function editCargaMag(id,v){
 function borrarNodo(id){
   registrarCambio();
   tramos=tramos.filter(t=>t.a!==id && t.b!==id);
-  cargas=cargas.filter(c=>tramos.some(t=>t.id===c.tramo));
   nodos=nodos.filter(n=>n.id!==id);
+  // Con el nudo caen sus cargas de nudo y las de los tramos que llegaban a él.
+  cargas=cargas.filter(cargaSigueAnclada);
   reNombrar(); R=null; refrescar();
 }
 function borrarTramo(id){
   registrarCambio();
   tramos=tramos.filter(t=>t.id!==id);
-  cargas=cargas.filter(c=>c.tramo!==id);
+  // Solo caen las cargas de ese tramo: las de sus nudos se quedan en ellos.
+  cargas=cargas.filter(cargaSigueAnclada);
   R=null; refrescar();
 }
 function refrescar(){ dibujar(); pintarListas(); }
