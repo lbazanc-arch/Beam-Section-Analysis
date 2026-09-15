@@ -249,21 +249,43 @@ function fuerzasInternas(res){
       return c.map(v => (Math.abs(v) < 1e-7*m || Math.abs(v) < 1e-9) ? 0 : v);
     };
     const subs = [];
+    // El ajuste se hace en t = (x − sa)/h ∈ [0, 1], donde el sistema está
+    // siempre bien condicionado, y luego se reescribe en potencias de x (x
+    // medido desde el nudo inicial del TRAMO), que es lo que consumen los
+    // diagramas y el informe. Ajustar directamente en x hacía casi singular el
+    // sistema de un subtramo corto y lejano del nudo (1 cm a 4 m): el pivote
+    // caía bajo el umbral de resolverSistema y el subtramo salía con N, V y M
+    // nulos, así que el informe no reproducía el polinomio.
+    const TS = [0.08, 0.36, 0.64, 0.92];
+    const AT = TS.map(t=>[1, t, t*t, t*t*t]);
+    const enX = (d, sa, h) => {
+      if(!d) return null;
+      const c = [0,0,0,0];
+      // Σ d_k ((x − sa)/h)^k, desarrollado por el binomio
+      for(let k=0;k<4;k++){
+        const dk = d[k]/Math.pow(h, k);
+        for(let j=0;j<=k;j++){
+          const binom = [[1],[1,1],[1,2,1],[1,3,3,1]][k][j];
+          c[j] += dk*binom*Math.pow(-sa, k-j);
+        }
+      }
+      return c;
+    };
     for(let q=0;q<cortes.length-1;q++){
       const sa = cortes[q], sb = cortes[q+1];
-      if(sb - sa < 1e-9) continue;
-      // 4 puntos interiores; x medido desde el nudo inicial del TRAMO
-      const ss = [0.08, 0.36, 0.64, 0.92].map(t=>sa + (sb-sa)*t);
-      const AN=[], VV=[], MM=[], A=[];
-      ss.forEach(sv=>{
-        const r = corteEn(sv);
+      const h = sb - sa;
+      if(h < 1e-9) continue;
+      const AN=[], VV=[], MM=[];
+      TS.forEach(t=>{
+        const r = corteEn(sa + h*t);
         AN.push(r.N); VV.push(r.V); MM.push(r.M);
-        A.push([1, sv, sv*sv, sv*sv*sv]);
       });
+      // Se limpia el ruido en t, ANTES de desarrollar: un c3 de ruido anulado
+      // después dejaba descompensados c0, c1 y c2, que ya lo contenían.
       subs.push({sa, sb,
-        cN: limpiarPoly(resolverSistema(A, AN)),
-        cV: limpiarPoly(resolverSistema(A, VV)),
-        cM: limpiarPoly(resolverSistema(A, MM))});
+        cN: enX(limpiarPoly(resolverSistema(AT, AN)), sa, h),
+        cV: enX(limpiarPoly(resolverSistema(AT, VV)), sa, h),
+        cM: enX(limpiarPoly(resolverSistema(AT, MM)), sa, h)});
     }
 
     salida.push({tramo:e.t, nombre:nomTramo(e.t), L:g.L, ang:g.ang,

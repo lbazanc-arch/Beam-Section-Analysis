@@ -12,7 +12,10 @@ function puntoDeCarga(c){
   const t = tramos.find(z=>z.id===c.tramo);
   const g = t && geoTramo(t);
   if(!g) return null;
-  const s = Math.max(0, Math.min(g.L, sDesdePos(c, g, c.pos)));
+  let s = Math.max(0, Math.min(g.L, sDesdePos(c, g, c.pos)));
+  // Igual que en trozoCargado: pegada al nudo a efectos de cálculo.
+  if(s < 1e-4*g.L) s = 0;
+  if(g.L - s < 1e-4*g.L) s = g.L;
   return {x:g.a.x + g.ux*s, y:g.a.y + g.uy*s};
 }
 // Tramo cargado de una distribuida: [inicio, fin] medidos desde el nudo a.
@@ -62,6 +65,13 @@ function trozoCargado(c){
   let s2 = (c.posFin===undefined || c.posFin===null) ? g.L
            : Math.max(0, Math.min(g.L, sDesdePos(c, g, c.posFin)));
   if(s2 < s1){ const t2=s1; s1=s2; s2=t2; }
+  // Un borde a menos de una diezmilésima del largo de un extremo se lleva al
+  // extremo: es un largo escrito redondeado (4.27 en un tramo de 4.2720), no
+  // una intención, y ese resto dejaba un subtramo microscópico cuyo ajuste
+  // polinómico sale mal condicionado en el motor y en el informe.
+  const tolS = 1e-4*g.L;
+  if(s1 < tolS) s1 = 0;
+  if(g.L - s2 < tolS) s2 = g.L;
   return {g, s1, s2, len:s2-s1};
 }
 // ── Dirección de una carga ──
