@@ -11,6 +11,66 @@ function recalcularSinDesplazar(fn){
   try{ return (fn || calculate)(); }
   finally{ resultadoSinDesplazar = false; }
 }
+// ── Valor con cifras significativas suficientes ──
+// Los decimales configurables (DEC.len) sirven para longitudes, no para un peso
+// específico o una densidad expresados en la unidad del sistema: 3000 kg/m³ son
+// 0.003 kg/cm³, y con dos decimales se imprimía «0.00», de modo que la fórmula
+// escrita no reproducía su propio resultado. Aquí se garantizan `sig` cifras
+// significativas, nunca menos decimales que DEC.len, y sin ceros de relleno.
+// Lo usan la pantalla (este archivo) y el informe LaTeX (16-).
+function decSigCen(v, sig){
+  const d0 = (typeof DEC === 'object' && DEC && DEC.len !== undefined) ? DEC.len : 2;
+  if(typeof v !== 'number' || !isFinite(v)) return '0';
+  if(v === 0) return (0).toFixed(d0);
+  let d = Math.max(d0, (sig || 4) - 1 - Math.floor(Math.log10(Math.abs(v))));
+  if(d > 12) d = 12;
+  if(d < 0) d = 0;
+  let s = v.toFixed(d);
+  const pt = s.indexOf('.');
+  if(pt >= 0) while(s.length - pt - 1 > d0 && s.charAt(s.length-1) === '0') s = s.slice(0,-1);
+  return s;
+}
+
+// Un peso o una masa en la unidad del sistema pueden valer 0.0792 kg: con los
+// decimales de área (2) se escribirían «0.08» y el cociente ΣW·x̃ / ΣW impreso no
+// daría el x_G impreso (0.65/0.08 = 8.13, no 8.27). Solo para esa magnitud se
+// usan cifras significativas; el resto del informe sigue con ftex, y cuando el
+// número sale en potencia de diez, la mantisa lleva las mismas cuatro cifras.
+// Devuelve null si manda la notación que fijó el alumno: entonces se respeta
+// ftex/fmtVal tal cual.
+function _pesoCifras(v){
+  if(typeof v !== 'number' || !isFinite(v)) return null;
+  if(typeof notationExp === 'number' && notationExp !== 0) return null;
+  const a = Math.abs(v);
+  if(a === 0) return null;
+  if(a >= 10000 || a < 0.01){
+    const e = Math.floor(Math.log10(a));
+    return {mant:(v/Math.pow(10,e)).toFixed(3), exp:e};
+  }
+  return {txt: decSigCen(v, 4)};
+}
+function ftexPeso(v){        // LaTeX del informe y de KaTeX
+  const p = _pesoCifras(v);
+  if(!p) return ftex(v);
+  return (p.txt !== undefined) ? p.txt : (p.mant + '\\times 10^{' + p.exp + '}');
+}
+function ftexPesoTxt(v){     // HTML del panel de resultados
+  const p = _pesoCifras(v);
+  if(!p) return fmtVal(v);
+  return (p.txt !== undefined) ? p.txt : (p.mant + ' ×10<sup>' + p.exp + '</sup>');
+}
+
+// El material entra en el cálculo en la unidad del SISTEMA (0.003 kg/cm³), no en
+// la que escribió el alumno (3000 kg/m³): si la ficha enseñara la escrita, el
+// producto γ·A·t de la ficha no daría el peso de la ficha, porque las longitudes
+// van en cm. Se imprime la del sistema y se cita al lado la escrita, como hace
+// el informe (16-).
+function matValSisCen(m){ return decSigCen(m.val, 4); }
+function matValIngCen(m){
+  return (m.valIng !== undefined && m.valIng !== null && m.uIng && m.uIng !== uGamma())
+    ? ' = ' + decFix(m.valIng,'len') + ' ' + m.uIng : '';
+}
+
 function renderResults(res, u4, u2, u1){
   currentU4=u4; currentU2=u2; currentU1=u1;
   const rp = document.getElementById('resultsPanel');
@@ -26,6 +86,13 @@ function renderResults(res, u4, u2, u1){
   const nL = v => decFix(v,'len');
   const het = res.hetero;
   const simb = matSimbolo();
+  // En magnitud «densidad» lo que se calcula es MASA (ρ·A·t = kg), no peso; en
+  // «peso específico», peso (γ·A·t = fuerza). Nombre, símbolo y unidad cambian
+  // con la magnitud, igual que en el informe (16-).
+  const esMasa = (matMagnitud === 'densidad');
+  const Wsim = esMasa ? 'm' : 'W';
+  const Wnom = esMasa ? 'Masa' : 'Peso';
+  const uW   = esMasa ? 'kg' : unitForce;
   let html = '';
 
   // ══════════════════════════════════════════════════
@@ -70,8 +137,9 @@ function renderResults(res, u4, u2, u1){
             <tr><td>Área</td><td><i>A<sub>i</sub></i></td><td class="v">${f(Math.abs(s.a))}</td><td>${u2}</td></tr>
             <tr><td>Centroide x</td><td><i>x̃<sub>i</sub></i></td><td class="v">${nL(s.xi)}</td><td>${u1}</td></tr>
             <tr><td>Centroide y</td><td><i>ỹ<sub>i</sub></i></td><td class="v">${nL(s.yi)}</td><td>${u1}</td></tr>
-            ${het?`<tr><td>${matMagnitud==='densidad'?'Densidad':'Peso específico'}</td><td><i>${simb}<sub>i</sub></i></td><td class="v">${s.mat?_matValTxt(s.mat):'—'}</td><td>${s.mat?esc(_matUniTxt(s.mat)):'—'}</td></tr>
-            <tr><td>Peso</td><td><i>W<sub>i</sub></i></td><td class="v">${f(Math.abs(s.w))}</td><td>—</td></tr>`:''}
+            ${het?`<tr><td>${esMasa?'Densidad':'Peso específico'}</td><td><i>${simb}<sub>i</sub></i></td><td class="v">${s.mat?matValSisCen(s.mat):'—'}</td><td>${s.mat?esc(uGamma()):'—'}</td></tr>
+            <tr><td>Espesor</td><td><i>t<sub>i</sub></i></td><td class="v">${decSigCen(s.t,3)}</td><td>${u1}</td></tr>
+            <tr><td>${Wnom}</td><td><i>${Wsim}<sub>i</sub></i></td><td class="v">${f(Math.abs(s.w))}</td><td>${uW}</td></tr>`:''}
           </tbody>
         </table>
       </div>
@@ -95,7 +163,7 @@ function renderResults(res, u4, u2, u1){
         <th>ỹ<sub>i</sub><br><span>(${u1})</span></th>
         <th>A<sub>i</sub>x̃<sub>i</sub></th>
         <th>A<sub>i</sub>ỹ<sub>i</sub></th>
-        ${het?`<th>W<sub>i</sub>x̃<sub>i</sub></th><th>W<sub>i</sub>ỹ<sub>i</sub></th>`:''}
+        ${het?`<th>${Wsim}<sub>i</sub>x̃<sub>i</sub></th><th>${Wsim}<sub>i</sub>ỹ<sub>i</sub></th>`:''}
       </tr></thead><tbody>`;
   res.steps.forEach((s,i)=>{
     const nom = s.fig.etiqueta || s.fig.name || FIG_DEFS[s.fig.type].name;
@@ -119,9 +187,11 @@ function renderResults(res, u4, u2, u1){
       ${het?`<td class="v">${f(res.Wx)}</td><td class="v">${f(res.Wy)}</td>`:''}
     </tr></tbody></table></div>`;
   if(het){
+    // El espesor t_i está en la fórmula porque el motor calcula w = γ·A·t
+    // (calculate, 09-): sin él la fórmula impresa no reproduce el número impreso.
     html += `<div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.6">
-      W<sub>i</sub> = ${simb}<sub>i</sub> · A<sub>i</sub> &nbsp;·&nbsp; ` +
-      MATS.map(m=>`<b style="color:var(--grn2)">${simb}${m.id}</b> = ${_matValTxt(m)} ${esc(_matUniTxt(m))}`).join(' &nbsp; ') + `</div>`;
+      ${Wsim}<sub>i</sub> = ${simb}<sub>i</sub> · A<sub>i</sub> · t<sub>i</sub> &nbsp;(${uW})&nbsp;·&nbsp; ` +
+      MATS.map(m=>`<b style="color:var(--grn2)">${simb}${m.id}</b> = ${matValSisCen(m)} ${esc(uGamma())}${esc(matValIngCen(m))}`).join(' &nbsp; ') + `</div>`;
   }
   html += `</div>`;
 
@@ -144,15 +214,15 @@ function renderResults(res, u4, u2, u1){
     html += `
       <div class="proc-col">
         <div class="proc-sub">Coordenadas del centro de gravedad G</div>
-        <div class="eq-row"><div class="eq-body">${kx(`\\sum W_{i} = \\sum ${simb}_{i}A_{i} = ${kres(ftex(res.W))}`)}</div></div>
-        <div class="eq-row"><div class="eq-body">${kx(`x_{G} = \\dfrac{\\sum W_{i}\\tilde{x}_{i}}{\\sum W_{i}} = \\dfrac{${ftex(res.Wx)}}{${ftex(res.W)}} = ${kres(ftex(res.xg)+'\\,'+utex(u1))}`)}</div></div>
-        <div class="eq-row"><div class="eq-body">${kx(`y_{G} = \\dfrac{\\sum W_{i}\\tilde{y}_{i}}{\\sum W_{i}} = \\dfrac{${ftex(res.Wy)}}{${ftex(res.W)}} = ${kres(ftex(res.yg)+'\\,'+utex(u1))}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`\\sum ${Wsim}_{i} = \\sum ${simb}_{i}A_{i}t_{i} = ${kres(ftexPeso(res.W)+'\\,'+utex(uW))}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`x_{G} = \\dfrac{\\sum ${Wsim}_{i}\\tilde{x}_{i}}{\\sum ${Wsim}_{i}} = \\dfrac{${ftexPeso(res.Wx)}}{${ftexPeso(res.W)}} = ${kres(ftex(res.xg)+'\\,'+utex(u1))}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`y_{G} = \\dfrac{\\sum ${Wsim}_{i}\\tilde{y}_{i}}{\\sum ${Wsim}_{i}} = \\dfrac{${ftexPeso(res.Wy)}}{${ftexPeso(res.W)}} = ${kres(ftex(res.yg)+'\\,'+utex(u1))}`)}</div></div>
       </div>`;
   }
   html += `</div>
     <div class="summary-grid">
       <div class="summary-box"><div class="s-lbl">Área total A</div><div class="s-val">${f(res.A)}</div><div class="s-unit">${u2}</div></div>
-      <div class="summary-box"><div class="s-lbl">Peso total ΣW</div><div class="s-val">${f(res.W)}</div><div class="s-unit">—</div></div>
+      <div class="summary-box"><div class="s-lbl">${het?(Wnom+' total Σ'+Wsim):'Peso total ΣW'}</div><div class="s-val">${het?ftexPesoTxt(res.W):f(res.W)}</div><div class="s-unit">${het?uW:'—'}</div></div>
       <div class="summary-box highlight"><div class="s-lbl">${het?'x̄ (centroide)':'x̄ = x_G'}</div><div class="s-val">${nL(res.xbar)}</div><div class="s-unit">${u1}</div></div>
       <div class="summary-box highlight"><div class="s-lbl">${het?'ȳ (centroide)':'ȳ = y_G'}</div><div class="s-val">${nL(res.ybar)}</div><div class="s-unit">${u1}</div></div>
     </div>`;

@@ -28,7 +28,8 @@ function _primeraVezIn(clave){
 // entonces Steiner también se hace una vez: mismas Ix e Iy, Pxy opuesto.
 // Solo cuentan como «en espejo» los tipos simétricos respecto de su propio
 // eje: un triángulo rectángulo o un ángulo reflejados ya no son la misma figura.
-const _SIM_V_IN = {rect:1, circle:1, semicircle:1, sector:1, wshape:1, parabola:1};
+const _SIM_V_IN = {rect:1, circle:1, semicircle:1, sector:1, wshape:1, parabola:1,
+                   elipse:1, semielipse:1, segmento:1, hexagono:1, octogono:1};
 const _SIM_H_IN = {rect:1, circle:1, wshape:1, channel:1};
 function _claveFiguraIn(f){
   const rot = (((f.rotation||0) % 360) + 360) % 360;
@@ -203,6 +204,25 @@ function construirLatex(){
   const mAvg = (results.Ix + results.Iy) / 2;
   const mR   = Math.sqrt(Math.pow((results.Ix - results.Iy) / 2, 2) + results.Ixy * results.Ixy);
   const rel = (a,b)=>Math.abs(a-b) > 1e-9*Math.max(1, Math.abs(a), Math.abs(b));
+  // ── Ruido de coma flotante en el producto de inercia ──
+  // d_x y d_y son restas entre números del tamaño de la sección, así que
+  // arrastran ~1e-16 de error relativo. Una parte cuyo producto vale CERO por
+  // simetría imprimía «5.8696e-13 m^4», que se lee como un producto real y
+  // pone en duda una simetría que es exacta. Frente a la escala de la sección
+  // eso es cero, y así se escribe: en la línea por parte, en la tabla y en la
+  // suma. El umbral relativo (1e-9) es el mismo con el que la pantalla decide
+  // que «hay simetría» en 23-calculo-y-resultados.js.
+  const ceroEsc = (v, e) => (Math.abs(v) <= 1e-9*e ? 0 : v);
+  const escalaIn = Math.max(Math.abs(results.Ix), Math.abs(results.Iy), Math.abs(results.Ixy));
+  const ceroIn = v => ceroEsc(v, escalaIn);
+  const pxySec = ceroIn(results.Ixy);
+  // Sección isótropa: Ix = Iy Y Pxy = 0, es decir R = 0 en el círculo de Mohr.
+  // No es que no haya eje principal: los hay TODOS, y tan 2θp no tiende a
+  // infinito, sino que es 0/0. El disco y el cuadrado son el caso típico.
+  const isotropa = mR <= 1e-9*escalaIn;
+  // Centroide sobre el origen: sus cotas no se dibujan (13-latex-laminas-tikz.js)
+  // porque tendrían longitud nula, y el texto lo dice en su lugar.
+  const cEnOrigen = Math.abs(results.xbar) <= env.tol && Math.abs(results.ybar) <= env.tol;
 
   // ── Autocomprobación: lo que se va a escribir (Steiner parte a parte y las
   // sumas de la tabla) debe reproducir lo que calculó el motor.
@@ -474,6 +494,26 @@ function construirLatex(){
         tex += porque('cuartoelipse', 'El cuarto de elipse es un cuarto de círculo estirado: cada abscisa se multiplica '
           + 'por $a$ y cada ordenada por $b$. Por eso el centroide pasa de $4R/3\\pi$ en los dos ejes a $4a/3\\pi$ '
           + 'y $4b/3\\pi$, y las inercias conservan los mismos coeficientes.');
+      else if(f.type === 'semielipse')
+        tex += porque('semielipse', 'La semielipse es un semicírculo estirado: cada abscisa se multiplica por $a/R$ '
+          + 'y cada ordenada por $b/R$. Por eso el centroide sigue a $4b/3\\pi \\approx 0.42\\,b$ de la base plana, '
+          + 'con el mismo coeficiente que el semicírculo, y las inercias conservan sus fracciones.');
+      else if(f.type === 'segmento')
+        tex += porque('segmento', 'El segmento circular es el sector menos el triángulo que apoya en la cuerda. '
+          + 'Al quitar el triángulo se quita justo lo que estaba más cerca del centro $O$, así que el centroide '
+          + 'se corre hacia el arco: vale $2R\\sen^{3}\\theta/3(\\theta-\\sen\\theta\\cos\\theta)$ desde $O$, '
+          + 'tiende a $R$ cuando el segmento es una lámina fina y vale $4R/3\\pi$ cuando $\\theta = 90^\\circ$, '
+          + 'que es el semicírculo.');
+      else if(f.type === 'trapecio')
+        tex += porque('trapecio', 'La altura del centroide de un trapecio, $\\bar{y} = h(a+2b)/3(a+b)$, va de $h/3$ '
+          + 'cuando la base menor se anula (y el trapecio es un triángulo) a $h/2$ cuando las dos bases son iguales '
+          + '(y es un rectángulo): mide cuánto material hay arriba frente a cuánto hay abajo. El desplazamiento '
+          + '$\\Delta$ de la base menor no cambia $\\bar{y}$; solo mueve $\\bar{x}$.');
+      else if(f.type === 'triangulo')
+        tex += porque('triangulo-cualquiera', 'El centroide de un triángulo cualquiera es el promedio de sus tres '
+          + 'vértices, se cruce donde se cruce la altura: $\\bar{x} = (0+b+d)/3$ desde el extremo izquierdo de la '
+          + 'base y $\\bar{y} = h/3$. Es el punto donde se cortan las medianas, y no hace falta que el triángulo '
+          + 'sea rectángulo.');
     }
 
     // Inercias propias, sobre los ejes de la figura sin girar. En el
@@ -498,6 +538,18 @@ function construirLatex(){
         + 'no es nulo. El signo lo da el reparto del material respecto de sus ejes centroidales: es \\textbf{negativo} '
         + 'cuando el grueso cae en el segundo y el cuarto cuadrante, donde $xy < 0$ (media parábola y cuarto de elipse), '
         + 'y \\textbf{positivo} cuando cae en el primero y el tercero (media parábola complementaria).');
+    else if(f.type === 'trapecio' || f.type === 'triangulo')
+      tex += porque('pxy-poligono', 'El trapecio con la base menor desplazada y el triángulo escaleno no tienen eje '
+        + 'de simetría, así que su producto de inercia no es nulo: son el caso que hace girar los ejes principales. '
+        + 'El signo lo da hacia qué lado se inclina la figura: \\textbf{positivo} cuando el vértice (o la base menor) '
+        + 'cae a la derecha de la posición simétrica, porque sobra material en el primer y el tercer cuadrante, y '
+        + '\\textbf{negativo} cuando cae a la izquierda. Se anula justo en el caso simétrico: $d = b/2$ en el '
+        + 'triángulo y $\\Delta = (a-b)/2$ en el trapecio.');
+    else if(f.type === 'hexagono' || f.type === 'octogono')
+      tex += porque('poligono-regular', 'Un polígono regular tiene más de dos ejes de simetría, y eso obliga a que '
+        + 'TODA recta que pase por su centroide dé la misma inercia: $\\bar{I}_x = \\bar{I}_y$ y $\\bar{P}_{xy} = 0$ '
+        + 'en cualquier orientación, igual que en el círculo. Por eso girarlo no cambia nada, y en el círculo de Mohr '
+        + 'la figura sola sería un punto.');
     else if(Math.abs(s0.Ixyc0) < 1e-12)
       tex += porque('pxy-cero', 'Si la figura tiene un eje de simetría, a cada elemento de área en $(x, y)$ le '
         + 'corresponde otro igual en $(x, -y)$ (o en $(-x, y)$): los productos $xy$ se cancelan de dos en dos y '
@@ -607,6 +659,11 @@ function construirLatex(){
     tex += '\\resultado{\\centering $C\\,(\\bar{x};\\ \\bar{y}) = (' + decP(results.xbar,'len') + ';\\ '
       + decP(results.ybar,'len') + ')' + U1 + '$, medido desde $O$. Todas las inercias que siguen se refieren a los '
       + 'ejes $x$ e $y$ que pasan por $C$.}\n';
+    if(cEnOrigen){
+      tex += '{\\footnotesize El centroide cae sobre el origen $O$ de los ejes del dibujo: $\\bar{x} = \\bar{y} = 0$. '
+        + 'Por eso las láminas que siguen no acotan $\\bar{x}_C$ ni $\\bar{y}_C$, que no tienen longitud, y los ejes '
+        + 'centroidales $x$-$y$ coinciden con los $X$-$Y$ del dibujo.}\\\\[3pt]\n';
+    }
     if(simSec.v || simSec.h){
       tex += '{\\footnotesize La sección es simétrica respecto de'
         + (simSec.v ? ' un eje vertical' : '') + (simSec.v && simSec.h ? ' y de' : '') + (simSec.h ? ' un eje horizontal' : '')
@@ -655,7 +712,7 @@ function construirLatex(){
         + (e.eje === 'vertical' ? '$d_{x_' + k + '} = -d_{x_' + k0 + '} = ' + dxS + '$ y el mismo $d_{y}$'
                                  : '$d_{y_' + k + '} = -d_{y_' + k0 + '} = ' + dyS + '$ y el mismo $d_{x}$')
         + ', así que $\\bar{I}_{x_' + k + '} = \\bar{I}_{x_' + k0 + '}$, $\\bar{I}_{y_' + k + '} = \\bar{I}_{y_' + k0
-        + '}$ y $\\bar{P}_{xy_' + k + '} = -\\bar{P}_{xy_' + k0 + '} = ' + ftex(s.Ixy_f) + U4 + '$.}\\\\[2pt]\n';
+        + '}$ y $\\bar{P}_{xy_' + k + '} = -\\bar{P}_{xy_' + k0 + '} = ' + ftex(ceroIn(s.Ixy_f)) + U4 + '$.}\\\\[2pt]\n';
       return;
     }
     const situacion = (girada ? 'girada' : 'normal') + (f.sign > 0 ? '' : '-hueco');
@@ -665,7 +722,7 @@ function construirLatex(){
       tex += '\\quad{\\small ' + (repetidaDe[i] !== undefined ? 'igual que la parte ' + k0 : 'como la parte ' + k0)
         + ', con $d_{x_' + k + '} = ' + dxS + '$ y $d_{y_' + k + '} = ' + dyS + U1
         + '$; la misma sustituci\\\'on da $\\bar{I}_{x_' + k + '} = ' + ftex(s.Ix_f) + '$, $\\bar{I}_{y_' + k + '} = ' + ftex(s.Iy_f)
-        + '$ y $\\bar{P}_{xy_' + k + '} = ' + ftex(s.Ixy_f) + U4 + '$ (detalle en la tabla).}\\\\[2pt]\n';
+        + '$ y $\\bar{P}_{xy_' + k + '} = ' + ftex(ceroIn(s.Ixy_f)) + U4 + '$ (detalle en la tabla).}\\\\[2pt]\n';
       return;
     }
     situacionVista[situacion] = i;
@@ -679,7 +736,8 @@ function construirLatex(){
     tex += '\\[ \\bar{I}_{y_' + k + '} = ' + (lit ? marca + '\\left(\\bar{I}_{y}' + pr + ' + A_' + k + ' d_{x_' + k + '}^{2}\\right) = ' : '')
       + marca + '\\left(' + ftex(s.Iyc) + ' + (' + ftex(s.a) + ')(' + dxS + ')^{2}\\right) = ' + ftex(s.Iy_f) + U4 + ' \\]\n';
     tex += '\\[ \\bar{P}_{xy_' + k + '} = ' + (lit ? marca + '\\left(\\bar{P}_{xy}' + pr + ' + A_' + k + ' d_{x_' + k + '} d_{y_' + k + '}\\right) = ' : '')
-      + marca + '\\left(' + ftex(s.Ixyc) + ' + (' + ftex(s.a) + ')(' + dxS + ')(' + dyS + ')\\right) = ' + ftex(s.Ixy_f) + U4 + ' \\]\n';
+      + marca + '\\left(' + ftex(ceroIn(s.Ixyc)) + ' + (' + ftex(s.a) + ')(' + dxS + ')(' + dyS + ')\\right) = '
+      + ftex(ceroIn(s.Ixy_f)) + U4 + ' \\]\n';
     primera = false;
   });
 
@@ -688,13 +746,13 @@ function construirLatex(){
   {
     const fIx  = factorColumna(st.map(s=>s.Ixc));
     const fIy  = factorColumna(st.map(s=>s.Iyc));
-    const fIxy = factorColumna(st.map(s=>s.Ixyc));
+    const fIxy = factorColumna(st.map(s=>ceroIn(s.Ixyc)));
     const fSx  = factorColumna(st.map(s=>s.a*s.dy*s.dy));
     const fSy  = factorColumna(st.map(s=>s.a*s.dx*s.dx));
-    const fSxy = factorColumna(st.map(s=>s.a*s.dx*s.dy));
+    const fSxy = factorColumna(st.map(s=>ceroIn(s.a*s.dx*s.dy)));
     const fTx  = factorColumna(st.map(s=>s.Ix_f));
     const fTy  = factorColumna(st.map(s=>s.Iy_f));
-    const fTxy = factorColumna(st.map(s=>s.Ixy_f));
+    const fTxy = factorColumna(st.map(s=>ceroIn(s.Ixy_f)));
     tex += '\\vspace{4pt}\n';
     tex += tablaCaption('Inercias por parte, en ' + utexto(u4) + '. Las tres primeras columnas son las propias '
       + '(ya giradas a ejes paralelos a $x$ e $y$ si la parte está girada); las tres siguientes, los términos de '
@@ -712,18 +770,18 @@ function construirLatex(){
       tex += (k+1)
         + ' & ' + celdaCol(s.Ixc,  fIx,  DEC.iner)
         + ' & ' + celdaCol(s.Iyc,  fIy,  DEC.iner)
-        + ' & ' + celdaCol(s.Ixyc, fIxy, DEC.iner)
+        + ' & ' + celdaCol(ceroIn(s.Ixyc), fIxy, DEC.iner)
         + ' & ' + celdaCol(s.a*s.dy*s.dy, fSx, DEC.iner)
         + ' & ' + celdaCol(s.a*s.dx*s.dx, fSy, DEC.iner)
-        + ' & ' + celdaCol(s.a*s.dx*s.dy, fSxy, DEC.iner)
+        + ' & ' + celdaCol(ceroIn(s.a*s.dx*s.dy), fSxy, DEC.iner)
         + ' & ' + celdaCol(s.Ix_f,  fTx,  DEC.iner)
         + ' & ' + celdaCol(s.Iy_f,  fTy,  DEC.iner)
-        + ' & ' + celdaCol(s.Ixy_f, fTxy, DEC.iner) + ' \\\\\n';
+        + ' & ' + celdaCol(ceroIn(s.Ixy_f), fTxy, DEC.iner) + ' \\\\\n';
     });
     tex += '\\hline\\multicolumn{7}{l}{$\\sum$} & '
       + celdaCol(results.Ix,  fTx,  DEC.iner) + ' & '
       + celdaCol(results.Iy,  fTy,  DEC.iner) + ' & '
-      + celdaCol(results.Ixy, fTxy, DEC.iner) + ' \\\\\n'
+      + celdaCol(pxySec, fTxy, DEC.iner) + ' \\\\\n'
       + '\\hline\\end{tabular}\\end{tablacentrada}}\n';
   }
 
@@ -757,7 +815,7 @@ function construirLatex(){
       }
     }
     tex += '\\[ \\bar{P}_{xy} = \\sum \\left(\\bar{P}_{xy}\' + A_i\\,d_{x_i}d_{y_i}\\right) = '
-      + ftex(sPropIxy) + ' + ' + ftex(sStIxy) + ' = ' + ftex(results.Ixy) + U4 + ' \\]\n';
+      + ftex(ceroIn(sPropIxy)) + ' + ' + ftex(ceroIn(sStIxy)) + ' = ' + ftex(pxySec) + U4 + ' \\]\n';
     tex += '\\subpaso{Momento polar y radios de giro}\n';
     tex += porque('polar',
       'El momento polar $J_O = \\int r^{2}dA$ mide la inercia respecto del eje perpendicular al plano por $C$; como '
@@ -771,10 +829,10 @@ function construirLatex(){
       + ' \\qquad k_y = \\sqrt{\\dfrac{\\bar{I}_y}{A}} = \\sqrt{\\dfrac{' + ftex(results.Iy) + '}{'
       + ftex(results.A) + '}} = ' + decP(results.ky,'len') + U1 + ' \\]\n';
     tex += '\\resultado{\\centering $\\bar{I}_x = ' + ftex(results.Ix) + U4 + '$ \\quad $\\bar{I}_y = ' + ftex(results.Iy) + U4
-      + '$ \\quad $\\bar{P}_{xy} = ' + ftex(results.Ixy) + U4 + '$ \\quad $J_O = ' + ftex(results.Jo) + U4 + '$}\n';
+      + '$ \\quad $\\bar{P}_{xy} = ' + ftex(pxySec) + U4 + '$ \\quad $J_O = ' + ftex(results.Jo) + U4 + '$}\n';
     // El signo del producto de inercia no es un detalle: dice si hace falta
     // girar los ejes y hacia dónde.
-    const pxy = results.Ixy;
+    const pxy = pxySec;
     tex += '\\veredicto{' + ((Math.abs(pxy) < 1e-9*Math.max(1, mR))
       ? 'El producto de inercia es \\textbf{nulo}: los ejes $x$ e $y$ que pasan por $C$ ya son los ejes principales '
         + 'de la sección, y $\\bar{I}_x$ e $\\bar{I}_y$ son sus inercias máxima y mínima. El paso siguiente lo confirma.'
@@ -794,13 +852,32 @@ function construirLatex(){
     + 'eje de simetría no hace falta buscarlos: ya lo es.');
   const dI = results.Ix - results.Iy;
   const dosTh = 2*results.thetaP;
-  if(Math.abs(dI) < 1e-12*Math.max(1, Math.abs(results.Ix), Math.abs(results.Iy))){
+  const ixIgualIy = Math.abs(dI) <= 1e-9*escalaIn;
+  if(isotropa){
+    // 0/0, NO infinito. Con Ix = Iy y Pxy = 0 las ecuaciones de giro dan
+    // I_u = Ix y P_uv = 0 para CUALQUIER theta: no faltan ejes principales,
+    // sobran. Decir «tiende a infinito» aquí es un error de bulto.
+    tex += '\\[ \\tan 2\\theta_p = \\dfrac{-2\\bar{P}_{xy}}{\\bar{I}_x - \\bar{I}_y} = \\dfrac{0}{0} '
+      + '\\qquad\\Longrightarrow\\qquad \\text{indeterminado} \\quad (\\bar{I}_x = \\bar{I}_y '
+      + '\\text{ y } \\bar{P}_{xy} = 0) \\]\n';
+    tex += '{\\footnotesize El cociente no se va a infinito: es $0/0$. Y que el ángulo quede indeterminado no '
+      + 'significa que la sección no tenga ejes principales, sino que los tiene \\textbf{todos}. Sustituyendo '
+      + '$\\bar{I}_x = \\bar{I}_y$ y $\\bar{P}_{xy} = 0$ en las ecuaciones de giro queda $I_u = \\bar{I}_x$ y '
+      + '$P_{uv} = 0$ para \\emph{cualquier} $\\theta$: la inercia vale lo mismo respecto de todo eje que pase por '
+      + '$C$ y cualquiera de ellos es principal, con $I_{\\max} = I_{\\min}$. Le ocurre al círculo, al anillo y al '
+      + 'cuadrado. Los resultados se dan con $\\theta_p = 0^\\circ$, un representante tan válido como otro '
+      + 'cualquiera.}\\\\[3pt]\n';
+  } else if(ixIgualIy){
+    // Ix = Iy con producto NO nulo: ahora el denominador sí se anula solo y la
+    // tangente diverge de verdad, luego 2*theta_p = ±90° y theta_p = ±45°.
     tex += '\\[ \\tan 2\\theta_p = \\dfrac{-2\\bar{P}_{xy}}{\\bar{I}_x - \\bar{I}_y} \\longrightarrow \\infty '
-      + '\\quad (\\bar{I}_x = \\bar{I}_y) \\qquad\\Longrightarrow\\qquad 2\\theta_p = ' + decP(dosTh,'ang')
-      + '^\\circ \\qquad \\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ \\]\n';
+      + '\\quad (\\bar{I}_x = \\bar{I}_y,\\ \\bar{P}_{xy} \\neq 0) \\qquad\\Longrightarrow\\qquad 2\\theta_p = '
+      + decP(dosTh,'ang') + '^\\circ \\qquad \\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ \\]\n';
+    tex += '{\\footnotesize Con el denominador nulo y el numerador no, la tangente diverge: $2\\theta_p = '
+      + '\\pm 90^\\circ$ y los ejes principales quedan a $45^\\circ$ de $x$ e $y$.}\\\\[3pt]\n';
   } else {
-    tex += '\\[ \\tan 2\\theta_p = \\dfrac{-2\\bar{P}_{xy}}{\\bar{I}_x - \\bar{I}_y} = \\dfrac{-2\\,(' + ftex(results.Ixy)
-      + ')}{' + ftex(results.Ix) + ' - ' + ftex(results.Iy) + '} = ' + decP(-2*results.Ixy/dI,'iner')
+    tex += '\\[ \\tan 2\\theta_p = \\dfrac{-2\\bar{P}_{xy}}{\\bar{I}_x - \\bar{I}_y} = \\dfrac{-2\\,(' + ftex(pxySec)
+      + ')}{' + ftex(results.Ix) + ' - ' + ftex(results.Iy) + '} = ' + decP(-2*pxySec/dI,'iner')
       + ' \\qquad\\Longrightarrow\\qquad 2\\theta_p = ' + decP(dosTh,'ang') + '^\\circ \\qquad \\theta_p = '
       + decP(results.thetaP,'ang') + '^\\circ \\]\n';
     tex += '{\\footnotesize El arco tangente tiene dos soluciones que distan $180^\\circ$ en $2\\theta_p$, es decir '
@@ -812,13 +889,25 @@ function construirLatex(){
   tex += '\\[ I_{\\max} = ' + ftex(results.Imax) + U4 + ' \\qquad I_{\\min} = ' + ftex(results.Imin) + U4 + ' \\]\n';
   // La lámina repite la sección SIN la cadena de cotas: lo único acotado es el
   // centroide, y como variables.
-  tex += lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, ejesPrincipales:true}),
-    'Ejes centroidales $x$-$y$ y ejes principales $u$-$v$, girados $\\theta_p$.');
+  // En una sección isótropa dibujar un par u-v señalaría dos direcciones
+  // cuando todas son equivalentes, y además sus rótulos caerían encima de los
+  // de x-y. Se dibujan los ejes centroidales y el pie dice lo que ocurre.
+  tex += isotropa
+    ? lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, marcarC:true}),
+        'Ejes centroidales $x$-$y$. Con $\\bar{I}_x = \\bar{I}_y$ y $\\bar{P}_{xy} = 0$, \\emph{todo} eje que pase '
+        + 'por $C$ es principal: no hay un par $u$-$v$ que dibujar.')
+    : lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, ejesPrincipales:true}),
+        'Ejes centroidales $x$-$y$ y ejes principales $u$-$v$, girados $\\theta_p$.');
   tex += '\\resultado{\\centering $\\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ$ \\quad $I_{\\max} = '
     + ftex(results.Imax) + U4 + '$ \\quad $I_{\\min} = ' + ftex(results.Imin) + U4 + '$}\n';
   const yaPrinc = Math.abs(results.thetaP) < 0.005;
   const mayorX = results.Ix >= results.Iy;
-  tex += '\\veredicto{' + (yaPrinc
+  tex += '\\veredicto{' + (isotropa
+    ? 'Todo eje que pasa por $C$ es principal, y en todos la inercia vale lo mismo: $I_{\\max} = I_{\\min} = '
+      + ftex(results.Imax) + U4 + '$. La sección no distingue ninguna dirección, así que el $\\theta_p = '
+      + decP(results.thetaP,'ang') + '^\\circ$ del resultado es un representante cualquiera, no una orientación '
+      + 'privilegiada.'
+    : yaPrinc
     ? 'El giro es nulo: los ejes $x$ e $y$ ya coinciden con los principales, $u \\equiv x$ y $v \\equiv y$, y '
       + (mayorX ? '$I_{\\max} = \\bar{I}_x$, $I_{\\min} = \\bar{I}_y$.' : '$I_{\\max} = \\bar{I}_y$, $I_{\\min} = \\bar{I}_x$.')
     : 'Un giro de $' + decP(Math.abs(results.thetaP),'ang') + '^\\circ$ en sentido '
@@ -845,14 +934,14 @@ function construirLatex(){
   tex += '\\[ \\bar{I}_{avg} = \\dfrac{\\bar{I}_x + \\bar{I}_y}{2} = \\dfrac{'
     + ftex(results.Ix) + ' + ' + ftex(results.Iy) + '}{2} = ' + ftex(mAvg) + U4 + ' \\]\n';
   tex += '\\[ R = \\sqrt{\\left(\\dfrac{\\bar{I}_x - \\bar{I}_y}{2}\\right)^{2} + \\bar{P}_{xy}^{\\,2}} = '
-    + '\\sqrt{\\left(' + ftex((results.Ix - results.Iy) / 2) + '\\right)^{2} + \\left(' + ftex(results.Ixy)
+    + '\\sqrt{\\left(' + ftex((results.Ix - results.Iy) / 2) + '\\right)^{2} + \\left(' + ftex(pxySec)
     + '\\right)^{2}} = ' + ftex(mR) + U4 + ' \\]\n';
   tex += '\\noindent El eje $x$ da el punto $A(\\bar{I}_x,\\ \\bar{P}_{xy})$ y el eje $y$ el punto '
     + '$B(\\bar{I}_y,\\ -\\bar{P}_{xy})$; con ordenadas opuestas, $A$ y $B$ quedan en extremos de un diámetro y el '
     + 'centro cae en $\\bar{I}_{avg}$. Los cortes con el eje horizontal son $I_{\\max} = \\bar{I}_{avg} + R$ e '
     + '$I_{\\min} = \\bar{I}_{avg} - R$.\n';
-  tex += '\\[ A(' + ftex(results.Ix) + ',\\ ' + ftex(results.Ixy) + ') \\qquad '
-    + 'B(' + ftex(results.Iy) + ',\\ ' + ftex(-results.Ixy) + ') \\]\n';
+  tex += '\\[ A(' + ftex(results.Ix) + ',\\ ' + ftex(pxySec) + ') \\qquad '
+    + 'B(' + ftex(results.Iy) + ',\\ ' + ftex(-pxySec) + ') \\]\n';
   // Si el círculo degenera en un punto, tikzMohr devuelve cadena vacía: se
   // emite el párrafo explicativo en su lugar y NO un tikzpicture vacío.
   const laminaMohr = (typeof tikzMohr === 'function') ? tikzMohr(results, u4) : '';
@@ -891,8 +980,9 @@ function construirLatex(){
       + '\\left(' + decP(epLat.dy,'len') + '\\right)^{2} = ' + ftex(epLat.IxP) + U4 + ' \\]\n';
     tex += '\\[ I_{yP} = \\bar{I}_y + A\\,d_x^{2} = ' + ftex(results.Iy) + ' + ' + ftex(results.A)
       + '\\left(' + decP(epLat.dx,'len') + '\\right)^{2} = ' + ftex(epLat.IyP) + U4 + ' \\]\n';
-    tex += '\\[ P_{xyP} = \\bar{P}_{xy} + A\\,d_x d_y = ' + ftex(results.Ixy) + ' + ' + ftex(results.A)
-      + '\\left(' + decP(epLat.dx,'len') + '\\right)\\left(' + decP(epLat.dy,'len') + '\\right) = ' + ftex(epLat.IxyP) + U4 + ' \\]\n';
+    const pxyP = ceroEsc(epLat.IxyP, Math.max(Math.abs(epLat.IxP), Math.abs(epLat.IyP)));
+    tex += '\\[ P_{xyP} = \\bar{P}_{xy} + A\\,d_x d_y = ' + ftex(pxySec) + ' + ' + ftex(results.A)
+      + '\\left(' + decP(epLat.dx,'len') + '\\right)\\left(' + decP(epLat.dy,'len') + '\\right) = ' + ftex(pxyP) + U4 + ' \\]\n';
 
     tex += '\\subpaso{Ejes principales en $P$}\n';
     tex += '\\noindent Con estas tres inercias se repiten los pasos 4 y 5, ahora en $P$:\n';
@@ -955,7 +1045,7 @@ function construirLatex(){
   if(simSec.v || simSec.h){
     const okV = simSec.v && Math.abs(results.xbar - env.x0) < 1e-6*Math.max(1, env.maxX - env.minX);
     const okH = simSec.h && Math.abs(results.ybar - env.y0) < 1e-6*Math.max(1, env.maxY - env.minY);
-    const okP = Math.abs(results.Ixy) < 1e-9*Math.max(1, results.Ix, results.Iy);
+    const okP = pxySec === 0;
     tex += '\\item \\textbf{Simetría.} ';
     if(simSec.v) tex += 'La sección es simétrica respecto del eje vertical $x = ' + decP(env.x0,'len') + '$' + U1
       + ', así que $\\bar{x}$ tenía que caer sobre él: $\\bar{x} = ' + decP(results.xbar,'len') + '$'
@@ -964,7 +1054,7 @@ function construirLatex(){
       + ', así que $\\bar{y}$ tenía que caer sobre él: $\\bar{y} = ' + decP(results.ybar,'len') + '$'
       + (okH ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
     tex += 'Y un eje de simetría es principal, así que el producto de inercia tenía que anularse: $\\bar{P}_{xy} = '
-      + ftex(results.Ixy) + '$' + (okP ? '\\ \\checkmark' : ' (no se anula: revisar)') + '.\n';
+      + ftex(pxySec) + '$' + (okP ? '\\ \\checkmark' : ' (no se anula: revisar)') + '.\n';
   } else {
     tex += '\\item \\textbf{Simetría.} La sección no tiene eje de simetría vertical ni horizontal, así que el producto '
       + 'de inercia no tenía por qué anularse y los ejes principales hay que calcularlos, como se hizo.\n';
@@ -987,7 +1077,7 @@ function construirLatex(){
     + 'Centroide $\\bar{x}$, $\\bar{y}$ & $' + decP(results.xbar,'len') + '$, $' + decP(results.ybar,'len') + '$ & ' + utexto(u1) + ' \\\\\n'
     + '$\\bar{I}_x$ & $' + ftex(results.Ix) + '$ & ' + utexto(u4) + ' \\\\\n'
     + '$\\bar{I}_y$ & $' + ftex(results.Iy) + '$ & ' + utexto(u4) + ' \\\\\n'
-    + '$\\bar{P}_{xy}$ & $' + ftex(results.Ixy) + '$ & ' + utexto(u4) + ' \\\\\n'
+    + '$\\bar{P}_{xy}$ & $' + ftex(pxySec) + '$ & ' + utexto(u4) + ' \\\\\n'
     + '$J_O$ & $' + ftex(results.Jo) + '$ & ' + utexto(u4) + ' \\\\\n'
     + '$k_x$, $k_y$ & $' + decP(results.kx,'len') + '$, $' + decP(results.ky,'len') + '$ & ' + utexto(u1) + ' \\\\\n'
     + '$\\theta_p$ & $' + decP(results.thetaP,'ang') + '$ & grados \\\\\n'

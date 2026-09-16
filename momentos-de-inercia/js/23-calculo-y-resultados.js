@@ -283,6 +283,20 @@ function renderResults(res, u4, u2, u1){
   const n4 = v => decFix(v,'ang');
   const n2 = v => decFix(v,'len');
   const pct = v => v===0 ? '0' : (v>0?'+':'')+f(v);
+  // ── Ruido de coma flotante en el producto de inercia ──
+  // d_x y d_y son restas entre números del tamaño de la sección, así que arrastran
+  // ~1e-16 de error relativo. Una parte cuyo producto vale CERO por simetría salía
+  // en la tabla como «5.8696e-13», y su A d_x^2 como «1.4199e-27»: números que se
+  // leen como un producto real. El informe ya los escribe como 0, así que la
+  // pantalla contradecía al PDF con dos valores distintos para lo mismo.
+  // Mismo criterio y mismo umbral que ceroEsc/ceroIn de 18-latex-informe-completo.js
+  // (1e-9 relativo a la escala de la sección); el cuerpo se copia y NO se unifica
+  // (CLAUDE.md §5.4). Un producto pequeño pero REAL queda muy por encima del
+  // umbral y se sigue imprimiendo con su signo.
+  const ceroEsc = (v, e) => (Math.abs(v) <= 1e-9*e ? 0 : v);
+  const escIn = Math.max(Math.abs(res.Ix), Math.abs(res.Iy), Math.abs(res.Ixy));
+  const ceroIn = v => ceroEsc(v, escIn);
+  const pxySec = ceroIn(res.Ixy);
 
   // ── NOTATION BAR ──
   let html = `<div class="results-wrap">
@@ -395,7 +409,7 @@ function renderResults(res, u4, u2, u1){
           <tr><td>Centroide y</td><td>yᵢ</td><td class="num-cell">${n4(fig.cy)}</td><td>${u1}</td></tr>
           <tr><td>Inercia centroidal Ix</td><td>Ī<sub>xGi</sub></td><td class="num-cell">${f(s.Ixc)}</td><td>${u4}</td></tr>
           <tr><td>Inercia centroidal Iy</td><td>Ī<sub>yGi</sub></td><td class="num-cell">${f(s.Iyc)}</td><td>${u4}</td></tr>
-          <tr><td>Producto de inercia</td><td>P<sub>xyGi</sub></td><td class="num-cell">${f(s.Ixyc)}</td><td>${u4}</td></tr>
+          <tr><td>Producto de inercia</td><td>P<sub>xyGi</sub></td><td class="num-cell">${f(ceroIn(s.Ixyc))}</td><td>${u4}</td></tr>
         </tbody>
       </table>
       </div><div class="fig-card-dib">${croquisFigura(fig, i)}</div></div>
@@ -435,7 +449,7 @@ function renderResults(res, u4, u2, u1){
       <td class="num-cell">${n4(s.fig.cx)}</td><td class="num-cell">${n4(s.fig.cy)}</td>
       <td class="num-cell">${n4(Aixi)}</td><td class="num-cell">${n4(Aiyi)}</td>
       <td class="num-cell">${f(s.Ixc)}</td><td class="num-cell">${f(s.Iyc)}</td>
-      <td class="num-cell">${f(s.Ixyc)}</td>
+      <td class="num-cell">${f(ceroIn(s.Ixyc))}</td>
     </tr>`;
   }
   html += `</tbody><tfoot><tr>
@@ -516,11 +530,11 @@ function renderResults(res, u4, u2, u1){
       <td style="white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;min-width:8px;max-width:8px;border-radius:50%;background:${s.fig.color};margin-right:5px;vertical-align:middle;"></span>${s.fig.name}&nbsp;(${sgnStr})</td>
       <td class="num" style="text-align:center;min-width:60px;">${n4(s.a)}</td>
       <td class="num">${n4(s.dx)}</td><td class="num">${n4(s.dy)}</td>
-      <td class="num">${f(s.Ixc)}</td><td class="num">${f(Ady2)}</td>
+      <td class="num">${f(s.Ixc)}</td><td class="num">${f(ceroIn(Ady2))}</td>
       <td class="num" style="font-weight:700">${f(IxContrib)}</td>
-      <td class="num">${f(s.Iyc)}</td><td class="num">${f(Adx2)}</td>
+      <td class="num">${f(s.Iyc)}</td><td class="num">${f(ceroIn(Adx2))}</td>
       <td class="num" style="font-weight:700">${f(IyContrib)}</td>
-      <td class="num" style="font-weight:700">${f(IxyContrib)}</td>
+      <td class="num" style="font-weight:700">${f(ceroIn(IxyContrib))}</td>
     </tr>`;
   }
   html += `</tbody><tfoot><tr>
@@ -528,13 +542,13 @@ function renderResults(res, u4, u2, u1){
     <td class="num"><b>${f(res.Ix)}</b></td>
     <td colspan="2"><b>Ī<sub>yG</sub> = Σ</b></td>
     <td class="num"><b>${f(res.Iy)}</b></td>
-    <td class="num"><b>${f(res.Ixy)}</b></td>
+    <td class="num"><b>${f(pxySec)}</b></td>
   </tr></tfoot>
     </table></div>
     <div class="summary-grid" style="margin-top:10px;">
       <div class="summary-box highlight"><div class="s-lbl">Ī<sub>xG</sub></div><div class="s-val">${f(res.Ix)}</div><div class="s-unit">${u4}</div></div>
       <div class="summary-box highlight"><div class="s-lbl">Ī<sub>yG</sub></div><div class="s-val">${f(res.Iy)}</div><div class="s-unit">${u4}</div></div>
-      <div class="summary-box highlight"><div class="s-lbl">P<sub>xyG</sub></div><div class="s-val">${f(res.Ixy)}</div><div class="s-unit">${u4}</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">P<sub>xyG</sub></div><div class="s-val">${f(pxySec)}</div><div class="s-unit">${u4}</div></div>
       <div class="summary-box"><div class="s-lbl">kₓ (radio giro)</div><div class="s-val">${n4(res.kx)}</div><div class="s-unit">${u1}</div></div>
     </div>
     ${htmlRigidez(res)}
@@ -545,7 +559,7 @@ function renderResults(res, u4, u2, u1){
           <text x="30" y="76" font-size="14" font-weight="800" fill="#0d3a8f" text-anchor="middle">+</text><text x="66" y="76" font-size="14" font-weight="800" fill="#c0392b" text-anchor="middle">−</text>
           <text x="90" y="45" font-size="8" fill="#66727e">x</text><text x="51" y="12" font-size="8" fill="#66727e">y</text></svg>
         <div style="flex:1;min-width:220px;font-size:11.5px">P<sub>xy</sub> &gt; 0 con material en los cuadrantes 1 y 3; &lt; 0 en 2 y 4; 0 con un eje de simetría.
-          Aquí P<sub>xyG</sub> = ${f(res.Ixy)} ${u4}${Math.abs(res.Ixy) < 1e-9*Math.max(1,Math.abs(res.Ix),Math.abs(res.Iy)) ? ': hay simetría' : (res.Ixy > 0 ? ': pesa más el material de los cuadrantes 1 y 3' : ': pesa más el material de los cuadrantes 2 y 4')}.</div>
+          Aquí P<sub>xyG</sub> = ${f(pxySec)} ${u4}${pxySec === 0 ? ': hay simetría' : (pxySec > 0 ? ': pesa más el material de los cuadrantes 1 y 3' : ': pesa más el material de los cuadrantes 2 y 4')}.</div>
       </div>
     </div>
   </div>`;
@@ -553,7 +567,7 @@ function renderResults(res, u4, u2, u1){
   // ══════════════════════════════════════════════════
   // SECTION 5: Principal moments + Mohr circle
   // ══════════════════════════════════════════════════
-  const R_mohr = Math.sqrt(Math.pow((res.Ix-res.Iy)/2,2)+res.Ixy*res.Ixy);
+  const R_mohr = Math.sqrt(Math.pow((res.Ix-res.Iy)/2,2)+pxySec*pxySec);
   html += `<div class="res-section">
     <div class="res-section-title"><div class="num">5</div>Momentos de inercia principales centroidales y Círculo de Mohr</div>
     <div class="proc-block" style="margin-bottom:12px;">
@@ -562,7 +576,7 @@ function renderResults(res, u4, u2, u1){
         ${kx(`\\bar{I}_{avg} = \\dfrac{\\bar{I}_{xG} + \\bar{I}_{yG}}{2} = \\dfrac{${ftex(res.Ix)} + ${ftex(res.Iy)}}{2} = ${kres(ftex((res.Ix+res.Iy)/2)+'\\,'+utex(u4))}`)}
       </div></div>
       <div class="eq-row"><div class="eq-body">
-        ${kx(`R = \\sqrt{\\left(\\dfrac{\\bar{I}_{xG}-\\bar{I}_{yG}}{2}\\right)^{2} + P_{xyG}^{2}} = \\sqrt{\\left(${ftex((res.Ix-res.Iy)/2)}\\right)^{2} + \\left(${ftex(res.Ixy)}\\right)^{2}} = ${kres(ftex(R_mohr)+'\\,'+utex(u4))}`)}
+        ${kx(`R = \\sqrt{\\left(\\dfrac{\\bar{I}_{xG}-\\bar{I}_{yG}}{2}\\right)^{2} + P_{xyG}^{2}} = \\sqrt{\\left(${ftex((res.Ix-res.Iy)/2)}\\right)^{2} + \\left(${ftex(pxySec)}\\right)^{2}} = ${kres(ftex(R_mohr)+'\\,'+utex(u4))}`)}
       </div></div>
       <div class="eq-row"><div class="eq-body">
         ${kx(`I_{max} = \\bar{I}_{avg} + R = ${ftex((res.Ix+res.Iy)/2)} + ${ftex(R_mohr)} = ${kres(ftex(res.Imax)+'\\,'+utex(u4))}`)}
@@ -613,6 +627,9 @@ function renderResults(res, u4, u2, u1){
         ${extraPoint?`<button class="btn-sm" style="margin:0;" onclick="clearExtraPoint()">Quitar</button>`:''}
       </div>`;
   if(ep){
+    // La escala del punto P no es la de la sección; el informe hace lo mismo
+    // con epLat.IxyP (18-latex-informe-completo.js).
+    const pxyP = ceroEsc(ep.IxyP, Math.max(Math.abs(ep.IxP), Math.abs(ep.IyP)));
     const dxt = `(\\bar{x}-x_P)=(${ftex(res.xbar)}-${ftex(ep.x)})=${ftex(ep.dx)}`;
     const dyt = `(\\bar{y}-y_P)=(${ftex(res.ybar)}-${ftex(ep.y)})=${ftex(ep.dy)}`;
     html += `
@@ -621,17 +638,17 @@ function renderResults(res, u4, u2, u1){
         <div class="eq-row"><div class="eq-body">${kx(`d_x = ${dxt} \\qquad d_y = ${dyt}`)}</div></div>
         <div class="eq-row"><div class="eq-body">${kx(`I_{xP} = \\bar{I}_{xG} + A\\,d_y^{2} = ${ftex(res.Ix)} + (${ftex(res.A)})(${ftex(ep.dy)})^2 = ${kres(ftex(ep.IxP)+'\\,'+utex(u4))}`)}</div></div>
         <div class="eq-row"><div class="eq-body">${kx(`I_{yP} = \\bar{I}_{yG} + A\\,d_x^{2} = ${ftex(res.Iy)} + (${ftex(res.A)})(${ftex(ep.dx)})^2 = ${kres(ftex(ep.IyP)+'\\,'+utex(u4))}`)}</div></div>
-        <div class="eq-row"><div class="eq-body">${kx(`P_{xyP} = \\bar{P}_{xyG} + A\\,d_x d_y = ${ftex(res.Ixy)} + (${ftex(res.A)})(${ftex(ep.dx)})(${ftex(ep.dy)}) = ${kres(ftex(ep.IxyP)+'\\,'+utex(u4))}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`P_{xyP} = \\bar{P}_{xyG} + A\\,d_x d_y = ${ftex(pxySec)} + (${ftex(res.A)})(${ftex(ep.dx)})(${ftex(ep.dy)}) = ${kres(ftex(pxyP)+'\\,'+utex(u4))}`)}</div></div>
       </div>
       <div class="summary-grid">
         <div class="summary-box highlight"><div class="s-lbl">I<sub>x</sub> en P</div><div class="s-val">${f(ep.IxP)}</div><div class="s-unit">${u4}</div></div>
         <div class="summary-box highlight"><div class="s-lbl">I<sub>y</sub> en P</div><div class="s-val">${f(ep.IyP)}</div><div class="s-unit">${u4}</div></div>
-        <div class="summary-box"><div class="s-lbl">P<sub>xy</sub> en P</div><div class="s-val">${f(ep.IxyP)}</div><div class="s-unit">${u4}</div></div>
+        <div class="summary-box"><div class="s-lbl">P<sub>xy</sub> en P</div><div class="s-val">${f(pxyP)}</div><div class="s-unit">${u4}</div></div>
       </div>
       <div class="proc-block">
         <div class="proc-subtitle">Momentos de inercia principales en el punto P</div>
         <div class="eq-row"><div class="eq-body">${kx(`I_{avg} = \\dfrac{I_{xP}+I_{yP}}{2} = ${kres(ftex(ep.avg)+'\\,'+utex(u4))}`)}</div></div>
-        <div class="eq-row"><div class="eq-body">${kx(`R = \\sqrt{\\left(\\dfrac{I_{xP}-I_{yP}}{2}\\right)^2 + P_{xyP}^2} = \\sqrt{\\left(${ftex((ep.IxP-ep.IyP)/2)}\\right)^2+\\left(${ftex(ep.IxyP)}\\right)^2} = ${kres(ftex(ep.R)+'\\,'+utex(u4))}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`R = \\sqrt{\\left(\\dfrac{I_{xP}-I_{yP}}{2}\\right)^2 + P_{xyP}^2} = \\sqrt{\\left(${ftex((ep.IxP-ep.IyP)/2)}\\right)^2+\\left(${ftex(pxyP)}\\right)^2} = ${kres(ftex(ep.R)+'\\,'+utex(u4))}`)}</div></div>
         <div class="eq-row"><div class="eq-body">${kx(`I_{max} = I_{avg}+R = ${kres(ftex(ep.Imax)+'\\,'+utex(u4))} \\qquad I_{min} = I_{avg}-R = ${kres(ftex(ep.Imin)+'\\,'+utex(u4))}`)}</div></div>
         <div class="eq-row"><div class="eq-body">${kx(`\\theta_{p} = \\tfrac{1}{2}\\arctan\\!\\left(\\dfrac{-2P_{xyP}}{I_{xP}-I_{yP}}\\right) = ${kres(n4(ep.thetaP)+'^{\\circ}')}`)}</div></div>
       </div>

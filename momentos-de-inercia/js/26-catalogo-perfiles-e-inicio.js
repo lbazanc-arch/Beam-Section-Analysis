@@ -389,17 +389,27 @@ function drawCompositeFigure(canvasId) {
     else if(fig.type==='sector'){
       const t=d.alpha*Math.PI/180; co={x:0, y:-2*d.r*Math.sin(t)/(3*t)};
     }
+    else if(fig.type==='segmento'){
+      const t=d.alpha*Math.PI/180, s=Math.sin(t), cs=Math.cos(t);
+      co={x:0, y:-2*d.r*Math.pow(s,3)/(3*(t - s*cs))};
+    }
+    // El hexágono y el octógono tienen el centro del círculo circunscrito
+    // en su propio centroide: co queda en (0,0).
     const wx = fig.cx + co.x*Math.cos(rot) - co.y*Math.sin(rot);
     const wy = fig.cy + co.x*Math.sin(rot) + co.y*Math.cos(rot);
     const p0 = {x:toSx(wx), y:toSy(wy)};
-    const ang = rot + (fig.type==='sector' ? Math.PI/2 : 0);
+    // Hacia dónde sale el radio acotado: por la bisectriz en el sector y el
+    // segmento, y hacia un VÉRTICE en los polígonos regulares (en el octógono
+    // el primer vértice está a 22.5°, no sobre el eje x).
+    const ang = rot + ((fig.type==='sector'||fig.type==='segmento') ? Math.PI/2
+                      : fig.type==='octogono' ? Math.PI/8 : 0);
     const p1 = {x:toSx(wx + d.r*Math.cos(ang)), y:toSy(wy + d.r*Math.sin(ang))};
     c.save();
     c.strokeStyle=clr; c.lineWidth=1.1;
     c.beginPath(); c.moveTo(p0.x,p0.y); c.lineTo(p1.x,p1.y); c.stroke();
     c.restore();
     etiq.add('R='+d.r+unit, (p0.x+p1.x)/2, (p0.y+p1.y)/2, clr, 'bold 9px Inter');
-    if(fig.type==='sector'){
+    if(fig.type==='sector' || fig.type==='segmento'){
       etiq.add('\u03b8='+d.alpha+'\u00b0', p0.x, p0.y, clr, '9px Inter');
     }
   }

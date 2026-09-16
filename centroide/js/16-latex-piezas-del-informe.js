@@ -18,6 +18,43 @@ function celdaCol(v, f, dec){
   const x = v/f.div;
   return (Math.abs(x) < 5e-7 ? 0 : x).toFixed(dec);
 }
+// Celda de un peso específico o una densidad: no se redondea con los decimales
+// de longitud, porque 3000 kg/m³ son 0.003 kg/cm³ y la columna salía «0.00».
+// decSigCen (10-) garantiza cifras significativas suficientes.
+function celdaMat(v, f){
+  const x = v/f.div;
+  return (Math.abs(x) < 5e-7) ? '0' : decSigCen(x, 4);
+}
+
+// Decimales con que se imprime una columna ENTERA de la tabla. Los decimales de
+// área (DEC.area = 2) valen para áreas, no para un peso o una masa: 0.0792 kg
+// salían «0.08», y así el cociente ΣW·x̃ / ΣW LEÍDO EN LA TABLA no daba el x_G
+// impreso (0.65/0.08 = 8.13, no 8.27). Se le piden a la columna las cifras que
+// hacen que la tabla reproduzca su propio resultado:
+//   (a) `sig` cifras significativas en el valor mayor de la columna;
+//   (b) ningún valor no nulo escrito como «0.00» --- ni «-0.00», que se lee como
+//       un cero con signo siendo un momento pequeño pero real;
+//   (c) si basta con un par de decimales más, que la suma de las filas impresas
+//       dé exactamente el total impreso.
+// Quien la llama sube `sig` hasta que los totales impresos reproducen el
+// resultado impreso (tabla de pesos, más abajo).
+function decColumna(vals, total, f, decMin, sig){
+  const nulo = x => Math.abs(x) < 5e-7;                  // lo que celdaCol ya escribe como 0
+  const pr = (x, d) => Number((nulo(x) ? 0 : x).toFixed(d));
+  const xs = vals.filter(v => typeof v === 'number' && isFinite(v)).map(v => v/f.div);
+  const T = (typeof total === 'number' && isFinite(total)) ? total/f.div : 0;
+  const m = Math.max(...xs.map(x=>Math.abs(x)), Math.abs(T), 0);
+  let d = Math.max(decMin|0, 0);
+  if(m > 0) d = Math.max(d, (sig||4) - 1 - Math.floor(Math.log10(m)));
+  if(d < 0) d = 0;
+  if(d > 12) d = 12;
+  while(d < 12 && xs.some(x => !nulo(x) && pr(x,d) === 0)) d++;      // (b)
+  for(let k = d; k <= Math.min(d+2, 12); k++){                       // (c)
+    let s = 0; xs.forEach(x=>{ s += pr(x,k); });
+    if(Math.abs(Number(s.toFixed(k)) - pr(T,k)) < 0.5*Math.pow(10,-k)) return k;
+  }
+  return d;
+}
 
 // ── Fórmula del área de cada tipo de figura ──
 // Devuelve la expresión simbólica y la misma con los números sustituidos, para
@@ -47,6 +84,23 @@ function formulaArea(fig){
       return {sim:'A_i = \\dfrac{a\\,h}{3}', sus:'A_i = \\dfrac{('+D(d.a)+')('+D(d.h)+')}{3}'};
     case 'cuartoelipse':
       return {sim:'A_i = \\dfrac{\\pi\\,a\\,b}{4}', sus:'A_i = \\dfrac{\\pi('+D(d.a)+')('+D(d.b)+')}{4}'};
+    case 'elipse':
+      return {sim:'A_i = \\pi\\,a\\,b', sus:'A_i = \\pi('+D(d.a)+')('+D(d.b)+')'};
+    case 'semielipse':
+      return {sim:'A_i = \\dfrac{\\pi\\,a\\,b}{2}', sus:'A_i = \\dfrac{\\pi('+D(d.a)+')('+D(d.b)+')}{2}'};
+    case 'segmento':
+      return {sim:'A_i = R^{2}\\left(\\theta - \\sen\\theta\\cos\\theta\\right) \\quad (\\theta \\text{ en radianes})',
+              sus:'A_i = ('+D(d.r)+')^{2}\\left[\\left('+D(d.alpha)+'^\\circ\\cdot\\tfrac{\\pi}{180}\\right)'
+                 + ' - \\sen('+D(d.alpha)+'^\\circ)\\cos('+D(d.alpha)+'^\\circ)\\right]'};
+    case 'trapecio':
+      return {sim:'A_i = \\dfrac{(a+b)\\,h}{2}',
+              sus:'A_i = \\dfrac{('+D(d.a)+'+'+D(d.b)+')('+D(d.h)+')}{2}'};
+    case 'triangulo':
+      return {sim:'A_i = \\dfrac{b\\,h}{2}', sus:'A_i = \\dfrac{('+D(d.b)+')('+D(d.h)+')}{2}'};
+    case 'hexagono':
+      return {sim:'A_i = \\dfrac{3\\sqrt{3}}{2}\\,R^{2}', sus:'A_i = \\dfrac{3\\sqrt{3}}{2}('+D(d.r)+')^{2}'};
+    case 'octogono':
+      return {sim:'A_i = 2\\sqrt{2}\\,R^{2}', sus:'A_i = 2\\sqrt{2}('+D(d.r)+')^{2}'};
     default:
       return {sim:'A_i', sus:'A_i'};
   }
@@ -87,8 +141,33 @@ function centroideLocalTex(fig){
     case 'cuartoelipse':
       return '\\bar{x}_{loc} = \\dfrac{4a}{3\\pi} = \\dfrac{4('+D(d.a)+')}{3\\pi} = ' + D(4*d.a/(3*Math.PI))
            + ' \\qquad \\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = \\dfrac{4('+D(d.b)+')}{3\\pi} = ' + D(4*d.b/(3*Math.PI));
+    case 'semielipse':
+      return '\\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = \\dfrac{4('+D(d.b)+')}{3\\pi} = ' + D(4*d.b/(3*Math.PI))
+           + ' \\text{ desde la base}';
+    case 'segmento': {
+      const t = d.alpha*Math.PI/180, s = Math.sin(t), c = Math.cos(t);
+      return '\\bar{y}_{loc} = \\dfrac{2R\\sen^{3}\\theta}{3(\\theta - \\sen\\theta\\cos\\theta)} = '
+           + D(2*d.r*Math.pow(s,3)/(3*(t - s*c))) + ' \\text{ desde } O';
+    }
+    // Las dos poligonales llevan las coordenadas EN DOS LÍNEAS (`aligned`): en
+    // una sola se salían de la columna del desarrollo y se metían debajo del
+    // croquis, que va al costado.
+    case 'trapecio': {
+      const a = d.a, b = d.b, h = d.h, dx = d.dx;
+      return '\\begin{aligned}'
+           + '\\bar{x}_{loc} &= \\dfrac{a^{2}+ab+b^{2}+d_x(a+2b)}{3(a+b)} = '
+           + D((a*a + a*b + b*b + dx*(a + 2*b))/(3*(a + b))) + ' \\\\[2pt]'
+           + '\\bar{y}_{loc} &= \\dfrac{h(a+2b)}{3(a+b)} = \\dfrac{('+D(h)+')('+D(a)+'+2\\cdot'+D(b)+')}{3('+D(a)+'+'+D(b)+')} = '
+           + D(h*(a + 2*b)/(3*(a + b)))
+           + '\\end{aligned}';
+    }
+    case 'triangulo':
+      return '\\begin{aligned}'
+           + '\\bar{x}_{loc} &= \\dfrac{b+d}{3} = \\dfrac{'+D(d.b)+'+'+D(d.d)+'}{3} = ' + D((d.b + d.d)/3) + ' \\\\[2pt]'
+           + '\\bar{y}_{loc} &= \\dfrac{h}{3} = \\dfrac{'+D(d.h)+'}{3} = ' + D(d.h/3)
+           + '\\end{aligned}';
     default:
-      return null;   // rectángulo y círculo: el centroide es el centro
+      return null;   // rectángulo, círculo, elipse y polígonos regulares: el centroide es el centro
   }
 }
 
@@ -213,8 +292,9 @@ function _primeraVezCen(clave){
 // la mitad, se dice, porque es lo que permite anticipar el resultado.
 // Solo cuentan como «en espejo» los tipos que son simétricos respecto de su
 // propio eje: un triángulo rectángulo reflejado ya no es la misma figura.
-const _SIM_V_CEN = {rect:1, circle:1, semicircle:1, sector:1, parabola:1};
-const _SIM_H_CEN = {rect:1, circle:1};
+const _SIM_V_CEN = {rect:1, circle:1, semicircle:1, sector:1, parabola:1,
+                    elipse:1, semielipse:1, segmento:1, hexagono:1, octogono:1};
+const _SIM_H_CEN = {rect:1, circle:1, elipse:1, hexagono:1, octogono:1};
 function _claveFiguraCen(f, het){
   const rot = (((f.rotation||0) % 360) + 360) % 360;
   return f.type + '|' + JSON.stringify(f.dims) + '|' + f.sign + '|' + rot.toFixed(3)
@@ -431,11 +511,15 @@ function construirLatex(){
   const esMasa = (matMagnitud === 'densidad');
   const Wsim = esMasa ? 'm' : 'W';
   const Wnom = esMasa ? 'masa' : 'peso', Wnoms = esMasa ? 'masas' : 'pesos';
+  // «masa» es femenino: los artículos acompañan al nombre, no se escriben sueltos.
+  const Wart = esMasa ? 'la' : 'el', Warts = esMasa ? 'las' : 'los';
   const uGm = '\\text{' + escLatex(uGamma().replace('\u00B3','')) + '}^{3}';   // kN/mm³ en modo matemático
   const nombreDe = f => escLatex(f.etiqueta || f.name || FIG_DEFS[f.type].name);
   // Unidad del peso (γ·A·t da fuerza) o de la masa (ρ·A·t da kg).
   const uWtxt = esMasa ? 'kg' : escLatex(uGamma().split('/')[0]);
   const UW = '\\,\\text{' + uWtxt + '}';
+  // Unidad de γ o ρ para la cabecera de la tabla, en modo texto (kgf/m³ → kgf/m³).
+  const uGTxt = escLatex(uGamma().replace('³','')) + '\\textsuperscript{3}';
   const env = _envolventeCen(st);
   const grupos = _gruposFigurasCen(st, het, env);
   const simSec = _simetriaSeccionCen(st, het, env);
@@ -512,11 +596,11 @@ function construirLatex(){
     + 'sus fracciones). Un hueco es una parte más, con área \\textbf{negativa}.\n'
     + '\\item \\textbf{Propiedades de cada parte.} Su área $A_i$, la posición de su centroide propio dentro de la figura '
     + '(fórmula de la tabla de figuras) y las coordenadas $\\tilde{x}_i$, $\\tilde{y}_i$ de ese centroide medidas desde $O$.'
-    + (het ? ' En un cuerpo heterogéneo, además, el ' + Wnom + ' de cada parte, $' + Wsim + '_i = ' + simb + '_i A_i t_i$.' : '') + '\n'
+    + (het ? ' En un cuerpo heterogéneo, además, ' + Wart + ' ' + Wnom + ' de cada parte, $' + Wsim + '_i = ' + simb + '_i A_i t_i$.' : '') + '\n'
     + '\\item \\textbf{Tabla.} Se tabulan $A_i$, $\\tilde{x}_i$, $\\tilde{y}_i$ y los momentos estáticos $A_i\\tilde{x}_i$, '
-    + '$A_i\\tilde{y}_i$, y se suman las columnas.' + (het ? ' Y lo mismo con los ' + Wnoms + '.' : '') + '\n'
+    + '$A_i\\tilde{y}_i$, y se suman las columnas.' + (het ? ' Y lo mismo con ' + Warts + ' ' + Wnoms + '.' : '') + '\n'
     + '\\item \\textbf{Centroide.} $\\bar{x} = \\sum A_i\\tilde{x}_i / \\sum A_i$, $\\bar{y} = \\sum A_i\\tilde{y}_i / \\sum A_i$'
-    + (het ? ', y $G$ con los ' + Wnoms + ' en lugar de las áreas' : '') + '. Después se comprueba.\n'
+    + (het ? ', y $G$ con ' + Warts + ' ' + Wnoms + ' en lugar de las áreas' : '') + '. Después se comprueba.\n'
     + '\\end{enumerate}\n';
 
   tex += '\\subpaso{Convenio}\n'
@@ -660,7 +744,51 @@ function construirLatex(){
           'El cuarto de elipse es un cuarto de círculo estirado: al escalar un cuarto de círculo de radio $1$ por $a$ '
           + 'en horizontal y por $b$ en vertical, el área $\\pi/4$ pasa a $\\pi ab/4$ y el centroide $4/3\\pi$ pasa a '
           + '$4a/3\\pi$ y $4b/3\\pi$. Con $a = b = R$ se recupera exactamente el cuarto de círculo (Hibbeler, 2027).');
+      else if(f.type === 'semielipse')
+        tex += porque('semielipse',
+          'La semielipse es media elipse cortada por su eje horizontal, o un semicírculo estirado: el área $\\pi R^{2}/2$ '
+          + 'pasa a $\\pi ab/2$ y el centroide, a $4b/3\\pi$ de la base (en $x$ no hay nada que calcular: el eje vertical '
+          + 'es eje de simetría). Está por debajo de la mitad de la altura porque '
+          + 'hay más área cerca de la base que cerca de la cima, exactamente como en el semicírculo, del que es el caso '
+          + '$a = b = R$ (Hibbeler, 2027).');
+      else if(f.type === 'segmento')
+        tex += porque('segmento',
+          'El segmento circular es lo que queda del sector cuando se le quita el triángulo que forman los dos radios con '
+          + 'la cuerda: $A = \\theta R^{2} - R^{2}\\sen\\theta\\cos\\theta$. Su centroide, medido desde el centro $O$ del '
+          + 'arco, sale de restar los dos momentos estáticos y queda $2R\\sen^{3}\\theta/3(\\theta - \\sen\\theta\\cos\\theta)$: '
+          + 'siempre por encima de la cuerda, porque la cuerda se lleva la parte estrecha. Con $\\theta = 90^\\circ$ '
+          + 'desaparece el triángulo y se recupera el semicírculo, con $\\bar{y} = 4R/3\\pi$ (Hibbeler, 2027).');
+      else if(f.type === 'trapecio')
+        tex += porque('trapecio',
+          'El trapecio se parte en dos triángulos por una diagonal, y el centroide del conjunto es el promedio de los dos '
+          + 'pesado por sus áreas. De ahí $\\bar{y} = h(a+2b)/3(a+b)$, medido desde la base mayor: queda más cerca de ella '
+          + 'porque es el lado ancho. Los dos casos límite lo confirman: con $a = b$ da $h/2$ (rectángulo) y con $b = 0$ da '
+          + '$h/3$ (triángulo). En $x$ manda además el desplazamiento $d_x$ de la base menor. Las dos coordenadas se '
+          + 'miden desde el extremo izquierdo de la base mayor (Hibbeler, 2027).');
+      else if(f.type === 'triangulo')
+        tex += porque('triangulo',
+          'En un triángulo cualquiera el centroide es el promedio de los tres vértices, que es donde se cruzan las medianas. '
+          + 'Con la base sobre el eje $x$, el origen en su extremo izquierdo —desde donde se miden las dos coordenadas— y '
+          + 'el vértice opuesto en $(d, h)$, eso da $\\bar{x} = (b+d)/3$ y $\\bar{y} = h/3$: '
+          + 'la altura del centroide no depende de hacia dónde se incline el triángulo, solo de $h$. Lo que sí cambia es el '
+          + 'producto de inercia, $P_{xy} = bh^{2}(2d-b)/72$, que solo se anula si el vértice está centrado, $d = b/2$ '
+          + '(Hibbeler, 2027).');
     }
+    // Estas tres tienen el centroide en su propio centro, así que no hay bloque
+    // de «centroide propio» donde colgar el porqué: acompaña al área.
+    if(f.type === 'elipse')
+      tex += porque('elipse',
+        'La elipse es un círculo estirado: al escalar un círculo de radio $1$ por $a$ en horizontal y por $b$ en vertical, '
+        + 'el área $\\pi$ pasa a $\\pi ab$ y las inercias heredan el estirón, $I_x = \\pi ab^{3}/4$ e $I_y = \\pi a^{3}b/4$. '
+        + 'Tiene dos ejes de simetría, así que el centroide está en el centro y $P_{xy} = 0$. Con $a = b = R$ se recupera '
+        + 'el círculo (Hibbeler, 2027).');
+    else if(f.type === 'hexagono' || f.type === 'octogono')
+      tex += porque('poliregular',
+        'Un polígono regular de $n$ lados inscrito en un círculo de radio $R$ tiene área $\\tfrac{n}{2}R^{2}\\sen(2\\pi/n)$ '
+        + '—la suma de $n$ triángulos iguales— y su centroide en el centro. Además, al tener más de dos ejes de simetría, '
+        + '\\emph{cualquier} eje que pase por su centroide da la misma inercia, $I = A(6R^{2}-L^{2})/24$ con $L$ el lado, '
+        + 'y $P_{xy} = 0$ sea cual sea el giro: su círculo de Mohr degenera en un punto. Por eso girar un hexágono o un '
+        + 'octógono no cambia ninguna de sus propiedades (Hibbeler, 2027).');
     }   // fin de la rama «no es perfil»
 
     // Posición desde O, una línea por parte del grupo.
@@ -685,23 +813,26 @@ function construirLatex(){
       // γ en la unidad del sistema; si es muy pequeño (kN/mm³) se escribe con
       // potencia de diez, y si el alumno lo escribió en su propia unidad
       // (kN/m³, kg/m³…) esa se cita también (propuesta 2.2).
+      // Fuera de la potencia de diez se imprime con cifras significativas, no con
+      // los decimales de longitud: 3000 kg/m³ son 0.003 kg/cm³ y salía «0.00»,
+      // con lo que la ecuación escrita no reproducía su propio resultado.
       const _gTex = v => (Math.abs(v) > 0 && (Math.abs(v) < 1e-3 || Math.abs(v) >= 1e5))
         ? (function(){ const e = Math.floor(Math.log10(Math.abs(v))); return (v/Math.pow(10,e)).toFixed(3) + '\\times10^{' + e + '}'; })()
-        : decP(v,'len');
+        : decSigCen(v, 4);
       const gs = s0.mat ? _gTex(s0.g) : '1';
       const gIng = (s0.mat && s0.mat.valIng !== undefined && s0.mat.valIng !== null && s0.mat.uIng && s0.mat.uIng !== uGamma())
         ? ' $= ' + decP(s0.mat.valIng,'len') + '\\,\\text{' + escLatex(s0.mat.uIng.replace('³','')) + '}^{3}$ tal como se escribi\\\'o'
         : '';
       tex += '\\textbf{' + (esMasa ? 'Masa' : 'Peso') + '}\n';
       tex += porque('peso',
-        'Con materiales distintos el ' + Wnom + ' ya no es proporcional al área: cada parte '
+        'Con materiales distintos ' + Wart + ' ' + Wnom + ' ya no es proporcional al área: cada parte '
         + (esMasa ? 'tiene masa' : 'pesa') + ' $' + simb + '_i A_i t_i$, con $t_i$ su espesor perpendicular al plano. '
         + 'El balance de momentos que localiza $G$ hay que hacerlo con ' + Wnoms + ', no con áreas: el centro de '
         + 'gravedad se desplaza hacia el material más ' + (esMasa ? 'denso' : 'pesado') + '.');
       tex += '\\[ ' + Wsim + '_{' + nums[0] + '} = ' + simb + '_{' + nums[0] + '}\\,A_{' + nums[0] + '}\\,t_{' + nums[0] + '} = ('
-           + gs + ')(' + decP(Math.abs(s0.a),'area') + ')(' + decP(s0.t,'len') + ') = ' + decP(Math.abs(s0.w),'area') + UW + ' \\]\n';
+           + gs + ')(' + decP(Math.abs(s0.a),'area') + ')(' + decSigCen(s0.t,3) + ') = ' + decP(Math.abs(s0.w),'area') + UW + ' \\]\n';
       tex += '{\\footnotesize $' + simb + '_{' + nums[0] + '} = ' + gs + '\\,' + uGm + '$' + gIng + ', $t_{' + nums[0] + '} = '
-           + decP(s0.t,'len') + U1 + '$'
+           + decSigCen(s0.t,3) + U1 + '$'
            + (varios ? '; igual para ' + (nums.length > 2 ? 'las partes ' : 'la parte ') + listaNums(nums.slice(1)) : '')
            + (f.sign < 0 ? '. Como es un hueco, entra en las sumas con signo negativo' : '') + '.}\n';
     }
@@ -757,35 +888,58 @@ function construirLatex(){
   }
 
   // Segunda tabla, solo si el cuerpo es heterogéneo: la de pesos o masas.
-  let tNumW;
+  // sumW/sumWx/sumWy guardan sus totales TAL COMO se imprimen en la fila de
+  // sumas: el cociente de más abajo usa esos mismos números, de modo que la
+  // tabla y el cociente no pueden decir cosas distintas.
+  let tNumW, sumW = null, sumWx = null, sumWy = null;
   if(het){
     const fG  = factorColumna(st.map(s=>s.g));
     const fW  = factorColumna(st.map(s=>s.w));
     const fWX = factorColumna(st.map(s=>s.wx).concat([results.Wx]));
     const fWY = factorColumna(st.map(s=>s.wy).concat([results.Wy]));
+    // Cifras de las tres columnas de «peso». Con los decimales de área, dos masas
+    // de 0.034 y 0.045 kg salían 0.03 y 0.05 y la tabla decía Σm = 0.08 kg: quien
+    // seguía el desarrollo a mano obtenía 8.13 donde el informe escribía 8.27. Se
+    // sube la exigencia hasta que los TOTALES IMPRESOS reproducen el x_G y el y_G
+    // impresos, que es la regla de la casa: lo escrito tiene que dar el número.
+    let dW = DEC.area, dWX = DEC.area, dWY = DEC.area;
+    for(let sig = 4; sig <= 8; sig++){
+      dW  = decColumna(st.map(s=>s.w),  results.W,  fW,  DEC.area, sig);
+      dWX = decColumna(st.map(s=>s.wx), results.Wx, fWX, DEC.area, sig);
+      dWY = decColumna(st.map(s=>s.wy), results.Wy, fWY, DEC.area, sig);
+      const TW = Number(celdaCol(results.W, fW, dW))*fW.div;
+      if(!isFinite(TW) || Math.abs(TW) < 1e-12) break;
+      const qx = Number(celdaCol(results.Wx, fWX, dWX))*fWX.div/TW;
+      const qy = Number(celdaCol(results.Wy, fWY, dWY))*fWY.div/TW;
+      if(decP(qx,'len') === decP(results.xg,'len') && decP(qy,'len') === decP(results.yg,'len')) break;
+    }
+    const _sumTex = (v, f, d) => celdaCol(v, f, d) + (f.cab ? f.cab : '');
+    sumW  = _sumTex(results.W,  fW,  dW);
+    sumWx = _sumTex(results.Wx, fWX, dWX);
+    sumWy = _sumTex(results.Wy, fWY, dWY);
     tex += '\\vspace{4pt}\n';
     tex += tablaCaption((esMasa ? 'Densidades, espesores, masas' : 'Pesos específicos, espesores, pesos')
       + ' y momentos estáticos de ' + Wnom + ', con $' + Wsim + '_i$ en ' + uWtxt + '. Es la tabla que localiza $G$.');
     tNumW = tablaN;
     tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{ccccccc}\\hline\n'
       + '\\textbf{Parte} & \\textbf{Material} & '
-      + cab('$' + simb + '_i$', fG, '') + ' & \\textbf{$t_i$} {\\scriptsize(' + uTxt + ')} & '
-      + cab('$' + Wsim + '_i$', fW, '') + ' & '
+      + cab('$' + simb + '_i$', fG, uGTxt) + ' & \\textbf{$t_i$} {\\scriptsize(' + uTxt + ')} & '
+      + cab('$' + Wsim + '_i$', fW, uWtxt) + ' & '
       + cab('$' + Wsim + '_i\\tilde{x}_i$', fWX, '') + ' & '
       + cab('$' + Wsim + '_i\\tilde{y}_i$', fWY, '') + '\\\\\\hline\n';
     st.forEach((s,i)=>{
       tex += (i+1)
         + ' & ' + (s.mat ? ('$' + simb + '_{' + s.mat.id + '}$') : '---')
-        + ' & ' + celdaCol(s.g, fG, DEC.len)
-        + ' & ' + decP(s.t,'len')
-        + ' & ' + celdaCol(s.w, fW, DEC.area)
-        + ' & ' + celdaCol(s.wx, fWX, DEC.area)
-        + ' & ' + celdaCol(s.wy, fWY, DEC.area) + ' \\\\\n';
+        + ' & ' + celdaMat(s.g, fG)
+        + ' & ' + decSigCen(s.t,3)
+        + ' & ' + celdaCol(s.w, fW, dW)
+        + ' & ' + celdaCol(s.wx, fWX, dWX)
+        + ' & ' + celdaCol(s.wy, fWY, dWY) + ' \\\\\n';
     });
     tex += '\\hline\n\\multicolumn{4}{l}{$\\sum$} & '
-      + celdaCol(results.W, fW, DEC.area) + ' & '
-      + celdaCol(results.Wx, fWX, DEC.area) + ' & '
-      + celdaCol(results.Wy, fWY, DEC.area) + ' \\\\\n'
+      + celdaCol(results.W, fW, dW) + ' & '
+      + celdaCol(results.Wx, fWX, dWX) + ' & '
+      + celdaCol(results.Wy, fWY, dWY) + ' \\\\\n'
       + '\\hline\\end{tabular}\\end{tablacentrada}}\n';
   }
 
@@ -821,9 +975,9 @@ function construirLatex(){
   if(het){
     tex += '\\subpaso{Centro de gravedad $G$}\n';
     tex += '\\noindent Con las sumas de la Tabla ' + tNumW + ', el mismo cociente pero con ' + Wnoms + ':\n';
-    tex += '\\[ \\bar{x}_G = \\dfrac{\\sum ' + Wsim + '_i\\tilde{x}_i}{\\sum ' + Wsim + '_i} = \\dfrac{' + ftex(results.Wx) + '}{' + ftex(results.W) + '} = '
+    tex += '\\[ \\bar{x}_G = \\dfrac{\\sum ' + Wsim + '_i\\tilde{x}_i}{\\sum ' + Wsim + '_i} = \\dfrac{' + (sumWx || ftexPeso(results.Wx)) + '}{' + (sumW || ftexPeso(results.W)) + '} = '
       + decP(results.xg,'len') + U1 + ' \\qquad '
-      + '\\bar{y}_G = \\dfrac{\\sum ' + Wsim + '_i\\tilde{y}_i}{\\sum ' + Wsim + '_i} = \\dfrac{' + ftex(results.Wy) + '}{' + ftex(results.W) + '} = '
+      + '\\bar{y}_G = \\dfrac{\\sum ' + Wsim + '_i\\tilde{y}_i}{\\sum ' + Wsim + '_i} = \\dfrac{' + (sumWy || ftexPeso(results.Wy)) + '}{' + (sumW || ftexPeso(results.W)) + '} = '
       + decP(results.yg,'len') + U1 + ' \\]\n';
     tex += '\\resultado{\\centering $G\\,(\\bar{x}_G;\\ \\bar{y}_G) = (' + decP(results.xg,'len') + ';\\ '
       + decP(results.yg,'len') + ')' + U1 + '$, a ' + decP(results.sep,'len') + '\\,' + uTxt + ' de $C$.}\n';
@@ -894,7 +1048,7 @@ function construirLatex(){
     + 'Centroide $\\bar{x}$ & $' + decP(results.xbar,'len') + '$ & ' + uTxt + ' \\\\\n'
     + 'Centroide $\\bar{y}$ & $' + decP(results.ybar,'len') + '$ & ' + uTxt + ' \\\\\n';
   if(het){
-    tex += (esMasa ? 'Masa' : 'Peso') + ' total $' + Wsim + '$ & $' + ftex(results.W) + '$ & ' + uWtxt + ' \\\\\n'
+    tex += (esMasa ? 'Masa' : 'Peso') + ' total $' + Wsim + '$ & $' + ftexPeso(results.W) + '$ & ' + uWtxt + ' \\\\\n'
       + 'Centro de gravedad $\\bar{x}_G$ & $' + decP(results.xg,'len') + '$ & ' + uTxt + ' \\\\\n'
       + 'Centro de gravedad $\\bar{y}_G$ & $' + decP(results.yg,'len') + '$ & ' + uTxt + ' \\\\\n';
   }

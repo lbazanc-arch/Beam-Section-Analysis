@@ -2,6 +2,45 @@
 //  FIGURE DEFINITIONS
 // ═══════════════════════════════════════════════════════════
 
+// ── Ayudantes de las figuras poligonales (van ANTES de FIG_DEFS) ──────────
+// Propiedades EXACTAS de un polígono por el teorema de Green: área, centroide
+// y las tres inercias respecto de su propio centroide. No es una aproximación
+// numérica: es la fórmula cerrada del polígono, y así el trapecio y el
+// triángulo cualquiera salen bien con cualquier combinación de medidas.
+function _propsPoli(v){
+  let A = 0, cx = 0, cy = 0, Ix = 0, Iy = 0, Ixy = 0;
+  for(let i = 0; i < v.length; i++){
+    const a = v[i], b = v[(i + 1) % v.length], cr = a[0]*b[1] - b[0]*a[1];
+    A  += cr;   cx += (a[0] + b[0])*cr;   cy += (a[1] + b[1])*cr;
+    Iy += (a[0]*a[0] + a[0]*b[0] + b[0]*b[0])*cr;
+    Ix += (a[1]*a[1] + a[1]*b[1] + b[1]*b[1])*cr;
+    Ixy += (a[0]*b[1] + 2*a[0]*a[1] + 2*b[0]*b[1] + b[0]*a[1])*cr;
+  }
+  A /= 2; cx /= 6*A; cy /= 6*A; Ix /= 12; Iy /= 12; Ixy /= 24;
+  return {A:A, cx:cx, cy:cy, Ix:Ix - A*cy*cy, Iy:Iy - A*cx*cx, Ixy:Ixy - A*cx*cy};
+}
+// Vértices en el marco natural de cada figura (origen en la esquina inferior
+// izquierda o en el centro), antes de llevar el centroide a (0,0).
+function _vTrapecio(d){ return [[0,0], [d.a,0], [d.dx + d.b, d.h], [d.dx, d.h]]; }
+function _vTriangulo(d){ return [[0,0], [d.b,0], [d.d, d.h]]; }
+function _vPoliReg(n, R, giro){
+  const v = [];
+  for(let k = 0; k < n; k++){ const t = 2*Math.PI*k/n + giro; v.push([R*Math.cos(t), R*Math.sin(t)]); }
+  return v;
+}
+// Marco local de un polígono: los mismos vértices con el centroide en el origen.
+function _poliLocal(v){ const q = _propsPoli(v); return v.map(p => [p[0] - q.cx, p[1] - q.cy]); }
+function _boundsPoli(v){
+  const xs = v.map(p => p[0]), ys = v.map(p => p[1]);
+  return {left:Math.min.apply(null,xs), right:Math.max.apply(null,xs),
+          bottom:Math.min.apply(null,ys), top:Math.max.apply(null,ys)};
+}
+function _dibujarPoli(ctx, v){
+  ctx.moveTo(v[0][0], v[0][1]);
+  for(let i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
+  ctx.closePath();
+}
+
 const FIG_DEFS = {
   // ── Perfil W / S (doble T) ──────────────────────────────
   // Simétrico respecto a ambos ejes: el centroide está en el centro.
@@ -433,5 +472,181 @@ const FIG_DEFS = {
       ctx.lineTo(-dx, -dy);
       ctx.closePath();
     }
+  },
+// ══ Entradas de FIG_DEFS ══════════════════════════════════════════════════
+// Fórmulas verificadas (2026-09-15): las poligonales contra la fórmula exacta
+// de polígono, y esta contra integración numérica; el segmento circular por
+// integración en seis aperturas de 40° a 332° (a 180° reproduce el
+// semicírculo); elipse y semielipse por integración.
+
+  elipse: {
+    name:'Elipse',
+    dims:[{id:'a',label:'Semieje horizontal (a)',def:70},{id:'b',label:'Semieje vertical (b)',def:45}],
+    area: d => Math.PI*d.a*d.b,
+    Ix_c: d => Math.PI*d.a*Math.pow(d.b,3)/4,
+    Iy_c: d => Math.PI*Math.pow(d.a,3)*d.b/4,
+    Ixy_c: d => 0,                                   // dos ejes de simetría
+    bounds: d => ({left:-d.a, right:d.a, bottom:-d.b, top:d.b}),
+    anchors: ['C','E1','E2'],
+    anchorOffset: (d,k) => {
+      if(k==='E1') return {dx:d.a, dy:0};            // extremo del semieje a
+      if(k==='E2') return {dx:0,   dy:d.b};          // extremo del semieje b
+      return {dx:0, dy:0};
+    },
+    draw: (ctx,d) => { ctx.ellipse(0, 0, d.a, d.b, 0, 0, 2*Math.PI); ctx.closePath(); }
+  },
+  semielipse: {
+    name:'Semielipse',
+    dims:[{id:'a',label:'Semieje horizontal (a)',def:70},{id:'b',label:'Altura (b)',def:45}],
+    area: d => Math.PI*d.a*d.b/2,
+    Ix_c: d => d.a*Math.pow(d.b,3)*(Math.PI/8 - 8/(9*Math.PI)),
+    Iy_c: d => Math.PI*Math.pow(d.a,3)*d.b/8,
+    Ixy_c: d => 0,                                   // simétrica respecto de y
+    bounds: d => { const yc = 4*d.b/(3*Math.PI); return {left:-d.a, right:d.a, bottom:-yc, top:d.b - yc}; },
+    anchors: ['BM','C','BL','BR'],
+    defaultAnchor: 'BM',
+    anchorOffset: (d,k) => {
+      const yc = 4*d.b/(3*Math.PI);
+      if(k==='BM') return {dx:0,     dy:-yc};        // centro de la base plana
+      if(k==='C')  return {dx:0,     dy:0};
+      if(k==='BL') return {dx:-d.a,  dy:-yc};
+      if(k==='BR') return {dx:d.a,   dy:-yc};
+      return {dx:0, dy:0};
+    },
+    draw: (ctx,d) => {
+      // Mitad SUPERIOR, con la base plana abajo: el mismo barrido que el
+      // semicírculo (de π a 0 en sentido antihorario sobre el lienzo, que
+      // tiene la Y invertida), pero con dos semiejes.
+      const yc = 4*d.b/(3*Math.PI);
+      ctx.moveTo(-d.a, -yc);
+      ctx.ellipse(0, -yc, d.a, d.b, 0, Math.PI, 0, true);
+      ctx.lineTo(d.a, -yc);
+      ctx.closePath();
+    }
+  },
+  segmento: {
+    name:'Segmento Circular',
+    dims:[{id:'r',label:'Radio (R)',def:60},{id:'alpha',label:'Semiángulo θ (°)',def:60}],
+    // Con θ en RADIANES: A = R²(θ − senθ·cosθ). El centroide queda sobre el
+    // centro del círculo, a yO = 2R·sen³θ / (3(θ − senθ·cosθ)).
+    area: d => { const t = d.alpha*Math.PI/180; return d.r*d.r*(t - Math.sin(t)*Math.cos(t)); },
+    Ix_c: d => {
+      const t = d.alpha*Math.PI/180, R = d.r, s = Math.sin(t), c = Math.cos(t);
+      const A = R*R*(t - s*c), yO = 2*R*Math.pow(s,3)/(3*(t - s*c));
+      return Math.pow(R,4)/4*(t - s*c + 2*Math.pow(s,3)*c) - A*yO*yO;
+    },
+    Iy_c: d => {
+      const t = d.alpha*Math.PI/180, R = d.r, s = Math.sin(t), c = Math.cos(t);
+      return Math.pow(R,4)/12*(3*t - 3*s*c - 2*Math.pow(s,3)*c);
+    },
+    Ixy_c: d => 0,                                   // simétrico respecto de y
+    bounds: d => {
+      const t = d.alpha*Math.PI/180, R = d.r, s = Math.sin(t), c = Math.cos(t);
+      const yO = 2*R*Math.pow(s,3)/(3*(t - s*c));
+      const semiAncho = (t >= Math.PI/2) ? R : R*s;  // pasado el cuarto, manda el radio
+      return {left:-semiAncho, right:semiAncho, bottom:R*c - yO, top:R - yO};
+    },
+    anchors: ['M','C','E1','E2','V'],
+    defaultAnchor: 'M',
+    anchorOffset: (d,k) => {
+      const t = d.alpha*Math.PI/180, R = d.r, s = Math.sin(t), c = Math.cos(t);
+      const yO = 2*R*Math.pow(s,3)/(3*(t - s*c));
+      if(k==='M')  return {dx:0,     dy:R*c - yO};   // punto medio de la cuerda
+      if(k==='C')  return {dx:0,     dy:0};
+      if(k==='E1') return {dx:-R*s,  dy:R*c - yO};   // extremo izquierdo de la cuerda
+      if(k==='E2') return {dx:R*s,   dy:R*c - yO};   // extremo derecho
+      if(k==='V')  return {dx:0,     dy:R - yO};     // punto más alto del arco
+      return {dx:0, dy:0};
+    },
+    draw: (ctx,d) => {
+      // Arco de extremo a extremo de la cuerda pasando por lo alto; la cuerda
+      // cierra la figura. Mismo criterio de barrido que el sector circular.
+      const t = d.alpha*Math.PI/180, R = d.r, s = Math.sin(t), c = Math.cos(t);
+      const yO = 2*R*Math.pow(s,3)/(3*(t - s*c));
+      ctx.moveTo(-R*s, R*c - yO);
+      ctx.arc(0, -yO, R, Math.PI/2 + t, Math.PI/2 - t, true);
+      ctx.closePath();
+    }
+  },
+  trapecio: {
+    name:'Trapecio',
+    dims:[{id:'a',label:'Base mayor (a)',def:100},{id:'b',label:'Base menor (b)',def:55},
+          {id:'h',label:'Altura (h)',def:60},{id:'dx',label:'Desplazamiento de la base menor',def:22}],
+    area: d => (d.a + d.b)*d.h/2,
+    Ix_c: d => Math.pow(d.h,3)*(d.a*d.a + 4*d.a*d.b + d.b*d.b)/(36*(d.a + d.b)),
+    Iy_c: d => _propsPoli(_vTrapecio(d)).Iy,         // exacto, por polígono
+    Ixy_c: d => _propsPoli(_vTrapecio(d)).Ixy,       // 0 solo si es isósceles
+    bounds: d => _boundsPoli(_poliLocal(_vTrapecio(d))),
+    anchors: ['BL','C','BR','TL','TR'],
+    defaultAnchor: 'BL',
+    anchorOffset: (d,k) => {
+      const q = _propsPoli(_vTrapecio(d));
+      const en = (x,y) => ({dx:x - q.cx, dy:y - q.cy});
+      if(k==='BL') return en(0, 0);                  // izquierda de la base mayor
+      if(k==='C')  return {dx:0, dy:0};
+      if(k==='BR') return en(d.a, 0);
+      if(k==='TL') return en(d.dx, d.h);             // izquierda de la base menor
+      if(k==='TR') return en(d.dx + d.b, d.h);
+      return {dx:0, dy:0};
+    },
+    draw: (ctx,d) => _dibujarPoli(ctx, _poliLocal(_vTrapecio(d)))
+  },
+  triangulo: {
+    name:'Triángulo',
+    dims:[{id:'b',label:'Base (b)',def:100},{id:'h',label:'Altura (h)',def:70},
+          {id:'d',label:'Vértice desde la izquierda (d)',def:50}],
+    area: d => d.b*d.h/2,
+    Ix_c: d => d.b*Math.pow(d.h,3)/36,
+    Iy_c: d => d.b*d.h*(d.b*d.b - d.b*d.d + d.d*d.d)/36,
+    Ixy_c: d => d.b*d.h*d.h*(2*d.d - d.b)/72,        // 0 solo con el vértice centrado
+    bounds: d => _boundsPoli(_poliLocal(_vTriangulo(d))),
+    anchors: ['BL','C','BR','V'],
+    defaultAnchor: 'BL',
+    anchorOffset: (d,k) => {
+      const q = _propsPoli(_vTriangulo(d));
+      const en = (x,y) => ({dx:x - q.cx, dy:y - q.cy});
+      if(k==='BL') return en(0, 0);
+      if(k==='C')  return {dx:0, dy:0};
+      if(k==='BR') return en(d.b, 0);
+      if(k==='V')  return en(d.d, d.h);              // vértice opuesto a la base
+      return {dx:0, dy:0};
+    },
+    draw: (ctx,d) => _dibujarPoli(ctx, _poliLocal(_vTriangulo(d)))
+  },
+  hexagono: {
+    name:'Hexágono',
+    dims:[{id:'r',label:'Radio circunscrito (R)',def:55}],
+    // Polígono regular de n lados: A = (n/2)R²·sen(2π/n), lado L = 2R·sen(π/n)
+    // y CUALQUIER eje por el centroide da I = A(6R² − L²)/24, con Ixy = 0.
+    // Para n = 6 eso es A = 3√3R²/2 e I = 5√3R⁴/16.
+    area: d => 3*Math.sqrt(3)/2*d.r*d.r,
+    Ix_c: d => 5*Math.sqrt(3)/16*Math.pow(d.r,4),
+    Iy_c: d => 5*Math.sqrt(3)/16*Math.pow(d.r,4),
+    Ixy_c: d => 0,
+    bounds: d => _boundsPoli(_vPoliReg(6, d.r, 0)),
+    anchors: ['C','E1','BM'],
+    anchorOffset: (d,k) => {
+      if(k==='E1') return {dx:d.r, dy:0};                    // vértice derecho
+      if(k==='BM') return {dx:0,   dy:-d.r*Math.sqrt(3)/2};  // medio del lado inferior
+      return {dx:0, dy:0};
+    },
+    draw: (ctx,d) => _dibujarPoli(ctx, _vPoliReg(6, d.r, 0))
+  },
+  octogono: {
+    name:'Octógono',
+    dims:[{id:'r',label:'Radio circunscrito (R)',def:55}],
+    // n = 8: A = 2√2R², y la misma I = A(6R² − L²)/24 con L = 2R·sen(π/8).
+    area: d => 2*Math.sqrt(2)*d.r*d.r,
+    Ix_c: d => { const R = d.r, A = 2*Math.sqrt(2)*R*R, L = 2*R*Math.sin(Math.PI/8); return A*(6*R*R - L*L)/24; },
+    Iy_c: d => { const R = d.r, A = 2*Math.sqrt(2)*R*R, L = 2*R*Math.sin(Math.PI/8); return A*(6*R*R - L*L)/24; },
+    Ixy_c: d => 0,
+    bounds: d => _boundsPoli(_vPoliReg(8, d.r, Math.PI/8)),
+    anchors: ['C','E1','BM'],
+    anchorOffset: (d,k) => {
+      if(k==='E1') return {dx:d.r*Math.cos(Math.PI/8), dy:d.r*Math.sin(Math.PI/8)};  // vértice derecho
+      if(k==='BM') return {dx:0, dy:-d.r*Math.cos(Math.PI/8)};                       // medio del lado inferior
+      return {dx:0, dy:0};
+    },
+    draw: (ctx,d) => _dibujarPoli(ctx, _vPoliReg(8, d.r, Math.PI/8))
   },
 };

@@ -177,4 +177,111 @@ const REF_FIGS = {
       <text x="4" y="52" font-size="9" fill="#0a2e7a" font-style="italic">b</text>
     </svg>`,
     formulas: 'A = πab/4 &nbsp;&nbsp; x̄ = 4a/3π, ȳ = 4b/3π<br>Iₓ = ab³(π/16 − 4/9π) &nbsp;&nbsp; Iᵧ = a³b(π/16 − 4/9π)<br>Pₓᵧ = a²b²(1/8 − 4/9π)'
-  }};
+  },
+  // ── Tanda del 2026-09-15: siete figuras más ───────────
+  triangulo: {
+    title: 'Triángulo (vértice cualquiera)',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <polygon points="20,82 140,82 98,18" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <line x1="98" y1="18" x2="98" y2="82" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <circle cx="86" cy="60.7" r="3.5" fill="#f0c040"/>
+      <text x="86" y="56" text-anchor="middle" font-size="7" fill="#0a2e7a">x̄=(b+d)/3</text>
+      <text x="86" y="71" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+      <line x1="20" y1="90" x2="140" y2="90" stroke="#123f8f" stroke-width="1"/>
+      <text x="80" y="98" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">b</text>
+      <line x1="20" y1="12" x2="98" y2="12" stroke="#123f8f" stroke-width="1"/>
+      <text x="55" y="10" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">d</text>
+      <line x1="148" y1="18" x2="148" y2="82" stroke="#123f8f" stroke-width="1"/>
+      <text x="153" y="53" font-size="9" fill="#0a2e7a" font-style="italic">h</text>
+    </svg>`,
+    formulas: 'A = bh/2 &nbsp;&nbsp; x̄ = (b+d)/3 &nbsp;&nbsp; ȳ = h/3<br>Iₓ = bh³/36 &nbsp;&nbsp; Iᵧ = bh(b² − bd + d²)/36 &nbsp;&nbsp; Pₓᵧ = bh²(2d − b)/72<br><span style="color:#b45309">d es la abscisa del vértice desde el extremo izquierdo de la base; Pₓᵧ = 0 solo si d = b/2.</span>'
+  },
+  trapecio: {
+    title: 'Trapecio',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <polygon points="18,80 138,80 116,28 52,28" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <line x1="18" y1="28" x2="52" y2="28" stroke="#123f8f" stroke-width="1"/>
+      <line x1="18" y1="80" x2="18" y2="28" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <text x="33" y="25" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">Δ</text>
+      <circle cx="80.7" cy="56.6" r="3.5" fill="#f0c040"/>
+      <text x="80.7" y="67" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+      <line x1="18" y1="88" x2="138" y2="88" stroke="#123f8f" stroke-width="1"/>
+      <text x="78" y="97" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">a</text>
+      <text x="84" y="24" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">b</text>
+      <line x1="146" y1="28" x2="146" y2="80" stroke="#123f8f" stroke-width="1"/>
+      <text x="151" y="57" font-size="9" fill="#0a2e7a" font-style="italic">h</text>
+    </svg>`,
+    formulas: 'A = (a+b)h/2 &nbsp;&nbsp; x̄ = [a²+ab+b² + Δ(a+2b)] / 3(a+b) &nbsp;&nbsp; ȳ = h(a+2b) / 3(a+b)<br>Iₓ = h³K / 36(a+b) &nbsp;&nbsp; Iᵧ = h[a⁴+2a³b+2ab³+b⁴ + Δ²K − ΔJ] / 36(a+b) &nbsp;&nbsp; Pₓᵧ = h²(2ΔK − J) / 72(a+b)<br><span style="color:#b45309">K = a²+4ab+b², J = a³+3a²b−3ab²−b³; Δ es el desplazamiento de la base menor. Pₓᵧ = 0 solo si es isósceles (Δ = (a−b)/2).</span>'
+  },
+  segmento: {
+    title: 'Segmento Circular',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <path d="M38.3,58.6 A46,46 0 0,1 121.7,58.6 Z" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <line x1="38.3" y1="58.6" x2="121.7" y2="58.6" stroke="#0d3a8f" stroke-width="1.5"/>
+      <line x1="80" y1="78" x2="121.7" y2="58.6" stroke="#0a2e7a" stroke-width="1" opacity=".7"/>
+      <line x1="80" y1="78" x2="80" y2="32" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <circle cx="80" cy="78" r="2.5" fill="#0e357f"/>
+      <text x="72" y="87" font-size="8" fill="#0e357f" font-style="italic">O</text>
+      <text x="86" y="71" font-size="8" fill="#0a2e7a" font-style="italic">θ</text>
+      <text x="107" y="73" font-size="9" fill="#0a2e7a" font-style="italic">R</text>
+      <circle cx="80" cy="47.6" r="3.5" fill="#f0c040"/>
+      <text x="80" y="43" text-anchor="middle" font-size="7" fill="#0a2e7a">ȳ desde O</text>
+      <text x="80" y="57" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+    </svg>`,
+    formulas: 'A = R²(θ − senθ·cosθ) &nbsp;&nbsp; ȳ = 2R sen³θ / 3(θ − senθ·cosθ) &nbsp; (desde el centro O)<br>Iₓ = R⁴(θ − senθcosθ + 2sen³θ·cosθ)/4 − A·ȳ² &nbsp;&nbsp; Iᵧ = R⁴(3θ − 3senθcosθ − 2sen³θ·cosθ)/12 &nbsp;&nbsp; Pₓᵧ = 0<br><span style="color:#b45309">θ es el SEMIÁNGULO, en radianes, medido desde el eje de simetría. Con θ = 90° reproduce el semicírculo.</span>'
+  },
+  semielipse: {
+    title: 'Semielipse',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <path d="M20,74 A60,44 0 0,1 140,74 Z" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <line x1="20" y1="74" x2="140" y2="74" stroke="#0d3a8f" stroke-width="1.5"/>
+      <line x1="80" y1="74" x2="80" y2="30" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <text x="85" y="46" font-size="9" fill="#0a2e7a" font-style="italic">b</text>
+      <line x1="80" y1="82" x2="140" y2="82" stroke="#123f8f" stroke-width="1"/>
+      <text x="110" y="92" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">a</text>
+      <circle cx="80" cy="55.3" r="3.5" fill="#f0c040"/>
+      <text x="80" y="51" text-anchor="middle" font-size="7" fill="#0a2e7a">ȳ=4b/3π</text>
+      <text x="80" y="65" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+    </svg>`,
+    formulas: 'A = πab/2 &nbsp;&nbsp; ȳ = 4b/3π (desde la base plana)<br>Iₓ = ab³(π/8 − 8/9π) &nbsp;&nbsp; Iᵧ = πa³b/8 &nbsp;&nbsp; Pₓᵧ = 0'
+  },
+  elipse: {
+    title: 'Elipse',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <ellipse cx="80" cy="48" rx="60" ry="34" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <line x1="80" y1="48" x2="140" y2="48" stroke="#0d3a8f" stroke-width="1.3"/>
+      <line x1="80" y1="48" x2="80" y2="14" stroke="#0d3a8f" stroke-width="1.3"/>
+      <text x="112" y="44" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">a</text>
+      <text x="85" y="30" font-size="9" fill="#0a2e7a" font-style="italic">b</text>
+      <line x1="20" y1="48" x2="80" y2="48" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <line x1="80" y1="48" x2="80" y2="82" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <circle cx="80" cy="48" r="3.5" fill="#f0c040"/>
+      <text x="80" y="60" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+    </svg>`,
+    formulas: 'A = πab &nbsp;&nbsp; El centroide está en el centro (doble simetría)<br>Iₓ = πab³/4 &nbsp;&nbsp; Iᵧ = πa³b/4 &nbsp;&nbsp; Pₓᵧ = 0'
+  },
+  hexagono: {
+    title: 'Hexágono regular',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <polygon points="120,50 100,15.4 60,15.4 40,50 60,84.6 100,84.6" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <line x1="80" y1="50" x2="120" y2="50" stroke="#0d3a8f" stroke-width="1.3"/>
+      <text x="100" y="46" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">R</text>
+      <line x1="80" y1="50" x2="80" y2="84.6" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <circle cx="80" cy="50" r="3.5" fill="#f0c040"/>
+      <text x="80" y="62" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+    </svg>`,
+    formulas: 'A = 3√3R²/2 &nbsp;&nbsp; El centroide está en el centro<br>Iₓ = Iᵧ = 5√3R⁴/16 ≈ 0.5413R⁴ &nbsp;&nbsp; Pₓᵧ = 0<br><span style="color:#b45309">R es el radio CIRCUNSCRITO (del centro a un vértice). En un polígono regular toda recta por el centroide da la misma inercia, así que cualquier par de ejes es principal.</span>'
+  },
+  octogono: {
+    title: 'Octógono regular',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <polygon points="117,34.7 95.3,13 64.7,13 43,34.7 43,65.3 64.7,87 95.3,87 117,65.3" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <line x1="80" y1="50" x2="117" y2="34.7" stroke="#0d3a8f" stroke-width="1.3"/>
+      <text x="103" y="38" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">R</text>
+      <line x1="80" y1="50" x2="80" y2="87" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <circle cx="80" cy="50" r="3.5" fill="#f0c040"/>
+      <text x="80" y="62" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+    </svg>`,
+    formulas: 'A = 2√2R² &nbsp;&nbsp; El centroide está en el centro<br>Iₓ = Iᵧ = (1 + 2√2)R⁴/6 ≈ 0.6381R⁴ &nbsp;&nbsp; Pₓᵧ = 0<br><span style="color:#b45309">R es el radio CIRCUNSCRITO (del centro a un vértice). Como en el hexágono, toda recta por el centroide da la misma inercia.</span>'
+  }
+};

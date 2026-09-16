@@ -112,7 +112,10 @@ function onMouseMove(e){
   document.getElementById('canvasHint').textContent =
     `x: ${r2(wp.x)} ${unit}  y: ${r2(wp.y)} ${unit}`;
 
-  if(selectedFigType){ ghostPos = wp; render(); return; }
+  // La fantasma se dibuja por el CENTROIDE, así que se pinta en el centroide
+  // que corresponde al ancla bajo el puntero: la vista previa enseña dónde
+  // quedará la figura al soltar el clic.
+  if(selectedFigType){ ghostPos = centroideDesdeClic(selectedFigType, wp.x, wp.y); render(); return; }
   if(isDragging && !isDraggingFig){
     viewTx = dragViewStart.x + (sp.x - dragStart.x);
     viewTy = dragViewStart.y + (sp.y - dragStart.y);

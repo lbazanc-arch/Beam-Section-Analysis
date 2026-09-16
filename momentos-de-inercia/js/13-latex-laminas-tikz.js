@@ -75,6 +75,33 @@ function figuraPathLocal(tipo, d){
     return '(' + (-dx) + ',' + (-dy) + ') -- (' + (d.a-dx) + ',' + (-dy)
          + ') arc[start angle=0, end angle=90, x radius=' + d.a + ', y radius=' + d.b + '] -- cycle';
   }
+  // ── Elipse y semielipse: el `arc` de TikZ admite dos radios, igual que el
+  //    ctx.ellipse() del lienzo, así que la curva es la misma, no una Bézier
+  //    que se le parezca.
+  if(tipo === 'elipse'){
+    return '(0,0) ellipse [x radius=' + d.a + ', y radius=' + d.b + ']';
+  }
+  if(tipo === 'semielipse'){
+    const yc = 4*d.b/(3*Math.PI);
+    return '(' + (-d.a) + ',' + (-yc) + ') arc[start angle=180, end angle=0, x radius='
+         + d.a + ', y radius=' + d.b + '] -- cycle';
+  }
+  if(tipo === 'segmento'){
+    // Arco de cuerda a cuerda pasando por lo alto; la cuerda cierra la figura.
+    // Mismo barrido que el sector, con el centro del círculo en (0,-yO).
+    const t = d.alpha, tr = t*Math.PI/180, R = d.r, s = Math.sin(tr), c = Math.cos(tr);
+    const yO = 2*R*Math.pow(s,3)/(3*(tr - s*c));
+    return '(' + (-R*s) + ',' + (R*c - yO) + ') arc (' + (90+t) + ':' + (90-t) + ':' + R + ') -- cycle';
+  }
+  // ── Polígonos: los mismos vértices que dibuja el lienzo (02-), con el
+  //    centroide ya en el origen local.
+  if(tipo === 'trapecio' || tipo === 'triangulo' || tipo === 'hexagono' || tipo === 'octogono'){
+    const v = tipo === 'trapecio'  ? _poliLocal(_vTrapecio(d))
+            : tipo === 'triangulo' ? _poliLocal(_vTriangulo(d))
+            : tipo === 'hexagono'  ? _vPoliReg(6, d.r, 0)
+            :                        _vPoliReg(8, d.r, Math.PI/8);
+    return v.map(q => '(' + q[0] + ',' + q[1] + ')').join(' -- ') + ' -- cycle';
+  }
   // ── Perfiles laminados: no existen en el Cap. 9, se trasladan desde el
   //    draw() de FIG_DEFS de este capítulo, vértice a vértice.
   if(tipo === 'wshape'){
@@ -226,10 +253,15 @@ function tikzCotasCompuesta(cajaMundo, tx, ty){
     if(f.type==='quarter'){ const dc=4*d.r/(3*Math.PI); co.x=-dc; co.y=-dc; }
     else if(f.type==='semicircle'){ co.y = -4*d.r/(3*Math.PI); }
     else if(f.type==='sector'){ const t=d.alpha*Math.PI/180; co.y = -2*d.r*Math.sin(t)/(3*t); }
+    else if(f.type==='segmento'){
+      const t=d.alpha*Math.PI/180, s=Math.sin(t), c=Math.cos(t);
+      co.y = -2*d.r*Math.pow(s,3)/(3*(t - s*c));       // centro del arco, bajo la cuerda
+    }
     const wx = f.cx + co.x*Math.cos(rot) - co.y*Math.sin(rot);
     const wy = f.cy + co.x*Math.sin(rot) + co.y*Math.cos(rot);
     let txt = 'R=' + decP(d.r,'len');
     if(f.type==='sector') txt += ',\\ 2\\theta=' + decP(d.alpha*2,'len') + '^\\circ';
+    if(f.type==='segmento') txt += ',\\ \\theta=' + decP(d.alpha,'len') + '^\\circ';
     items.push({txt, ancla:{x:px(wx), y:py(wy)},
                 w: tikzMedirTexto(txt) + 0.22, h: ALTO_ROT});
   });
@@ -297,11 +329,45 @@ function tikzSeccionCompuesta(opts){
     s += '\\fill[bsaAlerta] (' + cx + ',' + cy + ') circle (2pt);\n';
     s += '\\node[font=\\small\\bfseries, above right, xshift=2pt] at (' + cx + ',' + cy + ') {C};\n';
   }
+  // Cota de longitud nula: una coordenada del centroide que vale cero da una
+  // cota de dos puntas de flecha cruzadas en un punto, con su rotulo encima y
+  // 0.000 por valor. Le pasa al disco centrado en O --las dos coordenadas-- y,
+  // mucho mas a menudo, a la seccion simetrica montada con el origen sobre su
+  // eje de simetria: ahi xbar = 0 pero ybar no, y sobra UNA sola de las dos
+  // cotas. Por eso el umbral se aplica por separado a cada coordenada. El
+  // informe lo dice en palabras cuando caen las dos.
+  const tolC = 1e-6*Math.max(1, anchoReal, altoReal);
+  const cEnX = !!results && Math.abs(results.xbar) <= tolC;
+  const cEnY = !!results && Math.abs(results.ybar) <= tolC;
+  const cEnO = cEnX && cEnY;
   if(opts.ejes){
-    s += tikzEjesYCotasC({left:minX,right:maxX,bottom:minY,top:maxY}, tx, ty, !!opts.cotasC);
+    // tikzEjesYCotasC (14-latex-ejes-y-centroide.js) traza los ejes y, de las
+    // dos cotas del centroide, solo las que tienen longitud suficiente: se
+    // encarga ella de descartar la que cae sobre un eje.
+    s += tikzEjesYCotasC({left:minX,right:maxX,bottom:minY,top:maxY}, tx, ty, !!(opts.cotasC && results));
   }
   if(opts.ejesPrincipales){
-    s += tikzEjesPrincipales({left:minX,right:maxX,bottom:minY,top:maxY}, tx, ty);
+    // Si los ejes principales caen SOBRE los ejes x-y --centroide en el origen
+    // y theta_p multiplo de 90 grados-- el rotulo «u (I_max)» aterriza en la
+    // misma linea que la «x» del eje, el trazo discontinuo cruza la letra y no
+    // se lee ninguno de los dos. Los ejes u-v se dibujan entonces mas cortos:
+    // su rotulo queda por dentro y el de x-y en el extremo, ya separados.
+    const thp = (results && isFinite(results.thetaP)) ? Math.abs(results.thetaP % 90) : 45;
+    // Cuanto puede medir el semieje u-v sin alcanzar los rotulos de x e y:
+    // los ejes del dibujo acaban 0.7 cm mas alla de la caja y llevan su letra
+    // en la punta; se deja ademas medio centimetro de aire. tikzEjesPrincipales
+    // toma L = 0.62*max(ancho, alto) de la caja que recibe, asi que basta con
+    // pasarle la caja encogida en esa proporcion.
+    const cxCm = parseFloat(tx(results ? results.xbar : 0));
+    const cyCm = parseFloat(ty(results ? results.ybar : 0));
+    const libre = Math.min(parseFloat(tx(maxX)) + 0.7 - cxCm,
+                           parseFloat(ty(maxY)) + 0.7 - cyCm) - 0.55;
+    const grande = 0.62*Math.max(anchoReal, altoReal)*esc;
+    const k = (cEnO && (thp < 0.5 || thp > 89.5) && grande > 0)
+            ? Math.max(0.25, Math.min(1, libre/grande)) : 1;
+    const mx = (minX+maxX)/2, my = (minY+maxY)/2;
+    s += tikzEjesPrincipales({left: mx-(mx-minX)*k, right: mx+(maxX-mx)*k,
+                              bottom: my-(my-minY)*k, top: my+(maxY-my)*k}, tx, ty);
   }
   if(opts.puntoP){
     s += tikzPuntoPyEjes({left:minX,right:maxX,bottom:minY,top:maxY}, tx, ty);

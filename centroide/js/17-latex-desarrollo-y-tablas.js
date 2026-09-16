@@ -410,6 +410,16 @@ function drawCompositeFigure(canvasId) {
       } else if(fig.type==='sector'){
         const t=d.alpha*Math.PI/180, yc=2*d.r*Math.sin(t)/(3*t);
         co={x:0,y:-yc};           ext={x:0,y:-yc+d.r};   // sobre la bisectriz
+      } else if(fig.type==='segmento'){
+        // El centro del arco está BAJO la cuerda; el radio se traza hasta la
+        // cima, que es el único punto de la superficie sobre la bisectriz.
+        const t=d.alpha*Math.PI/180, s=Math.sin(t), cc=Math.cos(t);
+        const yO=2*d.r*Math.pow(s,3)/(3*(t-s*cc));
+        co={x:0,y:-yO};           ext={x:0,y:-yO+d.r};
+      } else if(fig.type==='hexagono'){
+        co={x:0,y:0};             ext={x:d.r,y:0};        // radio circunscrito
+      } else if(fig.type==='octogono'){
+        co={x:0,y:0};             ext={x:d.r*Math.cos(Math.PI/8), y:d.r*Math.sin(Math.PI/8)};
       } else if(def.centroArco){                          // arcos de alambre (24-)
         co=def.centroArco(d);     ext=def.puntoRadio(d);
       }
@@ -431,7 +441,7 @@ function drawCompositeFigure(canvasId) {
         // pintan al final, para que puedan apartarse unas de otras.
         const mx=(p0.x+p1.x)/2, my=(p0.y+p1.y)/2;
         etiq.add('R='+d.r+unit, mx-8*Math.sin(ang), my+8*Math.cos(ang)-2, clr, 'bold 9px Inter');
-        if(fig.type==='sector'){
+        if(fig.type==='sector' || fig.type==='segmento'){
           etiq.add('\u03b8='+d.alpha+'\u00b0', p0.x, p0.y+13, clr, '9px Inter');
         }
         if(fig.type==='l_arco'){

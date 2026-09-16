@@ -85,6 +85,35 @@ function figuraPathLocal(tipo, d){
     return '(' + (-dx) + ',' + (-dy) + ') -- (' + (d.a-dx) + ',' + (-dy) + ') '
          + 'arc[start angle=0, end angle=90, x radius=' + d.a + ', y radius=' + d.b + '] -- cycle';
   }
+  // ── Elipse y semielipse ──
+  // TikZ traza una elipse verdadera con dos radios; `ctx.ellipse` del lienzo
+  // hace lo mismo, así que papel y pantalla dibujan la misma curva.
+  if(tipo === 'elipse'){
+    return '(0,0) ellipse [x radius=' + d.a + ', y radius=' + d.b + ']';
+  }
+  if(tipo === 'semielipse'){
+    const yc = 4*d.b/(3*Math.PI);                       // centroide sobre la base
+    return '(' + (-d.a) + ',' + (-yc) + ') '
+         + 'arc[start angle=180, end angle=0, x radius=' + d.a + ', y radius=' + d.b + '] -- cycle';
+  }
+  // ── Segmento circular ──
+  // El arco va de un extremo de la cuerda al otro pasando por lo alto; el
+  // `-- cycle` final es la cuerda. Mismo barrido que el `draw` del lienzo.
+  if(tipo === 'segmento'){
+    const t = d.alpha, tr = t*Math.PI/180, R = d.r, s = Math.sin(tr), c = Math.cos(tr);
+    const yO = 2*R*Math.pow(s,3)/(3*(tr - s*c));
+    return '(' + (-R*s) + ',' + (R*c - yO) + ') arc (' + (90+t) + ':' + (90-t) + ':' + R + ') -- cycle';
+  }
+  // ── Figuras poligonales ──
+  // Los MISMOS vértices que usa el lienzo (ayudantes de 02-figure-definitions.js),
+  // ya con el centroide en el origen, unidos con `--` y cerrados con `cycle`.
+  if(tipo === 'trapecio' || tipo === 'triangulo' || tipo === 'hexagono' || tipo === 'octogono'){
+    const v = (tipo === 'trapecio')  ? _poliLocal(_vTrapecio(d))
+            : (tipo === 'triangulo') ? _poliLocal(_vTriangulo(d))
+            : (tipo === 'hexagono')  ? _vPoliReg(6, d.r, 0)
+            :                          _vPoliReg(8, d.r, Math.PI/8);
+    return v.map(p=>'('+p[0]+','+p[1]+')').join(' -- ') + ' -- cycle';
+  }
   // ── Perfiles laminados: los mismos vértices que draw() de FIG_DEFS ──
   if(tipo === 'wshape'){
     const B=d.bf/2, H=d.d/2, w=d.tw/2, hi=d.d/2-d.tf;
@@ -110,20 +139,180 @@ function figuraPathLocal(tipo, d){
   return '(0,0) circle (1)';
 }
 
-// ── Caja delimitadora de una figura YA rotada, en coordenadas mundo ──
-function figuraBoundsMundo(fig){
+// ── Envolvente real de una figura girada, en coordenadas de mundo ──────────
+// La única fuente de verdad de la FORMA es el `draw` de FIG_DEFS, así que la
+// envolvente se saca de ahí: se le pasa un REGISTRADOR DE TRAZO que implementa
+// la parte de la API del lienzo que usan los draw (moveTo, lineTo, rect, arc,
+// ellipse, quadraticCurveTo, bezierCurveTo y las transformaciones) y va
+// quedándose con el mínimo y el máximo del trazo YA GIRADO.
+//
+// Antes se giraban las CUATRO ESQUINAS de la caja local y se tomaba su
+// envolvente. Para un rectángulo eso es exacto, pero para cualquier figura
+// curva o poligonal girada la caja sale de más: un disco de R = 12 partido en
+// dos semicírculos girados 50° y −130° se acotaba 33.81 × 33.81 midiendo
+// 24.00 × 24.00 (+40.9 %). La usan la selección por recuadro, la cadena de
+// cotas del lienzo, el PDF y el informe, así que el error se veía en las dos
+// vistas y además se imprimía.
+//
+// No se muestrea: de un arco y de una Bézier se toman los extremos y los
+// PUNTOS CRÍTICOS EXACTOS en las direcciones giradas, que es donde la curva
+// toca su caja. Así el resultado no depende de ninguna densidad de muestreo y
+// cada figura cuesta unas pocas evaluaciones.
+
+// El registrador trabaja en el marco YA GIRADO: cr y sr son el coseno y el
+// seno del giro de la figura.
+function _registradorTrazo(cr, sr){
+  let izq = Infinity, der = -Infinity, aba = Infinity, arr = -Infinity, cuenta = 0;
+  const pila = [];
+  let m = [1,0,0,1,0,0];              // matriz afín del lienzo [a,b,c,d,e,f]
+  let ux = 0, uy = 0;                 // último punto, en coordenadas del draw
+  // Mapa completo (draw → mundo girado): [e0 e1 e2 ; f0 f1 f2]
+  let e0 = cr, e1 = 0, e2 = 0, f0 = sr, f1 = cr, f2 = 0;
+  const rehacerMapa = () => {
+    e0 = cr*m[0] - sr*m[1];  e1 = cr*m[2] - sr*m[3];  e2 = cr*m[4] - sr*m[5];
+    f0 = sr*m[0] + cr*m[1];  f1 = sr*m[2] + cr*m[3];  f2 = sr*m[4] + cr*m[5];
+  };
+  rehacerMapa();
+  const meter = (x,y) => {
+    const X = e0*x + e1*y + e2, Y = f0*x + f1*y + f2;
+    if(X < izq) izq = X;   if(X > der) der = X;
+    if(Y < aba) aba = Y;   if(Y > arr) arr = Y;
+    cuenta++;
+  };
+  const ir = (x,y) => { ux = x; uy = y; meter(x,y); };
+  const componer = (a,b,c,d,e,f) => {
+    m = [m[0]*a + m[2]*b, m[1]*a + m[3]*b,
+         m[0]*c + m[2]*d, m[1]*c + m[3]*d,
+         m[0]*e + m[2]*f + m[4], m[1]*e + m[3]*f + m[5]];
+    rehacerMapa();
+  };
+  // Puntos críticos de una Bézier cuadrática: cada coordenada es un polinomio
+  // de grado 2, así que su derivada se anula en un único t, exacto.
+  const critCuad = (p0,pq,p2) => {
+    const den = p0 - 2*pq + p2;
+    if(Math.abs(den) < 1e-15) return [];
+    const t = (p0 - pq)/den;
+    return (t > 0 && t < 1) ? [t] : [];
+  };
+  // Cúbica: la derivada es de grado 2 (hasta dos raíces en el intervalo).
+  const critCub = (p0,c1,c2,p3) => {
+    const a = 3*(-p0 + 3*c1 - 3*c2 + p3), b = 6*(p0 - 2*c1 + c2), c = 3*(c1 - p0);
+    const ts = [];
+    if(Math.abs(a) < 1e-15){ if(Math.abs(b) > 1e-15) ts.push(-c/b); }
+    else {
+      const disc = b*b - 4*a*c;
+      if(disc >= 0){ const q = Math.sqrt(disc); ts.push((-b+q)/(2*a), (-b-q)/(2*a)); }
+    }
+    return ts.filter(t => t > 0 && t < 1);
+  };
+  const r = {
+    beginPath(){}, closePath(){}, fill(){}, stroke(){}, clip(){},
+    moveTo(x,y){ ir(x,y); },
+    lineTo(x,y){ ir(x,y); },
+    rect(x,y,w,h){ ir(x,y); ir(x+w,y); ir(x+w,y+h); ir(x,y+h); ir(x,y); },
+    quadraticCurveTo(qx,qy,x,y){
+      const x0 = ux, y0 = uy;
+      const ev = t => { const u = 1-t;
+        meter(u*u*x0 + 2*u*t*qx + t*t*x, u*u*y0 + 2*u*t*qy + t*t*y); };
+      // Los críticos se buscan sobre las coordenadas YA GIRADAS: es ahí donde
+      // la curva toca la caja que se está midiendo.
+      const gx = p => e0*p[0] + e1*p[1], gy = p => f0*p[0] + f1*p[1];
+      const P0 = [x0,y0], Q = [qx,qy], P2 = [x,y];
+      critCuad(gx(P0),gx(Q),gx(P2)).concat(critCuad(gy(P0),gy(Q),gy(P2))).forEach(ev);
+      ir(x,y);
+    },
+    bezierCurveTo(ax,ay,bx,by,x,y){
+      const x0 = ux, y0 = uy;
+      const ev = t => { const u = 1-t, u2 = u*u, t2 = t*t;
+        meter(u2*u*x0 + 3*u2*t*ax + 3*u*t2*bx + t2*t*x,
+              u2*u*y0 + 3*u2*t*ay + 3*u*t2*by + t2*t*y); };
+      const gx = p => e0*p[0] + e1*p[1], gy = p => f0*p[0] + f1*p[1];
+      const P0 = [x0,y0], C1 = [ax,ay], C2 = [bx,by], P3 = [x,y];
+      critCub(gx(P0),gx(C1),gx(C2),gx(P3)).concat(critCub(gy(P0),gy(C1),gy(C2),gy(P3))).forEach(ev);
+      ir(x,y);
+    },
+    // `inverso` es el `anticlockwise` del lienzo: barrido de ángulo DECRECIENTE
+    // en las coordenadas locales (que aquí tienen la Y hacia arriba).
+    ellipse(cx,cy,rx,ry,giro,a0,a1,inverso){
+      const dosPi = 2*Math.PI, cg = Math.cos(giro||0), sg = Math.sin(giro||0);
+      let d = a1 - a0;
+      if(inverso){ if(d <= -dosPi) d = -dosPi; else { d = d % dosPi; if(d > 0) d -= dosPi; } }
+      else       { if(d >=  dosPi) d =  dosPi; else { d = d % dosPi; if(d < 0) d += dosPi; } }
+      const punto = t => {
+        const u = rx*Math.cos(t), v = ry*Math.sin(t);
+        return [cx + u*cg - v*sg, cy + u*sg + v*cg];
+      };
+      const dentro = t => {
+        let q = (d >= 0 ? (t - a0) : (a0 - t)) % dosPi;
+        if(q < 0) q += dosPi;
+        return q <= Math.abs(d) + 1e-12;
+      };
+      // X(t) = K + (ax·rx)·cos t + (ay·ry)·sen t alcanza su extremo en
+      // atan2(ay·ry, ax·rx) y media vuelta más allá: exacto, sin muestrear.
+      const ejes = [[e0*cg + e1*sg, -e0*sg + e1*cg], [f0*cg + f1*sg, -f0*sg + f1*cg]];
+      ejes.forEach(par => {
+        const tb = Math.atan2(par[1]*ry, par[0]*rx);
+        [tb, tb + Math.PI].forEach(t => { if(dentro(t)){ const p = punto(t); meter(p[0], p[1]); } });
+      });
+      const ini = punto(a0), fin = punto(a0 + d);
+      meter(ini[0], ini[1]);
+      ir(fin[0], fin[1]);
+    },
+    arc(cx,cy,rad,a0,a1,inverso){ r.ellipse(cx,cy,rad,rad,0,a0,a1,inverso); },
+    save(){ pila.push(m.slice()); },
+    restore(){ if(pila.length){ m = pila.pop(); rehacerMapa(); } },
+    transform(a,b,c,d,e,f){ componer(a,b,c,d,e,f); },
+    translate(x,y){ componer(1,0,0,1,x,y); },
+    rotate(t){ componer(Math.cos(t), Math.sin(t), -Math.sin(t), Math.cos(t), 0, 0); },
+    scale(sx,sy){ componer(sx,0,0,sy,0,0); },
+    caja(){ return (cuenta >= 2 && isFinite(izq) && isFinite(arr))
+              ? {left:izq, right:der, bottom:aba, top:arr} : null; }
+  };
+  return r;
+}
+
+// Caja de la figura girada, RELATIVA a su centroide (fig.cx, fig.cy).
+function _cajaGirada(fig){
   const def = FIG_DEFS[fig.type];
   const b = def.bounds(fig.dims);
-  const rot = (fig.rotation||0)*Math.PI/180;
-  const esquinas = [{x:b.left,y:b.bottom},{x:b.right,y:b.bottom},{x:b.right,y:b.top},{x:b.left,y:b.top}];
-  const mundo = esquinas.map(p=>({
-    x: fig.cx + p.x*Math.cos(rot) - p.y*Math.sin(rot),
-    y: fig.cy + p.x*Math.sin(rot) + p.y*Math.cos(rot)
-  }));
-  return {
-    left: Math.min(...mundo.map(p=>p.x)), right: Math.max(...mundo.map(p=>p.x)),
-    bottom: Math.min(...mundo.map(p=>p.y)), top: Math.max(...mundo.map(p=>p.y))
-  };
+  const g = fig.rotation || 0;
+  if(!g) return {left:b.left, right:b.right, bottom:b.bottom, top:b.top};
+  const rot = g*Math.PI/180, cr = Math.cos(rot), sr = Math.sin(rot);
+  let caja = null;
+  if(typeof def.draw === 'function'){
+    const reg = _registradorTrazo(cr, sr);
+    // Si el draw usa algo que el registrador no sabe seguir, lanza y se cae de
+    // vuelta a la caja local girada, que es lo que se hacía antes: así nunca
+    // queda peor que antes.
+    try{ def.draw(reg, fig.dims); caja = reg.caja(); }catch(e){ caja = null; }
+  }
+  if(caja) return caja;
+  const esq = [[b.left,b.bottom],[b.right,b.bottom],[b.right,b.top],[b.left,b.top]]
+    .map(p => [p[0]*cr - p[1]*sr, p[0]*sr + p[1]*cr]);
+  return {left:   Math.min.apply(null, esq.map(p=>p[0])), right: Math.max.apply(null, esq.map(p=>p[0])),
+          bottom: Math.min.apply(null, esq.map(p=>p[1])), top:   Math.max.apply(null, esq.map(p=>p[1]))};
+}
+
+// figuraBoundsMundo se llama por figura en CADA redibujado, así que la caja se
+// guarda por (tipo, medidas, giro) y el trazo se recorre una sola vez.
+const _CAJAS_GIRADAS = new Map();
+function _claveCaja(fig){
+  let s = fig.type + '@' + (fig.rotation || 0);
+  const d = fig.dims || {};
+  for(const k in d) s += '|' + k + '=' + d[k];
+  return s;
+}
+
+function figuraBoundsMundo(fig){
+  const clave = _claveCaja(fig);
+  let b = _CAJAS_GIRADAS.get(clave);
+  if(!b){
+    b = _cajaGirada(fig);
+    if(_CAJAS_GIRADAS.size > 300) _CAJAS_GIRADAS.clear();
+    _CAJAS_GIRADAS.set(clave, b);
+  }
+  return {left:   fig.cx + b.left,   right: fig.cx + b.right,
+          bottom: fig.cy + b.bottom, top:   fig.cy + b.top};
 }
 
 // ── Dibuja una figura ya colocada (posición + rotación reales) ──
@@ -264,11 +453,13 @@ function tikzCotasCompuesta(cajaMundo, tx, ty){
     if(f.type==='quarter'){ const dc=4*d.r/(3*Math.PI); co.x=-dc; co.y=-dc; }
     else if(f.type==='semicircle'){ co.y = -4*d.r/(3*Math.PI); }
     else if(f.type==='sector'){ const t=d.alpha*Math.PI/180; co.y = -2*d.r*Math.sin(t)/(3*t); }
+    else if(f.type==='segmento'){ const t=d.alpha*Math.PI/180, s=Math.sin(t), c2=Math.cos(t);
+      co.y = -2*d.r*Math.pow(s,3)/(3*(t - s*c2)); }   // el centro del arco, no el centroide
     else if(FIG_DEFS[f.type] && FIG_DEFS[f.type].centroArco){ const q = FIG_DEFS[f.type].centroArco(d); co.x = q.x; co.y = q.y; }
     const wx = f.cx + co.x*Math.cos(rot) - co.y*Math.sin(rot);
     const wy = f.cy + co.x*Math.sin(rot) + co.y*Math.cos(rot);
     let txt = 'R=' + decP(d.r,'len');
-    if(f.type==='sector') txt += ',\\ 2\\theta=' + decP(d.alpha*2,'len') + '^\\circ';
+    if(f.type==='sector' || f.type==='segmento') txt += ',\\ 2\\theta=' + decP(d.alpha*2,'len') + '^\\circ';
     if(f.type==='l_arco') txt += ',\\ \\varphi=' + decP(d.phi,'len') + '^\\circ';
     items.push({txt, ancla:{x:px(wx), y:py(wy)},
                 w: tikzMedirTexto(txt) + 0.22, h: ALTO_ROT});
@@ -326,21 +517,33 @@ function tikzEjesYCotasC(caja, tx, ty, conCotas){
   if(results.hetero && results.sep > 1e-9)
     puntos.push({x:results.xg, y:results.yg, et:'G', col:'bsaVerde'});
 
+  // Una cota de longitud casi nula no es una cota: son dos puntas de flecha
+  // cruzadas con el rótulo encima. Cuando el centroide cae sobre un eje (una
+  // sección simétrica centrada en el origen deja x̄ = 0), esa cota no se dibuja.
+  const anchoFig = Math.abs(px(caja.right) - px(caja.left));
+  const altoFig  = Math.abs(py(caja.top)   - py(caja.bottom));
+  const minCotaX = Math.max(0.14, 0.012*anchoFig);   // en cm de TikZ
+  const minCotaY = Math.max(0.14, 0.012*altoFig);
+
   puntos.forEach((p,k)=>{
     const cxp = px(p.x), cyp = py(p.y);
     const yCota = oy - 0.75 - k*0.62;
     const xCota = ox - 0.75 - k*0.62;
     // abscisa
-    s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(cxp) + ',' + n(yCota-0.10) + ');\n';
-    s += '\\draw[' + p.col + ', line width=0.45pt, <->, >=stealth] (' + n(ox) + ',' + n(yCota) + ') -- (' + n(cxp) + ',' + n(yCota) + ');\n';
-    // Encima de su propia línea de cota: sin recuadro y sin pisarla.
-    s += '\\node[font=\\small, above, inner sep=1.6pt] at (' + n((ox+cxp)/2) + ',' + n(yCota) + ') {$\\bar{x}_{' + p.et + '}$};\n';
+    if(Math.abs(cxp - ox) >= minCotaX){
+      s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(cxp) + ',' + n(yCota-0.10) + ');\n';
+      s += '\\draw[' + p.col + ', line width=0.45pt, <->, >=stealth] (' + n(ox) + ',' + n(yCota) + ') -- (' + n(cxp) + ',' + n(yCota) + ');\n';
+      // Encima de su propia línea de cota: sin recuadro y sin pisarla.
+      s += '\\node[font=\\small, above, inner sep=1.6pt] at (' + n((ox+cxp)/2) + ',' + n(yCota) + ') {$\\bar{x}_{' + p.et + '}$};\n';
+    }
     // ordenada
-    s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(xCota-0.10) + ',' + n(cyp) + ');\n';
-    s += '\\draw[' + p.col + ', line width=0.45pt, <->, >=stealth] (' + n(xCota) + ',' + n(oy) + ') -- (' + n(xCota) + ',' + n(cyp) + ');\n';
-    // rotate=90 la deja en vertical y 'above' la aparta al lado izquierdo de
-    // la cota, ya girada: así se lee de abajo arriba y no monta sobre la línea.
-    s += '\\node[font=\\small, rotate=90, above, inner sep=1.6pt] at (' + n(xCota) + ',' + n((oy+cyp)/2) + ') {$\\bar{y}_{' + p.et + '}$};\n';
+    if(Math.abs(cyp - oy) >= minCotaY){
+      s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(xCota-0.10) + ',' + n(cyp) + ');\n';
+      s += '\\draw[' + p.col + ', line width=0.45pt, <->, >=stealth] (' + n(xCota) + ',' + n(oy) + ') -- (' + n(xCota) + ',' + n(cyp) + ');\n';
+      // rotate=90 la deja en vertical y 'above' la aparta al lado izquierdo de
+      // la cota, ya girada: así se lee de abajo arriba y no monta sobre la línea.
+      s += '\\node[font=\\small, rotate=90, above, inner sep=1.6pt] at (' + n(xCota) + ',' + n((oy+cyp)/2) + ') {$\\bar{y}_{' + p.et + '}$};\n';
+    }
   });
   return s;
 }

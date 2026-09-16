@@ -289,6 +289,22 @@ function formulaArea(fig){
       return {sim:'A_i = \\dfrac{a\\,h}{3}', sus:'A_i = \\dfrac{('+D(d.a)+')('+D(d.h)+')}{3}'};
     case 'cuartoelipse':
       return {sim:'A_i = \\dfrac{\\pi\\,a\\,b}{4}', sus:'A_i = \\dfrac{\\pi ('+D(d.a)+')('+D(d.b)+')}{4}'};
+    case 'elipse':
+      return {sim:'A_i = \\pi\\,a\\,b', sus:'A_i = \\pi ('+D(d.a)+')('+D(d.b)+')'};
+    case 'semielipse':
+      return {sim:'A_i = \\dfrac{\\pi\\,a\\,b}{2}', sus:'A_i = \\dfrac{\\pi ('+D(d.a)+')('+D(d.b)+')}{2}'};
+    case 'segmento':
+      return {sim:'A_i = R^{2}\\left(\\theta - \\sen\\theta\\cos\\theta\\right) \\quad (\\theta \\text{ en radianes})',
+              sus:'A_i = ('+D(d.r)+')^{2}\\left('+D(d.alpha)+'^\\circ\\cdot\\tfrac{\\pi}{180} - \\sen '+D(d.alpha)+'^\\circ\\cos '+D(d.alpha)+'^\\circ\\right)'};
+    case 'trapecio':
+      return {sim:'A_i = \\dfrac{(a+b)\\,h}{2}',
+              sus:'A_i = \\dfrac{('+D(d.a)+'+'+D(d.b)+')('+D(d.h)+')}{2}'};
+    case 'triangulo':
+      return {sim:'A_i = \\dfrac{b\\,h}{2}', sus:'A_i = \\dfrac{('+D(d.b)+')('+D(d.h)+')}{2}'};
+    case 'hexagono':
+      return {sim:'A_i = \\dfrac{3\\sqrt{3}}{2}R^{2}', sus:'A_i = \\dfrac{3\\sqrt{3}}{2}('+D(d.r)+')^{2}'};
+    case 'octogono':
+      return {sim:'A_i = 2\\sqrt{2}\\,R^{2}', sus:'A_i = 2\\sqrt{2}('+D(d.r)+')^{2}'};
     case 'wshape':
       return {sim:'A_i = 2\\,b_f t_f + (d-2t_f)\\,t_w',
               sus:'A_i = 2('+D(d.bf)+')('+D(d.tf)+') + ('+D(d.d)+'-2('+D(d.tf)+'))('+D(d.tw)+')'};
@@ -335,6 +351,26 @@ function centroideLocalTex(fig){
     case 'cuartoelipse':
       return '\\bar{x}_{loc} = \\dfrac{4a}{3\\pi} = ' + D(4*d.a/(3*Math.PI))
            + ',\\quad \\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = ' + D(4*d.b/(3*Math.PI));
+    case 'semielipse':
+      return '\\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = \\dfrac{4('+D(d.b)+')}{3\\pi} = ' + D(4*d.b/(3*Math.PI))
+           + '\\quad (\\text{desde la base plana})';
+    case 'segmento': {
+      const t = d.alpha*Math.PI/180, s = Math.sin(t), c = Math.cos(t);
+      return '\\bar{y}_{loc} = \\dfrac{2R\\sen^{3}\\theta}{3\\left(\\theta-\\sen\\theta\\cos\\theta\\right)} = '
+           + D(2*d.r*Math.pow(s,3)/(3*(t - s*c)))
+           + '\\quad (\\text{desde el centro } O \\text{ del arco})';
+    }
+    case 'trapecio': {
+      const a = d.a, bb = d.b, D2 = d.dx;
+      return '\\begin{gathered} \\bar{x}_{loc} = \\dfrac{a^{2}+ab+b^{2}+\\Delta(a+2b)}{3(a+b)} = '
+           + D((a*a + a*bb + bb*bb + D2*(a + 2*bb))/(3*(a + bb)))
+           + ',\\quad \\bar{y}_{loc} = \\dfrac{h\\,(a+2b)}{3(a+b)} = ' + D(d.h*(a + 2*bb)/(3*(a + bb)))
+           + ' \\\\[2pt] (\\text{los dos, desde el extremo izquierdo de la base mayor}) \\end{gathered}';
+    }
+    case 'triangulo':
+      return '\\begin{gathered} \\bar{x}_{loc} = \\dfrac{b+d}{3} = ' + D((d.b + d.d)/3)
+           + ',\\quad \\bar{y}_{loc} = \\dfrac{h}{3} = ' + D(d.h/3)
+           + ' \\\\[2pt] (\\text{los dos, desde el extremo izquierdo de la base}) \\end{gathered}';
     default: return null;   // rectángulo, círculo y perfiles: el centroide es el centro
   }
 }
@@ -398,6 +434,46 @@ function formulaInercia(fig){
                '\\left(\\dfrac{\\pi}{16}-\\dfrac{4}{9\\pi}\\right)('+D(d.a)+')^{3}('+D(d.b)+')',
                '\\bar{P}_{xy} = \\left(\\dfrac{1}{8}-\\dfrac{4}{9\\pi}\\right)a^{2}b^{2}',
                '\\left(\\dfrac{1}{8}-\\dfrac{4}{9\\pi}\\right)('+D(d.a)+')^{2}('+D(d.b)+')^{2}');
+    case 'elipse':
+      return F('\\bar{I}_{x} = \\dfrac{\\pi\\,a\\,b^{3}}{4}', '\\dfrac{\\pi ('+D(d.a)+')('+D(d.b)+')^{3}}{4}',
+               '\\bar{I}_{y} = \\dfrac{\\pi\\,a^{3}b}{4}', '\\dfrac{\\pi ('+D(d.a)+')^{3}('+D(d.b)+')}{4}',
+               '\\bar{P}_{xy} = 0 \\quad (\\text{dos ejes de simetr\\\'ia})', '0');
+    case 'semielipse':
+      return F('\\bar{I}_{x} = \\left(\\dfrac{\\pi}{8}-\\dfrac{8}{9\\pi}\\right)a\\,b^{3}',
+               '\\left(\\dfrac{\\pi}{8}-\\dfrac{8}{9\\pi}\\right)('+D(d.a)+')('+D(d.b)+')^{3}',
+               '\\bar{I}_{y} = \\dfrac{\\pi\\,a^{3}b}{8}', '\\dfrac{\\pi ('+D(d.a)+')^{3}('+D(d.b)+')}{8}',
+               '\\bar{P}_{xy} = 0 \\quad (\\text{eje vertical de simetr\\\'ia})', '0');
+    case 'segmento':
+      return F('\\bar{I}_{x} = \\dfrac{R^{4}}{4}\\left(\\theta-\\sen\\theta\\cos\\theta+2\\sen^{3}\\theta\\cos\\theta\\right) - A\\,\\bar{y}_{loc}^{2}',
+               '\\text{con } R='+D(d.r)+',\\ \\theta='+D(d.alpha)+'^\\circ',
+               '\\bar{I}_{y} = \\dfrac{R^{4}}{12}\\left(3\\theta-3\\sen\\theta\\cos\\theta-2\\sen^{3}\\theta\\cos\\theta\\right)',
+               '\\text{con } R='+D(d.r)+',\\ \\theta='+D(d.alpha)+'^\\circ',
+               '\\bar{P}_{xy} = 0 \\quad (\\text{eje vertical de simetr\\\'ia})', '0');
+    case 'trapecio': {
+      // K y J son los dos agrupamientos que se repiten en las tres inercias del
+      // trapecio; con la base menor centrada (Delta = (a-b)/2) resulta 2*Delta*K = J
+      // y el producto se anula, que es el caso isosceles de los libros.
+      const cn = '\\text{con } a='+D(d.a)+',\\ b='+D(d.b)+',\\ h='+D(d.h)+',\\ \\Delta='+D(d.dx)
+               + ',\\ K=a^{2}+4ab+b^{2},\\ J=a^{3}+3a^{2}b-3ab^{2}-b^{3}';
+      return F('\\bar{I}_{x} = \\dfrac{h^{3}\\left(a^{2}+4ab+b^{2}\\right)}{36(a+b)}',
+               '\\dfrac{('+D(d.h)+')^{3}\\left(('+D(d.a)+')^{2}+4('+D(d.a)+')('+D(d.b)+')+('+D(d.b)+')^{2}\\right)}{36('+D(d.a)+'+'+D(d.b)+')}',
+               '\\bar{I}_{y} = \\dfrac{h\\left[a^{4}+2a^{3}b+2ab^{3}+b^{4}+\\Delta^{2}K-\\Delta J\\right]}{36(a+b)}', cn,
+               '\\bar{P}_{xy} = \\dfrac{h^{2}\\left(2\\Delta K - J\\right)}{72(a+b)}', cn);
+    }
+    case 'triangulo':
+      return F('\\bar{I}_{x} = \\dfrac{b\\,h^{3}}{36}', '\\dfrac{('+D(d.b)+')('+D(d.h)+')^{3}}{36}',
+               '\\bar{I}_{y} = \\dfrac{b\\,h\\left(b^{2}-b\\,d+d^{2}\\right)}{36}',
+               '\\dfrac{('+D(d.b)+')('+D(d.h)+')\\left(('+D(d.b)+')^{2}-('+D(d.b)+')('+D(d.d)+')+('+D(d.d)+')^{2}\\right)}{36}',
+               '\\bar{P}_{xy} = \\dfrac{b\\,h^{2}\\left(2d-b\\right)}{72}',
+               '\\dfrac{('+D(d.b)+')('+D(d.h)+')^{2}\\left(2('+D(d.d)+')-('+D(d.b)+')\\right)}{72}');
+    case 'hexagono':
+      return F('\\bar{I}_{x} = \\dfrac{5\\sqrt{3}}{16}R^{4}', '\\dfrac{5\\sqrt{3}}{16}('+D(d.r)+')^{4}',
+               '\\bar{I}_{y} = \\dfrac{5\\sqrt{3}}{16}R^{4}', '\\dfrac{5\\sqrt{3}}{16}('+D(d.r)+')^{4}',
+               '\\bar{P}_{xy} = 0 \\quad (\\text{pol\\\'igono regular: todo eje por } G \\text{ es principal})', '0');
+    case 'octogono':
+      return F('\\bar{I}_{x} = \\dfrac{1+2\\sqrt{2}}{6}R^{4}', '\\dfrac{1+2\\sqrt{2}}{6}('+D(d.r)+')^{4}',
+               '\\bar{I}_{y} = \\dfrac{1+2\\sqrt{2}}{6}R^{4}', '\\dfrac{1+2\\sqrt{2}}{6}('+D(d.r)+')^{4}',
+               '\\bar{P}_{xy} = 0 \\quad (\\text{pol\\\'igono regular: todo eje por } G \\text{ es principal})', '0');
     case 'wshape':
       return F('\\bar{I}_{x} = \\dfrac{b_f d^{3} - (b_f-t_w)(d-2t_f)^{3}}{12}',
                '\\text{con } b_f='+D(d.bf)+',\\ d='+D(d.d)+',\\ t_f='+D(d.tf)+',\\ t_w='+D(d.tw),

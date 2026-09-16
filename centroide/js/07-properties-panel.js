@@ -5,12 +5,25 @@
 // ANCHOR_LABELS (02-) da el nombre genérico; unas pocas figuras nombran el mismo
 // punto de otra manera (el O de la enjuta no es un ángulo recto, sino el vértice
 // donde la parábola es tangente a la base), y aquí se dice como lo dice la clase.
+// La MISMA clave significa cosas distintas según la figura: E1 es el extremo del
+// semieje en la elipse y el final de la cuerda en el segmento circular, y BM es
+// el centro del diámetro en el semicírculo y el medio del lado inferior en un
+// polígono regular. Por eso cada tipo puede dar aquí su propio nombre.
 const ANCLA_TEXTO = {
   semicircle:   {BM:'⊥ Centro base (diámetro)'},
   parabola:     {BM:'⊥ Centro de la base', V:'Vértice (cima)'},
   semiparabola: {O:'Origen (90°)', BR:'Fin de la base', V:'Vértice (cima)'},
   enjuta:       {O:'Vértice O (tangente)'},
-  cuartoelipse: {O:'Origen (90°)', E1:'Ext. semieje a', E2:'Ext. semieje b'}
+  cuartoelipse: {O:'Origen (90°)', E1:'Ext. semieje a', E2:'Ext. semieje b'},
+  elipse:       {E1:'Ext. semieje a', E2:'Ext. semieje b'},
+  semielipse:   {BM:'⊥ Centro de la base plana', BL:'Base izq.', BR:'Base der.'},
+  segmento:     {M:'⊥ Medio de la cuerda', E1:'Ext. izq. de la cuerda',
+                 E2:'Ext. der. de la cuerda', V:'Cima del arco'},
+  trapecio:     {BL:'Base mayor izq.', BR:'Base mayor der.',
+                 TL:'Base menor izq.', TR:'Base menor der.'},
+  triangulo:    {BL:'Base izq.', BR:'Base der.', V:'Vértice opuesto'},
+  hexagono:     {E1:'Vértice derecho', BM:'Medio del lado inferior'},
+  octogono:     {E1:'Vértice sup. derecho', BM:'Medio del lado inferior'}
 };
 function textoAncla(tipo, a){
   const m = ANCLA_TEXTO[tipo];
@@ -89,8 +102,11 @@ function buildPropPanel(fig){
         const handler = total ? 'updateSectorAngle(this.value,true)' : 'updateSectorAngle(this.value,false)';
         d.innerHTML=`<label>${lbl}</label><input type="number" id="dim-alpha" value="${val}" step="any" min="0.001" max="${total?'360':'180'}" onchange="${handler}">`;
       } else {
-        // Se indica siempre la unidad activa junto a la magnitud
-        d.innerHTML=`<label>${dim.label} <span style="color:var(--grn2);font-weight:800">(${unit})</span></label>`
+        // Se indica siempre la unidad activa junto a la magnitud, SALVO en los
+        // ángulos (θ del segmento, φ del arco de alambre): van en grados, no en
+        // la unidad de longitud, y su propia etiqueta ya lo dice.
+        const esAng = (typeof ANGLE_DIMS !== 'undefined') && ANGLE_DIMS[dim.id];
+        d.innerHTML=`<label>${dim.label}${esAng?'':` <span style="color:var(--grn2);font-weight:800">(${unit})</span>`}</label>`
           +`<input type="number" id="dim-${dim.id}" value="${fig.dims[dim.id]}" step="any" min="0.001" onchange="updateDim('${dim.id}',this.value)">`;
       }
       row.appendChild(d);

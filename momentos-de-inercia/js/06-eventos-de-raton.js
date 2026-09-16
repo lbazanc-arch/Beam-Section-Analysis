@@ -115,7 +115,10 @@ function onMouseMove(e){
   document.getElementById('canvasHint').textContent =
     `x: ${r2(wp.x)} ${unit}  y: ${r2(wp.y)} ${unit}`;
 
-  if(selectedFigType){ ghostPos = wp; render(); return; }
+  // La fantasma se dibuja por el CENTROIDE, así que se pinta en el centroide
+  // que corresponde al ancla bajo el puntero: la vista previa enseña dónde
+  // quedará la figura al soltar el clic.
+  if(selectedFigType){ ghostPos = centroideDesdeClic(selectedFigType, wp.x, wp.y); render(); return; }
 
   // Resolución del gesto: hasta que el puntero no recorre UMBRAL_ARRASTRE no se
   // decide nada, y así un toque nunca se confunde con un arrastre.
@@ -350,6 +353,12 @@ function getFigMaxDim(fig) {
   if(type==='parabola') return Math.max(d.b||80, d.h||50);
   if(type==='semiparabola'||type==='enjuta') return Math.max(d.a||60, d.h||50);
   if(type==='cuartoelipse') return Math.max(d.a||70, d.b||45);
+  if(type==='elipse') return Math.max(d.a||70, d.b||45)*2;
+  if(type==='semielipse') return Math.max((d.a||70)*2, d.b||45);
+  // Segmento, hexágono y octógono se miden por su radio circunscrito.
+  if(type==='segmento'||type==='hexagono'||type==='octogono') return (d.r||55)*2;
+  if(type==='trapecio') return Math.max(d.a||100, d.b||55, d.h||60);
+  if(type==='triangulo') return Math.max(d.b||100, d.h||70);
   if(d.b!==undefined && d.h!==undefined) return Math.max(d.b, d.h);
   if(d.r!==undefined) return d.r*2;
   return 100;
@@ -383,6 +392,11 @@ function getFigBounds(fig) {
   else if(type==='parabola'){hw=(d.b||80)/2;hh=(d.h||50)/2;}
   else if(type==='semiparabola'||type==='enjuta'){hw=(d.a||60)/2;hh=(d.h||50)/2;}
   else if(type==='cuartoelipse'){hw=(d.a||70)/2;hh=(d.b||45)/2;}
+  else if(type==='elipse'){hw=d.a||70;hh=d.b||45;}
+  else if(type==='semielipse'){hw=d.a||70;hh=(d.b||45)/2;}
+  else if(type==='segmento'||type==='hexagono'||type==='octogono'){hw=hh=d.r||55;}
+  else if(type==='trapecio'){hw=Math.max(d.a||100,d.b||55)/2;hh=(d.h||60)/2;}
+  else if(type==='triangulo'){hw=(d.b||100)/2;hh=(d.h||70)/2;}
   else if(d.b!==undefined&&d.h!==undefined){hw=d.b/2;hh=d.h/2;}
   else if(d.r!==undefined){hw=hh=d.r;}
   return {xmin:fig.cx-hw,xmax:fig.cx+hw,ymin:fig.cy-hh,ymax:fig.cy+hh,hw,hh};

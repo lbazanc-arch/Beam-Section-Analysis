@@ -28,14 +28,28 @@ function tikzEjesYCotasC(caja, tx, ty, conCotas){
   // dibuja encima de las figuras y no se lee.
   const yCota = Math.min(oy, py(caja.bottom)) - 0.75;
   const xCota = Math.min(ox, px(caja.left))   - 0.75;
+  // Una cota de longitud casi nula no es una cota: son dos puntas de flecha
+  // cruzadas con el rotulo encima y 0.000 por valor. Le pasa al disco centrado
+  // en O --las dos coordenadas- y, mucho mas a menudo, a la seccion simetrica
+  // montada con el origen sobre su eje de simetria, donde sobra UNA sola de
+  // las dos. Por eso el umbral se mide en cm de papel y se aplica por separado
+  // a cada coordenada. El informe lo dice en palabras cuando caen las dos.
+  const anchoFig = Math.abs(px(caja.right) - px(caja.left));
+  const altoFig  = Math.abs(py(caja.top)   - py(caja.bottom));
+  const minCotaX = Math.max(0.14, 0.012*anchoFig);   // en cm de TikZ
+  const minCotaY = Math.max(0.14, 0.012*altoFig);
   // abscisa
-  s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(cxp) + ',' + n(yCota-0.10) + ');\n';
-  s += '\\draw[bsaAlerta, line width=0.45pt, <->, >=stealth] (' + n(ox) + ',' + n(yCota) + ') -- (' + n(cxp) + ',' + n(yCota) + ');\n';
-  s += '\\node[font=\\small, above, inner sep=1.6pt] at (' + n((ox+cxp)/2) + ',' + n(yCota) + ') {$\\bar{x}_C$};\n';
+  if(Math.abs(cxp - ox) >= minCotaX){
+    s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(cxp) + ',' + n(yCota-0.10) + ');\n';
+    s += '\\draw[bsaAlerta, line width=0.45pt, <->, >=stealth] (' + n(ox) + ',' + n(yCota) + ') -- (' + n(cxp) + ',' + n(yCota) + ');\n';
+    s += '\\node[font=\\small, above, inner sep=1.6pt] at (' + n((ox+cxp)/2) + ',' + n(yCota) + ') {$\\bar{x}_C$};\n';
+  }
   // ordenada: rotate=90 la deja vertical y 'above' la aparta al lado izquierdo
   // de la cota ya girada, asi se lee de abajo arriba sin montar sobre la linea.
-  s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(xCota-0.10) + ',' + n(cyp) + ');\n';
-  s += '\\draw[bsaAlerta, line width=0.45pt, <->, >=stealth] (' + n(xCota) + ',' + n(oy) + ') -- (' + n(xCota) + ',' + n(cyp) + ');\n';
-  s += '\\node[font=\\small, rotate=90, above, inner sep=1.6pt] at (' + n(xCota) + ',' + n((oy+cyp)/2) + ') {$\\bar{y}_C$};\n';
+  if(Math.abs(cyp - oy) >= minCotaY){
+    s += '\\draw[black!35, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(cxp) + ',' + n(cyp) + ') -- (' + n(xCota-0.10) + ',' + n(cyp) + ');\n';
+    s += '\\draw[bsaAlerta, line width=0.45pt, <->, >=stealth] (' + n(xCota) + ',' + n(oy) + ') -- (' + n(xCota) + ',' + n(cyp) + ');\n';
+    s += '\\node[font=\\small, rotate=90, above, inner sep=1.6pt] at (' + n(xCota) + ',' + n((oy+cyp)/2) + ') {$\\bar{y}_C$};\n';
+  }
   return s;
 }

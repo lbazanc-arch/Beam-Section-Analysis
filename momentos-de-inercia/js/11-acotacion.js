@@ -14,20 +14,180 @@ const COTA_HOLGURA_PX  = 14;   // aire entre etiquetas del mismo nivel; subirlo
 // función de bordes que NO existía: el try/catch se tragaba el ReferenceError
 // y la cota terminaba midiendo los CENTROS de las figuras en lugar de sus
 // bordes, que es justo lo que se veía mal.
-// Caja envolvente de UNA figura en coordenadas de mundo, con su giro aplicado.
-// cap10 ya tenía figuresBBox() para el conjunto, pero no la de cada figura por
-// separado, que es lo que necesita la cadena de cotas.
-function figuraBoundsMundo(fig){
+// ── Envolvente real de una figura girada, en coordenadas de mundo ──────────
+// La única fuente de verdad de la FORMA es el `draw` de FIG_DEFS, así que la
+// envolvente se saca de ahí: se le pasa un REGISTRADOR DE TRAZO que implementa
+// la parte de la API del lienzo que usan los draw (moveTo, lineTo, rect, arc,
+// ellipse, quadraticCurveTo, bezierCurveTo y las transformaciones) y va
+// quedándose con el mínimo y el máximo del trazo YA GIRADO.
+//
+// Antes se giraban las CUATRO ESQUINAS de la caja local y se tomaba su
+// envolvente. Para un rectángulo eso es exacto, pero para cualquier figura
+// curva o poligonal girada la caja sale de más: un disco de R = 12 partido en
+// dos semicírculos girados 50° y −130° se acotaba 33.81 × 33.81 midiendo
+// 24.00 × 24.00 (+40.9 %). La usan la selección por recuadro, la cadena de
+// cotas del lienzo, el PDF y el informe, así que el error se veía en las dos
+// vistas y además se imprimía.
+//
+// No se muestrea: de un arco y de una Bézier se toman los extremos y los
+// PUNTOS CRÍTICOS EXACTOS en las direcciones giradas, que es donde la curva
+// toca su caja. Así el resultado no depende de ninguna densidad de muestreo y
+// cada figura cuesta unas pocas evaluaciones.
+
+// El registrador trabaja en el marco YA GIRADO: cr y sr son el coseno y el
+// seno del giro de la figura.
+function _registradorTrazo(cr, sr){
+  let izq = Infinity, der = -Infinity, aba = Infinity, arr = -Infinity, cuenta = 0;
+  const pila = [];
+  let m = [1,0,0,1,0,0];              // matriz afín del lienzo [a,b,c,d,e,f]
+  let ux = 0, uy = 0;                 // último punto, en coordenadas del draw
+  // Mapa completo (draw → mundo girado): [e0 e1 e2 ; f0 f1 f2]
+  let e0 = cr, e1 = 0, e2 = 0, f0 = sr, f1 = cr, f2 = 0;
+  const rehacerMapa = () => {
+    e0 = cr*m[0] - sr*m[1];  e1 = cr*m[2] - sr*m[3];  e2 = cr*m[4] - sr*m[5];
+    f0 = sr*m[0] + cr*m[1];  f1 = sr*m[2] + cr*m[3];  f2 = sr*m[4] + cr*m[5];
+  };
+  rehacerMapa();
+  const meter = (x,y) => {
+    const X = e0*x + e1*y + e2, Y = f0*x + f1*y + f2;
+    if(X < izq) izq = X;   if(X > der) der = X;
+    if(Y < aba) aba = Y;   if(Y > arr) arr = Y;
+    cuenta++;
+  };
+  const ir = (x,y) => { ux = x; uy = y; meter(x,y); };
+  const componer = (a,b,c,d,e,f) => {
+    m = [m[0]*a + m[2]*b, m[1]*a + m[3]*b,
+         m[0]*c + m[2]*d, m[1]*c + m[3]*d,
+         m[0]*e + m[2]*f + m[4], m[1]*e + m[3]*f + m[5]];
+    rehacerMapa();
+  };
+  // Puntos críticos de una Bézier cuadrática: cada coordenada es un polinomio
+  // de grado 2, así que su derivada se anula en un único t, exacto.
+  const critCuad = (p0,pq,p2) => {
+    const den = p0 - 2*pq + p2;
+    if(Math.abs(den) < 1e-15) return [];
+    const t = (p0 - pq)/den;
+    return (t > 0 && t < 1) ? [t] : [];
+  };
+  // Cúbica: la derivada es de grado 2 (hasta dos raíces en el intervalo).
+  const critCub = (p0,c1,c2,p3) => {
+    const a = 3*(-p0 + 3*c1 - 3*c2 + p3), b = 6*(p0 - 2*c1 + c2), c = 3*(c1 - p0);
+    const ts = [];
+    if(Math.abs(a) < 1e-15){ if(Math.abs(b) > 1e-15) ts.push(-c/b); }
+    else {
+      const disc = b*b - 4*a*c;
+      if(disc >= 0){ const q = Math.sqrt(disc); ts.push((-b+q)/(2*a), (-b-q)/(2*a)); }
+    }
+    return ts.filter(t => t > 0 && t < 1);
+  };
+  const r = {
+    beginPath(){}, closePath(){}, fill(){}, stroke(){}, clip(){},
+    moveTo(x,y){ ir(x,y); },
+    lineTo(x,y){ ir(x,y); },
+    rect(x,y,w,h){ ir(x,y); ir(x+w,y); ir(x+w,y+h); ir(x,y+h); ir(x,y); },
+    quadraticCurveTo(qx,qy,x,y){
+      const x0 = ux, y0 = uy;
+      const ev = t => { const u = 1-t;
+        meter(u*u*x0 + 2*u*t*qx + t*t*x, u*u*y0 + 2*u*t*qy + t*t*y); };
+      // Los críticos se buscan sobre las coordenadas YA GIRADAS: es ahí donde
+      // la curva toca la caja que se está midiendo.
+      const gx = p => e0*p[0] + e1*p[1], gy = p => f0*p[0] + f1*p[1];
+      const P0 = [x0,y0], Q = [qx,qy], P2 = [x,y];
+      critCuad(gx(P0),gx(Q),gx(P2)).concat(critCuad(gy(P0),gy(Q),gy(P2))).forEach(ev);
+      ir(x,y);
+    },
+    bezierCurveTo(ax,ay,bx,by,x,y){
+      const x0 = ux, y0 = uy;
+      const ev = t => { const u = 1-t, u2 = u*u, t2 = t*t;
+        meter(u2*u*x0 + 3*u2*t*ax + 3*u*t2*bx + t2*t*x,
+              u2*u*y0 + 3*u2*t*ay + 3*u*t2*by + t2*t*y); };
+      const gx = p => e0*p[0] + e1*p[1], gy = p => f0*p[0] + f1*p[1];
+      const P0 = [x0,y0], C1 = [ax,ay], C2 = [bx,by], P3 = [x,y];
+      critCub(gx(P0),gx(C1),gx(C2),gx(P3)).concat(critCub(gy(P0),gy(C1),gy(C2),gy(P3))).forEach(ev);
+      ir(x,y);
+    },
+    // `inverso` es el `anticlockwise` del lienzo: barrido de ángulo DECRECIENTE
+    // en las coordenadas locales (que aquí tienen la Y hacia arriba).
+    ellipse(cx,cy,rx,ry,giro,a0,a1,inverso){
+      const dosPi = 2*Math.PI, cg = Math.cos(giro||0), sg = Math.sin(giro||0);
+      let d = a1 - a0;
+      if(inverso){ if(d <= -dosPi) d = -dosPi; else { d = d % dosPi; if(d > 0) d -= dosPi; } }
+      else       { if(d >=  dosPi) d =  dosPi; else { d = d % dosPi; if(d < 0) d += dosPi; } }
+      const punto = t => {
+        const u = rx*Math.cos(t), v = ry*Math.sin(t);
+        return [cx + u*cg - v*sg, cy + u*sg + v*cg];
+      };
+      const dentro = t => {
+        let q = (d >= 0 ? (t - a0) : (a0 - t)) % dosPi;
+        if(q < 0) q += dosPi;
+        return q <= Math.abs(d) + 1e-12;
+      };
+      // X(t) = K + (ax·rx)·cos t + (ay·ry)·sen t alcanza su extremo en
+      // atan2(ay·ry, ax·rx) y media vuelta más allá: exacto, sin muestrear.
+      const ejes = [[e0*cg + e1*sg, -e0*sg + e1*cg], [f0*cg + f1*sg, -f0*sg + f1*cg]];
+      ejes.forEach(par => {
+        const tb = Math.atan2(par[1]*ry, par[0]*rx);
+        [tb, tb + Math.PI].forEach(t => { if(dentro(t)){ const p = punto(t); meter(p[0], p[1]); } });
+      });
+      const ini = punto(a0), fin = punto(a0 + d);
+      meter(ini[0], ini[1]);
+      ir(fin[0], fin[1]);
+    },
+    arc(cx,cy,rad,a0,a1,inverso){ r.ellipse(cx,cy,rad,rad,0,a0,a1,inverso); },
+    save(){ pila.push(m.slice()); },
+    restore(){ if(pila.length){ m = pila.pop(); rehacerMapa(); } },
+    transform(a,b,c,d,e,f){ componer(a,b,c,d,e,f); },
+    translate(x,y){ componer(1,0,0,1,x,y); },
+    rotate(t){ componer(Math.cos(t), Math.sin(t), -Math.sin(t), Math.cos(t), 0, 0); },
+    scale(sx,sy){ componer(sx,0,0,sy,0,0); },
+    caja(){ return (cuenta >= 2 && isFinite(izq) && isFinite(arr))
+              ? {left:izq, right:der, bottom:aba, top:arr} : null; }
+  };
+  return r;
+}
+
+// Caja de la figura girada, RELATIVA a su centroide (fig.cx, fig.cy).
+function _cajaGirada(fig){
   const def = FIG_DEFS[fig.type];
   const b = def.bounds(fig.dims);
-  const rot = (fig.rotation||0)*Math.PI/180;
-  const cr = Math.cos(rot), sr = Math.sin(rot);
-  const esq = [[b.left,b.bottom],[b.right,b.bottom],[b.right,b.top],[b.left,b.top]];
-  const m = esq.map(([lx,ly])=>({x: fig.cx + lx*cr - ly*sr, y: fig.cy + lx*sr + ly*cr}));
-  return {
-    left:   Math.min(...m.map(p=>p.x)), right: Math.max(...m.map(p=>p.x)),
-    bottom: Math.min(...m.map(p=>p.y)), top:   Math.max(...m.map(p=>p.y))
-  };
+  const g = fig.rotation || 0;
+  if(!g) return {left:b.left, right:b.right, bottom:b.bottom, top:b.top};
+  const rot = g*Math.PI/180, cr = Math.cos(rot), sr = Math.sin(rot);
+  let caja = null;
+  if(typeof def.draw === 'function'){
+    const reg = _registradorTrazo(cr, sr);
+    // Si el draw usa algo que el registrador no sabe seguir, lanza y se cae de
+    // vuelta a la caja local girada, que es lo que se hacía antes: así nunca
+    // queda peor que antes.
+    try{ def.draw(reg, fig.dims); caja = reg.caja(); }catch(e){ caja = null; }
+  }
+  if(caja) return caja;
+  const esq = [[b.left,b.bottom],[b.right,b.bottom],[b.right,b.top],[b.left,b.top]]
+    .map(p => [p[0]*cr - p[1]*sr, p[0]*sr + p[1]*cr]);
+  return {left:   Math.min.apply(null, esq.map(p=>p[0])), right: Math.max.apply(null, esq.map(p=>p[0])),
+          bottom: Math.min.apply(null, esq.map(p=>p[1])), top:   Math.max.apply(null, esq.map(p=>p[1]))};
+}
+
+// figuraBoundsMundo se llama por figura en CADA redibujado, así que la caja se
+// guarda por (tipo, medidas, giro) y el trazo se recorre una sola vez.
+const _CAJAS_GIRADAS = new Map();
+function _claveCaja(fig){
+  let s = fig.type + '@' + (fig.rotation || 0);
+  const d = fig.dims || {};
+  for(const k in d) s += '|' + k + '=' + d[k];
+  return s;
+}
+
+function figuraBoundsMundo(fig){
+  const clave = _claveCaja(fig);
+  let b = _CAJAS_GIRADAS.get(clave);
+  if(!b){
+    b = _cajaGirada(fig);
+    if(_CAJAS_GIRADAS.size > 300) _CAJAS_GIRADAS.clear();
+    _CAJAS_GIRADAS.set(clave, b);
+  }
+  return {left:   fig.cx + b.left,   right: fig.cx + b.right,
+          bottom: fig.cy + b.bottom, top:   fig.cy + b.top};
 }
 
 function bordesFiguras(){
@@ -240,14 +400,32 @@ function espacioCotas(c, cfg){
 
 // Punto de entrada común. cfg define la proyección y el tamaño; el resto del
 // criterio es idéntico en el editor y en la vista de resultados.
+// La cadena arranca a sepX (o sepY) del canto del dibujo y su cota total queda
+// aún más lejos, así que ocupa más de 90 px más allá de la figura. Con el
+// dibujo encuadrado (fitView deja un 10 % de aire por lado) eso se salía del
+// lienzo y las etiquetas no se leían. Si se sabe cuánto mide el lienzo, la
+// cadena se arrima hacia el dibujo lo JUSTO para caber entera; nunca se aleja
+// más de lo que pedía cfg ni se pega al canto del dibujo a menos de 10 px.
+function _baseCotaDentro(base, borde, largo, limite){
+  if(!(limite > 0)) return base;
+  const sobra = (base + largo) - (limite - 6);
+  return sobra > 0 ? Math.max(borde + 10, base - sobra) : base;
+}
+
 function dibujarCotasSobre(c, cfg){
   const pl = planificarCotas(c, cfg);
   if(!pl) return;
   const {xs, ys, planX, planY} = pl;
+  // El lienzo del editor y el de la lámina escalan el contexto por dpr, así que
+  // clientWidth/clientHeight ya están en las coordenadas en las que se dibuja.
+  const cv = c.canvas;
+  const anchoLienzo = cfg.ancho || (cv && cv.clientWidth)  || 0;
+  const altoLienzo  = cfg.alto  || (cv && cv.clientHeight) || 0;
 
   if(planX){
     const borde = cfg.py(Math.min(...ys));
-    const base = borde + cfg.sepX;
+    const base = _baseCotaDentro(borde + cfg.sepX, borde,
+                                 12 + (planX.nMax+1)*cfg.salto + 22, altoLienzo);
     pintarCadenaCotas(c, planX, 'x', base,
       {pos:cfg.px, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente});
     pintarCotaTotal(c, planX.coords[0], planX.coords[planX.coords.length-1], 'x',
@@ -255,7 +433,8 @@ function dibujarCotasSobre(c, cfg){
   }
   if(planY){
     const borde = cfg.px(Math.max(...xs));
-    const base = borde + cfg.sepY;
+    const base = _baseCotaDentro(borde + cfg.sepY, borde,
+                                 12 + (planY.nMax+1)*cfg.salto + 24, anchoLienzo);
     pintarCadenaCotas(c, planY, 'y', base,
       {pos:cfg.py, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente});
     pintarCotaTotal(c, planY.coords[0], planY.coords[planY.coords.length-1], 'y',

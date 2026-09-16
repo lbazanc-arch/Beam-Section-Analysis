@@ -43,6 +43,11 @@ function buildPropPanel(fig){
         const val = total ? r2(fig.dims.alpha*2) : r2(fig.dims.alpha);
         const handler = total ? 'updateSectorAngle(this.value,true)' : 'updateSectorAngle(this.value,false)';
         d.innerHTML=`<label>${lbl}</label><input type="number" id="dim-alpha" value="${val}" step="any" min="0.001" max="${total?'360':'180'}" onchange="${handler}">`;
+      } else if(dim.id==='alpha'){
+        // Un ángulo se mide en grados: no lleva detrás la unidad de
+        // longitud («Semiángulo θ (°) (cm)» no significa nada) y no llega a 180°.
+        d.innerHTML=`<label>${dim.label}</label>`
+          +`<input type="number" id="dim-${dim.id}" value="${r2(fig.dims[dim.id])}" step="any" min="0.001" max="179.999" onchange="updateDim('${dim.id}',this.value)">`;
       } else {
         // Se indica siempre la unidad activa junto a la magnitud
         d.innerHTML=`<label>${dim.label} <span style="color:var(--grn2);font-weight:800">(${unit})</span></label>`
@@ -75,17 +80,14 @@ function buildPropPanel(fig){
     const isAct=a===(fig.activeAnchor||'C');
     btn.className='anchor-btn'+(isAct?' active':'');
     btn.style.fontWeight=isAct?'700':'500';
-    btn.textContent = a==='C' ? 'G — Centroide' :
-      a==='BM' ? '⊥ Centro base (diámetro)' :
-      (ANCHOR_LABELS[a]||a);
+    // La misma clave de ancla se llama distinto según la figura (03-).
+    btn.textContent = etiquetaAnclaje(fig.type, a);
     btn.onclick=()=>{fig.activeAnchor=a;fig.anchor=a;buildPropPanel(fig);updatePropPanel();render();};
     ab.appendChild(btn);
   }
   // Update pos label
   const pl=document.getElementById('posLabel');
-  if(pl){const aa=fig.activeAnchor||'C';pl.textContent = aa==='C' ? 'Posición del Centroide (G)' :
-      aa==='BM' ? 'Posición: Centro del diámetro (base plana)' :
-      'Posición: '+(ANCHOR_LABELS[aa]||aa);}
+  if(pl){const aa=fig.activeAnchor||'C'; pl.textContent = etiquetaPosicion(fig.type, aa);}
 }
 
 function updateDim(dimId, val){

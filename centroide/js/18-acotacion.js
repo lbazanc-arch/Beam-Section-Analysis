@@ -230,14 +230,32 @@ function espacioCotas(c, cfg){
 
 // Punto de entrada común. cfg define la proyección y el tamaño; el resto del
 // criterio es idéntico en el editor y en la vista de resultados.
+// La cadena arranca a sepX (o sepY) del canto del dibujo y su cota total queda
+// aún más lejos, así que ocupa más de 90 px más allá de la figura. Con el
+// dibujo encuadrado (fitView deja un 10 % de aire por lado) eso se salía del
+// lienzo y las etiquetas no se leían. Si se sabe cuánto mide el lienzo, la
+// cadena se arrima hacia el dibujo lo JUSTO para caber entera; nunca se aleja
+// más de lo que pedía cfg ni se pega al canto del dibujo a menos de 10 px.
+function _baseCotaDentro(base, borde, largo, limite){
+  if(!(limite > 0)) return base;
+  const sobra = (base + largo) - (limite - 6);
+  return sobra > 0 ? Math.max(borde + 10, base - sobra) : base;
+}
+
 function dibujarCotasSobre(c, cfg){
   const pl = planificarCotas(c, cfg);
   if(!pl) return;
   const {xs, ys, planX, planY} = pl;
+  // El lienzo del editor y el de la lámina escalan el contexto por dpr, así que
+  // clientWidth/clientHeight ya están en las coordenadas en las que se dibuja.
+  const cv = c.canvas;
+  const anchoLienzo = cfg.ancho || (cv && cv.clientWidth)  || 0;
+  const altoLienzo  = cfg.alto  || (cv && cv.clientHeight) || 0;
 
   if(planX){
     const borde = cfg.py(Math.min(...ys));
-    const base = borde + cfg.sepX;
+    const base = _baseCotaDentro(borde + cfg.sepX, borde,
+                                 12 + (planX.nMax+1)*cfg.salto + 22, altoLienzo);
     pintarCadenaCotas(c, planX, 'x', base,
       {pos:cfg.px, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente});
     pintarCotaTotal(c, planX.coords[0], planX.coords[planX.coords.length-1], 'x',
@@ -245,7 +263,8 @@ function dibujarCotasSobre(c, cfg){
   }
   if(planY){
     const borde = cfg.px(Math.max(...xs));
-    const base = borde + cfg.sepY;
+    const base = _baseCotaDentro(borde + cfg.sepY, borde,
+                                 12 + (planY.nMax+1)*cfg.salto + 24, anchoLienzo);
     pintarCadenaCotas(c, planY, 'y', base,
       {pos:cfg.py, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente});
     pintarCotaTotal(c, planY.coords[0], planY.coords[planY.coords.length-1], 'y',
