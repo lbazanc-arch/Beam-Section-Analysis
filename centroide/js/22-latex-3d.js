@@ -102,15 +102,31 @@ function tikzVista3d(vistaId, opts){
   return s;
 }
 
-// Las dos láminas, una junto a otra, con un mismo pie.
+// Las TRES vistas en una sola fila, en el orden planta, alzado e isométrica
+// (decisión del profesor, 2026-09-16). Antes iban en dos figuras separadas, con
+// la isométrica debajo y con su propio pie largo. Cada una lleva ahora un pie
+// corto y comparten el pie general de la figura.
 function _laminasVistas3d(opts, lamina){
-  return '\\noindent\\begin{minipage}[t]{0.49\\textwidth}\\centering\\vspace{0pt}\n'
-    + '{\\footnotesize\\color{bsaAcc2}\\textbf{Planta (X--Y)}}\\\\[3pt]\n'
-    + '\\begin{tikzpicture}[scale=1]\n' + tikzVista3d('planta', opts) + '\\end{tikzpicture}\n'
-    + '\\end{minipage}\\hfill\\begin{minipage}[t]{0.49\\textwidth}\\centering\\vspace{0pt}\n'
-    + '{\\footnotesize\\color{bsaAcc2}\\textbf{Alzado (X--Z)}}\\\\[3pt]\n'
-    + '\\begin{tikzpicture}[scale=1]\n' + tikzVista3d('alzado', opts) + '\\end{tikzpicture}\n'
-    + '\\end{minipage}\\par\\nopagebreak\\vspace{4pt}\n' + lamina;
+  const w = (opts && opts.ancho) || 4.9;
+  // Dos filas: los tres dibujos y, debajo, los tres pies. Así los pies quedan
+  // alineados entre sí sin dejar hueco muerto, que es lo que pasaba al meter
+  // cada vista en una caja de altura fija: las tres vistas se escalan a lo que
+  // ocupa su dibujo y ninguna llena la caja.
+  const vista = id => '\\begin{tikzpicture}[scale=1]\n' + tikzVista3d(id, opts) + '\\end{tikzpicture}\n';
+  const iso = (typeof tikzIso3d === 'function')
+    ? '\\begin{tikzpicture}[scale=1]\n'
+      + tikzIso3d({numerar:true, ejes:true, ancho:w, alto:w*0.88}) + '\\end{tikzpicture}\n'
+    : '\\rule{0pt}{2cm}\n';
+  const titulos = ['Planta (X--Y)', 'Alzado (X--Z)', 'Isom\\\'etrica'];
+  const cuerpos = [vista('planta'), vista('alzado'), iso];
+  const pies    = ['Vista desde arriba.', 'Vista de frente.', 'Observador en $(1,1,1)$.'];
+  const caja = dentro => '\\begin{minipage}[t]{0.32\\textwidth}\\centering\\vspace{0pt}\n'
+                       + dentro + '\\end{minipage}';
+  const fila = f => '\\noindent' + [0,1,2].map(f).join('\\hfill');
+  return fila(i => caja('{\\footnotesize\\color{bsaAcc2}\\textbf{' + titulos[i] + '}}\\\\[3pt]\n' + cuerpos[i]))
+    + '\\par\\nopagebreak\\vspace{3pt}\n'
+    + fila(i => caja('{\\scriptsize\\color{bsaMuted}' + pies[i] + '}'))
+    + '\\par\\nopagebreak\\vspace{4pt}\n' + lamina;
 }
 
 // Croquis acotado del alzado de un sólido, al costado de su desarrollo.
@@ -204,13 +220,8 @@ function construirLatex3d(){
 
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
-  tex += _laminasVistas3d({cotas:true, numerar:true, ancho:6.6, alto:7.0},
-    figCap('Cuerpo compuesto en planta (X--Y) y en alzado (X--Z), con los sólidos numerados y las cotas generales. Los sólidos rayados son huecos.'));
-  // Croquis isométrico de solo lectura (23-vista-isometrica.js)
-  if(typeof tikzIso3d === 'function'){
-    tex += '\\begin{center}\\begin{tikzpicture}[scale=1]\n' + tikzIso3d({numerar:true, ejes:true, ancho:8.0, alto:5.5}) + '\\end{tikzpicture}\\par\\nopagebreak\\vspace{4pt}\n'
-      + figCap('Croquis isométrico del cuerpo (observador en la dirección $(1,1,1)$): silueta y número de cada sólido; los huecos, a trazos.').replace('\\begin{center}','') ;
-  }
+  tex += _laminasVistas3d({cotas:true, numerar:true, ancho:4.9, alto:5.6},
+    figCap('Las tres vistas del cuerpo compuesto, con los sólidos numerados y las cotas generales. Los sólidos rayados son huecos.'));
   tex += '\\subpaso{Objetivo}\n'
     + 'Localizar el centroide $C$ del cuerpo' + (het ? ' y su centro de gravedad $G$' : '')
     + ': sus tres coordenadas $\\bar{x}$, $\\bar{y}$, $\\bar{z}$ medidas desde el origen $O$.\n';

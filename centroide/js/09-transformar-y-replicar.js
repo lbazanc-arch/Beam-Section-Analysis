@@ -373,13 +373,40 @@ function croquisFigura(fig, idx){
   // contorno de la figura mediante muestreo del trazado
   let path='';
   const cmds=[];
-  const ctxFake={ moveTo:(x,y)=>cmds.push(['M',x,y]), lineTo:(x,y)=>cmds.push(['L',x,y]),
-    closePath:()=>cmds.push(['Z']), arc:(cx,cy,r,a0,a1,acw)=>{
-      const n=28; for(let i=0;i<=n;i++){ let a=a0+(a1-a0)*(i/n);
-        cmds.push([i===0&&!cmds.length?'M':'L', cx+r*Math.cos(a), cy+r*Math.sin(a)]); } },
-    bezierCurveTo:(a,bb,c,d,e,f)=>cmds.push(['L',e,f]),
-    quadraticCurveTo:(a,bb,c,d)=>cmds.push(['L',c,d]),
-    beginPath:()=>{}, ellipse:()=>{} };
+  // El muestreo tiene que seguir la CURVA. Trazandola como una recta, la
+  // parabola -que es UNA sola quadraticCurveTo- se reducia a su base y no se
+  // veia; la elipse, que es una sola ellipse, no dibujaba nada; y la media
+  // parabola y la enjuta salian las dos como el mismo triangulo.
+  let cur=[0,0];
+  const pt=(x,y)=>{ cmds.push([cmds.length?'L':'M', x, y]); cur=[x,y]; };
+  // Sentido del canvas: acw recorre el angulo DECRECIENTE. Con el convenio que
+  // usan las figuras (acw siempre con a1 < a0) esto no cambia ninguna, pero deja
+  // el muestreo bien para cualquier arco futuro.
+  const barrido=(a0,a1,acw)=>{ let d=a1-a0;
+    if(acw && d>0) d-=2*Math.PI;
+    if(!acw && d<0) d+=2*Math.PI;
+    return d; };
+  const ctxFake={
+    moveTo:(x,y)=>{ cmds.push(['M',x,y]); cur=[x,y]; },
+    lineTo:(x,y)=>{ cmds.push(['L',x,y]); cur=[x,y]; },
+    closePath:()=>cmds.push(['Z']),
+    arc:(cx,cy,r,a0,a1,acw)=>{
+      const n=28, dd=barrido(a0,a1,acw);
+      for(let i=0;i<=n;i++){ const a=a0+dd*(i/n); pt(cx+r*Math.cos(a), cy+r*Math.sin(a)); } },
+    ellipse:(cx,cy,rx,ry,rot,a0,a1,acw)=>{
+      const n=36, dd=barrido(a0,a1,acw), cr=Math.cos(rot||0), sr=Math.sin(rot||0);
+      for(let i=0;i<=n;i++){ const a=a0+dd*(i/n), ex=rx*Math.cos(a), ey=ry*Math.sin(a);
+        pt(cx+ex*cr-ey*sr, cy+ex*sr+ey*cr); } },
+    quadraticCurveTo:(qx,qy,x,y)=>{
+      const n=28, x0=cur[0], y0=cur[1];
+      for(let i=1;i<=n;i++){ const t=i/n, u=1-t;
+        pt(u*u*x0 + 2*u*t*qx + t*t*x, u*u*y0 + 2*u*t*qy + t*t*y); } },
+    bezierCurveTo:(c1x,c1y,c2x,c2y,x,y)=>{
+      const n=28, x0=cur[0], y0=cur[1];
+      for(let i=1;i<=n;i++){ const t=i/n, u=1-t;
+        pt(u*u*u*x0 + 3*u*u*t*c1x + 3*u*t*t*c2x + t*t*t*x,
+           u*u*u*y0 + 3*u*u*t*c1y + 3*u*t*t*c2y + t*t*t*y); } },
+    beginPath:()=>{} };
   try{ def.draw(ctxFake, fig.dims); }catch(e){}
 
   // El encuadre se calcula DESPUÉS de muestrear: se une la caja declarada con

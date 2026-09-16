@@ -781,9 +781,28 @@ function renderResults3d(res){
   const Wsim = (matMagnitud==='densidad') ? 'm' : 'W';
   let html = '';
 
+  // Las TRES vistas juntas y en una sola fila, en el orden planta, alzado e
+  // isométrica (decisión del profesor, 2026-09-16): antes la isométrica iba
+  // sola, al final de la resolución, y había que bajar hasta ella para
+  // entender el cuerpo. Cada una lleva un pie corto. La planta y el alzado
+  // comparten lienzo porque `pintarVistas3dEn` los dibuja en pareja, con su
+  // rótulo y sus cotas propias; en pantalla se leen como dos vistas.
+  const _tit = t => `<div style="font-size:10.5px;font-weight:700;color:var(--grn2);margin-bottom:3px;text-align:center">${t}</div>`;
+  const _pie = t => `<div style="font-size:10px;color:var(--muted);margin-top:5px;text-align:center">${t}</div>`;
   html += `<div class="res-section">
-    <div class="res-section-title"><div class="num" style="background:var(--grn)">✎</div>Cuerpo compuesto — planta y alzado con cotas</div>
-    <canvas id="compositeCanvas" style="width:100%;max-width:860px;height:420px;display:block;margin:0 auto;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
+    <div class="res-section-title"><div class="num" style="background:var(--grn)">✎</div>Las tres vistas del cuerpo</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:2 1 300px;min-width:230px">
+        ${_tit('Planta (X–Y) y alzado (X–Z)')}
+        <canvas id="compositeCanvas" style="width:100%;height:340px;display:block;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
+        ${_pie('Con las cotas generales y el número de cada sólido.')}
+      </div>
+      <div style="flex:1 1 170px;min-width:160px">
+        ${_tit('Isométrica')}
+        <canvas id="isoCanvas" style="width:100%;height:340px;display:block;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
+        ${_pie('Observador en la dirección (1, 1, 1).')}
+      </div>
+    </div>
     <div style="font-size:10px;color:var(--muted);margin-top:6px;">
       Volumen que <b style="color:var(--grn2)">suma</b> = sólido &nbsp;|&nbsp; Volumen que <b style="color:#c0392b">resta</b> = trama (//) &nbsp;|&nbsp; cada sólido lleva su número
     </div></div>`;
@@ -880,9 +899,7 @@ function renderResults3d(res){
     <canvas id="finalCanvas" style="width:100%;max-width:860px;height:400px;display:block;margin:0 auto;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
     <div style="font-size:10px;color:var(--muted);margin-top:6px;"><b style="color:#b8860c">C</b> = centroide del volumen${het?` &nbsp;·&nbsp; <b style="color:#c0392b">G</b> = centro de gravedad`:''}. En la planta se lee (x̄, ȳ); en el alzado, (x̄, z̄).</div></div>`;
 
-  html += `<div class="res-section"><div class="res-section-title"><div class="num">${numSec++}</div>Vista isométrica</div>
-    <canvas id="isoCanvas" style="width:100%;max-width:860px;height:380px;display:block;margin:0 auto;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
-    <div style="font-size:10px;color:var(--muted);margin-top:6px;">Croquis de solo lectura: cada sólido con su silueta y su número; <b style="color:#b8860c">C</b> marcado con sus tres coordenadas. Los huecos van a trazos.</div></div>`;
+  // La isométrica ya no va aquí: sube a la fila de las tres vistas, al principio.
 
   const cont = document.getElementById('resultsPanel');
   if(cont) cont.innerHTML = html;
