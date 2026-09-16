@@ -223,7 +223,7 @@ function construirLatex3d(){
   tex += '\\subpaso{Procedimiento de análisis}\n'
     + '\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
     + '\\item \\textbf{Partes.} Se divide el cuerpo en sólidos de centroide conocido (prismas, cilindros, conos y conos truncados, esferas, '
-    + 'semiesferas, paraboloides, pirámides, cuñas). Un agujero es una parte con volumen \\textbf{negativo}.\n'
+    + 'semiesferas, paraboloides, pirámides, cuñas, medios cilindros). Un agujero es una parte con volumen \\textbf{negativo}.\n'
     + '\\item \\textbf{Propiedades de cada parte.} Su volumen $V_i$, la posición de su centroide sobre su eje (fórmula de '
     + 'la tabla) y las coordenadas $\\tilde{x}_i$, $\\tilde{y}_i$, $\\tilde{z}_i$ de ese centroide desde $O$.'
     + (het ? ' En un cuerpo heterogéneo, además, ' + Wnom + ' de cada parte, $' + Wsim + '_i = ' + simb + '_i V_i$.' : '') + '\n'
@@ -240,7 +240,7 @@ function construirLatex3d(){
     + 'Las posiciones se miden desde $O$: $x$ hacia la derecha, $y$ hacia el fondo de la planta, $z$ hacia arriba. '
     + 'La tilde señala el centroide de una parte; la barra, el de todo el cuerpo. Los huecos entran con volumen negativo.'
     + (hayVolteo ? ' Un sólido \\emph{volteado} cuelga por debajo del punto donde se colocó: su base queda arriba.' : '')
-    + (hayGiro ? ' El giro $\\alpha$ de un prisma, pirámide o cuña es alrededor de su eje vertical, antihorario visto en planta; en el alzado se ve su silueta girada.' : '')
+    + (hayGiro ? ' El giro $\\alpha$ de un prisma, pirámide, cuña o medio cilindro es alrededor de su eje vertical, antihorario visto en planta; en el alzado se ve su silueta girada.' : '')
     + '\n';
 
   // ══ 2. Paso 1: cada parte ══
@@ -268,11 +268,21 @@ function construirLatex3d(){
     const cb = def.cBase(d);
     tex += '\\textbf{Centroide propio}\n\\[ ' + def.formula.c + ' = ' + D(cb) + U1 + ' \\quad\\text{' + (def.cLocal ? 'desde la base' : 'sobre el eje, desde el centro de la base') + (f.volteado ? ', hacia abajo (volteado)' : '') + '} \\]\n';
     if(def.cLocal){
-      const cl = def.cLocal(d);
-      tex += '\\[ ' + def.formula.cx + ' = ' + D(d.b/3) + U1 + ' \\quad\\text{desde la cara vertical, es decir a } ' + D(Math.abs(cl.x)) + U1 + ' \\text{ del centro de la base} \\]\n';
-      tex += porque('cuna', 'La cuña es un triángulo rectángulo extruido a lo largo de $y$: el centroide del triángulo está a un tercio de '
-        + 'cada cateto (a $h/3$ de la base y a $b/3$ de la cara vertical), y la extrusión no lo mueve. Por eso no queda sobre el '
-        + 'eje del centro de la base, y su posición en $x$ depende del giro $\\alpha$.');
+      const cl = def.cLocal(d), esCuna = (f.type === 's_cuna');
+      // Ojo: el número que acompaña a la fórmula NO siempre es la separación
+      // respecto del centro de la base. En la cuña, $b/3$ se mide desde la cara
+      // vertical y el centro de la base queda a $b/6$, así que hay que decir
+      // los dos; en el medio cilindro la cara plana pasa por el centro de la
+      // base y los dos números son el mismo. Antes se escribía `d.b/3` para
+      // cualquier sólido con cLocal, y en el medio cilindro salía NaN.
+      tex += '\\[ ' + def.formula.cx + ' = ' + D(esCuna ? d.b/3 : Math.abs(cl.x)) + U1
+           + ' \\quad\\text{desde la cara ' + (esCuna ? 'vertical' : 'plana')
+           + (esCuna ? ', es decir a } ' + D(Math.abs(cl.x)) + U1 + ' \\text{ del centro de la base' : '')
+           + '} \\]\n';
+      if(esCuna)
+        tex += porque('cuna', 'La cuña es un triángulo rectángulo extruido a lo largo de $y$: el centroide del triángulo está a un tercio de '
+          + 'cada cateto (a $h/3$ de la base y a $b/3$ de la cara vertical), y la extrusión no lo mueve. Por eso no queda sobre el '
+          + 'eje del centro de la base, y su posición en $x$ depende del giro $\\alpha$.');
     }
     if(f.type==='s_conotrunc')
       tex += porque('conotrunc', 'Un cono truncado es un cono entero al que le falta la punta: integrando discos entre los dos radios '
@@ -289,13 +299,18 @@ function construirLatex3d(){
       tex += porque('semiesfera', 'La semiesfera tiene más material junto a su cara plana que junto a la cúpula, así que el '
         + 'centroide no está a $R/2$ sino a $3R/8$ de la cara plana: se obtiene integrando discos horizontales de radio '
         + 'decreciente.');
+    else if(f.type==='s_semicilindro' || f.type==='s_semicilindro_t')
+      tex += porque('semicilindro', 'Un medio cilindro es un semicírculo extruido, así que hereda su centroide: a lo largo del '
+        + 'eje de extrusión está a media longitud, por simetría, y en el plano del semicírculo se separa $4R/3\\pi$ de la cara '
+        + 'plana hacia la parte curva, porque hay más material lejos del diámetro que cerca de él. Con el eje vertical esa '
+        + 'separación se ve en planta; tumbado, es la altura del centroide sobre la cara de apoyo.');
     else if(f.type==='s_prisma' || f.type==='s_cilindro')
       tex += porque('simetrico', 'Un prisma o un cilindro tienen un plano de simetría a media altura y un eje de simetría '
         + 'vertical: el centroide está sobre el eje, a $h/2$ de la base, sin integrar nada.');
     // Posición
     tex += '\\textbf{Posición desde $O$}\n';
     tex += porque('posicion', 'El centroide de cada parte se obtiene sumando, al centro de su base (que es donde se colocó), la '
-      + 'distancia del centroide propio a lo largo del eje' + (hayCuna ? ' (y, en la cuña, su desalineación horizontal, girada con ella)' : '')
+      + 'distancia del centroide propio a lo largo del eje' + (hayCuna ? ' (y, en la cuña y en el medio cilindro de eje vertical, su desalineación horizontal, girada con la pieza)' : '')
       + (hayVolteo ? '; en un sólido volteado esa distancia se resta, porque el cuerpo cuelga hacia abajo' : '') + '. '
       + 'Sus tres coordenadas son los brazos con los que el volumen entra en las sumas de momentos.');
     g.idx.forEach(i=>{ const s = st[i];

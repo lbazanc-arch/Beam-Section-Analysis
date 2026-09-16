@@ -350,7 +350,7 @@ function onMouseMove3d(e){
   document.getElementById('canvasHint').textContent =
     (v.id==='planta' ? 'Planta' : 'Alzado') + ' · x: ' + r2(w.x) + ' ' + unit + '   ' + v.letra + ': ' + r2(w.v) + ' ' + unit;
   if(selectedFigType){
-    ghostPos = v.id==='planta' ? {x:w.x, y:w.v, z:0} : {x:w.x, y:0, z:w.v};
+    ghostPos = centroideDesdeClic3d(selectedFigType, puntoColocacion3d(v, w));
     render(); return;
   }
   if(isDragging && !isDraggingFig){
@@ -411,7 +411,7 @@ function onMouseDown3d(e){
     isDragging = true; dragStart = sp; dragViewStart = {x:viewTx, y:viewTy};
     canvas.style.cursor = 'grabbing'; return;
   }
-  if(selectedFigType){ placeSolid(selectedFigType); return; }
+  if(selectedFigType){ const p = puntoColocacion3d(v, w); placeSolid(selectedFigType, p.x, p.y, p.z); return; }
   if(herramienta === 'sel' || herramienta === 'borrar'){
     const hit = hitTest3d(sp.x, sp.y);
     gesto = {modo:herramienta, vista:v, hitFig: hit ? hit.id : null, x0:sp.x, y0:sp.y, wx0:w.x, wv0:w.v,
@@ -506,8 +506,27 @@ function getDefaultDims3d(type){
 }
 // El sólido nace con el centro de su BASE en el origen, que es como se dan
 // los datos en los enunciados; cz guarda la posición del centroide.
-function placeSolid(type){
+// El sólido cae con el CENTRO DE SU BASE (ancla BM) en el punto que se tocó,
+// igual que una figura plana cae por su ancla (06-figure-management.js). Se
+// toca en una de las dos vistas, así que solo llegan dos de las tres
+// coordenadas: en planta, x e y, y la base se apoya en z = 0, que es como se
+// dan los datos en los enunciados; en el alzado, x y z, con y = 0.
+function puntoColocacion3d(vista, w){
+  const t = 2/viewScale, q = v => Math.abs(v) < t ? 0 : v;
+  return (vista && vista.id === 'planta') ? {x:q(w.x), y:q(w.v), z:0} : {x:q(w.x), y:0, z:q(w.v)};
+}
+// Centroide que corresponde a dejar el centro de la base en `p`. La figura
+// fantasma se dibuja por su CENTROIDE (drawPlanta/drawAlzado son relativos a
+// él), así que sin esto la vista previa y el sólido caerían en sitios
+// distintos, que es lo que pasaba antes.
+function centroideDesdeClic3d(type, p){
+  const def = SOLID_DEFS[type]; if(!def) return {x:p.x, y:p.y, z:p.z};
+  const off = solidAnchorOffsetFig({type, dims:getDefaultDims3d(type), rotation:0, volteado:false}, 'BM');
+  return {x:p.x - off.dx, y:p.y - off.dy, z:p.z - off.dz};
+}
+function placeSolid(type, px, py, pz){
   const def = SOLID_DEFS[type]; if(!def) return;
+  px = isFinite(px) ? px : 0; py = isFinite(py) ? py : 0; pz = isFinite(pz) ? pz : 0;
   registrarCambio();
   const id = ++figIdCounter, dims = getDefaultDims3d(type);
   const color = COLORS[colorIdx % COLORS.length]; colorIdx++;
@@ -516,13 +535,14 @@ function placeSolid(type){
                matId:(modoCuerpo==='heterogeneo' && MATS.length) ? MATS[0].id : null,
                thickness:1, angleMode:'semi'};
   const off0 = solidAnchorOffsetFig(fig, 'BM');
-  fig.cx = -off0.dx; fig.cy = -off0.dy; fig.cz = -off0.dz;
+  fig.cx = px - off0.dx; fig.cy = py - off0.dy; fig.cz = pz - off0.dz;
   figures.push(fig);
   selectedFigType = null; ghostPos = null;
   document.querySelectorAll('.fig-btn').forEach(b=>b.classList.remove('selected'));
   canvas.style.cursor = 'grab';
   document.getElementById('canvasHint').textContent =
-    def.name + ' colocado con el centro de su base en el origen (0, 0, 0). Arrástralo en la planta o en el alzado, o usa el panel.';
+    def.name + ' colocado con el centro de su base en (' + r2(px) + ', ' + r2(py) + ', ' + r2(pz) + ') ' + unit
+    + '. Arrástralo en la planta o en el alzado, o usa el panel.';
   selectFigure(id);
   invalidarResultados(); renderFigList(); render();
 }

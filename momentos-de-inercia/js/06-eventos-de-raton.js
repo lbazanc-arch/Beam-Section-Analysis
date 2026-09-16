@@ -375,13 +375,26 @@ function getFigBounds(fig) {
   if(!fig || !fig.dims) return {xmin:-50,xmax:50,ymin:-50,ymax:50,hw:50,hh:50};
   const def = FIG_DEFS[fig.type];
   if(def && def.bounds) {
-    const b = def.bounds(fig.dims);
-    const rot = (fig.rotation||0)*Math.PI/180;
-    const corners = [{x:b.left,y:b.bottom},{x:b.right,y:b.bottom},{x:b.right,y:b.top},{x:b.left,y:b.top}];
-    const rx = corners.map(c=>c.x*Math.cos(rot)-c.y*Math.sin(rot));
-    const ry = corners.map(c=>c.x*Math.sin(rot)+c.y*Math.cos(rot));
-    const xmin=fig.cx+Math.min(...rx), xmax=fig.cx+Math.max(...rx);
-    const ymin=fig.cy+Math.min(...ry), ymax=fig.cy+Math.max(...ry);
+    // La envolvente REAL de una figura girada la da figuraBoundsMundo (11-),
+    // que reproduce el trazo del propio draw. Girando las cuatro esquinas de la
+    // caja local, una elipse a 25 grados medía 82.46 de semiancho donde la
+    // acotación ya decía 66.23, y el recuadro de selección cogía figuras que el
+    // puntero no llegaba a tocar. El respaldo de las esquinas queda por si un
+    // redibujado temprano llega antes que esa pieza (§5.3).
+    let xmin, xmax, ymin, ymax, ok = false;
+    if(typeof figuraBoundsMundo === 'function'){
+      try{ const c = figuraBoundsMundo(fig);
+           if(c){ xmin=c.left; xmax=c.right; ymin=c.bottom; ymax=c.top; ok=true; } }catch(e){ ok = false; }
+    }
+    if(!ok){
+      const b = def.bounds(fig.dims);
+      const rot = (fig.rotation||0)*Math.PI/180;
+      const corners = [{x:b.left,y:b.bottom},{x:b.right,y:b.bottom},{x:b.right,y:b.top},{x:b.left,y:b.top}];
+      const rx = corners.map(c=>c.x*Math.cos(rot)-c.y*Math.sin(rot));
+      const ry = corners.map(c=>c.x*Math.sin(rot)+c.y*Math.cos(rot));
+      xmin=fig.cx+Math.min(...rx); xmax=fig.cx+Math.max(...rx);
+      ymin=fig.cy+Math.min(...ry); ymax=fig.cy+Math.max(...ry);
+    }
     const hw=(xmax-xmin)/2, hh=(ymax-ymin)/2;
     return {xmin,xmax,ymin,ymax,hw,hh};
   }

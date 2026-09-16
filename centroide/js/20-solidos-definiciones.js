@@ -32,6 +32,14 @@
 //                 al eje: V = 2π·r·A (Pappus–Guldinus, 2.º teorema)
 //   formula       volumen y centroide en LaTeX/texto; sust(d, D) el volumen
 //                 con los números sustituidos
+// Los dos medios cilindros no son solidos de revolucion, asi que no pueden ir
+// por `perfil`: se describen con `vertices`, discretizando su arco en N_SEMICIL
+// tramos. La silueta de la planta y del alzado sale del casco convexo de esos
+// puntos (los dos son convexos, asi que el casco ES el contorno exacto salvo la
+// discretizacion del arco), y de paso el giro alfa se les ofrece como a
+// cualquier poliedro, que es justo lo que hace falta para orientar la cara
+// plana. El volumen y el centroide NO se discretizan: son exactos.
+const N_SEMICIL = 24;
 const SOLID_DEFS = {
   s_prisma: {
     name:'Prisma rectangular',
@@ -62,6 +70,71 @@ const SOLID_DEFS = {
     rotR: (d,D) => 'R=' + D(d.r),
     formula: {V:'V = \\pi R^{2} h', c:'\\bar{z}_{loc} = \\dfrac{h}{2}', txt:'V = πR²h · centroide a h/2 de la base',
       sust:(d,D)=>'\\pi('+D(d.r)+')^{2}('+D(d.h)+')'}
+  },
+  s_semicilindro: {
+    name:'Medio cilindro',
+    // Eje VERTICAL, apoyado en su media luna. La cara plana esta en el plano
+    // x = 0 y el material queda en x >= 0, asi que el centroide se separa
+    // 4R/3pi de esa cara, hacia la parte curva: el mismo 4R/3pi del semicirculo
+    // plano de FIG_DEFS, por la misma razon (hay mas material lejos del
+    // diametro que cerca). Girandolo con alfa se apunta la cara plana a donde
+    // haga falta; es lo que cierra los extremos redondeados de una placa.
+    dims:[{id:'r',label:'Radio (R)',def:50},{id:'h',label:'Altura (h)',def:120}],
+    volume: d => Math.PI*d.r*d.r*d.h/2,
+    cBase:  d => d.h/2,
+    cLocal: d => ({x:4*d.r/(3*Math.PI), z:d.h/2}),
+    altura: d => d.h,
+    bounds3: d => { const ex=4*d.r/(3*Math.PI), c=d.h/2;
+      return {left:-ex, right:d.r-ex, back:-d.r, front:d.r, bottom:-c, top:d.h-c}; },
+    vertices: d => { const N=N_SEMICIL, v=[];
+      for(let k=0;k<=N;k++){ const t=-Math.PI/2 + Math.PI*k/N; v.push([d.r*Math.cos(t), d.r*Math.sin(t), 0]); }
+      for(let k=0;k<=N;k++){ const t=-Math.PI/2 + Math.PI*k/N; v.push([d.r*Math.cos(t), d.r*Math.sin(t), d.h]); }
+      return v; },
+    // Los dos arcos, las dos cuerdas y las dos aristas verticales de la cara
+    // plana: sin una vertical por tramo, que llenaria la isometrica de rayas.
+    aristas: () => { const N=N_SEMICIL, a=[];
+      for(let k=0;k<N;k++){ a.push([k, k+1]); a.push([N+1+k, N+2+k]); }
+      a.push([0, N]); a.push([N+1, 2*N+1]); a.push([0, N+1]); a.push([N, 2*N+1]);
+      return a; },
+    drawPlanta: (ctx,d) => { const ex=4*d.r/(3*Math.PI); ctx.arc(-ex,0,d.r,-Math.PI/2,Math.PI/2); ctx.closePath(); },
+    drawAlzado: (ctx,d) => { const ex=4*d.r/(3*Math.PI), c=d.h/2; ctx.rect(-ex,-c,d.r,d.h); },
+    rotR: (d,D) => 'R=' + D(d.r),
+    formula: {V:'V = \\dfrac{\\pi R^{2} h}{2}', c:'\\bar{z}_{loc} = \\dfrac{h}{2}',
+      cx:'\\bar{x}_{loc} = \\dfrac{4R}{3\\pi}',
+      txt:'V = pi R^2 h/2 - centroide a h/2 de la base y a 4R/3pi de la cara plana',
+      sust:(d,D)=>'\\dfrac{\\pi('+D(d.r)+')^{2}('+D(d.h)+')}{2}'}
+  },
+  s_semicilindro_t: {
+    name:'Medio cilindro tumbado',
+    // Eje HORIZONTAL (a lo largo de Y), apoyado en su cara rectangular: la
+    // media luna queda en el alzado y el centroide, a 4R/3pi POR ENCIMA de esa
+    // cara. Es el remate en forma de boveda de una placa.
+    dims:[{id:'r',label:'Radio (R)',def:50},{id:'L',label:'Largo en Y (L)',def:120}],
+    volume: d => Math.PI*d.r*d.r*d.L/2,
+    cBase:  d => 4*d.r/(3*Math.PI),
+    altura: d => d.r,
+    bounds3: d => { const c=4*d.r/(3*Math.PI);
+      return {left:-d.r, right:d.r, back:-d.L/2, front:d.L/2, bottom:-c, top:d.r-c}; },
+    vertices: d => { const N=N_SEMICIL, v=[];
+      for(let k=0;k<=N;k++){ const t=Math.PI*k/N; v.push([d.r*Math.cos(t), -d.L/2, d.r*Math.sin(t)]); }
+      for(let k=0;k<=N;k++){ const t=Math.PI*k/N; v.push([d.r*Math.cos(t),  d.L/2, d.r*Math.sin(t)]); }
+      return v; },
+    // Los dos arcos, las dos cuerdas y tres generatrices: las dos de apoyo y la
+    // cumbrera, que es la que deja leer la boveda.
+    aristas: () => { const N=N_SEMICIL, a=[];
+      for(let k=0;k<N;k++){ a.push([k, k+1]); a.push([N+1+k, N+2+k]); }
+      a.push([0, N]); a.push([N+1, 2*N+1]);
+      [0, N/2|0, N].forEach(k=>a.push([k, N+1+k]));
+      return a; },
+    drawPlanta: (ctx,d) => { ctx.rect(-d.r,-d.L/2,2*d.r,d.L); },
+    // Cara plana abajo y boveda arriba: el arco se recorre de pi a 0 en sentido
+    // antihorario, como la semiesfera y el semicirculo plano.
+    drawAlzado: (ctx,d) => { const c=4*d.r/(3*Math.PI);
+      ctx.moveTo(-d.r,-c); ctx.arc(0,-c,d.r,Math.PI,0,true); ctx.lineTo(d.r,-c); ctx.closePath(); },
+    rotR: (d,D) => 'R=' + D(d.r),
+    formula: {V:'V = \\dfrac{\\pi R^{2} L}{2}', c:'\\bar{z}_{loc} = \\dfrac{4R}{3\\pi}',
+      txt:'V = pi R^2 L/2 - centroide a 4R/3pi de la cara plana',
+      sust:(d,D)=>'\\dfrac{\\pi('+D(d.r)+')^{2}('+D(d.L)+')}{2}'}
   },
   s_cono: {
     name:'Cono',
@@ -270,6 +343,14 @@ const REF_SOLIDS = (function(){
       svg:`<svg viewBox="0 0 160 100" fill="none"><rect x="16" y="18" width="48" height="66" ${est}/>${g(40,51)}<text x="40" y="94" text-anchor="middle" font-size="8" fill="#0a2e7a" font-style="italic">2R</text><text x="70" y="54" font-size="8" fill="#0a2e7a" font-style="italic">h</text>
         <circle cx="122" cy="50" r="24" ${est}/>${g(122,50)}<line x1="122" y1="50" x2="146" y2="50" stroke="#0d3a8f" stroke-width="1"/><text x="134" y="46" font-size="8" fill="#0a2e7a" font-style="italic">R</text>${ejes}</svg>`,
       formulas:'V = πR²h &nbsp;·&nbsp; z̄ = h/2'},
+    s_semicilindro: {title:'Medio cilindro',
+      svg:`<svg viewBox="0 0 160 100" fill="none"><rect x="20" y="18" width="40" height="66" ${est}/>${g(37,51)}<text x="40" y="94" text-anchor="middle" font-size="8" fill="#0a2e7a" font-style="italic">R</text><text x="66" y="54" font-size="8" fill="#0a2e7a" font-style="italic">h</text>
+        <path d="M 110,26 A 24,24 0 0 1 110,74 Z" ${est}/>${g(120,50)}<line x1="110" y1="50" x2="134" y2="50" stroke="#0d3a8f" stroke-width="1"/><text x="120" y="46" font-size="8" fill="#0a2e7a" font-style="italic">R</text>${ejes}</svg>`,
+      formulas:'V = &#960;R&#178;h/2 &nbsp;&#183;&nbsp; z&#772; = h/2 &nbsp;&#183;&nbsp; x&#772; = 4R/3&#960; de la cara plana'},
+    s_semicilindro_t: {title:'Medio cilindro tumbado',
+      svg:`<svg viewBox="0 0 160 100" fill="none"><path d="M 16,74 A 24,24 0 0 1 64,74 Z" ${est}/>${g(40,64)}<text x="40" y="94" text-anchor="middle" font-size="8" fill="#0a2e7a" font-style="italic">2R</text>
+        <rect x="98" y="26" width="48" height="48" ${est}/>${g(122,50)}<text x="122" y="94" text-anchor="middle" font-size="8" fill="#0a2e7a" font-style="italic">2R</text><text x="150" y="53" font-size="8" fill="#0a2e7a" font-style="italic">L</text>${ejes}</svg>`,
+      formulas:'V = &#960;R&#178;L/2 &nbsp;&#183;&nbsp; z&#772; = 4R/3&#960; de la cara plana'},
     s_cono: {title:'Cono',
       svg:`<svg viewBox="0 0 160 100" fill="none"><polygon points="14,84 66,84 40,16" ${est}/>${g(40,67)}<text x="40" y="94" text-anchor="middle" font-size="8" fill="#0a2e7a" font-style="italic">2R</text><text x="66" y="50" font-size="8" fill="#0a2e7a" font-style="italic">h</text>
         <circle cx="122" cy="50" r="24" ${est}/>${g(122,50)}${ejes}</svg>`,

@@ -510,15 +510,27 @@ function figuresBBox(){
   for(const fig of figures){
     const def = FIG_DEFS[fig.type];
     if(!def || typeof def.bounds!=='function') continue;
-    let b;
-    try{ b = def.bounds(fig.dims); }catch(e){ continue; }
-    if(!b) continue;
-    const rot = (fig.rotation||0)*Math.PI/180;
-    const cr=Math.cos(rot), sr=Math.sin(rot);
-    const corners=[[b.left,b.bottom],[b.right,b.bottom],[b.right,b.top],[b.left,b.top]];
-    for(const [lx,ly] of corners){
-      const wx = (fig.cx||0) + lx*cr - ly*sr;
-      const wy = (fig.cy||0) + lx*sr + ly*cr;
+    // La envolvente REAL de una figura girada la da figuraBoundsMundo, que
+    // reproduce el trazo del propio draw (centroide 14-, momentos 11-). Girando
+    // las cuatro esquinas de la caja local, el encuadre salía hasta un 41 % más
+    // grande de la cuenta con figuras curvas, y el dibujo quedaba pequeño. El
+    // respaldo de las esquinas se conserva por si un redibujado temprano llega
+    // antes que esa pieza (§5.3).
+    let pts = null;
+    if(typeof figuraBoundsMundo === 'function'){
+      try{ const c = figuraBoundsMundo(fig);
+           if(c) pts = [[c.left,c.bottom],[c.right,c.top]]; }catch(e){ pts = null; }
+    }
+    if(!pts){
+      let b;
+      try{ b = def.bounds(fig.dims); }catch(e){ continue; }
+      if(!b) continue;
+      const rot = (fig.rotation||0)*Math.PI/180;
+      const cr=Math.cos(rot), sr=Math.sin(rot);
+      pts = [[b.left,b.bottom],[b.right,b.bottom],[b.right,b.top],[b.left,b.top]]
+              .map(p=>[(fig.cx||0) + p[0]*cr - p[1]*sr, (fig.cy||0) + p[0]*sr + p[1]*cr]);
+    }
+    for(const [wx,wy] of pts){
       if(!isFinite(wx)||!isFinite(wy)) continue;
       x0=Math.min(x0,wx); y0=Math.min(y0,wy);
       x1=Math.max(x1,wx); y1=Math.max(y1,wy);
