@@ -725,46 +725,99 @@ function drawVistas3dEn(canvasId, opts){
 // resultados. El contorno se muestrea igual que croquisFigura en 2D.
 // Contorno del alzado propio (sin giro, con volteo) como lista de órdenes
 // ['M'|'L', x, z] relativas al centroide, para SVG.
-function _ordenesAlzadoPropio(fig){
+// vistaId: 'planta' (x, y) o 'alzado' (x, z). El volteo solo cambia el alzado,
+// igual que en trazarSolido: en planta el sólido se ve igual del derecho que
+// del revés.
+function _ordenesVistaPropia(fig, vistaId){
   const def = SOLID_DEFS[fig.type], cmds = [];
-  const pol = contornoSolido(fig, 'alzado', {rot0:true});
+  const pol = contornoSolido(fig, vistaId, {rot0:true});
   if(pol){ pol.forEach((q,i)=>cmds.push([i?'L':'M', q[0], q[1]])); cmds.push(['Z']); return cmds; }
-  const sz = fig.volteado ? -1 : 1;
+  const sz = (fig.volteado && vistaId !== 'planta') ? -1 : 1;
   const fake = { moveTo:(x,y)=>cmds.push(['M',x,y*sz]), lineTo:(x,y)=>cmds.push(['L',x,y*sz]),
     closePath:()=>cmds.push(['Z']), rect:(x,y,w,h)=>{ cmds.push(['M',x,y*sz],['L',x+w,y*sz],['L',x+w,(y+h)*sz],['L',x,(y+h)*sz],['Z']); },
     arc:(cx,cy,r,a0,a1,acw)=>{ const n=28; let d=a1-a0; if(acw && d>0) d-=2*Math.PI; if(!acw && d<0) d+=2*Math.PI;
       for(let i=0;i<=n;i++){ const a=a0+d*(i/n); cmds.push([i===0&&!cmds.length?'M':'L', cx+r*Math.cos(a), (cy+r*Math.sin(a))*sz]); } },
     quadraticCurveTo:(qx,qy,x,y)=>{ const p0=cmds[cmds.length-1]; const x0=p0?p0[1]:0, y0=p0?p0[2]*sz:0; const n=20;
-      for(let i=1;i<=n;i++){ const t=i/n, u=1-t; cmds.push(['L', u*u*x0+2*u*t*qx+t*t*x, (u*u*y0+2*u*t*qy+t*t*y)*sz]); } } };
-  try{ def.drawAlzado(fake, fig.dims); }catch(e){}
+      for(let i=1;i<=n;i++){ const t=i/n, u=1-t; cmds.push(['L', u*u*x0+2*u*t*qx+t*t*x, (u*u*y0+2*u*t*qy+t*t*y)*sz]); } },
+    ellipse:(cx,cy,rx,ry,rot,a0,a1,acw)=>{ const n=36; let d=a1-a0;
+      if(acw && d>0) d-=2*Math.PI; if(!acw && d<0) d+=2*Math.PI;
+      const cr=Math.cos(rot||0), sr=Math.sin(rot||0);
+      for(let i=0;i<=n;i++){ const a=a0+d*(i/n), ex=rx*Math.cos(a), ey=ry*Math.sin(a);
+        cmds.push([i===0&&!cmds.length?'M':'L', cx+ex*cr-ey*sr, (cy+ex*sr+ey*cr)*sz]); } },
+    beginPath:()=>{} };
+  try{ (vistaId === 'planta' ? def.drawPlanta : def.drawAlzado)(fake, fig.dims); }catch(e){}
   return cmds;
 }
 function croquisSolido(fig, idx){
   const def = SOLID_DEFS[fig.type]; if(!def) return '';
   const b = bounds3Rel(fig, true);
-  const W=190, H=150, M=30;
-  const cmds = _ordenesAlzadoPropio(fig);
-  const bw = Math.max(b.right-b.left,1e-9), bh = Math.max(b.top-b.bottom,1e-9);
-  const s = Math.min((W-2*M)/bw, (H-2*M)/bh);
-  const px = x => M + (x-b.left)*s, py = z => H-M - (z-b.bottom)*s;
-  let path = '';
-  cmds.forEach(c=>{ path += c[0]==='Z' ? 'Z' : (c[0] + px(c[1]).toFixed(1) + ',' + py(c[2]).toFixed(1) + ' '); });
-  const gx = px(0), gy = py(0), col = fig.color || '#14766d', neg = fig.sign < 0;
+  const W=170, H=140, M=26;
+  const col = fig.color || '#14766d', neg = fig.sign < 0;
+
+  // Una vista ortogonal ACOTADA: 'planta' se lee en (x, y) y 'alzado' en (x, z).
+  const vista = vistaId => {
+    const cmds = _ordenesVistaPropia(fig, vistaId);
+    const esPl = vistaId === 'planta';
+    const h0 = esPl ? b.back : b.bottom, h1 = esPl ? b.front : b.top;
+    const bw = Math.max(b.right-b.left,1e-9), bh = Math.max(h1-h0,1e-9);
+    const s = Math.min((W-2*M)/bw, (H-2*M)/bh);
+    const px = x => M + (x-b.left)*s, py = v => H-M - (v-h0)*s;
+    let path = '';
+    cmds.forEach(c=>{ path += c[0]==='Z' ? 'Z' : (c[0] + px(c[1]).toFixed(1) + ',' + py(c[2]).toFixed(1) + ' '); });
+    const gx = px(0), gy = py(0);
+    // Solo el alzado acota la altura del centroide sobre la base: en planta esa
+    // distancia no se ve.
+    let extra = '';
+    if(!esPl){
+      const vb = fig.volteado ? h1 : h0, xa = px(b.left)-9, ym = (py(vb)+gy)/2;
+      extra = `<line x1="${xa}" y1="${py(vb)}" x2="${xa}" y2="${gy}" stroke="#e2aa1b" stroke-width="1"/>`
+            + `<text x="${xa-3}" y="${ym}" font-size="8" fill="#b8860c" text-anchor="middle" transform="rotate(-90 ${xa-3} ${ym})">${decFix(def.cBase(fig.dims),'len')}</text>`;
+    }
+    return `<svg viewBox="0 0 ${W} ${H}" class="croq-svg">
+      <path d="${path}" fill="${col}" fill-opacity="${neg?0.10:0.22}" stroke="${col}" stroke-width="1.5" stroke-dasharray="${neg?'4 3':'0'}"/>
+      <line x1="${gx}" y1="${py(h0)}" x2="${gx}" y2="${py(h1)}" stroke="${col}" stroke-width=".8" stroke-dasharray="3 2" opacity=".5"/>
+      <line x1="${px(b.left)}" y1="${gy}" x2="${px(b.right)}" y2="${gy}" stroke="${col}" stroke-width=".8" stroke-dasharray="3 2" opacity=".5"/>
+      <circle cx="${gx}" cy="${gy}" r="3.2" fill="#e2aa1b" stroke="#fff" stroke-width="1"/>${extra}
+      <line x1="${px(b.left)}" y1="${H-13}" x2="${px(b.right)}" y2="${H-13}" stroke="#64748b" stroke-width=".9"/>
+      <text x="${(px(b.left)+px(b.right))/2}" y="${H-4}" font-size="8" fill="#475569" text-anchor="middle">${decFix(bw,'len')}</text>
+      <line x1="${W-12}" y1="${py(h0)}" x2="${W-12}" y2="${py(h1)}" stroke="#64748b" stroke-width=".9"/>
+      <text x="${W-5}" y="${(py(h0)+py(h1))/2}" font-size="8" fill="#475569" text-anchor="middle" transform="rotate(-90 ${W-5} ${(py(h0)+py(h1))/2})">${decFix(bh,'len')}</text>
+    </svg>`;
+  };
+
+  // La isométrica NO se acota: está para ver la forma de la pieza, y las cotas
+  // ya las dan los dos planos. Se arma con la pieza sola, centrada en su
+  // centroide y sin girar (el giro va escrito en la cabecera).
+  const iso = () => {
+    if(typeof escenaIso !== 'function') return '';
+    let E;
+    try{ E = escenaIso({figs:[Object.assign({}, fig, {cx:0, cy:0, cz:0, rotation:0})]}); }catch(e){ return ''; }
+    const bw = Math.max(E.u1-E.u0,1e-9), bh = Math.max(E.v1-E.v0,1e-9);
+    const s = Math.min((W-2*M)/bw, (H-2*M)/bh);
+    const tu = u => (M + (u-E.u0)*s).toFixed(1), tv = v => (H-M - (v-E.v0)*s).toFixed(1);
+    const poli = pts => pts.map((q,i)=>(i?'L':'M') + tu(q[0]) + ',' + tv(q[1])).join(' ');
+    let g = '';
+    E.items.forEach(it=>{
+      g += `<path d="${poli(it.hull)}Z" fill="${col}" fill-opacity="${neg?0.10:0.22}" stroke="${col}" stroke-width="1.5" stroke-dasharray="${neg?'4 3':'0'}"/>`;
+      (it.anillos||[]).forEach(r=>{ g += `<path d="${poli(r)}" fill="none" stroke="${col}" stroke-width=".6" opacity=".45"/>`; });
+      (it.aristas||[]).forEach(a=>{ g += `<line x1="${tu(a[0][0])}" y1="${tv(a[0][1])}" x2="${tu(a[1][0])}" y2="${tv(a[1][1])}" stroke="${col}" stroke-width=".7" opacity=".5"/>`; });
+      g += `<circle cx="${tu(it.c.u)}" cy="${tv(it.c.v)}" r="3.2" fill="#e2aa1b" stroke="#fff" stroke-width="1"/>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" class="croq-svg">${g}</svg>`;
+  };
+
+  const cel = (t, svg) => `<div style="flex:1 1 0;min-width:0;text-align:center">
+        <div style="font-size:9.5px;font-weight:700;color:var(--grn2);margin-bottom:1px">${t}</div>${svg}</div>`;
+
   return `
   <div class="croq">
     <div class="croq-h"><span class="croq-n">${idx+1}</span>
       <span class="croq-t">${esc(fig.etiqueta||fig.name||def.name)}${neg?' <i>(hueco)</i>':''}${fig.volteado?' · volteado':''}${(fig.rotation&&def.vertices)?' · α = '+r2(fig.rotation)+'°':''}</span></div>
-    <svg viewBox="0 0 ${W} ${H}" class="croq-svg">
-      <path d="${path}" fill="${col}" fill-opacity="${neg?0.10:0.22}" stroke="${col}" stroke-width="1.6" stroke-dasharray="${neg?'4 3':'0'}"/>
-      <line x1="${gx}" y1="${py(b.bottom)}" x2="${gx}" y2="${py(b.top)}" stroke="${col}" stroke-width=".8" stroke-dasharray="3 2" opacity=".55"/>
-      <line x1="${px(b.left)}" y1="${gy}" x2="${px(b.right)}" y2="${gy}" stroke="${col}" stroke-width=".8" stroke-dasharray="3 2" opacity=".55"/>
-      <circle cx="${gx}" cy="${gy}" r="3.4" fill="#e2aa1b" stroke="#fff" stroke-width="1"/>
-      <text x="${gx+6}" y="${gy-5}" font-size="9" font-weight="700" fill="#b8860c">C${idx+1}</text>
-      <line x1="${px(b.left)}" y1="${H-16}" x2="${px(b.right)}" y2="${H-16}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${(px(b.left)+px(b.right))/2}" y="${H-6}" font-size="8.5" fill="#475569" text-anchor="middle">${decFix(bw,'len')} ${unit}</text>
-      <line x1="${W-16}" y1="${py(b.bottom)}" x2="${W-16}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${W-8}" y="${(py(b.bottom)+py(b.top))/2}" font-size="8.5" fill="#475569" text-anchor="middle" transform="rotate(-90 ${W-8} ${(py(b.bottom)+py(b.top))/2})">${decFix(bh,'len')} ${unit}</text>
-    </svg>
+    <div style="display:flex;gap:4px;align-items:flex-start">
+      ${cel('Planta (X–Y)', vista('planta'))}
+      ${cel('Alzado (X–Z)', vista('alzado'))}
+      ${cel('Isométrica', iso())}
+    </div>
     <div class="croq-d"><span>x̃ = ${decFix(fig.cx,'len')}</span><span>ỹ = ${decFix(fig.cy,'len')}</span><span>z̃ = ${decFix(fig.cz,'len')} ${unit}</span></div>
   </div>`;
 }
@@ -821,9 +874,9 @@ function renderResults3d(res){
           <tr><td>Centroide y</td><td><i>ỹ<sub>i</sub></i></td><td class="v">${nL(s.yi)}</td><td>${u1}</td></tr>
           <tr><td>Centroide z</td><td><i>z̃<sub>i</sub></i></td><td class="v">${nL(s.zi)}</td><td>${u1}</td></tr>
           ${het?`<tr><td>${matMagnitud==='densidad'?'Densidad':'Peso específico'}</td><td><i>${simb}<sub>i</sub></i></td><td class="v">${s.mat?_matValTxt(s.mat):'—'}</td><td>${s.mat?esc(_matUniTxt(s.mat)):'—'}</td></tr>
-          <tr><td>${matMagnitud==='densidad'?'Masa':'Peso'}</td><td><i>${Wsim}<sub>i</sub></i></td><td class="v">${f(Math.abs(s.w))}</td><td>—</td></tr>`:''}
+          <tr><td>${matMagnitud==='densidad'?'Masa':'Peso'}</td><td><i>${Wsim}<sub>i</sub></i></td><td class="v">${f(Math.abs(s.w))}</td><td>${matMagnitud==='densidad'?'kg':esc(unitForce)}</td></tr>`:''}
         </tbody></table></div>
-      <div class="fig-card-dib">${croquisSolido(s.fig, i)}</div></div>`;
+      <div class="fig-card-dib tres-vistas">${croquisSolido(s.fig, i)}</div></div>`;
   });
   html += `</div>`;
 

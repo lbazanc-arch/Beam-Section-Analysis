@@ -516,6 +516,11 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 .croq{background:#fff;border:1px solid var(--border);border-radius:10px;padding:9px 10px 7px;width:196px;}
 /* Dentro de la tarjeta de figura ocupa todo el ancho reservado y se centra */
 .fig-card-dib .croq{width:100%;display:flex;flex-direction:column;justify-content:center;margin:0;}
+/* La tarjeta de un SÓLIDO lleva tres vistas (planta, alzado e isométrica), así
+   que necesita más ancho que la de una figura plana, que lleva una (2026-09-16).
+   La especificidad de la clase doble gana a la regla de móvil de más arriba. */
+.fig-card-dib.tres-vistas{flex:0 0 490px;}
+@media (max-width:1000px){ .fig-card-dib.tres-vistas{flex:1 1 320px;max-width:none;} }
 .croq-h{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
 .croq-n{width:17px;height:17px;border-radius:50%;background:var(--grn2);color:#fff;font-size:9.5px;
   font-weight:800;display:flex;align-items:center;justify-content:center;}

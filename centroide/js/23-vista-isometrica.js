@@ -43,7 +43,10 @@ function nubeSolido(fig){
 // números y la caja en (u, v). Independiente del medio (lienzo o TikZ).
 function escenaIso(opts){
   opts = opts || {};
-  const items = figures.map((fig,i)=>{
+  // opts.figs permite armar la escena con UNA sola pieza, que es lo que usa el
+  // croquis isométrico de cada sólido en su desarrollo; sin él, la escena es
+  // siempre el cuerpo entero.
+  const items = (opts.figs || figures).map((fig,i)=>{
     const nube = nubeSolido(fig);
     const P = nube.puntos.map(p=>isoProy(p[0],p[1],p[2]));
     const hull = hull2d(P.map(q=>[q.u,q.v]));

@@ -130,32 +130,66 @@ function _laminasVistas3d(opts, lamina){
 }
 
 // Croquis acotado del alzado de un sólido, al costado de su desarrollo.
-function tikzCroquisSolido(fig, anchoCm){
+// Croquis ACOTADO de una vista ortogonal de un sólido: 'planta' se lee en
+// (x, y) y 'alzado' en (x, z). Solo el alzado acota la altura del centroide
+// sobre la base, que en planta no se ve.
+function tikzCroquisSolido(fig, anchoCm, vistaId){
+  vistaId = vistaId || 'alzado';
+  const esPl = vistaId === 'planta';
   const def = SOLID_DEFS[fig.type], b = bounds3Rel(fig, true);
-  const bw = Math.max(b.right-b.left,1e-9), bh = Math.max(b.top-b.bottom,1e-9);
+  const w0 = esPl ? b.back : b.bottom, w1 = esPl ? b.front : b.top;
+  const bw = Math.max(b.right-b.left,1e-9), bh = Math.max(w1-w0,1e-9);
   const W = anchoCm || 3.6, H = 3.0, esc = Math.min((W-1.1)/bw, (H-1.0)/bh);
-  const cxm = (b.left+b.right)/2, cym = (b.bottom+b.top)/2;
-  const tx = x => (x-cxm)*esc, ty = z => (z-cym)*esc, n = v => v.toFixed(3);
+  const cxm = (b.left+b.right)/2, cym = (w0+w1)/2;
+  const tx = x => (x-cxm)*esc, ty = v => (v-cym)*esc, n = v => v.toFixed(3);
   const col = hexRgbSpec(fig.color), neg = fig.sign < 0;
   const ox = tx(0), oy = ty(0);
   let s = '\\begin{tikzpicture}[scale=1]\n';
-  s += '\\begin{scope}[shift={(' + n(ox) + ',' + n(oy) + ')}, scale=' + esc.toFixed(4) + _yscaleSolido(fig, 'alzado') + ']\n';
+  s += '\\begin{scope}[shift={(' + n(ox) + ',' + n(oy) + ')}, scale=' + esc.toFixed(4) + _yscaleSolido(fig, vistaId) + ']\n';
   s += '\\path[' + (neg ? 'pattern=north east lines, pattern color={'+col+'}, draw={'+col+'}, line width=0.7pt, dashed'
-                        : 'fill={'+col+'}, fill opacity=0.28, draw={'+col+'}, line width=0.8pt') + '] ' + _pathSolidoTikz(fig,'alzado',{rot0:true}) + ';\n';
+                        : 'fill={'+col+'}, fill opacity=0.28, draw={'+col+'}, line width=0.8pt') + '] ' + _pathSolidoTikz(fig,vistaId,{rot0:true}) + ';\n';
   s += '\\end{scope}\n';
   s += '\\fill[bsaAlerta] (' + n(ox) + ',' + n(oy) + ') circle (1.4pt);\n';
   s += '\\node[font=\\tiny, above right, inner sep=1pt] at (' + n(ox) + ',' + n(oy) + ') {$C_i$};\n';
-  const x0 = tx(b.left), x1 = tx(b.right), y0 = ty(b.bottom), y1 = ty(b.top), yc = y0-0.34, xc = x1+0.34;
+  const x0 = tx(b.left), x1 = tx(b.right), y0 = ty(w0), y1 = ty(w1), yc = y0-0.34, xc = x1+0.34;
   s += '\\draw[black!65, line width=0.3pt, <->, >=stealth] (' + n(x0) + ',' + n(yc) + ') -- (' + n(x1) + ',' + n(yc) + ');\n';
   s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt] at (' + n((x0+x1)/2) + ',' + n(yc) + ') {' + decP(bw,'len') + '};\n';
   s += '\\draw[black!65, line width=0.3pt, <->, >=stealth] (' + n(xc) + ',' + n(y0) + ') -- (' + n(xc) + ',' + n(y1) + ');\n';
   s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt, rotate=90] at (' + n(xc) + ',' + n((y0+y1)/2) + ') {' + decP(bh,'len') + '};\n';
-  // cota del centroide desde la base (arriba si el sólido está volteado)
-  const yb = fig.volteado ? y1 : y0;
-  s += '\\draw[bsaAlerta, line width=0.3pt, <->, >=stealth] (' + n(x0-0.34) + ',' + n(yb) + ') -- (' + n(x0-0.34) + ',' + n(oy) + ');\n';
-  s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt, rotate=90, text=bsaAlerta] at (' + n(x0-0.34) + ',' + n((yb+oy)/2) + ') {' + decP(def.cBase(fig.dims),'len') + '};\n';
+  if(!esPl){
+    // cota del centroide desde la base (arriba si el sólido está volteado)
+    const yb = fig.volteado ? y1 : y0;
+    s += '\\draw[bsaAlerta, line width=0.3pt, <->, >=stealth] (' + n(x0-0.34) + ',' + n(yb) + ') -- (' + n(x0-0.34) + ',' + n(oy) + ');\n';
+    s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt, rotate=90, text=bsaAlerta] at (' + n(x0-0.34) + ',' + n((yb+oy)/2) + ') {' + decP(def.cBase(fig.dims),'len') + '};\n';
+  }
   s += '\\end{tikzpicture}';
   return s;
+}
+
+// Las TRES vistas de UNA pieza, en una fila, antes de su desarrollo
+// (2026-09-16, decisión del profesor). Los dos planos van acotados; la
+// isométrica no, porque está solo para ver la forma y las medidas ya las dan
+// los planos. La pieza se dibuja centrada en su centroide y sin girar: el giro
+// se dice en el título de la parte.
+function _vistasSolido3(fig, uTxt){
+  const anch = 4.6;
+  const iso = (typeof tikzIso3d === 'function')
+    ? '\\begin{tikzpicture}[scale=1]\n'
+      + tikzIso3d({figs:[Object.assign({}, fig, {cx:0, cy:0, cz:0, rotation:0})],
+                   ancho:anch, alto:3.0, ejes:false, numerar:false})
+      + '\\end{tikzpicture}'
+    : '\\rule{0pt}{2cm}';
+  const caja = dentro => '\\begin{minipage}[t]{0.32\\textwidth}\\centering\\vspace{0pt}\n' + dentro + '\\end{minipage}';
+  const titulos = ['Planta (X--Y)', 'Alzado (X--Z)', 'Isom\\\'etrica'];
+  const cuerpos = [tikzCroquisSolido(fig, anch, 'planta'), tikzCroquisSolido(fig, anch, 'alzado'), iso];
+  const pies = ['Acotada en ' + uTxt + '.',
+                'Acotada en ' + uTxt + '; en naranja, la altura del centroide desde la base.',
+                'Sin acotar: solo la forma.'];
+  const fila = f => '\\noindent' + [0,1,2].map(f).join('\\hfill');
+  return fila(i => caja('{\\scriptsize\\color{bsaAcc2}\\textbf{' + titulos[i] + '}}\\\\[2pt]\n' + cuerpos[i]))
+    + '\\par\\nopagebreak\\vspace{2pt}\n'
+    + fila(i => caja('{\\scriptsize\\color{bsaMuted}' + pies[i] + '}'))
+    + '\\par\\nopagebreak\\vspace{6pt}\n';
 }
 
 function construirLatex3d(){
@@ -265,7 +299,10 @@ function construirLatex3d(){
     tex += '\\noindent{\\bfseries\\color{bsaAcc} ' + (varios ? 'Partes ' + listaNums(nums) : 'Parte ' + nums[0]) + ': ' + nombreDe(f)
       + '}\\ \\ {\\small\\color{bsaMuted}(' + (f.sign > 0 ? (varios?'se suman':'se suma') : (varios?'se restan':'se resta')) + ')}\\\\[3pt]\n';
     if(varios) tex += '{\\footnotesize Las ' + g.idx.length + ' partes son iguales: volumen y centroide propio se calculan una vez; cada una entra en la tabla con su posición.}\\\\[4pt]\n';
-    tex += '\\noindent\\begin{minipage}[t]{0.60\\textwidth}\n\\small\n\\abovedisplayskip=3pt\\belowdisplayskip=3pt\\abovedisplayshortskip=2pt\\belowdisplayshortskip=2pt\n';
+    // Primero las tres vistas de la pieza y después su desarrollo, a todo lo
+    // ancho: antes solo se veía el alzado, en una columna estrecha al costado.
+    tex += _vistasSolido3(f, uTxt);
+    tex += '\\noindent\\begin{minipage}[t]{\\textwidth}\n\\small\n\\abovedisplayskip=3pt\\belowdisplayskip=3pt\\abovedisplayshortskip=2pt\\belowdisplayshortskip=2pt\n';
     // Volumen: fórmula literal y sustituida
     const sust = def.formula.sust(d, D);
     tex += '\\textbf{Volumen}\n\\[ ' + def.formula.V + ' = ' + sust + ' = ' + decP(Math.abs(s0.v),'area') + U3 + ' \\]\n';
@@ -336,9 +373,7 @@ function construirLatex3d(){
         + decP(Math.abs(s0.w),'area') + '\\,\\text{' + uWtxt + '} \\]\n';
       tex += '{\\footnotesize $' + simb + '_{' + nums[0] + '} = ' + gs + '\\,' + uGm + '$' + (varios ? '; igual para las demás partes del grupo' : '') + (f.sign<0 ? '. Como es un hueco, entra con signo negativo' : '') + '.}\n';
     }
-    tex += '\\end{minipage}\\hfill\n\\begin{minipage}[t]{0.36\\textwidth}\n\\vspace{2pt}\\centering\n' + tikzCroquisSolido(f, 4.2) + '\n'
-      + '\\\\[2pt]{\\scriptsize\\color{bsaMuted}Alzado acotado en ' + uTxt + '; en naranja, la altura del centroide desde la base}\n'
-      + '\\end{minipage}\n\\end{minipage}\n\\vspace{4pt}\n';
+    tex += '\\end{minipage}\n\\end{minipage}\n\\vspace{4pt}\n';
   });
 
   // ══ 3. Paso 2: tabla ══
