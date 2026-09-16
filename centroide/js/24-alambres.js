@@ -167,7 +167,6 @@ function _interfazAlambre(esAl){
   mostrar('#palGridAlambre', esAl);
   mostrar('#btnTipoCuerpo', !esAl);          // alambre homogéneo de sección constante
   mostrar('#propPanel .sign-toggle', !esAl);  // no hay huecos en una línea
-  mostrar('#palMas', !esAl);                  // cuatro tramos: caben sin «Ver más»
   if(esAl && modoCuerpo !== 'homogeneo'){ try{ setModoCuerpo('homogeneo'); }catch(e){} }
   const t = document.querySelector('#sec_fig .panel-section-title');
   if(t) t.textContent = esAl ? 'Tramos del alambre' : 'Figuras en la sección';

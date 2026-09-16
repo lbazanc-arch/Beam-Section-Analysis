@@ -14,31 +14,13 @@ function cerrarPanelSiMovil(){
   if(window.innerWidth<=820) setTimeout(()=>{ try{ cerrarSeccion(); }catch(e){} }, 180);
 }
 
-// La paleta muestra 6 figuras (cuadrícula de 3 columnas, 2 filas) y esconde
-// el resto tras "Ver más". Antes eran dos pestañas con desplazamiento
-// horizontal, donde no había ninguna pista de que hubiera más figuras.
-const PAL_VISIBLES = 6;
-function alternarVerMas(){
-  // En 3D la paleta es #palGrid3d y no tiene «Ver más» (seis sólidos caben).
-  const grid = document.getElementById(modoEspacio === '3d' ? 'palGrid3d' : modoEspacio === 'alambre' ? 'palGridAlambre' : 'palGrid');
-  const btn  = document.getElementById('palMas');
-  const txt  = document.getElementById('palMasTxt');
-  if(!grid || !btn) return;
-  const abriendo = !btn.classList.contains('abierto');
-  const todos = grid.querySelectorAll('.fig-btn');
-  todos.forEach((b,i)=>{ b.classList.toggle('oculta', !abriendo && i >= PAL_VISIBLES); });
-  btn.classList.toggle('abierto', abriendo);
-  if(txt) txt.textContent = abriendo ? 'Ver menos' : 'Ver más';
-}
-
-// Si la figura elegida estaba entre las escondidas, se despliega la paleta
-// para que el botón marcado quede a la vista.
+// La paleta enseña TODAS las figuras, agrupadas por familias (rectas,
+// circulares, parabólicas, elípticas) con un encabezado por familia. Antes
+// mostraba seis y escondía el resto tras «Ver más», y las que quedaban
+// detrás no se encontraban: el menú ya tiene su propio desplazamiento.
 function asegurarFiguraVisible(tipo){
   const b = document.getElementById('figbtn-' + tipo);
-  const btn = document.getElementById('palMas');
-  if(b && b.classList.contains('oculta') && btn && !btn.classList.contains('abierto')){
-    alternarVerMas();
-  }
+  if(b && b.scrollIntoView) try{ b.scrollIntoView({block:'nearest'}); }catch(e){}
 }
 
 // ── Materiales que define el estudiante ──

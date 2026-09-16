@@ -253,7 +253,7 @@ function tikzMohr(r, u4, opts){
      + c(-(rc + 1.30)) + ')\n'
      + '        {' + (yaPrincipales
          ? 'El producto de inercia es nulo ' + donde + ': los ejes $x$ e $y$ YA son principales '
-           + '($\\theta_p = 0^\\circ$),\\\\ y por eso $A$ y $B$ caen sobre el eje $I$.'
+           + '($\\theta_p = ' + thP.toFixed(2) + '^\\circ$),\\\\ y por eso $A$ y $B$ caen sobre el eje $I$.'
          : 'Los ejes principales ' + donde + ' giran $\\theta_p = '
            + thP.toFixed(2) + '^\\circ$;\\\\ en el c\\\'irculo ese giro se mide duplicado.')
      + '};\n';
@@ -281,6 +281,14 @@ function formulaArea(fig){
     case 'sector':
       return {sim:'A_i = \\theta R^{2} \\quad (\\theta \\text{ en radianes})',
               sus:'A_i = \\left('+D(d.alpha)+'^\\circ\\cdot\\dfrac{\\pi}{180}\\right)('+D(d.r)+')^{2}'};
+    case 'parabola':
+      return {sim:'A_i = \\dfrac{2\\,b\\,h}{3}', sus:'A_i = \\dfrac{2('+D(d.b)+')('+D(d.h)+')}{3}'};
+    case 'semiparabola':
+      return {sim:'A_i = \\dfrac{2\\,a\\,h}{3}', sus:'A_i = \\dfrac{2('+D(d.a)+')('+D(d.h)+')}{3}'};
+    case 'enjuta':
+      return {sim:'A_i = \\dfrac{a\\,h}{3}', sus:'A_i = \\dfrac{('+D(d.a)+')('+D(d.h)+')}{3}'};
+    case 'cuartoelipse':
+      return {sim:'A_i = \\dfrac{\\pi\\,a\\,b}{4}', sus:'A_i = \\dfrac{\\pi ('+D(d.a)+')('+D(d.b)+')}{4}'};
     case 'wshape':
       return {sim:'A_i = 2\\,b_f t_f + (d-2t_f)\\,t_w',
               sus:'A_i = 2('+D(d.bf)+')('+D(d.tf)+') + ('+D(d.d)+'-2('+D(d.tf)+'))('+D(d.tw)+')'};
@@ -313,6 +321,20 @@ function centroideLocalTex(fig){
            + '\\dfrac{2('+D(d.r)+')\\sen('+D(d.alpha)+'^\\circ)}{3('+D(d.alpha)+'^\\circ)} = '
            + D(2*d.r*Math.sin(t)/(3*t));
     }
+    case 'parabola':
+      return '\\bar{y}_{loc} = \\dfrac{2h}{5} = \\dfrac{2('+D(d.h)+')}{5} = ' + D(2*d.h/5)
+           + '\\quad (\\text{desde la base})';
+    case 'semiparabola':
+      return '\\bar{x}_{loc} = \\dfrac{3a}{8} = ' + D(3*d.a/8)
+           + ',\\quad \\bar{y}_{loc} = \\dfrac{2h}{5} = ' + D(2*d.h/5)
+           + '\\quad (\\text{desde el v\\\'ertice del \\\'angulo recto})';
+    case 'enjuta':
+      return '\\bar{x}_{loc} = \\dfrac{3a}{4} = ' + D(3*d.a/4)
+           + ',\\quad \\bar{y}_{loc} = \\dfrac{3h}{10} = ' + D(3*d.h/10)
+           + '\\quad (\\text{desde el v\\\'ertice de la curva})';
+    case 'cuartoelipse':
+      return '\\bar{x}_{loc} = \\dfrac{4a}{3\\pi} = ' + D(4*d.a/(3*Math.PI))
+           + ',\\quad \\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = ' + D(4*d.b/(3*Math.PI));
     default: return null;   // rectángulo, círculo y perfiles: el centroide es el centro
   }
 }
@@ -355,6 +377,27 @@ function formulaInercia(fig){
                '\\bar{I}_{y} = \\dfrac{R^{4}}{4}\\left(\\theta+\\sen\\theta\\cos\\theta\\right)',
                '\\text{con } R='+D(d.r)+',\\ \\theta='+D(d.alpha)+'^\\circ',
                '\\bar{P}_{xy} = 0 \\quad (\\text{eje vertical de simetr\\\'ia})', '0');
+    case 'parabola':
+      return F('\\bar{I}_{x} = \\dfrac{8\\,b\\,h^{3}}{175}', '\\dfrac{8('+D(d.b)+')('+D(d.h)+')^{3}}{175}',
+               '\\bar{I}_{y} = \\dfrac{b^{3}h}{30}', '\\dfrac{('+D(d.b)+')^{3}('+D(d.h)+')}{30}',
+               '\\bar{P}_{xy} = 0 \\quad (\\text{eje vertical de simetr\\\'ia})', '0');
+    case 'semiparabola':
+      return F('\\bar{I}_{x} = \\dfrac{8\\,a\\,h^{3}}{175}', '\\dfrac{8('+D(d.a)+')('+D(d.h)+')^{3}}{175}',
+               '\\bar{I}_{y} = \\dfrac{19\\,a^{3}h}{480}', '\\dfrac{19('+D(d.a)+')^{3}('+D(d.h)+')}{480}',
+               '\\bar{P}_{xy} = -\\dfrac{a^{2}h^{2}}{60}',
+               '-\\dfrac{('+D(d.a)+')^{2}('+D(d.h)+')^{2}}{60}');
+    case 'enjuta':
+      return F('\\bar{I}_{x} = \\dfrac{37\\,a\\,h^{3}}{2100}', '\\dfrac{37('+D(d.a)+')('+D(d.h)+')^{3}}{2100}',
+               '\\bar{I}_{y} = \\dfrac{a^{3}h}{80}', '\\dfrac{('+D(d.a)+')^{3}('+D(d.h)+')}{80}',
+               '\\bar{P}_{xy} = +\\dfrac{a^{2}h^{2}}{120}',
+               '+\\dfrac{('+D(d.a)+')^{2}('+D(d.h)+')^{2}}{120}');
+    case 'cuartoelipse':
+      return F('\\bar{I}_{x} = \\left(\\dfrac{\\pi}{16}-\\dfrac{4}{9\\pi}\\right)a\\,b^{3}',
+               '\\left(\\dfrac{\\pi}{16}-\\dfrac{4}{9\\pi}\\right)('+D(d.a)+')('+D(d.b)+')^{3}',
+               '\\bar{I}_{y} = \\left(\\dfrac{\\pi}{16}-\\dfrac{4}{9\\pi}\\right)a^{3}b',
+               '\\left(\\dfrac{\\pi}{16}-\\dfrac{4}{9\\pi}\\right)('+D(d.a)+')^{3}('+D(d.b)+')',
+               '\\bar{P}_{xy} = \\left(\\dfrac{1}{8}-\\dfrac{4}{9\\pi}\\right)a^{2}b^{2}',
+               '\\left(\\dfrac{1}{8}-\\dfrac{4}{9\\pi}\\right)('+D(d.a)+')^{2}('+D(d.b)+')^{2}');
     case 'wshape':
       return F('\\bar{I}_{x} = \\dfrac{b_f d^{3} - (b_f-t_w)(d-2t_f)^{3}}{12}',
                '\\text{con } b_f='+D(d.bf)+',\\ d='+D(d.d)+',\\ t_f='+D(d.tf)+',\\ t_w='+D(d.tw),

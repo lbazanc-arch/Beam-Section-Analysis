@@ -57,31 +57,13 @@ document.addEventListener('keydown', e=>{
 
 // La paleta vive en la barra de herramientas: inserta figuras nuevas.
 // La sección "Figuras" de la columna solo muestra las ya dibujadas.
-// Solo se muestran las 6 primeras figuras; la séptima aparece con "Ver más".
-// Así el panel cabe de un vistazo en lugar de obligar a desplazarse.
-const PAL_VISIBLES = 6;
-
-function alternarVerMas(){
-  const grid = document.getElementById('palGrid');
-  const btn  = document.getElementById('palMas');
-  const txt  = document.getElementById('palMasTxt');
-  if(!grid || !btn) return;
-  const abriendo = !btn.classList.contains('abierto');
-  grid.querySelectorAll('.fig-btn').forEach((b,i)=>{
-    b.classList.toggle('oculta', !abriendo && i >= PAL_VISIBLES);
-  });
-  btn.classList.toggle('abierto', abriendo);
-  if(txt) txt.textContent = abriendo ? 'Ver menos' : 'Ver más';
-}
-
-// Si la figura elegida estaba entre las escondidas, se despliega la paleta
-// para que el botón marcado quede a la vista.
+// La paleta enseña TODAS las figuras, agrupadas por familias (rectas,
+// circulares, parabólicas, elípticas) con un encabezado por familia. Antes
+// mostraba seis y escondía el resto tras «Ver más», y las que quedaban
+// detrás no se encontraban: el menú ya tiene su propio desplazamiento.
 function asegurarFiguraVisible(tipo){
   const b = document.getElementById('figbtn-' + tipo);
-  const btn = document.getElementById('palMas');
-  if(b && b.classList.contains('oculta') && btn && !btn.classList.contains('abierto')){
-    alternarVerMas();
-  }
+  if(b && b.scrollIntoView) try{ b.scrollIntoView({block:'nearest'}); }catch(e){}
 }
 
 function abrirPaleta(ev){

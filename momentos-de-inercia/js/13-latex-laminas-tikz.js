@@ -48,6 +48,33 @@ function figuraPathLocal(tipo, d){
     return '(0,' + (-yc) + ') -- (' + (-R*Math.sin(tr)) + ',' + (R*Math.cos(tr)-yc)
          + ') arc (' + (90+t) + ':' + (90-t) + ':' + R + ') -- cycle';
   }
+  // ── Parábolas: la Bézier CUADRÁTICA del lienzo se pasa a la cúbica de TikZ
+  //    (C1 = P0 + 2/3(Q−P0), C2 = P2 + 2/3(Q−P2)), que reproduce la misma curva
+  //    punto a punto, no una aproximación.
+  if(tipo === 'parabola'){
+    const a = d.b/2, yb = -2*d.h/5, yc = yb + 4*d.h/3;
+    return '(' + (-a) + ',' + yb + ') .. controls (' + (-a/3) + ',' + yc
+         + ') and (' + (a/3) + ',' + yc + ') .. (' + a + ',' + yb + ') -- cycle';
+  }
+  if(tipo === 'semiparabola'){
+    const ox = -3*d.a/8, oy = -2*d.h/5;
+    return '(' + ox + ',' + oy + ') -- (' + (ox+d.a) + ',' + oy
+         + ') .. controls (' + (ox+2*d.a/3) + ',' + (oy+2*d.h/3)
+         + ') and (' + (ox+d.a/3) + ',' + (oy+d.h) + ') .. ('
+         + ox + ',' + (oy+d.h) + ') -- cycle';
+  }
+  if(tipo === 'enjuta'){
+    const ox = -3*d.a/4, oy = -3*d.h/10;
+    return '(' + ox + ',' + oy + ') .. controls (' + (ox+d.a/3) + ',' + oy
+         + ') and (' + (ox+2*d.a/3) + ',' + (oy+d.h/3) + ') .. ('
+         + (ox+d.a) + ',' + (oy+d.h) + ') -- (' + (ox+d.a) + ',' + oy + ') -- cycle';
+  }
+  if(tipo === 'cuartoelipse'){
+    // Mismo cuadrante que `quarter`, con dos radios distintos.
+    const dx = 4*d.a/(3*Math.PI), dy = 4*d.b/(3*Math.PI);
+    return '(' + (-dx) + ',' + (-dy) + ') -- (' + (d.a-dx) + ',' + (-dy)
+         + ') arc[start angle=0, end angle=90, x radius=' + d.a + ', y radius=' + d.b + '] -- cycle';
+  }
   // ── Perfiles laminados: no existen en el Cap. 9, se trasladan desde el
   //    draw() de FIG_DEFS de este capítulo, vértice a vértice.
   if(tipo === 'wshape'){

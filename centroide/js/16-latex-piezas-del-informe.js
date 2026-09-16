@@ -39,6 +39,14 @@ function formulaArea(fig){
     case 'sector':
       return {sim:'A_i = \\theta R^{2} \\quad (\\theta \\text{ en radianes})',
               sus:'A_i = \\left('+D(d.alpha)+'^\\circ\\cdot\\dfrac{\\pi}{180}\\right)('+D(d.r)+')^{2}'};
+    case 'parabola':
+      return {sim:'A_i = \\dfrac{2\\,b\\,h}{3}', sus:'A_i = \\dfrac{2('+D(d.b)+')('+D(d.h)+')}{3}'};
+    case 'semiparabola':
+      return {sim:'A_i = \\dfrac{2\\,a\\,h}{3}', sus:'A_i = \\dfrac{2('+D(d.a)+')('+D(d.h)+')}{3}'};
+    case 'enjuta':
+      return {sim:'A_i = \\dfrac{a\\,h}{3}', sus:'A_i = \\dfrac{('+D(d.a)+')('+D(d.h)+')}{3}'};
+    case 'cuartoelipse':
+      return {sim:'A_i = \\dfrac{\\pi\\,a\\,b}{4}', sus:'A_i = \\dfrac{\\pi('+D(d.a)+')('+D(d.b)+')}{4}'};
     default:
       return {sim:'A_i', sus:'A_i'};
   }
@@ -67,6 +75,18 @@ function centroideLocalTex(fig){
            + '\\dfrac{2('+D(d.r)+')\\sen('+D(d.alpha)+'^\\circ)}{3('+D(d.alpha)+'^\\circ)} = '
            + D(2*d.r*Math.sin(t)/(3*t));
     }
+    case 'parabola':
+      return '\\bar{y}_{loc} = \\dfrac{2h}{5} = \\dfrac{2('+D(d.h)+')}{5} = ' + D(2*d.h/5)
+           + ' \\text{ desde la base; } \\bar{x}_{loc} \\text{ sobre el eje de la figura}';
+    case 'semiparabola':
+      return '\\bar{x}_{loc} = \\dfrac{3a}{8} = \\dfrac{3('+D(d.a)+')}{8} = ' + D(3*d.a/8)
+           + ' \\qquad \\bar{y}_{loc} = \\dfrac{2h}{5} = \\dfrac{2('+D(d.h)+')}{5} = ' + D(2*d.h/5);
+    case 'enjuta':
+      return '\\bar{x}_{loc} = \\dfrac{3a}{4} = \\dfrac{3('+D(d.a)+')}{4} = ' + D(3*d.a/4)
+           + ' \\qquad \\bar{y}_{loc} = \\dfrac{3h}{10} = \\dfrac{3('+D(d.h)+')}{10} = ' + D(3*d.h/10);
+    case 'cuartoelipse':
+      return '\\bar{x}_{loc} = \\dfrac{4a}{3\\pi} = \\dfrac{4('+D(d.a)+')}{3\\pi} = ' + D(4*d.a/(3*Math.PI))
+           + ' \\qquad \\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = \\dfrac{4('+D(d.b)+')}{3\\pi} = ' + D(4*d.b/(3*Math.PI));
     default:
       return null;   // rectángulo y círculo: el centroide es el centro
   }
@@ -193,7 +213,7 @@ function _primeraVezCen(clave){
 // la mitad, se dice, porque es lo que permite anticipar el resultado.
 // Solo cuentan como «en espejo» los tipos que son simétricos respecto de su
 // propio eje: un triángulo rectángulo reflejado ya no es la misma figura.
-const _SIM_V_CEN = {rect:1, circle:1, semicircle:1, sector:1};
+const _SIM_V_CEN = {rect:1, circle:1, semicircle:1, sector:1, parabola:1};
 const _SIM_H_CEN = {rect:1, circle:1};
 function _claveFiguraCen(f, het){
   const rot = (((f.rotation||0) % 360) + 360) % 360;
@@ -615,6 +635,31 @@ function construirLatex(){
           'El sector circular de semiángulo $\\theta$ tiene su centroide sobre la bisectriz, a $2R\\sen\\theta/3\\theta$ del '
           + 'vértice. La fórmula reúne los dos casos límite: con $\\theta$ pequeño tiende a $2R/3$ (un triángulo) y con '
           + '$\\theta = 90^\\circ$ da $4R/3\\pi$ (el semicírculo).');
+      else if(f.type === 'parabola')
+        tex += porque('parabola',
+          'El área bajo una parábola de base $b$ y altura $h$, con el vértice arriba, es $2bh/3$: dos tercios del '
+          + 'rectángulo que la envuelve. Integrando $\\int \\tilde{y}\\,dA$ con franjas horizontales sale '
+          + '$\\bar{y} = 2h/5$ medido desde la base, por debajo de la mitad porque la figura se estrecha hacia arriba. '
+          + 'En $x$ no hay nada que calcular: el eje vertical que pasa por el vértice es eje de simetría '
+          + '(Hibbeler, 2027).');
+      else if(f.type === 'semiparabola')
+        tex += porque('semiparabola',
+          'La media parábola es la mitad de la anterior partida por su eje de simetría: con $a$ como base completa '
+          + 'conserva la forma $A = 2ah/3$, y su centroide queda a $\\bar{x} = 3a/8$ del lado recto y a '
+          + '$\\bar{y} = 2h/5$ de la base. Al perder la simetría hay que calcular las dos coordenadas, y ambas salen '
+          + 'de integrar $y = h\\left(1 - x^{2}/a^{2}\\right)$ (Hibbeler, 2027).');
+      else if(f.type === 'enjuta')
+        tex += porque('enjuta',
+          'La media parábola complementaria —la enjuta parabólica— es lo que le falta a la media parábola para '
+          + 'completar el rectángulo $a\\times h$: por eso su área es $ah/3$, el tercio que queda. Como casi todo su '
+          + 'material se acumula junto a la esquina donde la curva sube, el centroide se corre hacia ella: '
+          + '$\\bar{x} = 3a/4$ y $\\bar{y} = 3h/10$ desde $O$, el vértice donde la parábola es tangente a la base '
+          + '(Hibbeler, 2027).');
+      else if(f.type === 'cuartoelipse')
+        tex += porque('cuartoelipse',
+          'El cuarto de elipse es un cuarto de círculo estirado: al escalar un cuarto de círculo de radio $1$ por $a$ '
+          + 'en horizontal y por $b$ en vertical, el área $\\pi/4$ pasa a $\\pi ab/4$ y el centroide $4/3\\pi$ pasa a '
+          + '$4a/3\\pi$ y $4b/3\\pi$. Con $a = b = R$ se recupera exactamente el cuarto de círculo (Hibbeler, 2027).');
     }
     }   // fin de la rama «no es perfil»
 

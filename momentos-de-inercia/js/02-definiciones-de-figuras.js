@@ -303,5 +303,135 @@ const FIG_DEFS = {
       ctx.arc(0,-yc,R,Math.PI/2+t,Math.PI/2-t,true);
       ctx.closePath();
     }
-  }
+  },
+
+// ── Cuatro figuras nuevas para FIG_DEFS (centroide y momentos-de-inercia) ──
+// Marco local: el CENTROIDE G está en (0,0), como en las demás figuras; bounds
+// y draw se escriben respecto de G, y el lienzo dibuja con Y hacia arriba.
+// Fórmulas verificadas por integración numérica de la propia región (2026-09-15):
+// error < 1e-11 en las polinómicas y < 1e-6 en las elípticas.
+//
+//  parabola      base b, altura h   A=2bh/3     ȳ=2h/5 (desde la base)
+//                Ix_c=8bh³/175      Iy_c=b³h/30     Ixy_c=0
+//  semiparabola  base a, altura h   A=2ah/3     x̄=3a/8   ȳ=2h/5 (desde O)
+//                Ix_c=8ah³/175      Iy_c=19a³h/480  Ixy_c=−a²h²/60
+//  enjuta        base a, altura h   A=ah/3      x̄=3a/4   ȳ=3h/10 (desde O)
+//                Ix_c=37ah³/2100    Iy_c=a³h/80     Ixy_c=+a²h²/120
+//  cuartoelipse  semiejes a, b      A=πab/4     x̄=4a/3π  ȳ=4b/3π (desde O)
+//                Ix_c=ab³(π/16−4/9π)  Iy_c=a³b(π/16−4/9π)  Ixy_c=a²b²(1/8−4/9π)
+
+  parabola: {
+    name:'Parábola',
+    dims:[{id:'b',label:'Base (b)',def:80},{id:'h',label:'Altura (h)',def:50}],
+    area: d => 2*d.b*d.h/3,
+    Ix_c: d => 8*d.b*Math.pow(d.h,3)/175,
+    Iy_c: d => Math.pow(d.b,3)*d.h/30,
+    Ixy_c: d => 0,                                  // eje vertical de simetría
+    bounds: d => ({left:-d.b/2, right:d.b/2, bottom:-2*d.h/5, top:3*d.h/5}),
+    anchors: ['BM','C','BL','BR','V'],
+    defaultAnchor: 'BM',
+    anchorOffset: (d,a) => {
+      const yb = -2*d.h/5;                          // base, medida desde G
+      if(a==='BM') return {dx:0,       dy:yb};      // centro de la base
+      if(a==='C')  return {dx:0,       dy:0};       // centroide
+      if(a==='BL') return {dx:-d.b/2,  dy:yb};
+      if(a==='BR') return {dx:d.b/2,   dy:yb};
+      if(a==='V')  return {dx:0,       dy:3*d.h/5}; // vértice
+      return {dx:0,dy:0};
+    },
+    draw: (ctx,d) => {
+      // y = h(1 − (2x/b)²). Una Bézier cuadrática con el control a 2h sobre la
+      // base reproduce EXACTAMENTE esa parábola (no es una aproximación).
+      const yb = -2*d.h/5, a = d.b/2;
+      ctx.moveTo(-a, yb);
+      ctx.quadraticCurveTo(0, yb + 2*d.h, a, yb);
+      ctx.closePath();
+    }
+  },
+  semiparabola: {
+    name:'Media parábola',
+    dims:[{id:'a',label:'Base (a)',def:60},{id:'h',label:'Altura (h)',def:50}],
+    area: d => 2*d.a*d.h/3,
+    Ix_c: d => 8*d.a*Math.pow(d.h,3)/175,
+    Iy_c: d => 19*Math.pow(d.a,3)*d.h/480,
+    Ixy_c: d => -Math.pow(d.a,2)*Math.pow(d.h,2)/60,
+    bounds: d => ({left:-3*d.a/8, right:5*d.a/8, bottom:-2*d.h/5, top:3*d.h/5}),
+    anchors: ['O','C','BR','V'],
+    defaultAnchor: 'O',
+    anchorOffset: (d,k) => {
+      const ox = -3*d.a/8, oy = -2*d.h/5;           // esquina recta O, desde G
+      if(k==='O')  return {dx:ox,        dy:oy};    // base × lado vertical
+      if(k==='C')  return {dx:0,         dy:0};
+      if(k==='BR') return {dx:ox + d.a,  dy:oy};    // final de la base
+      if(k==='V')  return {dx:ox,        dy:oy+d.h};// vértice, sobre el lado recto
+      return {dx:0,dy:0};
+    },
+    draw: (ctx,d) => {
+      // Lado vertical en x=0, base en y=0 y la parábola y=h(1−x²/a²) bajando de
+      // (0,h) a (a,0). Tangentes: horizontal en el vértice y −2h/a en la base;
+      // se cortan en (a/2, h), que es el control exacto de la Bézier.
+      const ox = -3*d.a/8, oy = -2*d.h/5;
+      ctx.moveTo(ox, oy);                            // O
+      ctx.lineTo(ox + d.a, oy);                      // base
+      ctx.quadraticCurveTo(ox + d.a/2, oy + d.h, ox, oy + d.h);
+      ctx.closePath();                               // lado vertical de vuelta a O
+    }
+  },
+  enjuta: {
+    name:'Media parábola complementaria',
+    dims:[{id:'a',label:'Base (a)',def:60},{id:'h',label:'Altura (h)',def:50}],
+    area: d => d.a*d.h/3,
+    Ix_c: d => 37*d.a*Math.pow(d.h,3)/2100,
+    Iy_c: d => Math.pow(d.a,3)*d.h/80,
+    Ixy_c: d => Math.pow(d.a,2)*Math.pow(d.h,2)/120,
+    bounds: d => ({left:-3*d.a/4, right:d.a/4, bottom:-3*d.h/10, top:7*d.h/10}),
+    anchors: ['O','C','BR','TR'],
+    defaultAnchor: 'O',
+    anchorOffset: (d,k) => {
+      const ox = -3*d.a/4, oy = -3*d.h/10;           // vértice O (curva tangente)
+      if(k==='O')  return {dx:ox,       dy:oy};
+      if(k==='C')  return {dx:0,        dy:0};
+      if(k==='BR') return {dx:ox+d.a,   dy:oy};      // esquina inferior derecha
+      if(k==='TR') return {dx:ox+d.a,   dy:oy+d.h};  // esquina superior derecha
+      return {dx:0,dy:0};
+    },
+    draw: (ctx,d) => {
+      // y = h x²/a², de (0,0) a (a,h); lado vertical derecho y base de vuelta.
+      // Tangentes: horizontal en O y 2h/a en (a,h); se cortan en (a/2, 0).
+      const ox = -3*d.a/4, oy = -3*d.h/10;
+      ctx.moveTo(ox, oy);                            // O, donde la curva es tangente
+      ctx.quadraticCurveTo(ox + d.a/2, oy, ox + d.a, oy + d.h);
+      ctx.lineTo(ox + d.a, oy);                      // lado vertical derecho
+      ctx.closePath();                               // base de vuelta a O
+    }
+  },
+  cuartoelipse: {
+    name:'Cuarto de Elipse',
+    dims:[{id:'a',label:'Semieje horizontal (a)',def:70},{id:'b',label:'Semieje vertical (b)',def:45}],
+    area: d => Math.PI*d.a*d.b/4,
+    Ix_c: d => d.a*Math.pow(d.b,3)*(Math.PI/16 - 4/(9*Math.PI)),
+    Iy_c: d => Math.pow(d.a,3)*d.b*(Math.PI/16 - 4/(9*Math.PI)),
+    Ixy_c: d => Math.pow(d.a,2)*Math.pow(d.b,2)*(1/8 - 4/(9*Math.PI)),
+    bounds: d => {
+      const dx = 4*d.a/(3*Math.PI), dy = 4*d.b/(3*Math.PI);
+      return {left:-dx, right:d.a-dx, bottom:-dy, top:d.b-dy};
+    },
+    anchors: ['C','O','E1','E2'],
+    anchorOffset: (d,k) => {
+      const dx = 4*d.a/(3*Math.PI), dy = 4*d.b/(3*Math.PI);
+      if(k==='C')  return {dx:0,        dy:0};
+      if(k==='O')  return {dx:-dx,      dy:-dy};     // esquina del ángulo recto
+      if(k==='E1') return {dx:d.a-dx,   dy:-dy};     // extremo del semieje a
+      if(k==='E2') return {dx:-dx,      dy:d.b-dy};  // extremo del semieje b
+      return {dx:0,dy:0};
+    },
+    draw: (ctx,d) => {
+      // Mismo cuadrante y mismo sentido que `quarter`, pero con dos semiejes.
+      const dx = 4*d.a/(3*Math.PI), dy = 4*d.b/(3*Math.PI);
+      ctx.moveTo(-dx, -dy);                          // O
+      ctx.ellipse(-dx, -dy, d.a, d.b, 0, 0, Math.PI/2, false);
+      ctx.lineTo(-dx, -dy);
+      ctx.closePath();
+    }
+  },
 };

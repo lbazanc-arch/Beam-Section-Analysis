@@ -346,6 +346,10 @@ function getFigMaxDim(fig) {
   const type = fig.type || '';
   if(type==='circle'||type==='semicircle'||type==='quarter') return (d.r||50)*2;
   if(type==='sector') return (d.r||50)*2;
+  // Parábolas y cuarto de elipse: su tamaño lo dan sus dos cotas, no un radio.
+  if(type==='parabola') return Math.max(d.b||80, d.h||50);
+  if(type==='semiparabola'||type==='enjuta') return Math.max(d.a||60, d.h||50);
+  if(type==='cuartoelipse') return Math.max(d.a||70, d.b||45);
   if(d.b!==undefined && d.h!==undefined) return Math.max(d.b, d.h);
   if(d.r!==undefined) return d.r*2;
   return 100;
@@ -376,6 +380,9 @@ function getFigBounds(fig) {
   const type=fig.type||'';
   if(type==='circle'||type==='semicircle'||type==='quarter'){hw=hh=d.r||50;}
   else if(type==='sector'){hw=d.r||50;hh=d.r||50;}
+  else if(type==='parabola'){hw=(d.b||80)/2;hh=(d.h||50)/2;}
+  else if(type==='semiparabola'||type==='enjuta'){hw=(d.a||60)/2;hh=(d.h||50)/2;}
+  else if(type==='cuartoelipse'){hw=(d.a||70)/2;hh=(d.b||45)/2;}
   else if(d.b!==undefined&&d.h!==undefined){hw=d.b/2;hh=d.h/2;}
   else if(d.r!==undefined){hw=hh=d.r;}
   return {xmin:fig.cx-hw,xmax:fig.cx+hw,ymin:fig.cy-hh,ymax:fig.cy+hh,hw,hh};

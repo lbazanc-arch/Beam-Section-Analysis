@@ -1,6 +1,21 @@
 // ═══════════════════════════════════════════════════════════
 //  PROPERTIES PANEL
 // ═══════════════════════════════════════════════════════════
+// ── Rótulo de cada ancla ──
+// ANCHOR_LABELS (02-) da el nombre genérico; unas pocas figuras nombran el mismo
+// punto de otra manera (el O de la enjuta no es un ángulo recto, sino el vértice
+// donde la parábola es tangente a la base), y aquí se dice como lo dice la clase.
+const ANCLA_TEXTO = {
+  semicircle:   {BM:'⊥ Centro base (diámetro)'},
+  parabola:     {BM:'⊥ Centro de la base', V:'Vértice (cima)'},
+  semiparabola: {O:'Origen (90°)', BR:'Fin de la base', V:'Vértice (cima)'},
+  enjuta:       {O:'Vértice O (tangente)'},
+  cuartoelipse: {O:'Origen (90°)', E1:'Ext. semieje a', E2:'Ext. semieje b'}
+};
+function textoAncla(tipo, a){
+  const m = ANCLA_TEXTO[tipo];
+  return (m && m[a]) || ANCHOR_LABELS[a] || a;
+}
 function buildPropPanel(fig){
   if(fig && fig.es3d) return buildPropPanel3d(fig);     // 21-vistas-3d.js
   const def = FIG_DEFS[fig.type];
@@ -105,17 +120,14 @@ function buildPropPanel(fig){
     const isAct=a===(fig.activeAnchor||'C');
     btn.className='anchor-btn'+(isAct?' active':'');
     btn.style.fontWeight=isAct?'700':'500';
-    btn.textContent = a==='C' ? 'G — Centroide' :
-      a==='BM' ? '⊥ Centro base (diámetro)' :
-      (ANCHOR_LABELS[a]||a);
+    btn.textContent = a==='C' ? 'G — Centroide' : textoAncla(fig.type, a);
     btn.onclick=()=>{fig.activeAnchor=a;fig.anchor=a;buildPropPanel(fig);updatePropPanel();render();};
     ab.appendChild(btn);
   }
   // Update pos label
   const pl=document.getElementById('posLabel');
   if(pl){const aa=fig.activeAnchor||'C';pl.textContent = aa==='C' ? 'Posición del Centroide (G)' :
-      aa==='BM' ? 'Posición: Centro del diámetro (base plana)' :
-      'Posición: '+(ANCHOR_LABELS[aa]||aa);}
+      'Posición: '+textoAncla(fig.type, aa).replace(/^⊥ /,'');}
 }
 
 function updateDim(dimId, val){

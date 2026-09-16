@@ -28,7 +28,7 @@ function _primeraVezIn(clave){
 // entonces Steiner también se hace una vez: mismas Ix e Iy, Pxy opuesto.
 // Solo cuentan como «en espejo» los tipos simétricos respecto de su propio
 // eje: un triángulo rectángulo o un ángulo reflejados ya no son la misma figura.
-const _SIM_V_IN = {rect:1, circle:1, semicircle:1, sector:1, wshape:1};
+const _SIM_V_IN = {rect:1, circle:1, semicircle:1, sector:1, wshape:1, parabola:1};
 const _SIM_H_IN = {rect:1, circle:1, wshape:1, channel:1};
 function _claveFiguraIn(f){
   const rot = (((f.rotation||0) % 360) + 360) % 360;
@@ -461,6 +461,19 @@ function construirLatex(){
       else if(f.type === 'sector')
         tex += porque('sector', 'El sector de semiángulo $\\theta$ tiene el centroide sobre su bisectriz, a '
           + '$2R\\sen\\theta/3\\theta$ del vértice: tiende a $2R/3$ si es estrecho y a $4R/3\\pi$ si se abre a semicírculo.');
+      else if(f.type === 'parabola')
+        tex += porque('parabola', 'Bajo una parábola de base $b$ y altura $h$ hay $2bh/3$ de área, más que bajo el '
+          + 'triángulo de los mismos extremos: el material se acumula cerca de la base y el centroide queda a '
+          + '$2h/5$ de ella, no a $h/3$.');
+      else if(f.type === 'semiparabola' || f.type === 'enjuta')
+        tex += porque('media-parabola', 'La media parábola y su complementaria se reparten el rectángulo $a \\times h$: '
+          + 'la primera se lleva dos tercios del área y la segunda, uno. El centroide de la media parábola cae a '
+          + '$3a/8$ y $2h/5$ del vértice del ángulo recto; el de la complementaria, a $3a/4$ y $3h/10$ del punto '
+          + 'donde la curva es tangente a la base.');
+      else if(f.type === 'cuartoelipse')
+        tex += porque('cuartoelipse', 'El cuarto de elipse es un cuarto de círculo estirado: cada abscisa se multiplica '
+          + 'por $a$ y cada ordenada por $b$. Por eso el centroide pasa de $4R/3\\pi$ en los dos ejes a $4a/3\\pi$ '
+          + 'y $4b/3\\pi$, y las inercias conservan los mismos coeficientes.');
     }
 
     // Inercias propias, sobre los ejes de la figura sin girar. En el
@@ -480,6 +493,11 @@ function construirLatex(){
         + '$b^{2}h^{2}/72$ en valor absoluto. El signo lo da el reparto del material: es \\textbf{negativo} cuando la '
         + 'hipotenusa mira hacia el primer cuadrante (más área en el segundo y el cuarto, donde $xy < 0$) y '
         + '\\textbf{positivo} cuando mira hacia el segundo.');
+    else if(f.type === 'semiparabola' || f.type === 'enjuta' || f.type === 'cuartoelipse')
+      tex += porque('pxy-curva', 'Ninguna de estas figuras curvas tiene eje de simetría, así que su producto de inercia '
+        + 'no es nulo. El signo lo da el reparto del material respecto de sus ejes centroidales: es \\textbf{negativo} '
+        + 'cuando el grueso cae en el segundo y el cuarto cuadrante, donde $xy < 0$ (media parábola y cuarto de elipse), '
+        + 'y \\textbf{positivo} cuando cae en el primero y el tercero (media parábola complementaria).');
     else if(Math.abs(s0.Ixyc0) < 1e-12)
       tex += porque('pxy-cero', 'Si la figura tiene un eje de simetría, a cada elemento de área en $(x, y)$ le '
         + 'corresponde otro igual en $(x, -y)$ (o en $(-x, y)$): los productos $xy$ se cancelan de dos en dos y '

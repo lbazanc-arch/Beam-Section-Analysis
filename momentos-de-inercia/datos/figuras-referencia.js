@@ -117,4 +117,64 @@ const REF_FIGS = {
     title: 'Triángulo Rectángulo ②',
     svg: '<svg viewBox="0 0 200 130" fill="none"><polygon points="20,100 160,100 160,15" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.12)"/><polyline points="148,100 148,88 160,88" stroke="#0d3a8f" stroke-width="1" fill="none"/><circle cx="113" cy="72" r="3.5" fill="#f0c040"/><text x="116" y="69" font-size="9" fill="#f0c040" font-style="italic">G</text><text x="165" y="75" font-size="8" fill="#0a2e7a" text-anchor="middle">h/3</text><text x="113" y="115" font-size="8" fill="#0a2e7a" text-anchor="middle">b/3</text><line x1="20" y1="115" x2="160" y2="115" stroke="#123f8f" stroke-width="1"/><text x="90" y="128" text-anchor="middle" font-size="10" fill="#0a2e7a" font-style="italic">b</text><text x="175" y="60" font-size="10" fill="#0a2e7a" font-style="italic">h</text><text x="163" y="103" font-size="8" fill="#0e357f" font-style="italic">xG</text><text x="113" y="13" font-size="8" fill="#0e357f" font-style="italic">yG</text></svg>',
     formulas: 'I&#x2093;G = bh³/36 &nbsp; I&#x1D67;G = b³h/36 &nbsp; P&#x2093;&#x1D67;G = +b²h²/72'
+  },
+  parabola: {
+    title: 'Parábola',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <path d="M20,82 Q80,-54 140,82 Z" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <line x1="80" y1="82" x2="80" y2="14" stroke="#0d3a8f" stroke-width="0.8" stroke-dasharray="4,3" opacity=".5"/>
+      <circle cx="80" cy="55" r="3.5" fill="#f0c040"/>
+      <text x="80" y="50" text-anchor="middle" font-size="7" fill="#0a2e7a">ȳ=2h/5</text>
+      <text x="80" y="66" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+      <line x1="20" y1="88" x2="140" y2="88" stroke="#123f8f" stroke-width="1"/>
+      <text x="80" y="97" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">b</text>
+      <line x1="147" y1="14" x2="147" y2="82" stroke="#123f8f" stroke-width="1"/>
+      <text x="153" y="51" font-size="9" fill="#0a2e7a" font-style="italic">h</text>
+    </svg>`,
+    formulas: 'A = 2bh/3 &nbsp;&nbsp; ȳ = 2h/5 (desde la base)<br>Iₓ = 8bh³/175 &nbsp;&nbsp; Iᵧ = b³h/30 &nbsp;&nbsp; Pₓᵧ = 0'
+  },
+  semiparabola: {
+    title: 'Media parábola',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <path d="M20,82 L140,82 Q80,14 20,14 Z" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <rect x="20" y="70" width="12" height="12" stroke="#0d3a8f" stroke-width="1" fill="none"/>
+      <circle cx="65" cy="55" r="3.5" fill="#f0c040"/>
+      <text x="65" y="50" text-anchor="middle" font-size="7" fill="#0a2e7a">x̄=3a/8</text>
+      <text x="65" y="66" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+      <line x1="20" y1="88" x2="140" y2="88" stroke="#123f8f" stroke-width="1"/>
+      <text x="80" y="97" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">a</text>
+      <line x1="12" y1="14" x2="12" y2="82" stroke="#123f8f" stroke-width="1"/>
+      <text x="4" y="51" font-size="9" fill="#0a2e7a" font-style="italic">h</text>
+    </svg>`,
+    formulas: 'A = 2ah/3 &nbsp;&nbsp; x̄ = 3a/8, ȳ = 2h/5 (desde el ángulo recto)<br>Iₓ = 8ah³/175 &nbsp;&nbsp; Iᵧ = 19a³h/480 &nbsp;&nbsp; Pₓᵧ = −a²h²/60'
+  },
+  enjuta: {
+    title: 'Media parábola complementaria',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <path d="M20,82 Q80,82 140,14 L140,82 Z" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <rect x="128" y="70" width="12" height="12" stroke="#0d3a8f" stroke-width="1" fill="none"/>
+      <circle cx="110" cy="62" r="3.5" fill="#f0c040"/>
+      <text x="104" y="57" text-anchor="middle" font-size="7" fill="#0a2e7a">x̄=3a/4</text>
+      <text x="110" y="73" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+      <line x1="20" y1="88" x2="140" y2="88" stroke="#123f8f" stroke-width="1"/>
+      <text x="80" y="97" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">a</text>
+      <line x1="148" y1="14" x2="148" y2="82" stroke="#123f8f" stroke-width="1"/>
+      <text x="153" y="51" font-size="9" fill="#0a2e7a" font-style="italic">h</text>
+    </svg>`,
+    formulas: 'A = ah/3 &nbsp;&nbsp; x̄ = 3a/4, ȳ = 3h/10 (desde el vértice de la curva)<br>Iₓ = 37ah³/2100 &nbsp;&nbsp; Iᵧ = a³h/80 &nbsp;&nbsp; Pₓᵧ = +a²h²/120'
+  },
+  cuartoelipse: {
+    title: 'Cuarto de Elipse',
+    svg: `<svg viewBox="0 0 160 100" fill="none">
+      <path d="M20,86 L130,86 A110,76 0 0,0 20,10 Z" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.1)"/>
+      <rect x="20" y="74" width="12" height="12" stroke="#0d3a8f" stroke-width="1" fill="none"/>
+      <circle cx="67" cy="54" r="3.5" fill="#f0c040"/>
+      <text x="67" y="49" text-anchor="middle" font-size="7" fill="#0a2e7a">x̄=4a/3π</text>
+      <text x="67" y="65" text-anchor="middle" font-size="8" fill="#f0c040" font-style="italic">G</text>
+      <line x1="20" y1="92" x2="130" y2="92" stroke="#123f8f" stroke-width="1"/>
+      <text x="75" y="99" text-anchor="middle" font-size="9" fill="#0a2e7a" font-style="italic">a</text>
+      <line x1="12" y1="10" x2="12" y2="86" stroke="#123f8f" stroke-width="1"/>
+      <text x="4" y="52" font-size="9" fill="#0a2e7a" font-style="italic">b</text>
+    </svg>`,
+    formulas: 'A = πab/4 &nbsp;&nbsp; x̄ = 4a/3π, ȳ = 4b/3π<br>Iₓ = ab³(π/16 − 4/9π) &nbsp;&nbsp; Iᵧ = a³b(π/16 − 4/9π)<br>Pₓᵧ = a²b²(1/8 − 4/9π)'
   }};

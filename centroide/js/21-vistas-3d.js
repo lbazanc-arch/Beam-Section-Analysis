@@ -81,13 +81,6 @@ function setModoEspacio(m, opts){
   mostrar('transCampoDz', es3); mostrar('repCampoDz', es3); mostrar('visIsoItem', es3);
   { const lb = document.querySelector('#rotField label'); if(lb) lb.textContent = es3 ? 'Giro α (°) alrededor del eje vertical' : (esAl ? 'Orientación α (°)' : 'Rotación α (°)'); }
   // Las dos paletas comparten el botón «Ver más»: al cambiar de modo se
-  // pliegan las dos y el botón vuelve a «Ver más».
-  try{
-    const btn = document.getElementById('palMas'), txt = document.getElementById('palMasTxt');
-    if(btn){ btn.classList.remove('abierto'); if(txt) txt.textContent = 'Ver más'; }
-    ['palGrid','palGrid3d','palGridAlambre'].forEach(gid=>{ const g = document.getElementById(gid); if(!g) return;
-      g.querySelectorAll('.fig-btn').forEach((b,i)=>b.classList.toggle('oculta', i >= PAL_VISIBLES)); });
-  }catch(e){}
   const pp = document.getElementById('palPerfiles');
   if(pp){ if(es3 || esAl) pp.style.display = 'none'; else { try{ pintarMisPerfiles(); }catch(e){} } }
   const head = document.querySelector('#menuFiguras .tb-menu-head');

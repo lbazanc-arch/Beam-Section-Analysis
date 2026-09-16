@@ -217,6 +217,11 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 .pal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
 .pal-grid .fig-btn{width:auto;}
 .pal-grid .fig-btn.oculta{display:none;}
+/* Familias de la paleta: el encabezado ocupa la fila entera de la rejilla,
+   para que las figuras se escojan por parentesco y no por orden de llegada. */
+.pal-fam{grid-column:1/-1;font-size:9px;font-weight:700;color:var(--grn2);
+  text-transform:uppercase;letter-spacing:1px;margin:5px 0 -2px;}
+.pal-fam:first-child{margin-top:0;}
 .pal-mas{width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--border2);
   color:var(--grn2);font-size:10.5px;font-weight:700;padding:7px 8px;border-radius:7px;
   cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;}

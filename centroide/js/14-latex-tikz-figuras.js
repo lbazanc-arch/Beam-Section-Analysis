@@ -55,6 +55,36 @@ function figuraPathLocal(tipo, d){
     const t = d.alpha, tr = t*Math.PI/180, R = d.r, yc = 2*R*Math.sin(tr)/(3*tr);
     return '(0,' + (-yc) + ') -- (' + (-R*Math.sin(tr)) + ',' + (R*Math.cos(tr)-yc) + ') arc (' + (90+t) + ':' + (90-t) + ':' + R + ') -- cycle';
   }
+  // ── Parábolas y cuarto de elipse ──
+  // Una parábola es EXACTAMENTE una Bézier cuadrática; TikZ solo tiene cúbicas,
+  // y la conversión es exacta: C1 = P0 + ⅔(Q−P0), C2 = P2 + ⅔(Q−P2). Así el
+  // papel traza la misma curva que quadraticCurveTo en el lienzo.
+  if(tipo === 'parabola' || tipo === 'semiparabola' || tipo === 'enjuta'){
+    const q = (P0, Q, P2) => {
+      const c1 = [P0[0] + 2/3*(Q[0]-P0[0]), P0[1] + 2/3*(Q[1]-P0[1])];
+      const c2 = [P2[0] + 2/3*(Q[0]-P2[0]), P2[1] + 2/3*(Q[1]-P2[1])];
+      return ' .. controls (' + c1[0] + ',' + c1[1] + ') and (' + c2[0] + ',' + c2[1]
+           + ') .. (' + P2[0] + ',' + P2[1] + ')';
+    };
+    const P = p => '(' + p[0] + ',' + p[1] + ')';
+    if(tipo === 'parabola'){
+      const yb = -2*d.h/5, a = d.b/2;
+      return P([-a,yb]) + q([-a,yb], [0, yb+2*d.h], [a,yb]) + ' -- cycle';
+    }
+    if(tipo === 'semiparabola'){
+      const ox = -3*d.a/8, oy = -2*d.h/5;
+      return P([ox,oy]) + ' -- ' + P([ox+d.a, oy])
+           + q([ox+d.a, oy], [ox+d.a/2, oy+d.h], [ox, oy+d.h]) + ' -- cycle';
+    }
+    const ox = -3*d.a/4, oy = -3*d.h/10;                 // enjuta
+    return P([ox,oy]) + q([ox,oy], [ox+d.a/2, oy], [ox+d.a, oy+d.h])
+         + ' -- ' + P([ox+d.a, oy]) + ' -- cycle';
+  }
+  if(tipo === 'cuartoelipse'){
+    const dx = 4*d.a/(3*Math.PI), dy = 4*d.b/(3*Math.PI);
+    return '(' + (-dx) + ',' + (-dy) + ') -- (' + (d.a-dx) + ',' + (-dy) + ') '
+         + 'arc[start angle=0, end angle=90, x radius=' + d.a + ', y radius=' + d.b + '] -- cycle';
+  }
   // ── Perfiles laminados: los mismos vértices que draw() de FIG_DEFS ──
   if(tipo === 'wshape'){
     const B=d.bf/2, H=d.d/2, w=d.tw/2, hi=d.d/2-d.tf;
