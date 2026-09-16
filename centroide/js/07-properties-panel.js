@@ -191,10 +191,19 @@ function updateFigFromProp(){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
   if(fig.es3d) return updateFigFromProp3d();            // 21-vistas-3d.js
+  // Aquí el 0 SÍ es un valor válido, así que no vale `parseFloat(...)||0`:
+  // con eso, un campo con texto que no es un número mandaba la figura al
+  // origen y le quitaba el giro, sin decir nada. Se descarta solo lo que no
+  // es un número, y el panel repone los valores de la figura.
+  const newX = parseFloat(document.getElementById('posX').value);
+  const newY = parseFloat(document.getElementById('posY').value);
+  const newRot = parseFloat(document.getElementById('rotation').value);
+  if(!isFinite(newX) || !isFinite(newY) || !isFinite(newRot)){
+    aviso('La posición y el giro tienen que ser números.', 'error');
+    buildPropPanel(fig);
+    return;
+  }
   registrarCambio();
-  const newX = parseFloat(document.getElementById('posX').value)||0;
-  const newY = parseFloat(document.getElementById('posY').value)||0;
-  const newRot = parseFloat(document.getElementById('rotation').value)||0;
   fig.rotation = newRot;
   const aa = fig.activeAnchor||'C';
   if(aa==='C'){fig.cx=newX;fig.cy=newY;}

@@ -286,6 +286,10 @@ function renderResults(res, u4, u2, u1){
   const f = v => fmtVal(v);
   const n4 = v => decFix(v,'ang');
   const n2 = v => decFix(v,'len');
+  // Las areas y los momentos estaticos son numeros grandes: llevan los
+  // decimales de AREA. Las coordenadas y las distancias, los de LONGITUD (n2).
+  // n4 se queda SOLO para los angulos, que es lo que mide DEC.ang.
+  const nA = v => decFix(v,'area');
   const pct = v => v===0 ? '0' : (v>0?'+':'')+f(v);
   // ── Ruido de coma flotante en el producto de inercia ──
   // d_x y d_y son restas entre números del tamaño de la sección, así que arrastran
@@ -408,9 +412,9 @@ function renderResults(res, u4, u2, u1){
           <th>Magnitud</th><th>Símbolo</th><th>Valor</th><th>Unidad</th>
         </tr></thead>
         <tbody>
-          <tr><td>Área</td><td>Aᵢ</td><td class="num-cell">${n4(s.a)}</td><td>${u2}</td></tr>
-          <tr><td>Centroide x</td><td>xᵢ</td><td class="num-cell">${n4(fig.cx)}</td><td>${u1}</td></tr>
-          <tr><td>Centroide y</td><td>yᵢ</td><td class="num-cell">${n4(fig.cy)}</td><td>${u1}</td></tr>
+          <tr><td>Área</td><td>Aᵢ</td><td class="num-cell">${nA(s.a)}</td><td>${u2}</td></tr>
+          <tr><td>Centroide x</td><td>xᵢ</td><td class="num-cell">${n2(fig.cx)}</td><td>${u1}</td></tr>
+          <tr><td>Centroide y</td><td>yᵢ</td><td class="num-cell">${n2(fig.cy)}</td><td>${u1}</td></tr>
           <tr><td>Inercia centroidal Ix</td><td>Ī<sub>xGi</sub></td><td class="num-cell">${f(s.Ixc)}</td><td>${u4}</td></tr>
           <tr><td>Inercia centroidal Iy</td><td>Ī<sub>yGi</sub></td><td class="num-cell">${f(s.Iyc)}</td><td>${u4}</td></tr>
           <tr><td>Producto de inercia</td><td>P<sub>xyGi</sub></td><td class="num-cell">${f(ceroIn(s.Ixyc))}</td><td>${u4}</td></tr>
@@ -449,19 +453,19 @@ function renderResults(res, u4, u2, u1){
       <td>${i+1}</td>
       <td class="name-cell"><span style="display:inline-block;width:8px;height:8px;min-width:8px;max-width:8px;border-radius:50%;background:${s.fig.color};margin-right:5px;vertical-align:middle;"></span>${s.fig.name}</td>
       <td class="${sgnCls}">${s.fig.sign===1?'＋':'－'}</td>
-      <td class="num-cell">${n4(Ai)}</td>
-      <td class="num-cell">${n4(s.fig.cx)}</td><td class="num-cell">${n4(s.fig.cy)}</td>
-      <td class="num-cell">${n4(Aixi)}</td><td class="num-cell">${n4(Aiyi)}</td>
+      <td class="num-cell">${nA(Ai)}</td>
+      <td class="num-cell">${n2(s.fig.cx)}</td><td class="num-cell">${n2(s.fig.cy)}</td>
+      <td class="num-cell">${nA(Aixi)}</td><td class="num-cell">${nA(Aiyi)}</td>
       <td class="num-cell">${f(s.Ixc)}</td><td class="num-cell">${f(s.Iyc)}</td>
       <td class="num-cell">${f(ceroIn(s.Ixyc))}</td>
     </tr>`;
   }
   html += `</tbody><tfoot><tr>
     <td colspan="3">Σ (Total)</td>
-    <td class="num-cell">${n4(sumA)}</td>
+    <td class="num-cell">${nA(sumA)}</td>
     <td colspan="2">—</td>
-    <td class="num-cell">${n4(sumAx)}</td>
-    <td class="num-cell">${n4(sumAy)}</td>
+    <td class="num-cell">${nA(sumAx)}</td>
+    <td class="num-cell">${nA(sumAy)}</td>
     <td colspan="3">—</td>
   </tr></tfoot>
     </table></div>
@@ -487,9 +491,9 @@ function renderResults(res, u4, u2, u1){
       </div>
     </div>
     <div class="summary-grid">
-      <div class="summary-box highlight"><div class="s-lbl">Área total A</div><div class="s-val">${n4(res.A)}</div><div class="s-unit">${u2}</div></div>
-      <div class="summary-box highlight"><div class="s-lbl">x̄ (centroide)</div><div class="s-val">${n4(res.xbar)}</div><div class="s-unit">${u1}</div></div>
-      <div class="summary-box highlight"><div class="s-lbl">ȳ (centroide)</div><div class="s-val">${n4(res.ybar)}</div><div class="s-unit">${u1}</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">Área total A</div><div class="s-val">${nA(res.A)}</div><div class="s-unit">${u2}</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">x̄ (centroide)</div><div class="s-val">${n2(res.xbar)}</div><div class="s-unit">${u1}</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">ȳ (centroide)</div><div class="s-val">${n2(res.ybar)}</div><div class="s-unit">${u1}</div></div>
       <div class="summary-box"><div class="s-lbl">Jₒ (polar)</div><div class="s-val">${f(res.Jo)}</div><div class="s-unit">${u4}</div></div>
     </div>
   </div>`;
@@ -532,8 +536,8 @@ function renderResults(res, u4, u2, u1){
     const sgnStr = s.fig.sign===1?'＋':'－';
     html += `<tr>
       <td style="white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;min-width:8px;max-width:8px;border-radius:50%;background:${s.fig.color};margin-right:5px;vertical-align:middle;"></span>${s.fig.name}&nbsp;(${sgnStr})</td>
-      <td class="num" style="text-align:center;min-width:60px;">${n4(s.a)}</td>
-      <td class="num">${n4(s.dx)}</td><td class="num">${n4(s.dy)}</td>
+      <td class="num" style="text-align:center;min-width:60px;">${nA(s.a)}</td>
+      <td class="num">${n2(s.dx)}</td><td class="num">${n2(s.dy)}</td>
       <td class="num">${f(s.Ixc)}</td><td class="num">${f(ceroIn(Ady2))}</td>
       <td class="num" style="font-weight:700">${f(IxContrib)}</td>
       <td class="num">${f(s.Iyc)}</td><td class="num">${f(ceroIn(Adx2))}</td>
@@ -553,7 +557,7 @@ function renderResults(res, u4, u2, u1){
       <div class="summary-box highlight"><div class="s-lbl">Ī<sub>xG</sub></div><div class="s-val">${f(res.Ix)}</div><div class="s-unit">${u4}</div></div>
       <div class="summary-box highlight"><div class="s-lbl">Ī<sub>yG</sub></div><div class="s-val">${f(res.Iy)}</div><div class="s-unit">${u4}</div></div>
       <div class="summary-box highlight"><div class="s-lbl">P<sub>xyG</sub></div><div class="s-val">${f(pxySec)}</div><div class="s-unit">${u4}</div></div>
-      <div class="summary-box"><div class="s-lbl">kₓ (radio giro)</div><div class="s-val">${n4(res.kx)}</div><div class="s-unit">${u1}</div></div>
+      <div class="summary-box"><div class="s-lbl">kₓ (radio giro)</div><div class="s-val">${n2(res.kx)}</div><div class="s-unit">${u1}</div></div>
     </div>
     ${htmlRigidez(res)}
     <div class="verdict" style="margin-top:10px"><div class="verdict-t">Signo de P<sub>xy</sub></div>
