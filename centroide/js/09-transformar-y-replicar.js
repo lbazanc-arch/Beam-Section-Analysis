@@ -278,6 +278,10 @@ function calculate(){
     steps.push({fig, a, g, gLabel, mat, t, w, xi:fig.cx, yi:fig.cy, ax:a*fig.cx, ay:a*fig.cy, wx:w*fig.cx, wy:w*fig.cy});
   }
   if(Math.abs(A)<1e-12){ aviso('El área total es cero. Revisa las figuras negativas.', 'error'); return; }
+  // Un área neta NEGATIVA quiere decir que los huecos se comen la sección: el
+  // cuerpo no existe y el centroide que saldría no significa nada. Antes se
+  // calculaba en silencio y el alumno se llevaba un número sin sentido.
+  if(A < 0) aviso('El área neta sale NEGATIVA: los huecos son mayores que el sólido. Revisa las figuras que restan.', 'error');
 
   const xbar = Qy/A,  ybar = Qx/A;          // centroide geométrico
   const xg   = Math.abs(W)>1e-12 ? Wx/W : xbar;

@@ -146,11 +146,27 @@ function buildPropPanel(fig){
       'Posición: '+textoAncla(fig.type, aa).replace(/^⊥ /,'');}
 }
 
+// Un DESPLAZAMIENTO puede valer cero o ser negativo: el trapecio y el triángulo
+// se inclinan hacia el otro lado. Un TAMAÑO, no: con una medida negativa el área
+// sale negativa y el centroide deja de significar nada, y nada lo avisaba (el
+// min del HTML es solo una pista, el valor escrito llega igual aqui). Ojo: `d`
+// es desplazamiento en el triángulo, pero es el canto de un perfil W o C.
+const DIM_DESPLAZ = {trapecio:{dx:true}, triangulo:{d:true}};
 function updateDim(dimId, val){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
+  const v = parseFloat(val);
+  const esAng = !!ANGLE_DIMS[dimId];
+  const esDesp = !!(DIM_DESPLAZ[fig.type] && DIM_DESPLAZ[fig.type][dimId]);
+  if(!isFinite(v) || (esAng && (v <= 0 || v >= 180)) || (!esAng && !esDesp && v < 0)){
+    aviso(esAng ? 'El ángulo tiene que estar entre 0 y 180 grados.'
+                : 'Una medida no puede ser negativa.', 'error');
+    const inp = document.getElementById('dim-' + dimId);
+    if(inp) inp.value = fig.dims[dimId];
+    return;
+  }
   registrarCambio();
-  fig.dims[dimId] = parseFloat(val)||0;
+  fig.dims[dimId] = v;
   invalidarResultados(); render();
 }
 

@@ -117,6 +117,10 @@ function calculate(){
     Qy += a*fig.cx;
   }
   if(Math.abs(A)<1e-12){ aviso('Área total es cero (verifica figuras negativas).', 'error'); return; }
+  // Un área neta NEGATIVA quiere decir que los huecos se comen la sección: la
+  // sección no existe y el centroide y las inercias que saldrían no significan
+  // nada. Antes se calculaba en silencio y el alumno se llevaba un número sin sentido.
+  if(A < 0) aviso('El área neta sale NEGATIVA: los huecos son mayores que el sólido. Revisa las figuras que restan.', 'error');
 
   const xbar = Qy/A, ybar = Qx/A;
 

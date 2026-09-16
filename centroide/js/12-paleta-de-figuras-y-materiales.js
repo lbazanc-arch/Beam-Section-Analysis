@@ -223,7 +223,25 @@ function escalarModeloAUnidad(newU){
       extraPoint.y = +(extraPoint.y*k).toFixed(9);
     }
     setUnit(newU);
+    // El material también tiene unidad: γ (o ρ) va por unidad de VOLUMEN, así
+    // que al cambiar la longitud hay que reexpresarlo. Sin esto, la fachada de
+    // 2100 kgf/m³ pasada de m a cm seguía diciendo 2100 —ahora por cm³— y su
+    // peso salía multiplicado por un MILLÓN (k³), en pantalla y en el informe.
+    reexpresarMaterialesPorLongitud(k);
   }
+}
+
+// Quien conserva lo que escribió el alumno (valIng/uIng) se recalcula desde
+// ahí, que es exacto; quien no lo trae —un archivo antiguo, o un valor escrito
+// ya en la unidad del sistema— se escala por k³. En los dos casos la unidad de
+// la ficha pasa a ser la nueva.
+function reexpresarMaterialesPorLongitud(k){
+  if(!Array.isArray(MATS)) return;
+  MATS.forEach(m=>{
+    if(m.valIng !== undefined && m.valIng !== null && m.uIng) m.val = +gammaAlSistema(m.valIng, m.uIng).toPrecision(10);
+    else if(typeof m.val === 'number' && isFinite(m.val)) m.val = +(m.val/Math.pow(k,3)).toPrecision(12);
+    m.unidad = uGamma();
+  });
 }
 // Repinta la lista, el panel de propiedades y el lienzo, y recalcula si había
 // resultado. applyUnitsModal lo llama con los materiales ya reconvertidos.
@@ -265,15 +283,15 @@ function applyUnitsModal(){
   // deshacer no devuelve las medidas viejas con la unidad nueva.
   registrarCambio();
 
-  const k  = LEN_FAC_I[oldLen]/LEN_FAC_I[newLen];      // longitud: nuevo = viejo*k
   const kF = FOR_A_KN[oldForce]/FOR_A_KN[newForce];    // fuerza:   nuevo = viejo*kF
 
-  MATS.forEach(m=>{
-    // γ = fuerza/longitud³  →  factor = kF / k³
-    // ρ = masa/longitud³ (masa fija en kg)  →  factor = 1 / k³
-    const factor = (matMagnitud==='densidad') ? (1/(k*k*k)) : (kF/(k*k*k));
-    m.val = +(m.val*factor).toPrecision(10);
-  });
+  // γ = fuerza/longitud³ y ρ = masa/longitud³. Aquí se aplica SOLO la parte de
+  // fuerza (a ρ no le afecta: la masa va siempre en kg). La parte de LONGITUD
+  // la hace escalarModeloAUnidad, que es quien conoce el cambio de longitud y
+  // así la aplica también cuando se cambia de unidad desde el código —donde
+  // antes no se convertía el material y el peso salía multiplicado por k³.
+  if(kF !== 1 && matMagnitud !== 'densidad')
+    MATS.forEach(m=>{ m.val = +(m.val*kF).toPrecision(10); });
 
   unitForce = newForce;
   escalarModeloAUnidad(newLen);
