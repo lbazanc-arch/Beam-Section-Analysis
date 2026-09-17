@@ -195,6 +195,12 @@ function construirLatex(){
   const u1 = unit, u2 = unit+'\u00b2', u4 = unit+'\u2074';
   const U1 = '\\,' + utex(u1), U2 = '\\,' + utex(u2), U4 = '\\,' + utex(u4);
   const nombreDe = f => escLatex(f.etiqueta || f.name || FIG_DEFS[f.type].name);
+  // Un nombre largo no cabe en la columna de la tabla, que es `l` y no parte
+  // la linea: se envuelve en un parbox SOLO cuando pasa del ancho normal.
+  // Fijar el ancho de la columna no vale: ensancharia la tabla tambien con
+  // los nombres cortos, que son casi todos.
+  const celdaNombre = f => { const s = nombreDe(f);
+    return s.length > 26 ? '\\parbox[t]{4.2cm}{\\raggedright ' + s + '}' : s; };
   const env = _envolventeIn(st);
   const grupos = _gruposFigurasIn(st, env);
   const simSec = _simetriaSeccionIn(st, env);
@@ -248,8 +254,11 @@ function construirLatex(){
   // en dos «center» seguidos, el salto de página puede caer justo entre la
   // figura y su «Figura N.».
   const lamina = (cuerpo, txt) => { figN++;
-    return '\\begin{center}\n\\begin{tikzpicture}[scale=1]\n' + cuerpo
-      + '\\end{tikzpicture}\\par\\nopagebreak\\vspace{4pt}\n'
+    // Una figura mas ancha que la caja de texto se sale al margen (la de ejes
+    // principales de una seccion ancha lo hacia): \bsaEncajar solo la reduce si
+    // se pasa, y deja intacta la que ya cabe.
+    return '\\begin{center}\n\\bsaEncajar{\\begin{tikzpicture}[scale=1]\n' + cuerpo
+      + '\\end{tikzpicture}}\\par\\nopagebreak\\vspace{4pt}\n'
       + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCaption = txt => { tablaN++;
     return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
@@ -265,6 +274,16 @@ function construirLatex(){
     if(!sus) return '\\[ ' + sim + ' = ' + valor + unidad + ' \\]\n';
     if(sus.indexOf('\\text{') === 0) return '\\[ ' + sim + ' = ' + valor + unidad + ' \\]\n'
       + '{\\footnotesize $' + sus + '$.}\\\\[2pt]\n';
+    // Formula, sustitucion y valor no siempre caben de una tirada: la del
+    // segmento circular se salia 50 pt del papel. Si la linea es larga, la
+    // sustitucion baja a un segundo renglon, alineado por el signo igual.
+    // Y si ni siquiera la formula con su sustitucion caben juntas —el trapecio y
+    // el triangulo, con dos fracciones grandes—, cada una va en su renglon.
+    if((sim + sus).length > 120)
+      return '\\[ \\begin{aligned} ' + sim.replace(' = ', ' &= ') + ' \\\\ &= ' + sus
+        + ' \\\\ &= ' + valor + unidad + ' \\end{aligned} \\]\n';
+    if((sim + sus + valor).length > 85)
+      return '\\[ \\begin{aligned} ' + sim + ' &= ' + sus + ' \\\\ &= ' + valor + unidad + ' \\end{aligned} \\]\n';
     return '\\[ ' + sim + ' = ' + sus + ' = ' + valor + unidad + ' \\]\n';
   };
 
@@ -287,6 +306,13 @@ function construirLatex(){
     // 2·theta_p se lea igual en la app y en el PDF.
     + '\\definecolor{bsaRojo}{HTML}{C0392B}\n\n'
     + '\\setlength{\\parskip}{2pt}\n'
+    // Deja que TeX estire los espacios SOLO en el parrafo que no cierra de otro
+    // modo (cifras y unidades pegadas, que no se pueden partir).
+    + '\\setlength{\\emergencystretch}{3em}\n'
+    + '\\newsavebox{\\bsacaja}\n'
+    + '\\newcommand{\\bsaEncajar}[1]{\\sbox\\bsacaja{#1}%\n'
+    + '  \\ifdim\\wd\\bsacaja>\\linewidth\\resizebox{\\linewidth}{!}{\\usebox\\bsacaja}%\n'
+    + '  \\else\\usebox\\bsacaja\\fi}\n'
     // Encabezado y pie corridos en TODAS las páginas: el informe se imprime y
     // se reparte suelto, así que cada hoja dice de qué tema es.
     + '\\makeatletter\n'
@@ -458,7 +484,12 @@ function construirLatex(){
     // Área
     tex += '\\textbf{Área}\n';
     if(fa.sim.indexOf('\\quad') >= 0)
-      tex += '\\[ ' + fa.sim + ' \\]\n\\[ ' + fa.sus + ' = ' + ftex(s0.a) + U2 + ' \\]\n';
+      // La sustitución del segmento circular no cabe de una tirada en la columna
+      // del desarrollo: si es larga, el resultado baja a un renglón propio.
+      tex += '\\[ ' + fa.sim + ' \\]\n' + (fa.sus.length > 70
+        ? '\\[ \\begin{aligned} ' + fa.sus.replace(/^A_i = /, 'A_i &= ') + ' \\\\ &= '
+          + ftex(s0.a) + U2 + ' \\end{aligned} \\]\n'
+        : '\\[ ' + fa.sus + ' = ' + ftex(s0.a) + U2 + ' \\]\n');
     else
       tex += lineaFormula(fa.sim, fa.sus.replace(/^A_i = /, ''), ftex(s0.a), U2);
     if(f.sign < 0){
@@ -577,8 +608,9 @@ function construirLatex(){
       tex += '{\\footnotesize Con $\\beta = ' + decP(giro,'ang') + '^\\circ$, $\\cos 2\\beta = ' + c2
            + '$ y $\\sen 2\\beta = ' + s2 + '$' + (_yaDichoIn['giro-valores'] ? ' en las ecuaciones de giro' : '') + ':}\n';
       _yaDichoIn['giro-valores'] = true;
-      tex += '\\[ \\bar{I}_{x}\' = ' + ftex(s0.Ixc) + U4 + ' \\qquad \\bar{I}_{y}\' = ' + ftex(s0.Iyc) + U4
-           + ' \\qquad \\bar{P}_{xy}\' = ' + ftex(s0.Ixyc) + U4 + ' \\]\n';
+      // Dos valores por renglón: los tres seguidos se salían de la columna.
+      tex += '\\[ \\bar{I}_{x}\' = ' + ftex(s0.Ixc) + U4 + ' \\qquad \\bar{I}_{y}\' = ' + ftex(s0.Iyc) + U4 + ' \\]\n'
+           + '\\[ \\bar{P}_{xy}\' = ' + ftex(s0.Ixyc) + U4 + ' \\]\n';
     }
 
     // Posición desde O, una línea por parte del grupo.
@@ -640,7 +672,7 @@ function construirLatex(){
     st.forEach((s,k)=>{
       const a = s.a*s.fig.sign;
       sQx += a*s.fig.cx; sQy += a*s.fig.cy;
-      tex += (k+1) + ' & ' + nombreDe(s.fig)
+      tex += (k+1) + ' & ' + celdaNombre(s.fig)
         + ' & ' + celdaCol(a, fA, DEC.area)
         + ' & ' + decP(s.fig.cx,'len') + ' & ' + decP(s.fig.cy,'len')
         + ' & ' + celdaCol(a*s.fig.cx, fAX, DEC.area)
@@ -758,7 +790,9 @@ function construirLatex(){
       + '(ya giradas a ejes paralelos a $x$ e $y$ si la parte está girada); las tres siguientes, los términos de '
       + 'traslado; las tres últimas, el aporte de cada parte con su signo, cuya suma es la inercia de la sección.');
     tNumI = tablaN;
-    tex += '{\\footnotesize\\begin{tablacentrada}\\begin{tabular}{cccccccccc}\\hline\n'
+    // Diez columnas con su cabecera no caben con la separacion normal: se
+    // aprieta SOLO en esta tabla (6 pt por lado x 20 huecos son 120 pt).
+    tex += '{\\footnotesize\\setlength{\\tabcolsep}{3pt}\\begin{tablacentrada}\\begin{tabular}{cccccccccc}\\hline\n'
       + '\\textbf{Parte} & '
       + cab("$\\bar{I}_{x}'$", fIx, '') + ' & ' + cab("$\\bar{I}_{y}'$", fIy, '') + ' & '
       + cab("$\\bar{P}_{xy}'$", fIxy, '') + ' & '
@@ -876,10 +910,12 @@ function construirLatex(){
     tex += '{\\footnotesize Con el denominador nulo y el numerador no, la tangente diverge: $2\\theta_p = '
       + '\\pm 90^\\circ$ y los ejes principales quedan a $45^\\circ$ de $x$ e $y$.}\\\\[3pt]\n';
   } else {
-    tex += '\\[ \\tan 2\\theta_p = \\dfrac{-2\\bar{P}_{xy}}{\\bar{I}_x - \\bar{I}_y} = \\dfrac{-2\\,(' + ftex(pxySec)
-      + ')}{' + ftex(results.Ix) + ' - ' + ftex(results.Iy) + '} = ' + decP(-2*pxySec/dI,'iner')
-      + ' \\qquad\\Longrightarrow\\qquad 2\\theta_p = ' + decP(dosTh,'ang') + '^\\circ \\qquad \\theta_p = '
-      + decP(results.thetaP,'ang') + '^\\circ \\]\n';
+    // La tangente con su sustitucion ya llena el renglon: el despeje de los dos
+    // angulos baja al siguiente, o la linea se sale del papel.
+    tex += '\\[ \\begin{aligned} \\tan 2\\theta_p &= \\dfrac{-2\\bar{P}_{xy}}{\\bar{I}_x - \\bar{I}_y} = \\dfrac{-2\\,('
+      + ftex(pxySec) + ')}{' + ftex(results.Ix) + ' - ' + ftex(results.Iy) + '} = ' + decP(-2*pxySec/dI,'iner')
+      + ' \\\\ &\\Longrightarrow\\quad 2\\theta_p = ' + decP(dosTh,'ang') + '^\\circ \\qquad \\theta_p = '
+      + decP(results.thetaP,'ang') + '^\\circ \\end{aligned} \\]\n';
     tex += '{\\footnotesize El arco tangente tiene dos soluciones que distan $180^\\circ$ en $2\\theta_p$, es decir '
       + '$90^\\circ$ en $\\theta_p$: son los dos ejes principales. Se toma la que cae en el cuadrante que marcan los '
       + 'signos del numerador y del denominador, y el otro eje es su perpendicular.}\\\\[3pt]\n';

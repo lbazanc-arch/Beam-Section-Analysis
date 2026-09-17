@@ -114,9 +114,11 @@ function centroideLocalTex(fig){
   switch(fig.type){
     case 'rtriangle':
     case 'rtriangle2':
-      return '\\text{Centroide propio a } \\tfrac{b}{3} \\text{ y } \\tfrac{h}{3}'
-           + ' \\text{ de los catetos: } \\tfrac{'+D(d.b)+'}{3}='+D(d.b/3)
-           + ',\\ \\tfrac{'+D(d.h)+'}{3}='+D(d.h/3);
+      // Mismo motivo que el trapecio y el triángulo de más abajo: de una tirada
+      // se salía de la columna del desarrollo.
+      return '\\begin{gathered} \\text{Centroide propio a } \\tfrac{b}{3} \\text{ y } \\tfrac{h}{3}'
+           + ' \\text{ de los catetos:} \\\\[2pt] \\tfrac{'+D(d.b)+'}{3}='+D(d.b/3)
+           + ',\\quad \\tfrac{'+D(d.h)+'}{3}='+D(d.h/3) + ' \\end{gathered}';
     case 'semicircle':
       return '\\bar{y}_{loc} = \\dfrac{4R}{3\\pi} = \\dfrac{4('+D(d.r)+')}{3\\pi} = '
            + D(4*d.r/(3*Math.PI));
@@ -130,17 +132,24 @@ function centroideLocalTex(fig){
            + D(2*d.r*Math.sin(t)/(3*t));
     }
     case 'parabola':
-      return '\\bar{y}_{loc} = \\dfrac{2h}{5} = \\dfrac{2('+D(d.h)+')}{5} = ' + D(2*d.h/5)
-           + ' \\text{ desde la base; } \\bar{x}_{loc} \\text{ sobre el eje de la figura}';
+      return '\\begin{gathered} \\bar{y}_{loc} = \\dfrac{2h}{5} = \\dfrac{2('+D(d.h)+')}{5} = ' + D(2*d.h/5)
+           + ' \\text{ desde la base} \\\\[2pt] \\bar{x}_{loc} \\text{ sobre el eje de la figura} \\end{gathered}';
+    // Las dos coordenadas, cada una en su renglón: juntas no caben en la columna.
     case 'semiparabola':
-      return '\\bar{x}_{loc} = \\dfrac{3a}{8} = \\dfrac{3('+D(d.a)+')}{8} = ' + D(3*d.a/8)
-           + ' \\qquad \\bar{y}_{loc} = \\dfrac{2h}{5} = \\dfrac{2('+D(d.h)+')}{5} = ' + D(2*d.h/5);
+      return '\\begin{aligned}'
+           + '\\bar{x}_{loc} &= \\dfrac{3a}{8} = \\dfrac{3('+D(d.a)+')}{8} = ' + D(3*d.a/8) + ' \\\\[2pt]'
+           + '\\bar{y}_{loc} &= \\dfrac{2h}{5} = \\dfrac{2('+D(d.h)+')}{5} = ' + D(2*d.h/5)
+           + '\\end{aligned}';
     case 'enjuta':
-      return '\\bar{x}_{loc} = \\dfrac{3a}{4} = \\dfrac{3('+D(d.a)+')}{4} = ' + D(3*d.a/4)
-           + ' \\qquad \\bar{y}_{loc} = \\dfrac{3h}{10} = \\dfrac{3('+D(d.h)+')}{10} = ' + D(3*d.h/10);
+      return '\\begin{aligned}'
+           + '\\bar{x}_{loc} &= \\dfrac{3a}{4} = \\dfrac{3('+D(d.a)+')}{4} = ' + D(3*d.a/4) + ' \\\\[2pt]'
+           + '\\bar{y}_{loc} &= \\dfrac{3h}{10} = \\dfrac{3('+D(d.h)+')}{10} = ' + D(3*d.h/10)
+           + '\\end{aligned}';
     case 'cuartoelipse':
-      return '\\bar{x}_{loc} = \\dfrac{4a}{3\\pi} = \\dfrac{4('+D(d.a)+')}{3\\pi} = ' + D(4*d.a/(3*Math.PI))
-           + ' \\qquad \\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = \\dfrac{4('+D(d.b)+')}{3\\pi} = ' + D(4*d.b/(3*Math.PI));
+      return '\\begin{aligned}'
+           + '\\bar{x}_{loc} &= \\dfrac{4a}{3\\pi} = \\dfrac{4('+D(d.a)+')}{3\\pi} = ' + D(4*d.a/(3*Math.PI)) + ' \\\\[2pt]'
+           + '\\bar{y}_{loc} &= \\dfrac{4b}{3\\pi} = \\dfrac{4('+D(d.b)+')}{3\\pi} = ' + D(4*d.b/(3*Math.PI))
+           + '\\end{aligned}';
     case 'semielipse':
       return '\\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = \\dfrac{4('+D(d.b)+')}{3\\pi} = ' + D(4*d.b/(3*Math.PI))
            + ' \\text{ desde la base}';
@@ -463,6 +472,19 @@ function _preambuloLatexCen(subcabecera){
     + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
     + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
     + '\\setlength{\\parskip}{2pt}\n'
+    // Un parrafo con cifras y unidades pegadas («512.55 mm») deja trozos que no
+    // se pueden partir y alguna linea se salia al margen. emergencystretch deja
+    // que TeX estire los espacios SOLO en los parrafos que no cierran de otro
+    // modo; los demas no cambian.
+    + '\\setlength{\\emergencystretch}{3em}\n'
+    // Un dibujo mas ancho que su columna se sale al margen: las tres vistas del
+    // 3D, con sus ejes y sus cotas, no caben en el tercio de pagina que les
+    // toca. \bsaEncajar lo mide antes y SOLO lo reduce si se pasa; uno que ya
+    // cabe se deja tal cual, que si no se agrandaria y cambiarian las letras.
+    + '\\newsavebox{\\bsacaja}\n'
+    + '\\newcommand{\\bsaEncajar}[1]{\\sbox\\bsacaja{#1}%\n'
+    + '  \\ifdim\\wd\\bsacaja>\\linewidth\\resizebox{\\linewidth}{!}{\\usebox\\bsacaja}%\n'
+    + '  \\else\\usebox\\bsacaja\\fi}\n'
     + '\\makeatletter\n'
     + '\\def\\ps@bsa{%\n'
     + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Centroide}\\hfill'
@@ -515,6 +537,12 @@ function construirLatex(){
   const Wart = esMasa ? 'la' : 'el', Warts = esMasa ? 'las' : 'los';
   const uGm = '\\text{' + escLatex(uGamma().replace('\u00B3','')) + '}^{3}';   // kN/mm³ en modo matemático
   const nombreDe = f => escLatex(f.etiqueta || f.name || FIG_DEFS[f.type].name);
+  // Un nombre largo no cabe en la columna de la tabla, que es `l` y no parte
+  // la linea: se envuelve en un parbox SOLO cuando pasa del ancho normal.
+  // Fijar el ancho de la columna no vale: ensancharia la tabla tambien con
+  // los nombres cortos, que son casi todos.
+  const celdaNombre = f => { const s = nombreDe(f);
+    return s.length > 26 ? '\\parbox[t]{4.2cm}{\\raggedright ' + s + '}' : s; };
   // Unidad del peso (γ·A·t da fuerza) o de la masa (ρ·A·t da kg).
   const uWtxt = esMasa ? 'kg' : escLatex(uGamma().split('/')[0]);
   const UW = '\\,\\text{' + uWtxt + '}';
@@ -873,7 +901,7 @@ function construirLatex(){
       + cab('$\\tilde{y}_i$', {cab:''}, uTxt) + ' & ' + cab('$A_i\\tilde{x}_i$', fAX, '') + ' & '
       + cab('$A_i\\tilde{y}_i$', fAY, '') + '\\\\\\hline\n';
     st.forEach((s,i)=>{
-      tex += (i+1) + ' & ' + nombreDe(s.fig)
+      tex += (i+1) + ' & ' + celdaNombre(s.fig)
         + ' & ' + celdaCol(s.a, fA, DEC.area)
         + ' & ' + decP(s.xi,'len')
         + ' & ' + decP(s.yi,'len')

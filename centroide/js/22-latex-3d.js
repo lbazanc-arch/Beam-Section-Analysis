@@ -123,7 +123,8 @@ function _laminasVistas3d(opts, lamina){
   const caja = dentro => '\\begin{minipage}[t]{0.32\\textwidth}\\centering\\vspace{0pt}\n'
                        + dentro + '\\end{minipage}';
   const fila = f => '\\noindent' + [0,1,2].map(f).join('\\hfill');
-  return fila(i => caja('{\\footnotesize\\color{bsaAcc2}\\textbf{' + titulos[i] + '}}\\\\[3pt]\n' + cuerpos[i]))
+  return fila(i => caja('{\\footnotesize\\color{bsaAcc2}\\textbf{' + titulos[i] + '}}\\\\[3pt]\n'
+                        + '\\bsaEncajar{' + cuerpos[i] + '}\n'))
     + '\\par\\nopagebreak\\vspace{3pt}\n'
     + fila(i => caja('{\\scriptsize\\color{bsaMuted}' + pies[i] + '}'))
     + '\\par\\nopagebreak\\vspace{4pt}\n' + lamina;
@@ -204,6 +205,12 @@ function construirLatex3d(){
   const uGm = '\\text{' + escLatex(uGamma().replace('\u00B3','')) + '}^{3}';
   const uWtxt = esMasa ? 'kg' : escLatex(uGamma().split('/')[0]);
   const nombreDe = f => escLatex(f.etiqueta || f.name || SOLID_DEFS[f.type].name);
+  // Un nombre largo no cabe en la columna de la tabla, que es `l` y no parte
+  // la linea: se envuelve en un parbox SOLO cuando pasa del ancho normal.
+  // Fijar el ancho de la columna no vale: ensancharia la tabla tambien con
+  // los nombres cortos, que son casi todos.
+  const celdaNombre = f => { const s = nombreDe(f);
+    return s.length > 26 ? '\\parbox[t]{4.2cm}{\\raggedright ' + s + '}' : s; };
 
   // Autocomprobación: la tabla que se imprime debe reproducir el centroide.
   {
@@ -385,11 +392,12 @@ function construirLatex3d(){
         fVY = factorColumna(st.map(s=>s.vy).concat([results.Qy])), fVZ = factorColumna(st.map(s=>s.vz).concat([results.Qz]));
   tex += tablaCaption('Volúmenes, posición del centroide de cada parte y momentos estáticos. Los volúmenes llevan ya el signo de la parte.');
   const tNumV = tablaN;
-  tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clccccccc}\\hline\n'
+  // Nueve columnas con el nombre del sólido no caben con la separación normal.
+  tex += '{\\small\\setlength{\\tabcolsep}{4pt}\\begin{tablacentrada}\\begin{tabular}{clccccccc}\\hline\n'
     + '\\textbf{Parte} & \\textbf{Sólido} & ' + cab('$V_i$', fV, u3Txt) + ' & \\textbf{$\\tilde{x}_i$} & \\textbf{$\\tilde{y}_i$} & \\textbf{$\\tilde{z}_i$} & '
     + cab('$V_i\\tilde{x}_i$', fVX, '') + ' & ' + cab('$V_i\\tilde{y}_i$', fVY, '') + ' & ' + cab('$V_i\\tilde{z}_i$', fVZ, '') + '\\\\\\hline\n';
   st.forEach((s,i)=>{
-    tex += (i+1) + ' & ' + nombreDe(s.fig) + ' & ' + celdaCol(s.v, fV, DEC.area) + ' & ' + decP(s.xi,'len') + ' & ' + decP(s.yi,'len') + ' & ' + decP(s.zi,'len')
+    tex += (i+1) + ' & ' + celdaNombre(s.fig) + ' & ' + celdaCol(s.v, fV, DEC.area) + ' & ' + decP(s.xi,'len') + ' & ' + decP(s.yi,'len') + ' & ' + decP(s.zi,'len')
       + ' & ' + celdaCol(s.vx, fVX, DEC.area) + ' & ' + celdaCol(s.vy, fVY, DEC.area) + ' & ' + celdaCol(s.vz, fVZ, DEC.area) + ' \\\\\n';
   });
   tex += '\\hline\\multicolumn{2}{l}{$\\sum$} & ' + celdaCol(results.V, fV, DEC.area) + ' & --- & --- & --- & '
@@ -473,7 +481,7 @@ function construirLatex3d(){
     tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clcccc}\\hline\n\\textbf{Parte} & \\textbf{Sólido} & ' + cab('$A_i$', fA, escLatex(unit) + '\\textsuperscript{2}')
       + ' & \\textbf{$\\bar{r}_i$} {\\scriptsize(' + uTxt + ')} & ' + cab('$2\\pi\\bar{r}_iA_i$', fVp, u3Txt) + ' & \\textbf{$V_i$} {\\scriptsize(Tabla ' + tNumV + ')}\\\\\\hline\n';
     pap.filas.forEach((r,i)=>{
-      tex += (i+1) + ' & ' + nombreDe(r.fig) + ' & ' + celdaCol(r.A*r.fig.sign, fA, DEC.area)
+      tex += (i+1) + ' & ' + celdaNombre(r.fig) + ' & ' + celdaCol(r.A*r.fig.sign, fA, DEC.area)
         + ' & ' + decP(r.r,'len') + ' & ' + celdaCol(r.Vp, fVp, DEC.area) + ' & ' + celdaCol(r.V, fVp, DEC.area) + ' \\\\\n';
     });
     tex += '\\hline\\multicolumn{4}{l}{$\\sum$} & ' + celdaCol(pap.Vp, fVp, DEC.area) + ' & ' + celdaCol(results.V, fVp, DEC.area) + ' \\\\\n\\hline\\end{tabular}\\end{tablacentrada}}\n';

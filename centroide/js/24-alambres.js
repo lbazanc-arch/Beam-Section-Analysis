@@ -478,6 +478,12 @@ function construirLatexAlambre(){
   const U2 = '\\,\\text{' + escLatex(unit) + '}^{2}';
   const uTxt = escLatex(unit), u2Txt = escLatex(unit) + '\\textsuperscript{2}';
   const nombreDe = f => escLatex(f.etiqueta || f.name || FIG_DEFS[f.type].name);
+  // Un nombre largo no cabe en la columna de la tabla, que es `l` y no parte
+  // la linea: se envuelve en un parbox SOLO cuando pasa del ancho normal.
+  // Fijar el ancho de la columna no vale: ensancharia la tabla tambien con
+  // los nombres cortos, que son casi todos.
+  const celdaNombre = f => { const s = nombreDe(f);
+    return s.length > 26 ? '\\parbox[t]{4.2cm}{\\raggedright ' + s + '}' : s; };
   const env = _envolventeCen(st);
   const grupos = _gruposFigurasCen(st, false, env);
   const sim = _simetriaAlambre(st, env);
@@ -630,7 +636,7 @@ function construirLatexAlambre(){
       + cab('$\\tilde{y}_i$', {cab:''}, uTxt) + ' & ' + cab('$L_i\\tilde{x}_i$', fLX, u2Txt) + ' & '
       + cab('$L_i\\tilde{y}_i$', fLY, u2Txt) + '\\\\\\hline\n';
     st.forEach((s,i)=>{
-      tex += (i+1) + ' & ' + nombreDe(s.fig)
+      tex += (i+1) + ' & ' + celdaNombre(s.fig)
         + ' & ' + celdaCol(s.l, fL, DEC.len)
         + ' & ' + decP(s.xi,'len') + ' & ' + decP(s.yi,'len')
         + ' & ' + celdaCol(s.lx, fLX, DEC.area) + ' & ' + celdaCol(s.ly, fLY, DEC.area) + ' \\\\\n';

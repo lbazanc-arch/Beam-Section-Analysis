@@ -323,10 +323,13 @@ function formulaArea(fig){
 function centroideLocalTex(fig){
   const d = fig.dims, D = v => decP(v,'len');
   switch(fig.type){
+    // Estas líneas se escriben en la columna estrecha del desarrollo (0,60 del
+    // ancho), así que la aclaración entre paréntesis va en su propio renglón:
+    // de una tirada se salían del papel.
     case 'rtriangle': case 'rtriangle2':
-      return '\\text{Centroide propio a } \\tfrac{b}{3} \\text{ y } \\tfrac{h}{3}'
-           + ' \\text{ de los catetos: } \\tfrac{'+D(d.b)+'}{3}='+D(d.b/3)
-           + ',\\ \\tfrac{'+D(d.h)+'}{3}='+D(d.h/3);
+      return '\\begin{gathered} \\text{Centroide propio a } \\tfrac{b}{3} \\text{ y } \\tfrac{h}{3}'
+           + ' \\text{ de los catetos:} \\\\[2pt] \\tfrac{'+D(d.b)+'}{3}='+D(d.b/3)
+           + ',\\quad \\tfrac{'+D(d.h)+'}{3}='+D(d.h/3) + ' \\end{gathered}';
     case 'semicircle':
       return '\\bar{y}_{loc} = \\dfrac{4R}{3\\pi} = \\dfrac{4('+D(d.r)+')}{3\\pi} = ' + D(4*d.r/(3*Math.PI));
     case 'quarter':
@@ -341,13 +344,13 @@ function centroideLocalTex(fig){
       return '\\bar{y}_{loc} = \\dfrac{2h}{5} = \\dfrac{2('+D(d.h)+')}{5} = ' + D(2*d.h/5)
            + '\\quad (\\text{desde la base})';
     case 'semiparabola':
-      return '\\bar{x}_{loc} = \\dfrac{3a}{8} = ' + D(3*d.a/8)
+      return '\\begin{gathered} \\bar{x}_{loc} = \\dfrac{3a}{8} = ' + D(3*d.a/8)
            + ',\\quad \\bar{y}_{loc} = \\dfrac{2h}{5} = ' + D(2*d.h/5)
-           + '\\quad (\\text{desde el v\\\'ertice del \\\'angulo recto})';
+           + ' \\\\[2pt] (\\text{desde el v\\\'ertice del \\\'angulo recto}) \\end{gathered}';
     case 'enjuta':
-      return '\\bar{x}_{loc} = \\dfrac{3a}{4} = ' + D(3*d.a/4)
+      return '\\begin{gathered} \\bar{x}_{loc} = \\dfrac{3a}{4} = ' + D(3*d.a/4)
            + ',\\quad \\bar{y}_{loc} = \\dfrac{3h}{10} = ' + D(3*d.h/10)
-           + '\\quad (\\text{desde el v\\\'ertice de la curva})';
+           + ' \\\\[2pt] (\\text{desde el v\\\'ertice de la curva}) \\end{gathered}';
     case 'cuartoelipse':
       return '\\bar{x}_{loc} = \\dfrac{4a}{3\\pi} = ' + D(4*d.a/(3*Math.PI))
            + ',\\quad \\bar{y}_{loc} = \\dfrac{4b}{3\\pi} = ' + D(4*d.b/(3*Math.PI));
@@ -356,15 +359,15 @@ function centroideLocalTex(fig){
            + '\\quad (\\text{desde la base plana})';
     case 'segmento': {
       const t = d.alpha*Math.PI/180, s = Math.sin(t), c = Math.cos(t);
-      return '\\bar{y}_{loc} = \\dfrac{2R\\sen^{3}\\theta}{3\\left(\\theta-\\sen\\theta\\cos\\theta\\right)} = '
+      return '\\begin{gathered} \\bar{y}_{loc} = \\dfrac{2R\\sen^{3}\\theta}{3\\left(\\theta-\\sen\\theta\\cos\\theta\\right)} = '
            + D(2*d.r*Math.pow(s,3)/(3*(t - s*c)))
-           + '\\quad (\\text{desde el centro } O \\text{ del arco})';
+           + ' \\\\[2pt] (\\text{desde el centro } O \\text{ del arco}) \\end{gathered}';
     }
     case 'trapecio': {
       const a = d.a, bb = d.b, D2 = d.dx;
       return '\\begin{gathered} \\bar{x}_{loc} = \\dfrac{a^{2}+ab+b^{2}+\\Delta(a+2b)}{3(a+b)} = '
            + D((a*a + a*bb + bb*bb + D2*(a + 2*bb))/(3*(a + bb)))
-           + ',\\quad \\bar{y}_{loc} = \\dfrac{h\\,(a+2b)}{3(a+b)} = ' + D(d.h*(a + 2*bb)/(3*(a + bb)))
+           + ' \\\\[2pt] \\bar{y}_{loc} = \\dfrac{h\\,(a+2b)}{3(a+b)} = ' + D(d.h*(a + 2*bb)/(3*(a + bb)))
            + ' \\\\[2pt] (\\text{los dos, desde el extremo izquierdo de la base mayor}) \\end{gathered}';
     }
     case 'triangulo':
