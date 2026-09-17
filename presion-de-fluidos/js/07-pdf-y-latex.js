@@ -54,9 +54,21 @@ function tkpAncho(txt, opts){
   return Math.max(1, largo)*w + 0.12;
 }
 function tkpAlto(opts){ return /tiny/.test(opts||'') ? 0.24 : 0.30; }
+// Caja que ocupa un rótulo DE VERDAD, contando su giro. Sin esto, la cota
+// `z_P` —que va con rotate=90— reservaba una caja ancha y baja donde en
+// realidad es estrecha y alta: el registro dejaba libre justo donde estaba el
+// texto y colocaba encima el valor de la presión (medido: «19.62» pisando
+// «z_P = 1.69» en la lámina de la placa curva).
+function _tkpCajaGirada(w, h, opts){
+  const m = /rotate\s*=\s*(-?[\d.]+)/.exec(opts || '');
+  if(!m) return {w:w, h:h};
+  const a = parseFloat(m[1])*Math.PI/180, ca = Math.abs(Math.cos(a)), sa = Math.abs(Math.sin(a));
+  return {w: w*ca + h*sa, h: w*sa + h*ca};
+}
 function tkpTexto(x, y, txt, opts, dirX, dirY){
   const lineas = String(txt).split('\\\\').length;
-  const w = tkpAncho(txt, opts), h = tkpAlto(opts) + (lineas-1)*(/tiny/.test(opts||'') ? 0.25 : 0.33);
+  const w0 = tkpAncho(txt, opts), h0 = tkpAlto(opts) + (lineas-1)*(/tiny/.test(opts||'') ? 0.25 : 0.33);
+  const cj = _tkpCajaGirada(w0, h0, opts), w = cj.w, h = cj.h;
   const dx0 = (dirX === undefined) ? 0 : dirX, dy0 = (dirY === undefined) ? 1 : dirY;
   const nn = Math.hypot(dx0, dy0) || 1;
   const ex = dx0/nn, ey = dy0/nn, lx = -ey, ly = ex;
@@ -89,7 +101,7 @@ function tkpTexto(x, y, txt, opts, dirX, dirY){
   return '';
 }
 function tkpTextoFijo(x, y, txt, opts){
-  const w = tkpAncho(txt, opts), h = tkpAlto(opts);
+  const cj = _tkpCajaGirada(tkpAncho(txt, opts), tkpAlto(opts), opts), w = cj.w, h = cj.h;
   tkpOcupar(x-w/2, y-h/2, x+w/2, y+h/2);
   return '\\node[' + (opts || 'font=\\scriptsize') + ', fill=white, inner sep=1pt] at (' + x.toFixed(3) + ',' + y.toFixed(3) + ') {' + txt + '};\n';
 }
@@ -772,14 +784,33 @@ function construirLatex(){
       tex += '\\noindent Placa ' + (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca-90) < 1e-6 ? 'vertical' : 'inclinada $' + d.angPlaca.toFixed(2) + '^\\circ$')) + ', longitud mojada $L = ' + nl(d.L) + '$' + UL + ', ancho $b = ' + nl(b) + '$' + UL + '. Las distancias $s$ se miden sobre la placa desde ' + origen + '.\n';
       const filas = [];
       d.bandas.forEach((bd,i)=>{
-        const cab = d.bandas.length > 1 ? '\\text{capa ' + (i+1) + ' } (\\gamma = ' + f(bd.g) + ',\\ L_' + (i+1) + ' = ' + nl(bd.l) + '):\\ ' : '';
-        if(bd.Fr > 1e-12) filas.push(cab + 'F_{\\square} &= b\\,L\\,p_{\\min} = ' + nl(b) + '\\,(' + nl(bd.l) + ')(' + f(Math.min(bd.p0,bd.p1)) + ') = ' + f(bd.Fr) + UF + '\\quad\\text{en } s = ' + nl(bd.s0) + ' + L/2 = ' + nl(bd.s0 + bd.sR));
-        if(bd.Ft > 1e-12) filas.push((bd.Fr > 1e-12 ? '' : cab) + 'F_{\\triangle} &= \\tfrac12\\,b\\,L\\,(p_{\\max}-p_{\\min}) = \\tfrac12\\,' + nl(b) + '\\,(' + nl(bd.l) + ')(' + f(Math.abs(bd.p1-bd.p0)) + ') = ' + f(bd.Ft) + UF + '\\quad\\text{en } s = ' + nl(bd.s0) + ' + ' + (bd.p1 >= bd.p0 ? '2L/3' : 'L/3') + ' = ' + nl(bd.s0 + bd.sT));
+        // Con varias capas, el rótulo de la capa va en SU PROPIA fila. Puesto
+        // delante de la primera fuerza, la fila se salía del papel: la caja de
+        // `align` la fija la fila más ancha y se centra, así que se llevaba por
+        // delante también a las filas cortas y el valor de la posición quedaba
+        // CORTADO («en s = 0.00 + 2L/3 =» y ahí acababa).
+        if(d.bandas.length > 1)
+          filas.push('\\text{capa ' + (i+1) + ' } (\\gamma = ' + f(bd.g) + ',\\ L_' + (i+1) + ' = ' + nl(bd.l) + '){:} &');
+        // La posición va en SU PROPIA fila, alineada bajo la fuerza: junta con
+        // la fórmula literal, la fila de la triangular se sale del papel (57 pt
+        // con dos capas) y el valor de s quedaba cortado.
+        if(bd.Fr > 1e-12){
+          filas.push('F_{\\square} &= b\\,L\\,p_{\\min} = ' + nl(b) + '\\,(' + nl(bd.l) + ')(' + f(Math.min(bd.p0,bd.p1)) + ') = ' + f(bd.Fr) + UF);
+          filas.push('&\\quad\\text{aplicada en } s = ' + nl(bd.s0) + ' + L/2 = ' + nl(bd.s0 + bd.sR) + UL);
+        }
+        if(bd.Ft > 1e-12){
+          filas.push('F_{\\triangle} &= \\tfrac12\\,b\\,L\\,(p_{\\max}-p_{\\min}) = \\tfrac12\\,' + nl(b) + '\\,(' + nl(bd.l) + ')(' + f(Math.abs(bd.p1-bd.p0)) + ') = ' + f(bd.Ft) + UF);
+          filas.push('&\\quad\\text{aplicada en } s = ' + nl(bd.s0) + ' + ' + (bd.p1 >= bd.p0 ? '2L/3' : 'L/3') + ' = ' + nl(bd.s0 + bd.sT) + UL);
+        }
       });
       const partes = [];
       d.bandas.forEach(bd=>{ if(bd.Fr>1e-12) partes.push({F:bd.Fr, s:bd.s0+bd.sR}); if(bd.Ft>1e-12) partes.push({F:bd.Ft, s:bd.s0+bd.sT}); });
       filas.push(c.nombre + ' &= ' + partes.map(p=>f(p.F)).join(' + ') + ' = ' + f(d.F) + UF);
-      filas.push('s_P &= \\frac{\\sum F_i\\,s_i}{' + c.nombre + '} = \\frac{' + partes.map(p=>f(p.F) + '(' + nl(p.s) + ')').join(' + ') + '}{' + f(d.F) + '} = ' + nl(d.sP) + UL);
+      // La fórmula y su sustitución, en dos filas: con varias capas o con más
+      // decimales, el cociente con todos los términos del numerador no cabe de
+      // una tirada y se salía del papel.
+      filas.push('s_P &= \\frac{\\sum F_i\\,s_i}{' + c.nombre + '}');
+      filas.push('&= \\frac{' + partes.map(p=>f(p.F) + '(' + nl(p.s) + ')').join(' + ') + '}{' + f(d.F) + '} = ' + nl(d.sP) + UL);
       tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
       tex += '\\resultado{$' + c.nombre + ' = ' + f(d.F) + '$' + UF + ', perpendicular a la placa, aplicada en $P$ a $s_P = ' + nl(d.sP) + '$' + UL + ' de ' + origen + ', es decir a $z_P = ' + nl(d.zP) + '$' + UL + ' bajo la superficie libre'
         + (d.gzA ? '. Comprobaci\\\'on: $\\gamma\\,\\bar z\\,A = ' + f(d.gzA.g) + '\\,(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F) + '$' + UF + (d.horizontal ? '' : ' y $z_P = ' + nl(d.zP) + ' > \\bar z = ' + nl(d.gzA.zBar) + '$') : '') + '.}\n';

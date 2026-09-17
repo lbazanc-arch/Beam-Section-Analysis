@@ -76,11 +76,19 @@ function _fila(izq, terms, cola, porFila, sep){
   const n = porFila || 4;
   const sp = (sep === undefined) ? ' &= ' : sep;
   if(!terms.length) return izq + sp + (cola || '0');
-  let s = izq + sp;
+  // Se parte por número de términos y TAMBIÉN por longitud. Solo por cuenta no
+  // basta: con cuatro decimales, una fila de cinco términos «cabía» y se salía
+  // 39 pt del papel, dejando el último valor cortado. El tope está medido sobre
+  // el ancho de texto del informe; el término que lo pasa abre fila nueva.
+  const TOPE = 70;
+  let s = izq + sp, largo = izq ? 14 : 0, desde = 0;
   terms.forEach((t,i)=>{
     const sg = (i===0) ? (t.v<0?'-':'') : (t.v<0?' - ':' + ');
-    if(i > 0 && i % n === 0) s += ' \\\\\n &\\qquad ';
-    s += sg + t.tex;
+    const trozo = sg + t.tex;
+    if(i > 0 && ((i - desde) >= n || largo + trozo.length > TOPE)){
+      s += ' \\\\\n &\\qquad '; largo = 6; desde = i;
+    }
+    s += trozo; largo += trozo.length;
   });
   return s + (cola || '');
 }

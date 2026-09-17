@@ -298,12 +298,24 @@ function drawCompositeFigure(canvasId) {
   let xMin=Infinity,xMax=-Infinity,yMin=Infinity,yMax=-Infinity;
   for(const fig of figures){
     const def=FIG_DEFS[fig.type]; if(!def||!def.bounds) continue;
-    const b=def.bounds(fig.dims),rot=(fig.rotation||0)*Math.PI/180;
-    const corners=[{x:b.left,y:b.bottom},{x:b.right,y:b.bottom},{x:b.right,y:b.top},{x:b.left,y:b.top}];
-    for(const cor of corners){
-      const rx=fig.cx+cor.x*Math.cos(rot)-cor.y*Math.sin(rot);
-      const ry=fig.cy+cor.x*Math.sin(rot)+cor.y*Math.cos(rot);
-      xMin=Math.min(xMin,rx);xMax=Math.max(xMax,rx);yMin=Math.min(yMin,ry);yMax=Math.max(yMax,ry);
+    // La envolvente REAL de una figura girada la da figuraBoundsMundo,
+    // que reproduce el trazo. Girando las cuatro esquinas de la caja
+    // local, la lámina se encajaba hasta un 41 % más pequeña de lo que
+    // cabía con figuras curvas. Queda el respaldo por si un redibujado
+    // temprano llega antes que esa pieza (§5.3).
+    let pts=null;
+    if(typeof figuraBoundsMundo==='function'){
+      try{ const c=figuraBoundsMundo(fig);
+           if(c) pts=[[c.left,c.bottom],[c.right,c.top]]; }catch(e){ pts=null; }
+    }
+    if(!pts){
+      const b=def.bounds(fig.dims),rot=(fig.rotation||0)*Math.PI/180;
+      pts=[[b.left,b.bottom],[b.right,b.bottom],[b.right,b.top],[b.left,b.top]]
+            .map(p=>[fig.cx+p[0]*Math.cos(rot)-p[1]*Math.sin(rot),
+                     fig.cy+p[0]*Math.sin(rot)+p[1]*Math.cos(rot)]);
+    }
+    for(const q of pts){
+      xMin=Math.min(xMin,q[0]);xMax=Math.max(xMax,q[0]);yMin=Math.min(yMin,q[1]);yMax=Math.max(yMax,q[1]);
     }
   }
   // ── Encaje en DOS PASADAS ──
