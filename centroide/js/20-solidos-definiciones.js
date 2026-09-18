@@ -8,10 +8,16 @@
 //
 // Marco LOCAL de un sólido: origen en el centro de su base, z hacia arriba.
 // Dos ajustes lo colocan en el mundo:
-//   · fig.rotation  giro α (°, antihorario en planta) alrededor de su eje
-//                   vertical; solo se nota en los poliedros.
-//   · fig.volteado  base arriba: el sólido cuelga por debajo del punto donde
-//                   se colocó (z local cambiada de signo). Sirve para una
+//   · fig.rotation  giro α (°) en el plano X–Y, desde +X hacia +Y (el de
+//                   siempre: alrededor del eje vertical).
+//   · fig.rotXZ     giro (°) en el plano X–Z, desde +X hacia +Z.
+//   · fig.rotYZ     giro (°) en el plano Y–Z, desde +Y hacia +Z.
+//                   Los dos últimos TUMBAN la pieza; un archivo anterior no los
+//                   trae y valen 0. Se aplican en el orden Y–Z, X–Z, X–Y, de
+//                   modo que girar el conjunto en planta solo suma a `rotation`.
+//   · fig.volteado  el cuerpo crece hacia el otro lado de su eje: con el eje
+//                   vertical, la base queda arriba y el sólido cuelga por
+//                   debajo del punto donde se colocó. Sirve para una
 //                   semiesfera o un cono con la punta hacia abajo.
 //
 //   dims          medidas (ids: a, b, h, r, r2, L)
@@ -270,6 +276,50 @@ const SOLID_ANCHOR_LABELS = {BM:'Centro de la base', C:'G — Centroide', TOP:'C
 // Centroide en el marco local (desde el centro de la base), sin volteo.
 function solidCLocal(def, d){ return def.cLocal ? def.cLocal(d) : {x:0, z:def.cBase(d)}; }
 
+// ── Giro de un sólido en los tres planos (2026-09-18) ─────────────────────
+// Hasta esta fecha todo sólido tenía su eje vertical y lo único que se podía
+// girar era α alrededor de él, así que un cilindro o un cono no se podían
+// tumbar (por eso el catálogo tiene el medio cilindro tumbado como pieza
+// aparte). Ahora la pieza gira en los TRES planos, con un ángulo libre en cada
+// uno, y en cada plano el ángulo se mide **desde el primer eje hacia el
+// segundo**, igual que el ángulo de siempre en el plano X–Y:
+//   · X–Y  desde +X hacia +Y   (el giro en planta, `rotation`)
+//   · X–Z  desde +X hacia +Z   (`rotXZ`)
+//   · Y–Z  desde +Y hacia +Z   (`rotYZ`)
+// El ORDEN de aplicación es Y–Z, luego X–Z y por último X–Y. No es un detalle:
+// con X–Y en último lugar, girar todo el conjunto en planta (Transformar) es
+// simplemente sumar a `rotation`, sin recolocar nada más.
+const PLANOS_GIRO = [
+  {id:'xy', prop:'rotation', label:'X–Y', desde:'+X', hacia:'+Y', eje:'Z', tex:'$X$--$Y$'},
+  {id:'xz', prop:'rotXZ',    label:'X–Z', desde:'+X', hacia:'+Z', eje:'Y', tex:'$X$--$Z$'},
+  {id:'yz', prop:'rotYZ',    label:'Y–Z', desde:'+Y', hacia:'+Z', eje:'X', tex:'$Y$--$Z$'}
+];
+function planoGiroDef(id){ return PLANOS_GIRO.find(p=>p.id === id) || PLANOS_GIRO[0]; }
+function anguloPlano(fig, id){ const v = fig && fig[planoGiroDef(id).prop]; return isFinite(v) ? v : 0; }
+// ¿La pieza está tumbada? (algún giro fuera del plano X–Y). El giro en planta
+// de un sólido de revolución no cambia nada; los otros dos, sí.
+function giroFueraDePlanta(fig){
+  return Math.abs(anguloPlano(fig,'xz')) > 1e-9 || Math.abs(anguloPlano(fig,'yz')) > 1e-9;
+}
+function hayGiroSolido(fig){ return giroFueraDePlanta(fig) || Math.abs(anguloPlano(fig,'xy')) > 1e-9; }
+// Giro de un vector en un plano, del primer eje hacia el segundo.
+function girarEnPlano(id, grados, v){
+  if(!grados) return v;
+  const r = grados*Math.PI/180, c = Math.cos(r), s = Math.sin(r);
+  if(id === 'xz') return [v[0]*c - v[2]*s, v[1], v[0]*s + v[2]*c];
+  if(id === 'yz') return [v[0], v[1]*c - v[2]*s, v[1]*s + v[2]*c];
+  return [v[0]*c - v[1]*s, v[0]*s + v[1]*c, v[2]];
+}
+// Los tres giros de la pieza, en su orden.
+function aplicarGiros3d(fig, v){
+  let q = girarEnPlano('yz', anguloPlano(fig,'yz'), v);
+  q = girarEnPlano('xz', anguloPlano(fig,'xz'), q);
+  return girarEnPlano('xy', anguloPlano(fig,'xy'), q);
+}
+// Imágenes de los ejes locales x e y: con ellas, la caja de un anillo de
+// revolución sale exacta (ver cajaRevolucionRotada).
+function ejesGirados3d(fig){ return {u:aplicarGiros3d(fig,[1,0,0]), v:aplicarGiros3d(fig,[0,1,0])}; }
+
 // Un punto local [x,y,z] (desde el centro de la base, sin voltear) pasa a
 // coordenadas relativas al CENTROIDE del sólido tal como está colocado:
 // se resta el centroide local, se voltea si toca y se gira α.
@@ -277,9 +327,30 @@ function localASolido(fig, p){
   const def = SOLID_DEFS[fig.type], d = fig.dims, sz = fig.volteado ? -1 : 1;
   const c = solidCLocal(def, d);
   const dx = p[0]-c.x, dy = p[1], dz = (p[2]-c.z)*sz;
-  const r = (fig.rotation||0)*Math.PI/180, cs = Math.cos(r), sn = Math.sin(r);
-  return [dx*cs - dy*sn, dx*sn + dy*cs, dz];
+  // El volteo va primero (signo de z local) y después los tres giros.
+  return aplicarGiros3d(fig, [dx, dy, dz]);
 }
+// La caja EXACTA de un sólido de revolución girado. Cada anillo del meridiano
+// es una circunferencia de radio r en el plano local x–y; tras girar, sus
+// puntos son C + r(cos φ · U + sen φ · V) con U y V las imágenes de los ejes
+// locales x e y, así que el extremo en cada dirección i es
+// C_i ± r·hypot(U_i, V_i). No hay que muestrear el arco: sale cerrado.
+function cajaRevolucionRotada(fig){
+  const def = SOLID_DEFS[fig.type];
+  if(!def || !def.perfil) return null;
+  const {u, v} = ejesGirados3d(fig);
+  const rad = [0,1,2].map(i=>Math.hypot(u[i], v[i]));
+  const b = {left:Infinity,right:-Infinity,back:Infinity,front:-Infinity,bottom:Infinity,top:-Infinity};
+  def.perfil(fig.dims).forEach(pz=>{
+    const C = localASolido(fig, [0, 0, pz.z]);
+    const lo = [0,1,2].map(i=>C[i] - pz.r*rad[i]), hi = [0,1,2].map(i=>C[i] + pz.r*rad[i]);
+    b.left=Math.min(b.left,lo[0]); b.right=Math.max(b.right,hi[0]);
+    b.back=Math.min(b.back,lo[1]); b.front=Math.max(b.front,hi[1]);
+    b.bottom=Math.min(b.bottom,lo[2]); b.top=Math.max(b.top,hi[2]);
+  });
+  return isFinite(b.left) ? b : null;
+}
+
 // Desplazamiento del centroide al ancla, para el sólido tal como está colocado.
 function solidAnchorOffsetFig(fig, a){
   const def = SOLID_DEFS[fig.type], d = fig.dims;
@@ -293,7 +364,7 @@ function solidAnchorOffsetFig(fig, a){
 // Versión sin giro ni volteo (compatibilidad con el código de la fase 1).
 function solidAnchorOffset(def, d, a){
   const tipo = Object.keys(SOLID_DEFS).find(k=>SOLID_DEFS[k]===def);
-  return solidAnchorOffsetFig({type:tipo, dims:d, rotation:0, volteado:false}, a);
+  return solidAnchorOffsetFig({type:tipo, dims:d, rotation:0, rotXZ:0, rotYZ:0, volteado:false}, a);
 }
 
 // Vértices de un poliedro en el mundo, relativos al centroide (con giro y
@@ -316,16 +387,49 @@ function hull2d(pts){
   return inf.concat(sup);
 }
 
-// Contorno de un poliedro en una vista ('planta' → (x,y); 'alzado' → (x,z)),
-// relativo al centroide: la silueta es la envolvente de los vértices
-// proyectados (todos los sólidos del catálogo son convexos). opts.rot0 dibuja
-// el sólido sin girar (croquis propio). null para sólidos de revolución.
+// Puntos del contorno de un sólido de REVOLUCIÓN (anillos de su meridiano),
+// relativos al centroide y con los giros y el volteo ya aplicados. Solo hacen
+// falta cuando el sólido está tumbado: si no, se dibuja con el trazo exacto de
+// su ficha (drawPlanta / drawAlzado).
+const N_SILUETA = 72;
+function puntosRevolucionSolido(fig, N){
+  const def = SOLID_DEFS[fig.type];
+  if(!def || !def.perfil) return null;
+  const pts = [];
+  def.perfil(fig.dims).forEach(pz=>{
+    if(pz.r <= 1e-12){ pts.push(localASolido(fig, [0, 0, pz.z])); return; }
+    for(let k = 0; k < N; k++){ const a = 2*Math.PI*k/N;
+      pts.push(localASolido(fig, [pz.r*Math.cos(a), pz.r*Math.sin(a), pz.z])); }
+  });
+  return pts.length ? pts : null;
+}
+
+// Contorno de un sólido en una vista ('planta' → (x,y); 'alzado' → (x,z)),
+// relativo al centroide: la silueta es la envolvente de sus puntos proyectados
+// —los vértices en un poliedro, los anillos del meridiano en un sólido de
+// revolución tumbado—, exacta porque todos los sólidos del catálogo son
+// convexos. opts.rot0 dibuja el sólido en su postura propia (sin ningún giro),
+// que es lo que usan los croquis de la ficha. Devuelve null cuando el trazo de
+// la ficha ya sirve: un sólido de revolución sin girar fuera del plano X–Y
+// (girarlo en planta no lo cambia), y la esfera, que se ve igual en cualquier
+// postura.
+const _CONTORNOS_SOLIDO = {};
 function contornoSolido(fig, vistaId, opts){
   opts = opts || {};
-  const f = opts.rot0 ? Object.assign({}, fig, {rotation:0}) : fig;
-  const V = verticesSolido(f);
+  const f = opts.rot0 ? Object.assign({}, fig, {rotation:0, rotXZ:0, rotYZ:0}) : fig;
+  const def = SOLID_DEFS[f.type];
+  if(!def || (!def.vertices && (f.type === 's_esfera' || !giroFueraDePlanta(f)))) return null;
+  const clave = f.type + '|' + JSON.stringify(f.dims) + '|' + anguloPlano(f,'xy') + '|'
+              + anguloPlano(f,'xz') + '|' + anguloPlano(f,'yz') + '|' + (f.volteado?1:0) + '|' + vistaId;
+  const visto = _CONTORNOS_SOLIDO[clave];
+  if(visto) return visto;
+  const V = verticesSolido(f) || puntosRevolucionSolido(f, N_SILUETA);
   if(!V) return null;
-  return hull2d(V.map(p => vistaId === 'planta' ? [p[0], p[1]] : [p[0], p[2]]));
+  const pol = hull2d(V.map(p => vistaId === 'planta' ? [p[0], p[1]] : [p[0], p[2]]));
+  if(Object.keys(_CONTORNOS_SOLIDO).length > 400)
+    Object.keys(_CONTORNOS_SOLIDO).forEach(k=>{ delete _CONTORNOS_SOLIDO[k]; });
+  _CONTORNOS_SOLIDO[clave] = pol;
+  return pol;
 }
 
 // Fichas de referencia de los sólidos (alzado a la izquierda, planta a la

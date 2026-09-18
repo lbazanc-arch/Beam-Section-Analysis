@@ -171,6 +171,9 @@ function tikzIso3d(opts){
 function datosPappus(){
   if(!results || !results.es3d || !figures.length) return null;
   if(!figures.every(f=>SOLID_DEFS[f.type] && SOLID_DEFS[f.type].pappus)) return null;
+  // Un sólido tumbado ya no gira alrededor del mismo eje vertical que los
+  // demás, y el segundo teorema no se puede plantear así.
+  if(figures.some(f=>giroFueraDePlanta(f))) return null;
   const bb = bbox3d(), tol = 1e-6*Math.max(1, bb.x1-bb.x0, bb.v1-bb.v0);
   const ax = figures[0].cx, ay = figures[0].cy;
   if(!figures.every(f=>Math.abs(f.cx-ax) < tol && Math.abs(f.cy-ay) < tol)) return null;

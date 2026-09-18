@@ -85,6 +85,10 @@ function calcularTransformacion(){
   const grados = num('transAng');
   const ang = grados*Math.PI/180;
   const cs = Math.cos(ang), sn = Math.sin(ang);
+  // En 3D el giro es alrededor del eje vertical que pasa por la referencia, o
+  // sea en el plano X–Y: como los giros de la pieza se aplican en el orden
+  // Y–Z, X–Z, X–Y, arrastrar su orientación es sumar a `rotation`, también en
+  // una pieza tumbada. Los otros dos ángulos no se tocan.
   selFiguras.forEach(id=>{
     const f = figures.find(z=>z.id===id); if(!f) return;
     // Rotación 2D estándar del centro alrededor de la referencia, más el mismo

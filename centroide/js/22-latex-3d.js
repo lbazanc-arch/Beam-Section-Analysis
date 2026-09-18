@@ -6,9 +6,10 @@
 // ═══════════════════════════════════════════════════════════
 
 // Contorno TikZ de un sólido en una vista, en coordenadas locales (origen en
-// su centroide). Los poliedros van por su silueta (con giro y volteo ya
-// aplicados); los sólidos de revolución reproducen drawPlanta/drawAlzado y,
-// si están volteados, el llamador añade yscale=-1 al scope (_yscaleSolido).
+// su centroide). Los poliedros —y los sólidos de revolución TUMBADOS— van por
+// su silueta (con los giros y el volteo ya aplicados); un sólido de revolución
+// que solo gire en planta reproduce drawPlanta/drawAlzado y, si está volteado,
+// el llamador añade yscale=-1 al scope (_yscaleSolido).
 function _pathSolidoTikz(fig, vistaId, opts){
   const d = fig.dims, t = fig.type, def = SOLID_DEFS[t];
   const n = v => (+v).toFixed(4);
@@ -25,8 +26,11 @@ function _pathSolidoTikz(fig, vistaId, opts){
   if(t === 's_paraboloide') return '(' + n(-d.r) + ',' + n(-c) + ') .. controls (' + n(-d.r/3) + ',' + n(-c+4*d.h/3) + ') and (' + n(d.r/3) + ',' + n(-c+4*d.h/3) + ') .. (' + n(d.r) + ',' + n(-c) + ') -- cycle';
   return '(0,0) circle (1)';
 }
-function _yscaleSolido(fig, vistaId){
-  return (fig.volteado && vistaId !== 'planta' && !SOLID_DEFS[fig.type].vertices) ? ', yscale=-1' : '';
+function _yscaleSolido(fig, vistaId, opts){
+  // Si la pieza tiene silueta, el volteo ya está dentro de sus puntos: añadir
+  // aquí yscale=-1 la dibujaría dos veces del revés.
+  if(contornoSolido(fig, vistaId, opts)) return '';
+  return (fig.volteado && vistaId !== 'planta') ? ', yscale=-1' : '';
 }
 
 // Lámina de una vista: sólidos numerados, cadenas de cotas y, si se pide, el
@@ -146,7 +150,7 @@ function tikzCroquisSolido(fig, anchoCm, vistaId){
   const col = hexRgbSpec(fig.color), neg = fig.sign < 0;
   const ox = tx(0), oy = ty(0);
   let s = '\\begin{tikzpicture}[scale=1]\n';
-  s += '\\begin{scope}[shift={(' + n(ox) + ',' + n(oy) + ')}, scale=' + esc.toFixed(4) + _yscaleSolido(fig, vistaId) + ']\n';
+  s += '\\begin{scope}[shift={(' + n(ox) + ',' + n(oy) + ')}, scale=' + esc.toFixed(4) + _yscaleSolido(fig, vistaId, {rot0:true}) + ']\n';
   s += '\\path[' + (neg ? 'pattern=north east lines, pattern color={'+col+'}, draw={'+col+'}, line width=0.7pt, dashed'
                         : 'fill={'+col+'}, fill opacity=0.28, draw={'+col+'}, line width=0.8pt') + '] ' + _pathSolidoTikz(fig,vistaId,{rot0:true}) + ';\n';
   s += '\\end{scope}\n';
@@ -176,7 +180,7 @@ function _vistasSolido3(fig, uTxt){
   const anch = 4.6;
   const iso = (typeof tikzIso3d === 'function')
     ? '\\begin{tikzpicture}[scale=1]\n'
-      + tikzIso3d({figs:[Object.assign({}, fig, {cx:0, cy:0, cz:0, rotation:0})],
+      + tikzIso3d({figs:[Object.assign({}, fig, {cx:0, cy:0, cz:0, rotation:0, rotXZ:0, rotYZ:0})],
                    ancho:anch, alto:3.0, ejes:false, numerar:false})
       + '\\end{tikzpicture}'
     : '\\rule{0pt}{2cm}';
@@ -227,8 +231,12 @@ function construirLatex3d(){
   const cab = (t, f, u) => '\\textbf{' + t + '}' + (f.cab ? ' $' + f.cab + '$' : '') + (u ? ' {\\scriptsize(' + u + ')}' : '');
   const listaNums = ns => ns.length === 1 ? String(ns[0]) : ns.slice(0,-1).join(', ') + ' y ' + ns[ns.length-1];
 
-  // Sólidos iguales (tipo, dimensiones, signo y material) se desarrollan una vez.
-  const clave = f => f.type + '|' + JSON.stringify(f.dims) + '|' + f.sign + (het ? '|' + (f.matId==null?'':f.matId) : '');
+  // Sólidos iguales (tipo, dimensiones, postura, signo y material) se
+  // desarrollan una vez. La postura entra en la clave porque el desarrollo dice
+  // hacia dónde crece la pieza: dos conos iguales, uno de pie y otro tumbado,
+  // no se pueden explicar con el mismo párrafo.
+  const clave = f => f.type + '|' + JSON.stringify(f.dims) + '|' + f.sign + '|' + (f.volteado?1:0)
+    + '|' + PLANOS_GIRO.map(q=>anguloPlano(f, q.id)).join(',') + (het ? '|' + (f.matId==null?'':f.matId) : '');
   const grupos = [], pos = {};
   st.forEach((s,i)=>{ const k = clave(s.fig); if(pos[k]===undefined){ pos[k]=grupos.length; grupos.push({idx:[i]}); } else grupos[pos[k]].idx.push(i); });
   // Envolvente y simetría: todos los sólidos tienen su eje vertical; el
@@ -244,7 +252,13 @@ function construirLatex3d(){
   // simétrico respecto de ese plano: la cuña no lo es en x, y un poliedro
   // girado tampoco lo es respecto de los planos coordenados.
   const rotMod = (f, m) => Math.abs(((f.rotation||0) % m + m) % m);
-  const rotOK = f => !(SOLID_DEFS[f.type].vertices && rotMod(f, 90) > 1e-9 && Math.abs(rotMod(f, 90) - 90) > 1e-9);
+  // Con la pieza TUMBADA (girada fuera del plano X–Y) no se afirma la
+  // simetría: un cono o una pirámide con su eje horizontal no son simétricos
+  // respecto del plano x = x̄, y distinguir caso por caso cuáles sí lo son daría
+  // notas frágiles en el informe. Es preferible callar una simetría cierta que
+  // afirmar una falsa.
+  const rotOK = f => !giroFueraDePlanta(f)
+    && !(SOLID_DEFS[f.type].vertices && rotMod(f, 90) > 1e-9 && Math.abs(rotMod(f, 90) - 90) > 1e-9);
   // La cuña con giro 0 o 180 tiene su desalineación en x (no es simétrica en x); con 90 o 270, en y.
   const cunaEnX = f => SOLID_DEFS[f.type].cLocal && (rotMod(f, 180) < 1e-9 || Math.abs(rotMod(f, 180) - 180) < 1e-9);
   const cunaEnY = f => SOLID_DEFS[f.type].cLocal && !cunaEnX(f);
@@ -287,12 +301,15 @@ function construirLatex3d(){
   const hayVolteo = figures.some(f=>f.volteado && f.type !== 's_esfera');
   const hayGiro = figures.some(f=>SOLID_DEFS[f.type].vertices && Math.abs(f.rotation||0) > 1e-9);
   const hayCuna = figures.some(f=>SOLID_DEFS[f.type].cLocal);
+  const hayTumbado = figures.some(f=>giroFueraDePlanta(f));
   tex += '\\subpaso{Convenio}\n'
-    + '\\noindent Cada sólido se coloca por el \\textbf{centro de su base} y tiene su eje vertical (paralelo a $Z$). '
+    + '\\noindent ' + (hayTumbado
+      ? 'Cada sólido se coloca por el \\textbf{centro de su base}, con su eje vertical, y desde ahí se \\emph{gira}: el ángulo de cada plano se mide desde el primer eje hacia el segundo --- en $X$--$Y$ desde $+X$ hacia $+Y$, en $X$--$Z$ desde $+X$ hacia $+Z$ y en $Y$--$Z$ desde $+Y$ hacia $+Z$---, y se aplican en ese orden inverso ($Y$--$Z$, $X$--$Z$, $X$--$Y$). El centroide propio se mide a lo largo del eje de la pieza, que gira con ella. '
+      : 'Cada sólido se coloca por el \\textbf{centro de su base} y tiene su eje vertical (paralelo a $Z$). ')
     + 'Las posiciones se miden desde $O$: $x$ hacia la derecha, $y$ hacia el fondo de la planta, $z$ hacia arriba. '
     + 'La tilde señala el centroide de una parte; la barra, el de todo el cuerpo. Los huecos entran con volumen negativo.'
-    + (hayVolteo ? ' Un sólido \\emph{volteado} cuelga por debajo del punto donde se colocó: su base queda arriba.' : '')
-    + (hayGiro ? ' El giro $\\alpha$ de un prisma, pirámide, cuña o medio cilindro es alrededor de su eje vertical, antihorario visto en planta; en el alzado se ve su silueta girada.' : '')
+    + (hayVolteo ? ' Un sólido \\emph{volteado} crece hacia el lado contrario de su eje: con el eje vertical, cuelga por debajo del punto donde se colocó y su base queda arriba.' : '')
+    + (hayGiro && !hayTumbado ? ' El giro $\\alpha$ en el plano $X$--$Y$ se mide desde $+X$ hacia $+Y$; en un sólido de revolución no se nota, y en un prisma, pirámide, cuña o medio cilindro se ve su silueta girada.' : '')
     + '\n';
 
   // ══ 2. Paso 1: cada parte ══
@@ -301,10 +318,24 @@ function construirLatex3d(){
     const i0 = g.idx[0], s0 = st[i0], f = s0.fig, def = SOLID_DEFS[f.type];
     const nums = g.idx.map(i=>i+1), varios = g.idx.length > 1;
     const d = f.dims, D = v => decP(v,'len');
+    // Postura de la pieza: eje, sentido y giro propio, dicho una vez en su
+    // cabecera. Los croquis la dibujan siempre en su postura de ficha.
+    const postura = [];
+    if(f.volteado && f.type !== 's_esfera') postura.push('volteado: su base queda arriba');
+    PLANOS_GIRO.forEach(q=>{
+      const a = anguloPlano(f, q.id);
+      if(Math.abs(a) > 1e-9) postura.push('girado $' + decP(a,'ang') + '^{\\circ}$ en el plano ' + q.tex);
+    });
+    const posturaTex = postura.length ? '\\ {\\small\\color{bsaMuted}[' + postura.join('; ') + ']}' : '';
+    // Hacia dónde se mide el centroide propio desde la base. Con la pieza
+    // girada, «hacia arriba» deja de ser cierto: se dice «a lo largo de su eje».
+    const sentidoTex = giroFueraDePlanta(f)
+      ? ', a lo largo de su eje' + (f.volteado ? ', hacia el lado de la base (volteado)' : '')
+      : (f.volteado ? ', hacia abajo (volteado)' : '');
     if(gi > 0) tex += '\\vspace{10pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{10pt}\n\n';
     tex += '\\par\\noindent\\begin{minipage}{\\textwidth}\n';
     tex += '\\noindent{\\bfseries\\color{bsaAcc} ' + (varios ? 'Partes ' + listaNums(nums) : 'Parte ' + nums[0]) + ': ' + nombreDe(f)
-      + '}\\ \\ {\\small\\color{bsaMuted}(' + (f.sign > 0 ? (varios?'se suman':'se suma') : (varios?'se restan':'se resta')) + ')}\\\\[3pt]\n';
+      + '}\\ \\ {\\small\\color{bsaMuted}(' + (f.sign > 0 ? (varios?'se suman':'se suma') : (varios?'se restan':'se resta')) + ')}' + posturaTex + '\\\\[3pt]\n';
     if(varios) tex += '{\\footnotesize Las ' + g.idx.length + ' partes son iguales: volumen y centroide propio se calculan una vez; cada una entra en la tabla con su posición.}\\\\[4pt]\n';
     // Primero las tres vistas de la pieza y después su desarrollo, a todo lo
     // ancho: antes solo se veía el alzado, en una columna estrecha al costado.
@@ -321,7 +352,7 @@ function construirLatex3d(){
     }
     // Centroide propio
     const cb = def.cBase(d);
-    tex += '\\textbf{Centroide propio}\n\\[ ' + def.formula.c + ' = ' + D(cb) + U1 + ' \\quad\\text{' + (def.cLocal ? 'desde la base' : 'sobre el eje, desde el centro de la base') + (f.volteado ? ', hacia abajo (volteado)' : '') + '} \\]\n';
+    tex += '\\textbf{Centroide propio}\n\\[ ' + def.formula.c + ' = ' + D(cb) + U1 + ' \\quad\\text{' + (def.cLocal ? 'desde la base' : 'sobre el eje, desde el centro de la base') + sentidoTex + '} \\]\n';
     if(def.cLocal){
       const cl = def.cLocal(d), esCuna = (f.type === 's_cuna');
       // Ojo: el número que acompaña a la fórmula NO siempre es la separación
@@ -365,8 +396,9 @@ function construirLatex3d(){
     // Posición
     tex += '\\textbf{Posición desde $O$}\n';
     tex += porque('posicion', 'El centroide de cada parte se obtiene sumando, al centro de su base (que es donde se colocó), la '
-      + 'distancia del centroide propio a lo largo del eje' + (hayCuna ? ' (y, en la cuña y en el medio cilindro de eje vertical, su desalineación horizontal, girada con la pieza)' : '')
-      + (hayVolteo ? '; en un sólido volteado esa distancia se resta, porque el cuerpo cuelga hacia abajo' : '') + '. '
+      + 'distancia del centroide propio a lo largo de su eje' + (hayTumbado ? ', que en una pieza girada ya no es el vertical: gira con ella' : '')
+      + (hayCuna ? ' (y, en la cuña y en el medio cilindro de eje vertical, su desalineación horizontal, girada con la pieza)' : '')
+      + (hayVolteo ? '; en un sólido volteado esa distancia se resta, porque el cuerpo crece hacia el otro lado' : '') + '. '
       + 'Sus tres coordenadas son los brazos con los que el volumen entra en las sumas de momentos.');
     g.idx.forEach(i=>{ const s = st[i];
       tex += '\\[ \\tilde{x}_{' + (i+1) + '} = ' + D(s.xi) + U1 + ' \\qquad \\tilde{y}_{' + (i+1) + '} = ' + D(s.yi) + U1 + ' \\qquad \\tilde{z}_{' + (i+1) + '} = ' + D(s.zi) + U1 + ' \\]\n'; });

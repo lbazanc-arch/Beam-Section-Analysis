@@ -8,6 +8,7 @@ function instantanea(){
   return JSON.stringify({
     figures: figures.map(f=>({id:f.id, type:f.type, dims:Object.assign({},f.dims),
       cx:f.cx, cy:f.cy, cz:f.cz, es3d:f.es3d, volteado:f.volteado, perfil:f.perfil,
+      rotXZ:f.rotXZ, rotYZ:f.rotYZ,
       rotation:f.rotation, sign:f.sign, color:f.color,
       anchor:f.anchor, activeAnchor:f.activeAnchor, name:f.name, etiqueta:f.etiqueta,
       matId:f.matId, thickness:f.thickness, angleMode:f.angleMode})),

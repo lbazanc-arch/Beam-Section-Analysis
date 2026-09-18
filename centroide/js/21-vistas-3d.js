@@ -31,18 +31,25 @@ function vDe(fig, vistaId){ return vistaId === 'planta' ? fig.cy : fig.cz; }
 
 // Caja del sólido relativa a su centroide, tal como está colocado: los
 // poliedros la sacan de sus vértices girados; los sólidos de revolución, de
-// bounds3 (el giro no los cambia) con el volteo aplicado. rot0 la da sin giro.
+// bounds3 con el volteo aplicado mientras solo giren en planta (ahí la caja no
+// cambia) y de `cajaRevolucionRotada` —que también es exacta— en cuanto están
+// tumbados. rot0 la da en la postura propia de la pieza, sin ningún giro.
 function bounds3Rel(fig, rot0){
   const def = SOLID_DEFS[fig.type];
-  const V = verticesSolido(rot0 ? Object.assign({}, fig, {rotation:0}) : fig);
+  const f = rot0 ? Object.assign({}, fig, {rotation:0, rotXZ:0, rotYZ:0}) : fig;
+  const V = verticesSolido(f);
   if(V){
     const b = {left:Infinity,right:-Infinity,back:Infinity,front:-Infinity,bottom:Infinity,top:-Infinity};
     V.forEach(q=>{ b.left=Math.min(b.left,q[0]); b.right=Math.max(b.right,q[0]); b.back=Math.min(b.back,q[1]);
       b.front=Math.max(b.front,q[1]); b.bottom=Math.min(b.bottom,q[2]); b.top=Math.max(b.top,q[2]); });
     return b;
   }
+  if(giroFueraDePlanta(f)){
+    const c = cajaRevolucionRotada(f);
+    if(c) return c;
+  }
   const b = def.bounds3(fig.dims);
-  if(fig.volteado) return {left:b.left, right:b.right, back:b.back, front:b.front, bottom:-b.top, top:-b.bottom};
+  if(f.volteado) return {left:b.left, right:b.right, back:b.back, front:b.front, bottom:-b.top, top:-b.bottom};
   return b;
 }
 // Caja del sólido en el mundo, en las tres direcciones.
@@ -79,7 +86,7 @@ function setModoEspacio(m, opts){
   mostrar('btnPerfiles', !es3 && !esAl);
   mostrar('posZField', es3); mostrar('rotField', !es3);
   mostrar('transCampoDz', es3); mostrar('repCampoDz', es3); mostrar('visIsoItem', es3);
-  { const lb = document.querySelector('#rotField label'); if(lb) lb.textContent = es3 ? 'Giro α (°) alrededor del eje vertical' : (esAl ? 'Orientación α (°)' : 'Rotación α (°)'); }
+  { const lb = document.querySelector('#rotField label'); if(lb) lb.textContent = esAl ? 'Orientación α (°)' : 'Rotación α (°)'; }
   // Las dos paletas comparten el botón «Ver más»: al cambiar de modo se
   const pp = document.getElementById('palPerfiles');
   if(pp){ if(es3 || esAl) pp.style.display = 'none'; else { try{ pintarMisPerfiles(); }catch(e){} } }
@@ -521,7 +528,7 @@ function puntoColocacion3d(vista, w){
 // distintos, que es lo que pasaba antes.
 function centroideDesdeClic3d(type, p){
   const def = SOLID_DEFS[type]; if(!def) return {x:p.x, y:p.y, z:p.z};
-  const off = solidAnchorOffsetFig({type, dims:getDefaultDims3d(type), rotation:0, volteado:false}, 'BM');
+  const off = solidAnchorOffsetFig({type, dims:getDefaultDims3d(type), rotation:0, rotXZ:0, rotYZ:0, volteado:false}, 'BM');
   return {x:p.x - off.dx, y:p.y - off.dy, z:p.z - off.dz};
 }
 function placeSolid(type, px, py, pz){
@@ -530,7 +537,7 @@ function placeSolid(type, px, py, pz){
   registrarCambio();
   const id = ++figIdCounter, dims = getDefaultDims3d(type);
   const color = COLORS[colorIdx % COLORS.length]; colorIdx++;
-  const fig = {id, type, dims, cx:0, cy:0, cz:0, rotation:0, volteado:false, sign:1, color,
+  const fig = {id, type, dims, cx:0, cy:0, cz:0, rotation:0, rotXZ:0, rotYZ:0, volteado:false, sign:1, color,
                anchor:'BM', activeAnchor:'BM', name:def.name, es3d:true,
                matId:(modoCuerpo==='heterogeneo' && MATS.length) ? MATS[0].id : null,
                thickness:1, angleMode:'semi'};
@@ -564,14 +571,92 @@ function alternarVolteo(){
   recolocarPorAncla(fig, f=>{ f.volteado = !f.volteado; });
   invalidarResultados(); buildPropPanel3d(fig); render();
 }
+// Plano en el que se está girando la pieza. Es estado de la INTERFAZ (qué
+// ángulo se edita), no del modelo: los tres ángulos conviven en la figura.
+let planoGiro3d = 'xy';
+function fijarPlanoGiro(id){
+  if(!PLANOS_GIRO.some(p=>p.id === id)) return;
+  planoGiro3d = id;
+  const fig = figures.find(f=>f.id===selectedFigId);
+  if(fig) buildPropPanel3d(fig);
+}
+// Ángulo escrito en el campo: se aplica al plano activo. Como el volteo y las
+// medidas, deja el ancla activa donde está. El 0 es un valor válido; lo que no
+// sea un número se rechaza y el campo repone lo que tenía la figura (§7).
+function updateGiro3d(val){
+  const fig = figures.find(f=>f.id===selectedFigId); if(!fig) return;
+  const def = planoGiroDef(planoGiro3d), v = parseFloat(val);
+  if(!isFinite(v)){ aviso('El ángulo de giro tiene que ser un número.', 'error'); updatePropPanel3d(); return; }
+  if(Math.abs(v - anguloPlano(fig, def.id)) < 1e-12) return;
+  registrarCambio();
+  recolocarPorAncla(fig, f=>{ f[def.prop] = v; });
+  invalidarResultados(); buildPropPanel3d(fig); render();
+}
+// Isométrica de referencia: la pieza SIN girar, apoyada por el centro de su
+// base en el origen y con los ejes X, Y, Z. Es la postura desde la que se mide
+// cualquier giro, así que el alumno ve contra qué está girando.
+function svgIsoReferencia(fig){
+  if(typeof escenaIso !== 'function') return '';
+  const base = Object.assign({}, fig, {rotation:0, rotXZ:0, rotYZ:0, volteado:false, cx:0, cy:0, cz:0});
+  const off = solidAnchorOffsetFig(base, 'BM');
+  base.cx = -off.dx; base.cy = -off.dy; base.cz = -off.dz;
+  let E;
+  try{ E = escenaIso({figs:[base]}); }catch(e){ return ''; }
+  // Los ejes se dibujan aquí y no con `escenaIso({ejes:true})`: allí miden un
+  // cuarto del cuerpo y se pierden dentro de la pieza. Aquí salen del centro
+  // de la base, sobresalen de ella y llevan su letra fuera.
+  const b3 = bounds3Rel(base, true);
+  const L = 0.85*Math.max(b3.right-b3.left, b3.front-b3.back, b3.top-b3.bottom, 1e-9);
+  const eq = [['X',[L,0,0]], ['Y',[0,L,0]], ['Z',[0,0,L]]].map(([n,q])=>{
+    const w = isoProy(q[0], q[1], q[2]); return {n, u:w.u, v:w.v};
+  });
+  const O = isoProy(0, 0, 0);
+  let u0 = Math.min(E.u0, O.u), u1 = Math.max(E.u1, O.u), v0 = Math.min(E.v0, O.v), v1 = Math.max(E.v1, O.v);
+  eq.forEach(e=>{ u0 = Math.min(u0, e.u); u1 = Math.max(u1, e.u); v0 = Math.min(v0, e.v); v1 = Math.max(v1, e.v); });
+  const W = 190, H = 158, M = 22;
+  const bw = Math.max(u1-u0,1e-9), bh = Math.max(v1-v0,1e-9);
+  const s = Math.min((W-2*M)/bw, (H-2*M)/bh);
+  const dx = (W - bw*s)/2, dy = (H - bh*s)/2;
+  const tu = u => (dx + (u-u0)*s).toFixed(1), tv = v => (H - dy - (v-v0)*s).toFixed(1);
+  const poli = pts => pts.map((q,i)=>(i?'L':'M') + tu(q[0]) + ',' + tv(q[1])).join(' ');
+  const col = fig.color || '#14766d';
+  let g = '';
+  E.items.forEach(it=>{
+    g += `<path d="${poli(it.hull)}Z" fill="${col}" fill-opacity=".18" stroke="${col}" stroke-width="1.3"/>`;
+    (it.anillos||[]).forEach(r=>{ g += `<path d="${poli(r)}" fill="none" stroke="${col}" stroke-width=".6" opacity=".4"/>`; });
+    (it.aristas||[]).forEach(a=>{ g += `<line x1="${tu(a[0][0])}" y1="${tv(a[0][1])}" x2="${tu(a[1][0])}" y2="${tv(a[1][1])}" stroke="${col}" stroke-width=".7" opacity=".45"/>`; });
+  });
+  g += `<defs><marker id="pfEje" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">`
+     + `<path d="M0,0 L6,3 L0,6 Z" fill="#0d3a8f"/></marker></defs>`;
+  eq.forEach(e=>{
+    g += `<line x1="${tu(O.u)}" y1="${tv(O.v)}" x2="${tu(e.u)}" y2="${tv(e.v)}" stroke="#0d3a8f" stroke-width="1.2" marker-end="url(#pfEje)"/>`
+       + `<text x="${tu(e.u)}" y="${tv(e.v)}" dx="4" dy="-3" font-size="10" font-weight="800" fill="#0d3a8f">${e.n}</text>`;
+  });
+  g += `<circle cx="${tu(O.u)}" cy="${tv(O.v)}" r="2.4" fill="#0d3a8f"/>`
+     + `<text x="${tu(O.u)}" y="${tv(O.v)}" dx="-9" dy="10" font-size="9" font-weight="700" fill="#0d3a8f">O</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="croq-svg">${g}</svg>`;
+}
 function buildPropPanel3d(fig){
   const def = SOLID_DEFS[fig.type];
-  document.getElementById('propTitle').textContent = fig.name + (fig.volteado ? ' (volteado)' : '');
+  document.getElementById('propTitle').textContent = fig.name
+    + (giroFueraDePlanta(fig) ? ' (girado)' : '') + (fig.volteado ? ' (volteado)' : '');
   document.getElementById('signPos').classList.toggle('active', fig.sign===1);
   document.getElementById('signNeg').classList.toggle('active', fig.sign===-1);
   const df = document.getElementById('dimFields');
   const ref = REF_SOLIDS[fig.type];
   df.innerHTML = ref ? `<div class="ref-fig-box"><div class="ref-fig-title">${ref.title}</div>${ref.svg}<div class="ref-fig-formula">${ref.formulas}</div></div>` : '';
+  // Posición inicial: la pieza sin girar, con los ejes. Es la referencia desde
+  // la que se mide cualquier giro (decisión del profesor, 2026-09-18).
+  if(fig.type !== 's_esfera'){
+    const iso = svgIsoReferencia(fig);
+    if(iso){
+      const rb = document.createElement('div'); rb.className = 'field';
+      rb.innerHTML = '<label>Posición inicial (sin girar)</label>'
+        + '<div class="ref-fig-box" style="text-align:center">' + iso
+        + '<div class="ref-fig-formula">Se coloca por el centro de su base, en el origen.</div></div>';
+      df.appendChild(rb);
+    }
+  }
   // Volteo (base arriba). La esfera no cambia al voltearla.
   if(fig.type !== 's_esfera'){
     const vb = document.createElement('div'); vb.className = 'field';
@@ -580,9 +665,29 @@ function buildPropPanel3d(fig){
       + '<button class="anchor-btn' + (fig.volteado ? ' active' : '') + '" onclick="if(!figures.find(f=>f.id===selectedFigId).volteado) alternarVolteo()">Base arriba (volteado)</button></div>';
     df.appendChild(vb);
   }
-  // El giro alrededor del eje vertical solo se nota en los poliedros.
+  // Giro: primero el plano y debajo el ángulo de ESE plano. Se ofrece en todos
+  // los sólidos menos la esfera: un cilindro girado en el plano X–Y se ve
+  // igual, pero en X–Z o en Y–Z se tumba.
+  if(fig.type !== 's_esfera'){
+    const pl = planoGiroDef(planoGiro3d);
+    const gb = document.createElement('div'); gb.className = 'field';
+    gb.innerHTML = '<label>Girar en el plano</label><div class="anchor-row">'
+      + PLANOS_GIRO.map(q=>'<button class="anchor-btn' + (q.id === pl.id ? ' active' : '')
+          + '" onclick="fijarPlanoGiro(&#39;' + q.id + '&#39;)">' + q.label + '</button>').join('')
+      + '</div>';
+    df.appendChild(gb);
+    const ab = document.createElement('div'); ab.className = 'field';
+    ab.innerHTML = '<label>Ángulo en ' + pl.label + ' <span style="color:var(--grn2);font-weight:800">(°)</span></label>'
+      + '<input type="number" id="giro3d" step="any" value="' + r2(anguloPlano(fig, pl.id))
+      + '" onchange="updateGiro3d(this.value)">'
+      + '<div style="font-size:9.5px;color:var(--muted);margin-top:5px;line-height:1.45;">'
+      + 'Se mide desde ' + pl.desde + ' hacia ' + pl.hacia + ' (giro alrededor del eje ' + pl.eje + ').</div>';
+    df.appendChild(ab);
+  }
+  // El giro se edita en el bloque de arriba (plano + ángulo), no en el campo
+  // de la columna, que se queda oculto en 3D.
   const rf = document.getElementById('rotField');
-  if(rf) rf.style.display = def.vertices ? '' : 'none';
+  if(rf) rf.style.display = 'none';
   if(modoCuerpo==='heterogeneo'){
     const box = document.createElement('div'); box.className = 'field';
     const opts = MATS.map(m=>`<option value="${m.id}"${fig.matId===m.id?' selected':''}>${matSimbolo()}${m.id} = ${_matValTxt(m)} ${_matUniTxt(m)}</option>`).join('');
@@ -632,8 +737,6 @@ function updateFigFromProp3d(){
   const fig = figures.find(f=>f.id===selectedFigId); if(!fig) return;
   registrarCambio();
   const num = id => { const e = document.getElementById(id); const n = parseFloat(e && e.value); return isFinite(n) ? n : 0; };
-  const def = SOLID_DEFS[fig.type];
-  if(def.vertices) fig.rotation = num('rotation');
   const off = solidAnchorOffsetFig(fig, fig.activeAnchor||'BM');
   fig.cx = num('posX') - off.dx; fig.cy = num('posY') - off.dy; fig.cz = num('posZ') - off.dz;
   invalidarResultados(); render();
@@ -642,7 +745,8 @@ function updatePropPanel3d(){
   const fig = figures.find(f=>f.id===selectedFigId); if(!fig) return;
   const a = anclaSolido(fig);
   const set = (id, v) => { const e = document.getElementById(id); if(e) e.value = r2(v); };
-  set('posX', a.x); set('posY', a.y); set('posZ', a.z); set('rotation', fig.rotation||0);
+  set('posX', a.x); set('posY', a.y); set('posZ', a.z);
+  set('giro3d', anguloPlano(fig, planoGiro3d));
 }
 
 // ══ Cálculo ═════════════════════════════════════════════════════════════════
@@ -748,6 +852,14 @@ function _ordenesVistaPropia(fig, vistaId){
   try{ (vistaId === 'planta' ? def.drawPlanta : def.drawAlzado)(fake, fig.dims); }catch(e){}
   return cmds;
 }
+// Los giros de una pieza, en una línea: «X–Y: 30° · X–Z: 90°». Vacío si no
+// gira. En un sólido de revolución el giro en planta no se ve, pero se dice
+// igual, porque está en el modelo y en el archivo.
+function textoGiros3d(fig){
+  const t = PLANOS_GIRO.filter(p=>Math.abs(anguloPlano(fig, p.id)) > 1e-9)
+    .map(p=>p.label + ': ' + r2(anguloPlano(fig, p.id)) + '°');
+  return t.length ? ' · ' + t.join(' · ') : '';
+}
 function croquisSolido(fig, idx){
   const def = SOLID_DEFS[fig.type]; if(!def) return '';
   const b = bounds3Rel(fig, true);
@@ -791,7 +903,7 @@ function croquisSolido(fig, idx){
   const iso = () => {
     if(typeof escenaIso !== 'function') return '';
     let E;
-    try{ E = escenaIso({figs:[Object.assign({}, fig, {cx:0, cy:0, cz:0, rotation:0})]}); }catch(e){ return ''; }
+    try{ E = escenaIso({figs:[Object.assign({}, fig, {cx:0, cy:0, cz:0, rotation:0, rotXZ:0, rotYZ:0})]}); }catch(e){ return ''; }
     const bw = Math.max(E.u1-E.u0,1e-9), bh = Math.max(E.v1-E.v0,1e-9);
     const s = Math.min((W-2*M)/bw, (H-2*M)/bh);
     const tu = u => (M + (u-E.u0)*s).toFixed(1), tv = v => (H-M - (v-E.v0)*s).toFixed(1);
@@ -812,7 +924,7 @@ function croquisSolido(fig, idx){
   return `
   <div class="croq">
     <div class="croq-h"><span class="croq-n">${idx+1}</span>
-      <span class="croq-t">${esc(fig.etiqueta||fig.name||def.name)}${neg?' <i>(hueco)</i>':''}${fig.volteado?' · volteado':''}${(fig.rotation&&def.vertices)?' · α = '+r2(fig.rotation)+'°':''}</span></div>
+      <span class="croq-t">${esc(fig.etiqueta||fig.name||def.name)}${neg?' <i>(hueco)</i>':''}${fig.volteado?' · volteado':''}${textoGiros3d(fig)}</span></div>
     <div style="display:flex;gap:4px;align-items:flex-start">
       ${cel('Planta (X–Y)', vista('planta'))}
       ${cel('Alzado (X–Z)', vista('alzado'))}
