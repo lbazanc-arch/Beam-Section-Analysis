@@ -301,7 +301,6 @@ function anguloPlano(fig, id){ const v = fig && fig[planoGiroDef(id).prop]; retu
 function giroFueraDePlanta(fig){
   return Math.abs(anguloPlano(fig,'xz')) > 1e-9 || Math.abs(anguloPlano(fig,'yz')) > 1e-9;
 }
-function hayGiroSolido(fig){ return giroFueraDePlanta(fig) || Math.abs(anguloPlano(fig,'xy')) > 1e-9; }
 // Giro de un vector en un plano, del primer eje hacia el segundo.
 function girarEnPlano(id, grados, v){
   if(!grados) return v;
