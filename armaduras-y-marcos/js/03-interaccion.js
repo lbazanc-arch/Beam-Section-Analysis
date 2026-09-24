@@ -524,6 +524,12 @@ function abrirSeccion(id){
     if(bt) bt.classList.toggle('active', k===id);
   });
   document.getElementById('flyoutTitulo').textContent = SECCIONES[id].titulo;
+  // El desplegable va SIEMPRE a la derecha de la columna de control, así que
+  // abrir una sección abre también la columna. Por debajo de 820 px la columna
+  // arranca plegada, y sin esto el panel salía con la franja de la izquierda
+  // vacía y sin los botones de acción (2026-09-24).
+  const lp = document.getElementById('leftPanel');
+  if(lp) lp.classList.remove('plegado');
   f.classList.remove('plegado');
   posicionarToggle();
   setTimeout(ajustarCanvas, 240);
