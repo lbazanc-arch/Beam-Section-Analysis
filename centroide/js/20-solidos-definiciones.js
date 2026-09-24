@@ -281,18 +281,20 @@ function solidCLocal(def, d){ return def.cLocal ? def.cLocal(d) : {x:0, z:def.cB
 // girar era α alrededor de él, así que un cilindro o un cono no se podían
 // tumbar (por eso el catálogo tiene el medio cilindro tumbado como pieza
 // aparte). Ahora la pieza gira en los TRES planos, con un ángulo libre en cada
-// uno, y en cada plano el ángulo se mide **desde el primer eje hacia el
-// segundo**, igual que el ángulo de siempre en el plano X–Y:
-//   · X–Y  desde +X hacia +Y   (el giro en planta, `rotation`)
-//   · X–Z  desde +X hacia +Z   (`rotXZ`)
-//   · Y–Z  desde +Y hacia +Z   (`rotYZ`)
+// uno. En
+// cada plano el ángulo arranca en un eje y crece en sentido ANTIHORARIO visto
+// en la vista de ese plano (el eje de partida se dibuja a la derecha y el otro
+// hacia arriba), tal como lo fijó el profesor:
+//   · X–Y  desde +X hacia +Y   (giro alrededor de Z; el de planta, `rotation`)
+//   · X–Z  desde +X hacia +Z   (giro alrededor de Y, `rotXZ`)
+//   · Y–Z  desde +Z hacia +Y   (giro alrededor de X, `rotYZ`)
 // El ORDEN de aplicación es Y–Z, luego X–Z y por último X–Y. No es un detalle:
 // con X–Y en último lugar, girar todo el conjunto en planta (Transformar) es
 // simplemente sumar a `rotation`, sin recolocar nada más.
 const PLANOS_GIRO = [
   {id:'xy', prop:'rotation', label:'X–Y', desde:'+X', hacia:'+Y', eje:'Z', tex:'$X$--$Y$'},
   {id:'xz', prop:'rotXZ',    label:'X–Z', desde:'+X', hacia:'+Z', eje:'Y', tex:'$X$--$Z$'},
-  {id:'yz', prop:'rotYZ',    label:'Y–Z', desde:'+Y', hacia:'+Z', eje:'X', tex:'$Y$--$Z$'}
+  {id:'yz', prop:'rotYZ',    label:'Y–Z', desde:'+Z', hacia:'+Y', eje:'X', tex:'$Y$--$Z$'}
 ];
 function planoGiroDef(id){ return PLANOS_GIRO.find(p=>p.id === id) || PLANOS_GIRO[0]; }
 function anguloPlano(fig, id){ const v = fig && fig[planoGiroDef(id).prop]; return isFinite(v) ? v : 0; }
@@ -306,7 +308,8 @@ function girarEnPlano(id, grados, v){
   if(!grados) return v;
   const r = grados*Math.PI/180, c = Math.cos(r), s = Math.sin(r);
   if(id === 'xz') return [v[0]*c - v[2]*s, v[1], v[0]*s + v[2]*c];
-  if(id === 'yz') return [v[0], v[1]*c - v[2]*s, v[1]*s + v[2]*c];
+  // Y–Z: de +Z hacia +Y (el ángulo arranca en el eje z positivo).
+  if(id === 'yz') return [v[0], v[1]*c + v[2]*s, -v[1]*s + v[2]*c];
   return [v[0]*c - v[1]*s, v[0]*s + v[1]*c, v[2]];
 }
 // Los tres giros de la pieza, en su orden.
@@ -372,6 +375,21 @@ function verticesSolido(fig){
   const def = SOLID_DEFS[fig.type];
   if(!def.vertices) return null;
   return def.vertices(fig.dims).map(p=>localASolido(fig, p));
+}
+
+// Silueta del sólido proyectada sobre uno de los tres planos de giro, con los
+// giros ya aplicados y relativa al centroide. Sirve para la vista previa del
+// panel: enseña cómo se ve la pieza en el plano en el que se está girando.
+// Cada plano se dibuja con su eje de partida a la derecha y el otro hacia
+// arriba, que es como se mide su ángulo: X–Y → (x, y); X–Z → (x, z);
+// Y–Z → (z, y).
+function proyeccionSolido(fig, planoId){
+  const P = verticesSolido(fig) || puntosRevolucionSolido(fig, N_SILUETA);
+  if(!P) return null;
+  const pr = planoId === 'xy' ? q => [q[0], q[1]]
+           : planoId === 'xz' ? q => [q[0], q[2]]
+           :                    q => [q[2], q[1]];
+  return hull2d(P.map(pr));
 }
 
 // Envolvente convexa de puntos [u,v] (cadena monótona de Andrew).

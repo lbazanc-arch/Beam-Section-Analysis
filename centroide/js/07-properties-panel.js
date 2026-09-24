@@ -123,6 +123,9 @@ function buildPropPanel(fig){
     df.appendChild(help);
   }
 
+  const gb0 = document.getElementById('giro3dBox');
+  if(gb0) gb0.innerHTML = '';          // el bloque de giro es solo del modo 3D
+
   // Posición: la del ANCLA ACTIVA, no la del centroide. Escribiendo aquí cx y
   // cy, al reabrir la ventana el campo volvía a dar la posición del centroide
   // aunque el alumno hubiera elegido otro punto de anclaje: parecía que el

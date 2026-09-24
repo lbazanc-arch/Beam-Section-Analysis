@@ -304,7 +304,7 @@ function construirLatex3d(){
   const hayTumbado = figures.some(f=>giroFueraDePlanta(f));
   tex += '\\subpaso{Convenio}\n'
     + '\\noindent ' + (hayTumbado
-      ? 'Cada sólido se coloca por el \\textbf{centro de su base}, con su eje vertical, y desde ahí se \\emph{gira}: el ángulo de cada plano se mide desde el primer eje hacia el segundo --- en $X$--$Y$ desde $+X$ hacia $+Y$, en $X$--$Z$ desde $+X$ hacia $+Z$ y en $Y$--$Z$ desde $+Y$ hacia $+Z$---, y se aplican en ese orden inverso ($Y$--$Z$, $X$--$Z$, $X$--$Y$). El centroide propio se mide a lo largo del eje de la pieza, que gira con ella. '
+      ? 'Cada sólido se coloca por el \\textbf{centro de su base}, con su eje vertical, y desde ahí se \\emph{gira}: el ángulo de cada plano se mide desde el primer eje hacia el segundo --- en $X$--$Y$ desde $+X$ hacia $+Y$, en $X$--$Z$ desde $+X$ hacia $+Z$ y en $Y$--$Z$ desde $+Z$ hacia $+Y$---, y se aplican en ese orden inverso ($Y$--$Z$, $X$--$Z$, $X$--$Y$). El centroide propio se mide a lo largo del eje de la pieza, que gira con ella. '
       : 'Cada sólido se coloca por el \\textbf{centro de su base} y tiene su eje vertical (paralelo a $Z$). ')
     + 'Las posiciones se miden desde $O$: $x$ hacia la derecha, $y$ hacia el fondo de la planta, $z$ hacia arriba. '
     + 'La tilde señala el centroide de una parte; la barra, el de todo el cuerpo. Los huecos entran con volumen negativo.'
