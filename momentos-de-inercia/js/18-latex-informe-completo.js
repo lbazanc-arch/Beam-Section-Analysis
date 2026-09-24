@@ -188,13 +188,76 @@ function _tikzFichaPerfil(tipo){
   return s;
 }
 
+// El preambulo del informe, compartido por el 2D y por el 3D de masas
+// (32-latex-3d-masa.js): mismos colores, mismos comandos y el mismo
+// encajador de dibujos. Se extrajo de `construirLatex` el 2026-09-24 sin
+// tocar una linea de su contenido.
+function _preambuloLatexIn(){
+  return '\\documentclass[11pt]{article}\n'
+  + '\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}\n'
+  + '\\usepackage[a4paper,margin=2.0cm]{geometry}\n'
+  + '\\usepackage{amsmath,amssymb}\n\\usepackage{tikz}\n'
+  + '\\usetikzlibrary{patterns,arrows.meta,calc}\n\\usepackage{xcolor}\n\n'
+  + '\\definecolor{bsaAcc}{HTML}{0D3A8F}\n'
+  + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
+  + '\\definecolor{bsaAlerta}{HTML}{B8860C}\n'
+  + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
+  + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
+  + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
+  + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
+  + '\\definecolor{bsaLogoA}{HTML}{22584B}\n'
+  // Mismo rojo que usa el círculo de Mohr en pantalla, para que el ángulo
+  // 2·theta_p se lea igual en la app y en el PDF.
+  + '\\definecolor{bsaRojo}{HTML}{C0392B}\n\n'
+  + '\\setlength{\\parskip}{2pt}\n'
+  // Deja que TeX estire los espacios SOLO en el parrafo que no cierra de otro
+  // modo (cifras y unidades pegadas, que no se pueden partir).
+  + '\\setlength{\\emergencystretch}{3em}\n'
+  + '\\newsavebox{\\bsacaja}\n'
+  + '\\newcommand{\\bsaEncajar}[1]{\\sbox\\bsacaja{#1}%\n'
+  + '  \\ifdim\\wd\\bsacaja>\\linewidth\\resizebox{\\linewidth}{!}{\\usebox\\bsacaja}%\n'
+  + '  \\else\\usebox\\bsacaja\\fi}\n'
+  // Encabezado y pie corridos en TODAS las páginas: el informe se imprime y
+  // se reparte suelto, así que cada hoja dice de qué tema es.
+  + '\\makeatletter\n'
+  + '\\def\\ps@bsa{%\n'
+  + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Momentos de inercia}\\hfill'
+  + '\\footnotesize\\color{bsaMuted}Áreas compuestas, ejes principales y círculo de Mohr}%\n'
+  + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\ \\ \\textperiodcentered\\ \\ pág.\\ \\thepage\\hfill}%\n'
+  + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n'
+  + '\\makeatother\n'
+  // El seno en notación española. Sin esta macro, el centroide del sector
+  // circular aborta la compilación con "Undefined control sequence".
+  + '\\newcommand{\\sen}{\\operatorname{sen}}\n'
+  + '\\pagestyle{bsa}\n\n'
+  // \penalty y \nopagebreak: el título de una sección no se queda solo al
+  // pie de una página con su contenido en la siguiente.
+  + '\\newcommand{\\seccion}[1]{%\n'
+  + '  \\par\\addvspace{10pt}\\penalty-250\n'
+  + '  \\noindent{\\large\\bfseries\\color{bsaAcc}#1}\\par\\nopagebreak\n'
+  + '  \\vspace{3pt}\\nopagebreak\\hrule\\nopagebreak\\vspace{7pt}\\nopagebreak}\n'
+  + '\\newcommand{\\subpaso}[1]{\\par\\addvspace{6pt}\\noindent{\\bfseries\\color{bsaAcc2}#1}\\par\\nopagebreak\\vspace{3pt}\\nopagebreak}\n'
+  + '\\newcommand{\\porque}[1]{\\par\\vspace{3pt}\\noindent\\fcolorbox{bsaAcc2!40}{bsaAcc2!5}{%\n'
+  + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\footnotesize{\\bfseries\\color{bsaAcc2}¿Por qué?}\\ #1}}\\par\\vspace{4pt}}\n'
+  + '\\newcommand{\\resultado}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaVerde!50}{bsaVerde!6}{%\n'
+  + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
+  + '\\newcommand{\\veredicto}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaAcc}{bsaAcc!7}{%\n'
+  + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
+  // Un «center» que no admite salto de página delante: así el rótulo
+  // «Tabla N.» nunca se queda solo al pie de la página con la tabla en la
+  // siguiente.
+  + '\\makeatletter\n'
+  + '\\newenvironment{tablacentrada}{\\par\\nopagebreak\\begingroup\\@beginparpenalty=10000\\relax\\begin{center}}{\\end{center}\\endgroup}\n'
+  + '\\makeatother\n'
+  // Los huecos sobrantes se acumulan al pie de la página en vez de repartirse
+  // entre los párrafos: es lo que evita las separaciones grandes a media hoja.
+  + '\\raggedbottom\n\n'
+  + '\\begin{document}\n\n';
+}
+
 function construirLatex(){
-  // El informe de INERCIA DE MASA aun no esta escrito: en 3D se avisa en vez
-  // de armar el de areas con un resultado que no le corresponde.
-  if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d'){
-    aviso('El informe en LaTeX del cuerpo solido todavia no esta disponible.', 'error');
-    return null;
-  }
+  // En 3D el informe es el de inercia de MASA (32-latex-3d-masa.js).
+  if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d') return construirLatex3dMasa();
   if(!results){ aviso('Primero calcula el momento de inercia.'); return null; }
   _yaDichoIn = {};
   const st = results.steps;
@@ -295,67 +358,8 @@ function construirLatex(){
 
   const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
 
-  let tex = '\\documentclass[11pt]{article}\n'
-    + '\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}\n'
-    + '\\usepackage[a4paper,margin=2.0cm]{geometry}\n'
-    + '\\usepackage{amsmath,amssymb}\n\\usepackage{tikz}\n'
-    + '\\usetikzlibrary{patterns,arrows.meta,calc}\n\\usepackage{xcolor}\n\n'
-    + '\\definecolor{bsaAcc}{HTML}{0D3A8F}\n'
-    + '\\definecolor{bsaAcc2}{HTML}{1D4ED8}\n'
-    + '\\definecolor{bsaAlerta}{HTML}{B8860C}\n'
-    + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
-    + '\\definecolor{bsaMuted}{HTML}{6B7280}\n'
-    + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
-    + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
-    + '\\definecolor{bsaLogoA}{HTML}{22584B}\n'
-    // Mismo rojo que usa el círculo de Mohr en pantalla, para que el ángulo
-    // 2·theta_p se lea igual en la app y en el PDF.
-    + '\\definecolor{bsaRojo}{HTML}{C0392B}\n\n'
-    + '\\setlength{\\parskip}{2pt}\n'
-    // Deja que TeX estire los espacios SOLO en el parrafo que no cierra de otro
-    // modo (cifras y unidades pegadas, que no se pueden partir).
-    + '\\setlength{\\emergencystretch}{3em}\n'
-    + '\\newsavebox{\\bsacaja}\n'
-    + '\\newcommand{\\bsaEncajar}[1]{\\sbox\\bsacaja{#1}%\n'
-    + '  \\ifdim\\wd\\bsacaja>\\linewidth\\resizebox{\\linewidth}{!}{\\usebox\\bsacaja}%\n'
-    + '  \\else\\usebox\\bsacaja\\fi}\n'
-    // Encabezado y pie corridos en TODAS las páginas: el informe se imprime y
-    // se reparte suelto, así que cada hoja dice de qué tema es.
-    + '\\makeatletter\n'
-    + '\\def\\ps@bsa{%\n'
-    + '  \\def\\@oddhead{\\small\\color{bsaAcc}\\textbf{BSA --- Momentos de inercia}\\hfill'
-    + '\\footnotesize\\color{bsaMuted}Áreas compuestas, ejes principales y círculo de Mohr}%\n'
-    + '  \\def\\@oddfoot{\\hfill\\footnotesize\\color{bsaMuted}beamsectionanalysis.com\\ \\ \\textperiodcentered\\ \\ pág.\\ \\thepage\\hfill}%\n'
-    + '  \\let\\@evenhead\\@oddhead \\let\\@evenfoot\\@oddfoot}\n'
-    + '\\makeatother\n'
-    // El seno en notación española. Sin esta macro, el centroide del sector
-    // circular aborta la compilación con "Undefined control sequence".
-    + '\\newcommand{\\sen}{\\operatorname{sen}}\n'
-    + '\\pagestyle{bsa}\n\n'
-    // \penalty y \nopagebreak: el título de una sección no se queda solo al
-    // pie de una página con su contenido en la siguiente.
-    + '\\newcommand{\\seccion}[1]{%\n'
-    + '  \\par\\addvspace{10pt}\\penalty-250\n'
-    + '  \\noindent{\\large\\bfseries\\color{bsaAcc}#1}\\par\\nopagebreak\n'
-    + '  \\vspace{3pt}\\nopagebreak\\hrule\\nopagebreak\\vspace{7pt}\\nopagebreak}\n'
-    + '\\newcommand{\\subpaso}[1]{\\par\\addvspace{6pt}\\noindent{\\bfseries\\color{bsaAcc2}#1}\\par\\nopagebreak\\vspace{3pt}\\nopagebreak}\n'
-    + '\\newcommand{\\porque}[1]{\\par\\vspace{3pt}\\noindent\\fcolorbox{bsaAcc2!40}{bsaAcc2!5}{%\n'
-    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\footnotesize{\\bfseries\\color{bsaAcc2}¿Por qué?}\\ #1}}\\par\\vspace{4pt}}\n'
-    + '\\newcommand{\\resultado}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaVerde!50}{bsaVerde!6}{%\n'
-    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
-    + '\\newcommand{\\veredicto}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaAcc}{bsaAcc!7}{%\n'
-    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
-    // Un «center» que no admite salto de página delante: así el rótulo
-    // «Tabla N.» nunca se queda solo al pie de la página con la tabla en la
-    // siguiente.
-    + '\\makeatletter\n'
-    + '\\newenvironment{tablacentrada}{\\par\\nopagebreak\\begingroup\\@beginparpenalty=10000\\relax\\begin{center}}{\\end{center}\\endgroup}\n'
-    + '\\makeatother\n'
-    // Los huecos sobrantes se acumulan al pie de la página en vez de repartirse
-    // entre los párrafos: es lo que evita las separaciones grandes a media hoja.
-    + '\\raggedbottom\n\n'
-    + '\\begin{document}\n\n'
-    + '\\begin{center}\n'
+  let tex = _preambuloLatexIn();
+  tex += '\\begin{center}\n'
     + '  {\\LARGE\\bfseries\\color{bsaAcc} Momentos de inercia de una sección compuesta}\\\\[3pt]\n'
     + '  {\\large\\color{bsaAcc2} Centroide, teorema de los ejes paralelos, ejes principales y círculo de Mohr}\\\\[3pt]\n'
     + '  {\\small\\color{bsaMuted} Informe generado: ' + escLatex(dt) + '}\n'
