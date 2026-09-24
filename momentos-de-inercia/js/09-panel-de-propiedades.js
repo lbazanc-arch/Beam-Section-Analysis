@@ -11,7 +11,7 @@ function buildPropPanel(fig){
 
   // Dimension fields — with reference figure at top
   const df = document.getElementById('dimFields');
-  df.innerHTML = getRefFigHTML(fig.type);
+  df.innerHTML = getRefFigHTML(fig.type, fig.activeAnchor || def.defaultAnchor || 'C');
 
   // Sector only: toggle to enter either the half-angle (θ) or the total angle (2θ).
   // Internally, fig.dims.alpha is ALWAYS the half-angle (θ); the toggle only
@@ -67,10 +67,11 @@ function buildPropPanel(fig){
     df.appendChild(help);
   }
 
-  // Position
-  document.getElementById('posX').value = r2(fig.cx);
-  document.getElementById('posY').value = r2(fig.cy);
+  // Posición: la del ANCLA ACTIVA, no la del centroide. Escribiendo aquí cx y
+  // cy, al reabrir la ventana el campo volvía a dar la posición del centroide
+  // aunque el alumno hubiera elegido otro punto de anclaje (2026-09-23).
   document.getElementById('rotation').value = r2(fig.rotation);
+  updatePropPanel();
 
   // Anchors
   const ab = document.getElementById('anchorBtns');
@@ -80,8 +81,12 @@ function buildPropPanel(fig){
     const isAct=a===(fig.activeAnchor||'C');
     btn.className='anchor-btn'+(isAct?' active':'');
     btn.style.fontWeight=isAct?'700':'500';
-    // La misma clave de ancla se llama distinto según la figura (03-).
-    btn.textContent = etiquetaAnclaje(fig.type, a);
+    // La misma clave de ancla se llama distinto según la figura (03-), y cada
+    // una lleva el color con el que se dibuja en la ficha (2026-09-23).
+    const col = (typeof colorAncla === 'function') ? colorAncla(a) : null;
+    const nom = etiquetaAnclaje(fig.type, a);
+    btn.innerHTML = (col ? '<span class="anc-dot" style="background:' + col + '"></span>' : '')
+                  + nom.replace(/&/g,'&amp;').replace(/</g,'&lt;');
     btn.onclick=()=>{fig.activeAnchor=a;fig.anchor=a;buildPropPanel(fig);updatePropPanel();render();};
     ab.appendChild(btn);
   }
@@ -96,6 +101,26 @@ function buildPropPanel(fig){
 // min del HTML es solo una pista, el valor escrito llega igual aqui). Ojo: `d`
 // es desplazamiento en el triángulo, pero es el canto de un perfil W o C.
 const DIM_DESPLAZ = {trapecio:{dx:true}, triangulo:{d:true}};
+
+// ── El punto de anclaje se queda donde está ────────────────────────────────
+// Al cambiar una medida se mantenía fijo el CENTROIDE, así que el punto de
+// anclaje que el alumno había colocado se desplazaba solo y el campo de
+// posición seguía enseñando el valor viejo. Ahora se mantiene fija el ANCLA
+// ACTIVA, como en el modo 3D de centroide (2026-09-23).
+function anclaMundo(fig){
+  const def = FIG_DEFS[fig.type], a = fig.activeAnchor || 'C';
+  const off = def.anchorOffset(fig.dims, a), r = (fig.rotation||0)*Math.PI/180;
+  return {x: fig.cx + off.dx*Math.cos(r) - off.dy*Math.sin(r),
+          y: fig.cy + off.dx*Math.sin(r) + off.dy*Math.cos(r)};
+}
+function recolocarPorAnclaFig(fig, cambio){
+  const antes = anclaMundo(fig);
+  cambio(fig);
+  const def = FIG_DEFS[fig.type], a = fig.activeAnchor || 'C';
+  const off = def.anchorOffset(fig.dims, a), r = (fig.rotation||0)*Math.PI/180;
+  fig.cx = antes.x - (off.dx*Math.cos(r) - off.dy*Math.sin(r));
+  fig.cy = antes.y - (off.dx*Math.sin(r) + off.dy*Math.cos(r));
+}
 function updateDim(dimId, val){
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
@@ -110,7 +135,8 @@ function updateDim(dimId, val){
     return;
   }
   registrarCambio();
-  fig.dims[dimId] = v;
+  recolocarPorAnclaFig(fig, f=>{ f.dims[dimId] = v; });
+  updatePropPanel();                 // la posición, al día en el acto
   invalidarResultados(); render();
 }
 
@@ -120,8 +146,9 @@ function updateSectorAngle(val, isTotal){
   if(!fig) return;
   registrarCambio();
   const v = parseFloat(val)||0;
-  fig.dims.alpha = isTotal ? v/2 : v;
+  recolocarPorAnclaFig(fig, f=>{ f.dims.alpha = isTotal ? v/2 : v; });
   buildPropPanel(fig);   // refresh helper line + complementary value
+  updatePropPanel();
   invalidarResultados(); render();
 }
 function setSectorAngleMode(mode){

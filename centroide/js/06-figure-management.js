@@ -288,14 +288,42 @@ const REF_FIGS = {
     svg: '<svg viewBox="0 0 200 130" fill="none"><polygon points="20,100 160,100 160,15" stroke="#0d3a8f" stroke-width="1.5" fill="rgba(228,172,23,.12)"/><polyline points="148,100 148,88 160,88" stroke="#0d3a8f" stroke-width="1" fill="none"/><circle cx="113" cy="72" r="3.5" fill="#f0c040"/><text x="116" y="69" font-size="9" fill="#f0c040" font-style="italic">G</text><text x="165" y="75" font-size="8" fill="#0a2e7a" text-anchor="middle">h/3</text><text x="113" y="115" font-size="8" fill="#0a2e7a" text-anchor="middle">b/3</text><line x1="20" y1="115" x2="160" y2="115" stroke="#123f8f" stroke-width="1"/><text x="90" y="128" text-anchor="middle" font-size="10" fill="#0a2e7a" font-style="italic">b</text><text x="175" y="60" font-size="10" fill="#0a2e7a" font-style="italic">h</text><text x="163" y="103" font-size="8" fill="#0e357f" font-style="italic">xG</text><text x="113" y="13" font-size="8" fill="#0e357f" font-style="italic">yG</text></svg>',
     formulas: 'I&#x2093;G = bh³/36 &nbsp; I&#x1D67;G = b³h/36 &nbsp; P&#x2093;&#x1D67;G = +b²h²/72'
   }};
-function getRefFigHTML(type) {
+// Ficha de la figura para el panel. Desde el 2026-09-23 el dibujo se GENERA
+// acotado (25-fichas-de-figura.js) y las fórmulas ya no van debajo: se abren
+// con el botón ⓘ de la esquina. REF_FIGS se sigue usando para lo que no se
+// puede generar: los perfiles laminados, que son láminas en PNG.
+function getRefFigHTML(type, anclaActiva) {
+  const generada = (typeof fichaFiguraSVG === 'function') ? fichaFiguraSVG(type, {activa:anclaActiva}) : '';
   const ref = REF_FIGS[type];
-  if(!ref) return '';
+  if(!generada && !ref) return '';
+  const titulo = (generada && FIG_DEFS[type] && FIG_DEFS[type].name) || (ref && ref.title) || '';
+  const info = (typeof formulasFiguraHTML === 'function') ? formulasFiguraHTML(type) : '';
+  const cuerpo = generada || ref.svg;
+  const leyenda = (generada && typeof leyendaAnclasHTML === 'function') ? leyendaAnclasHTML() : '';
+  // Sin ficha generada (perfiles) se conservan las fórmulas de REF_FIGS.
+  const pie = info ? '' : (ref && ref.formulas ? `<div class="ref-fig-formula">${ref.formulas}</div>` : '');
   return `<div class="ref-fig-box">
-    <div class="ref-fig-title">${ref.title}</div>
-    ${ref.svg}
-    <div class="ref-fig-formula">${ref.formulas}</div>
+    ${info ? `<button type="button" class="ref-fig-info" onclick="alternarInfoFigura(this)"
+        title="Fórmulas de la figura" aria-label="Fórmulas de la figura">i</button>` : ''}
+    <div class="ref-fig-title">${titulo}</div>
+    ${cuerpo}
+    ${leyenda}
+    ${pie}
+    ${info ? `<div class="ref-fig-pop" hidden>${info}</div>` : ''}
   </div>`;
+}
+// Abre o cierra la ventanita de fórmulas. Solo una abierta a la vez.
+function alternarInfoFigura(btn){
+  const caja = btn && btn.closest('.ref-fig-box');
+  const pop = caja && caja.querySelector('.ref-fig-pop');
+  if(!pop) return;
+  const abrir = pop.hasAttribute('hidden');
+  cerrarInfoFigura();
+  if(abrir){ pop.removeAttribute('hidden'); btn.classList.add('active'); }
+}
+function cerrarInfoFigura(){
+  document.querySelectorAll('.ref-fig-pop').forEach(p=>p.setAttribute('hidden',''));
+  document.querySelectorAll('.ref-fig-info.active').forEach(b=>b.classList.remove('active'));
 }
 
 function selectFigType(type){

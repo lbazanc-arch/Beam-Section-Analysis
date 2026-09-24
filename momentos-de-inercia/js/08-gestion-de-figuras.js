@@ -1,14 +1,41 @@
 // ═══════════════════════════════════════════════════════════
 //  FIGURE MANAGEMENT
 // ═══════════════════════════════════════════════════════════
-function getRefFigHTML(type) {
+// Ficha de la figura para el panel. Desde el 2026-09-23 el dibujo se GENERA
+// acotado (27-fichas-de-figura.js) y las fórmulas ya no van debajo: se abren
+// con el botón ⓘ de la esquina. REF_FIGS se sigue usando para lo que no se
+// puede generar: los perfiles laminados, que son láminas en PNG.
+function getRefFigHTML(type, anclaActiva) {
+  const generada = (typeof fichaFiguraSVG === 'function') ? fichaFiguraSVG(type, {activa:anclaActiva}) : '';
   const ref = REF_FIGS[type];
-  if(!ref) return '';
+  if(!generada && !ref) return '';
+  const titulo = (generada && FIG_DEFS[type] && FIG_DEFS[type].name) || (ref && ref.title) || '';
+  const info = (typeof formulasFiguraHTML === 'function') ? formulasFiguraHTML(type) : '';
+  const cuerpo = generada || ref.svg;
+  const leyenda = (generada && typeof leyendaAnclasHTML === 'function') ? leyendaAnclasHTML() : '';
+  const pie = info ? '' : (ref && ref.formulas ? `<div class="ref-fig-formula">${ref.formulas}</div>` : '');
   return `<div class="ref-fig-box">
-    <div class="ref-fig-title">${ref.title}</div>
-    ${ref.svg}
-    <div class="ref-fig-formula">${ref.formulas}</div>
+    ${info ? `<button type="button" class="ref-fig-info" onclick="alternarInfoFigura(this)"
+        title="Fórmulas de la figura" aria-label="Fórmulas de la figura">i</button>` : ''}
+    <div class="ref-fig-title">${titulo}</div>
+    ${cuerpo}
+    ${leyenda}
+    ${pie}
+    ${info ? `<div class="ref-fig-pop" hidden>${info}</div>` : ''}
   </div>`;
+}
+// Abre o cierra la ventanita de fórmulas. Solo una abierta a la vez.
+function alternarInfoFigura(btn){
+  const caja = btn && btn.closest('.ref-fig-box');
+  const pop = caja && caja.querySelector('.ref-fig-pop');
+  if(!pop) return;
+  const abrir = pop.hasAttribute('hidden');
+  cerrarInfoFigura();
+  if(abrir){ pop.removeAttribute('hidden'); btn.classList.add('active'); }
+}
+function cerrarInfoFigura(){
+  document.querySelectorAll('.ref-fig-pop').forEach(p=>p.setAttribute('hidden',''));
+  document.querySelectorAll('.ref-fig-info.active').forEach(b=>b.classList.remove('active'));
 }
 
 function selectFigType(type){

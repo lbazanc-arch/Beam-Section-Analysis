@@ -298,7 +298,40 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 /* ── REF FIG ── */
 .ref-fig-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;
   padding:6px;margin-bottom:8px;text-align:center;}
-.ref-fig-box svg{width:100%;max-width:160px;height:85px;display:block;margin:0 auto;}
+.ref-fig-box{position:relative;}
+/* La ficha acotada necesita sitio: con 85 px de alto las cotas se aplastaban. */
+.ref-fig-box svg.ref-fig-svg{width:100%;max-width:none;height:auto;display:block;margin:0 auto;}
+.ref-fig-box svg:not(.ref-fig-svg){width:100%;max-width:160px;height:85px;display:block;margin:0 auto;}
+/* Botón de información, en la esquina superior derecha de la ficha. */
+.ref-fig-info{position:absolute;top:5px;right:5px;width:19px;height:19px;border-radius:50%;
+  border:1px solid var(--border2);background:var(--panel);color:var(--grn2);font-size:11px;
+  font-weight:800;font-family:Georgia,serif;line-height:1;cursor:pointer;display:flex;
+  align-items:center;justify-content:center;padding:0;z-index:2;}
+.ref-fig-info:hover{background:var(--grn);color:#fff;border-color:var(--grn);}
+.ref-fig-info.active{background:var(--grn2);color:#fff;border-color:var(--grn2);}
+/* Ventanita con las fórmulas. */
+.ref-fig-pop{position:absolute;top:26px;right:5px;left:5px;z-index:3;background:var(--panel);
+  border:1px solid var(--grn2);border-radius:8px;padding:8px 9px;box-shadow:0 6px 18px rgba(0,0,0,.18);}
+.ff-tit{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--grn2);margin-bottom:5px;}
+.ff-info{text-align:left;}
+.ff-tabla{width:100%;border-collapse:collapse;margin-bottom:2px;}
+.ff-tabla td{padding:2.5px 4px;vertical-align:top;line-height:1.45;}
+.ff-tabla tr.ff-sep td{border-top:1px solid var(--border);}
+.ff-tabla tr:first-child td{border-top:0;}
+.ff-m{width:44px;font-size:10.5px;font-weight:700;color:var(--grn2);white-space:nowrap;text-align:left;}
+.ff-e{font-size:10.5px;color:#123f8f;}
+.ff-notas{margin:6px 0 0;padding:5px 0 0 14px;border-top:1px solid var(--border);
+  font-size:9px;color:var(--muted);line-height:1.55;}
+.ff-notas li{margin-bottom:2px;}
+/* Leyenda de los colores de anclaje, debajo de la ficha. */
+.ref-fig-leyenda{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:5px;
+  font-size:8.5px;color:var(--muted);}
+/* Punto de color dentro de cada botón de anclaje. */
+.anc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;
+  vertical-align:middle;}
+/* Línea que separa las medidas de la posición. */
+.prop-sep{height:1px;background:var(--border2);margin:11px 0 9px;}
 .ref-fig-title{font-size:9px;color:var(--grn2);font-weight:700;text-transform:uppercase;
   letter-spacing:.5px;margin-bottom:4px;}
 .ref-fig-formula{font-size:9px;color:#123f8f;margin-top:4px;line-height:1.5;

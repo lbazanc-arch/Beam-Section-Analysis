@@ -6,6 +6,8 @@
 const MODALES_ESC = ['edFigModal','transModal','repModal','guardarModal',
                      'unitsModal','decModal','histModal', 'ejModal','catModal'];
 function manejarEsc(){
+  // La ventanita de fórmulas de la ficha se cierra la primera.
+  if(document.querySelector('.ref-fig-pop:not([hidden])')){ cerrarInfoFigura(); return; }
   // 0) La ventana del informe PDF, que se superpone a todo
   const pl = document.getElementById('panelLatexPDF');
   if(pl && pl.style.display !== 'none' && pl.style.display !== ''){ cerrarPanelLatex(); return; }
