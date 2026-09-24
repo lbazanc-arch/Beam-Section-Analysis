@@ -588,9 +588,12 @@ function updateGiro3d(val){
   const fig = figures.find(f=>f.id===selectedFigId); if(!fig) return;
   const def = planoGiroDef(planoGiro3d), v = parseFloat(val);
   if(!isFinite(v)){ aviso('El ángulo de giro tiene que ser un número.', 'error'); updatePropPanel3d(); return; }
-  if(Math.abs(v - anguloPlano(fig, def.id)) < 1e-12) return;
+  // Lo que se escribe es el ángulo del EJE DE LA PIEZA; lo que se guarda, el
+  // giro aplicado. La conversión va aquí, en el borde de la ventana.
+  const giro = giroDesdePanel(v, def.id);
+  if(Math.abs(giro - anguloPlano(fig, def.id)) < 1e-12) return;
   registrarCambio();
-  recolocarPorAncla(fig, f=>{ f[def.prop] = v; });
+  recolocarPorAncla(fig, f=>{ f[def.prop] = giro; });
   invalidarResultados(); buildPropPanel3d(fig); render();
 }
 // ── La vista del plano de giro ────────────────────────────────────────────
@@ -603,10 +606,7 @@ function vistaPlanoGiroSVG(fig, planoId){
   const def = SOLID_DEFS[fig.type];
   if(!def || typeof proyeccionSolido !== 'function') return '';
   const pl = planoGiroDef(planoId), ang = anguloPlano(fig, planoId);
-  // La pieza como está ahora y como estaría con ese ángulo a cero: así se ve
-  // de dónde ha girado.
-  const sinGiro = Object.assign({}, fig, {[pl.prop]: 0});
-  const ahora = proyeccionSolido(fig, planoId), antes = proyeccionSolido(sinGiro, planoId);
+  const ahora = proyeccionSolido(fig, planoId);
   if(!ahora) return '';
   // El ancla activa, proyectada en el mismo plano: es el centro del giro.
   const aAct = fig.activeAnchor || 'BM';
@@ -614,11 +614,29 @@ function vistaPlanoGiroSVG(fig, planoId){
   let A = [0,0];
   try{ A = pr(solidAnchorOffsetFig(fig, aAct)); }catch(e){}
 
+  // ENCAJE (2026-09-24): todo lo que se va a dibujar —la silueta, el anclaje,
+  // los dos lados del ángulo y el arco con su rótulo— se mide en unidades del
+  // MUNDO y entra en la envolvente ANTES de calcular la escala. Antes el arco
+  // y la línea del eje se dimensionaban en píxeles desde el anclaje, así que
+  // en cuanto el ancla dejaba de estar en el centro se salían del recuadro.
   const W = 250, H = 164, M = 26;
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
   const meter = p => { u0 = Math.min(u0,p[0]); u1 = Math.max(u1,p[0]);
                        v0 = Math.min(v0,p[1]); v1 = Math.max(v1,p[1]); };
-  ahora.forEach(meter); if(antes) antes.forEach(meter); meter(A);
+  ahora.forEach(meter); meter(A);
+  const aPanel = anguloPanel(fig, planoId), hayAng = Math.abs(aPanel) > 0.05;
+  const tam = Math.max(u1-u0, v1-v0, 1e-9);
+  const rad = tam*0.30, lado = tam*0.60;   // radio del arco y largo del lado
+  if(hayAng){
+    const a1 = aPanel*Math.PI/180;
+    meter([A[0] + lado*Math.cos(a1), A[1] + lado*Math.sin(a1)]);
+    meter([A[0] - lado*0.3*Math.cos(a1), A[1] - lado*0.3*Math.sin(a1)]);
+    // El arco hay que MUESTREARLO: por dónde pasa depende del ángulo (uno de
+    // 140° sale por arriba a la izquierda), y el radio de más deja sitio al
+    // rótulo, que se escribe por fuera.
+    const rr = rad*1.3, n = 24, paso = a1/n;
+    for(let i = 0; i <= n; i++) meter([A[0] + rr*Math.cos(i*paso), A[1] + rr*Math.sin(i*paso)]);
+  }
   const bw = Math.max(u1-u0, 1e-9), bh = Math.max(v1-v0, 1e-9);
   const s = Math.min((W-2*M)/bw, (H-2*M)/bh);
   const px = u => M + (u-u0)*s + ((W-2*M) - bw*s)/2;
@@ -629,12 +647,7 @@ function vistaPlanoGiroSVG(fig, planoId){
   // Los ejes cruzan el recuadro entero: así se leen siempre, esté donde esté
   // el punto de anclaje, y no compiten con la silueta por el espacio.
   const bx0 = 8, bx1 = W - 8, by0 = 8, by1 = H - 8;
-  let g = '';
-  // Silueta de partida (ángulo 0) y silueta actual.
-  if(antes && Math.abs(ang) > 1e-9)
-    g += `<path d="${poli(antes)}" fill="none" stroke="${FF_COL.linea}" stroke-width="1" `
-       + `stroke-dasharray="4,3" opacity=".55"/>`;
-  g += `<path d="${poli(ahora)}" fill="${FF_COL.relleno}" stroke="${FF_COL.linea}" stroke-width="1.6" `
+  let g = `<path d="${poli(ahora)}" fill="${FF_COL.relleno}" stroke="${FF_COL.linea}" stroke-width="1.6" `
      + `stroke-linejoin="round"/>`;
   // Ejes del plano EN EL PUNTO DE ANCLAJE: el de partida a la derecha y el
   // otro hacia arriba, que es como se mide el ángulo.
@@ -645,14 +658,16 @@ function vistaPlanoGiroSVG(fig, planoId){
      + _ffPunta(O.x, by0, 0, -1, col, 4.8)
      + _ffTexto(bx1 - 2, O.y - 6, pl.desde, col, {anchor:'end', fs:11, recta:true})
      + _ffTexto(O.x + 6, by0 + 9, pl.hacia, col, {anchor:'start', fs:11, recta:true});
-  // Arco del ángulo, desde el eje de partida.
-  if(Math.abs(ang) > 0.05){
-    const a0 = 0, a1 = ang*Math.PI/180;
-    // Con el anclaje pegado a un borde el arco saldría minúsculo: se le pone
-    // un mínimo para que siempre se lea.
-    const r = Math.max(24, Math.min(Math.abs(bx1-O.x), Math.abs(O.y-by0))*0.55);
-    g += _ffCotaAngulo(O.x, O.y, r, Math.min(a0,a1), Math.max(a0,a1),
-                       r2(ang) + '°', FF_COL.cen);
+  // El ángulo, con sus dos lados: el eje de partida del plano —que ya está
+  // dibujado, es el propio eje del recuadro— y, en línea de trazos, EL EJE DE
+  // LA PIEZA, la línea que la parte por el medio, que es con quien se forma.
+  // El valor es el mismo que dice el campo.
+  if(hayAng){
+    const a0 = 0, a1 = aPanel*Math.PI/180, L = lado*s, r = rad*s;
+    g += `<line x1="${_ffN(O.x - L*0.3*Math.cos(a1))}" y1="${_ffN(O.y + L*0.3*Math.sin(a1))}" `
+       + `x2="${_ffN(O.x + L*Math.cos(a1))}" y2="${_ffN(O.y - L*Math.sin(a1))}" `
+       + `stroke="${FF_COL.cen}" stroke-width="1.1" stroke-dasharray="5,3"/>`
+       + _ffCotaAngulo(O.x, O.y, r, Math.min(a0,a1), Math.max(a0,a1), r2(aPanel) + '°', FF_COL.cen);
   }
   // El punto de anclaje: es el centro del giro.
   const cAnc = (typeof colorAncla === 'function') ? colorAncla(aAct) : FF_COL.cen;
@@ -673,11 +688,12 @@ function bloqueGiro3dHTML(fig){
     + '<div class="field"><label>Girar en el plano</label><div class="anchor-row">' + botones + '</div></div>'
     + '<div class="field"><label>Ángulo en ' + pl.label
     + ' <span style="color:var(--grn2);font-weight:800">(°)</span></label>'
-    + '<input type="number" id="giro3d" step="any" value="' + r2(anguloPlano(fig, pl.id)) + '" '
+    + '<input type="number" id="giro3d" step="any" value="' + r2(anguloPanel(fig, pl.id)) + '" '
     + 'onchange="updateGiro3d(this.value)">'
     + '<div style="font-size:9.5px;color:var(--muted);margin-top:5px;line-height:1.45;">'
-    + 'Se mide desde ' + pl.desde + ' hacia ' + pl.hacia + ', antihorario (giro alrededor del eje '
-    + pl.eje + ').</div></div>'
+    + 'Ángulo que forma ' + pl.que + ' con ' + pl.desde + ', hacia ' + pl.hacia + ' (antihorario, giro '
+    + 'alrededor del eje ' + pl.eje + ').' + (pl.base ? ' Sin girar vale ' + pl.base + '°.' : '')
+    + '</div></div>'
     + (vista ? '<div class="ref-fig-box"><div class="ref-fig-title">Plano ' + pl.label
              + ' — giro respecto al punto de anclaje</div>' + vista + '</div>' : '');
 }
@@ -846,7 +862,7 @@ function updatePropPanel3d(){
   const a = anclaSolido(fig);
   const set = (id, v) => { const e = document.getElementById(id); if(e) e.value = r2(v); };
   set('posX', a.x); set('posY', a.y); set('posZ', a.z);
-  set('giro3d', anguloPlano(fig, planoGiro3d));
+  set('giro3d', anguloPanel(fig, planoGiro3d));
 }
 
 // ══ Cálculo ═════════════════════════════════════════════════════════════════

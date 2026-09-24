@@ -291,13 +291,30 @@ function solidCLocal(def, d){ return def.cLocal ? def.cLocal(d) : {x:0, z:def.cB
 // El ORDEN de aplicación es Y–Z, luego X–Z y por último X–Y. No es un detalle:
 // con X–Y en último lugar, girar todo el conjunto en planta (Transformar) es
 // simplemente sumar a `rotation`, sin recolocar nada más.
+// `base` es el ángulo que ya forma el EJE DE LA PIEZA con el eje de partida
+// cuando no se ha girado nada: el eje propio de un sólido apunta a +Z, así que
+// en el plano X–Z (que se mide desde +X) arranca a 90°, y en el Y–Z (que se
+// mide desde +Z) arranca a 0°. En el plano X–Y el eje de la pieza es
+// perpendicular al plano y lo que se gira es la pieza sobre sí misma, así que
+// ahí el ángulo es el giro y arranca en 0.
 const PLANOS_GIRO = [
-  {id:'xy', prop:'rotation', label:'X–Y', desde:'+X', hacia:'+Y', eje:'Z', tex:'$X$--$Y$'},
-  {id:'xz', prop:'rotXZ',    label:'X–Z', desde:'+X', hacia:'+Z', eje:'Y', tex:'$X$--$Z$'},
-  {id:'yz', prop:'rotYZ',    label:'Y–Z', desde:'+Z', hacia:'+Y', eje:'X', tex:'$Y$--$Z$'}
+  {id:'xy', prop:'rotation', label:'X–Y', desde:'+X', hacia:'+Y', desdeTex:'$+X$', eje:'Z', base:0,  tex:'$X$--$Y$',
+   que:'la marca de referencia de la pieza'},
+  {id:'xz', prop:'rotXZ',    label:'X–Z', desde:'+X', hacia:'+Z', desdeTex:'$+X$', eje:'Y', base:90, tex:'$X$--$Z$',
+   que:'el eje de la pieza'},
+  {id:'yz', prop:'rotYZ',    label:'Y–Z', desde:'+Z', hacia:'+Y', desdeTex:'$+Z$', eje:'X', base:0,  tex:'$Y$--$Z$',
+   que:'el eje de la pieza'}
 ];
 function planoGiroDef(id){ return PLANOS_GIRO.find(p=>p.id === id) || PLANOS_GIRO[0]; }
+// El GIRO aplicado (0 = la pieza como nace). Es lo que se guarda y lo que usa
+// el cálculo.
 function anguloPlano(fig, id){ const v = fig && fig[planoGiroDef(id).prop]; return isFinite(v) ? v : 0; }
+// El ángulo que se ENSEÑA y se escribe en el panel: el que forma el eje de la
+// pieza con el eje de partida del plano. La media vuelta entre los dos va solo
+// en el borde de la ventana, como el convenio de los apoyos (§7 de CLAUDE.md):
+// ni el motor ni los archivos se enteran.
+function anguloPanel(fig, id){ return anguloPlano(fig, id) + planoGiroDef(id).base; }
+function giroDesdePanel(valor, id){ return valor - planoGiroDef(id).base; }
 // ¿La pieza está tumbada? (algún giro fuera del plano X–Y). El giro en planta
 // de un sólido de revolución no cambia nada; los otros dos, sí.
 function giroFueraDePlanta(fig){

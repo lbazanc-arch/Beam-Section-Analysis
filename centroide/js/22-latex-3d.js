@@ -322,9 +322,13 @@ function construirLatex3d(){
     // cabecera. Los croquis la dibujan siempre en su postura de ficha.
     const postura = [];
     if(f.volteado && f.type !== 's_esfera') postura.push('volteado: su base queda arriba');
+    // El ángulo que se escribe es el MISMO que enseña el panel: la dirección
+    // del eje de la pieza en ese plano, no el giro aplicado (2026-09-24). Si
+    // no, el PDF decía 50° donde el alumno acababa de escribir 140°.
     PLANOS_GIRO.forEach(q=>{
-      const a = anguloPlano(f, q.id);
-      if(Math.abs(a) > 1e-9) postura.push('girado $' + decP(a,'ang') + '^{\\circ}$ en el plano ' + q.tex);
+      if(Math.abs(anguloPlano(f, q.id)) <= 1e-9) return;
+      postura.push('en el plano ' + q.tex + ', ' + q.que + ' a $'
+                 + decP(anguloPanel(f, q.id),'ang') + '^{\\circ}$ de ' + q.desdeTex);
     });
     const posturaTex = postura.length ? '\\ {\\small\\color{bsaMuted}[' + postura.join('; ') + ']}' : '';
     // Hacia dónde se mide el centroide propio desde la base. Con la pieza

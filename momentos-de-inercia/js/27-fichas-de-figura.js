@@ -124,20 +124,28 @@ function _ffCotaRadio(cx, cy, r, angGrados, txt, col){
 // plano. El ángulo se mide entre dos direcciones que TIENEN que estar
 // dibujadas (el eje de simetría y un radio): si no, el arco flota y no se sabe
 // respecto a qué se mide.
+// OJO CON EL SENTIDO DEL ARCO (2026-09-24): aquí la y va hacia ABAJO, así que
+// recorrer el ángulo de a0 a a1 (creciente) es ANTIHORARIO en pantalla, y eso
+// en SVG es sweep = 0. Con sweep = 1 el trazador elegía el centro espejo: el
+// arco salía combado hacia dentro y no pasaba por donde lo dicen los radios.
 function _ffCotaAngulo(cx, cy, r, a0, a1, txt, col, opts){
   opts = opts || {};
   const c = col || FF_COL.cota;
   const p = a => [cx + r*Math.cos(a), cy - r*Math.sin(a)];
   const [x0,y0] = p(a0), [x1,y1] = p(a1);
   const grande = Math.abs(a1-a0) > Math.PI ? 1 : 0, am = (a0+a1)/2;
+  // El rótulo sigue al arco, pero nunca se lee del revés: si la bisectriz cae
+  // en la mitad de abajo, se gira media vuelta más.
+  let rot = 90 - am*180/Math.PI;
+  while(rot > 90) rot -= 180;
+  while(rot < -90) rot += 180;
   // Puntas tangentes al arco, en cada extremo.
   const t0 = [ Math.sin(a0),  Math.cos(a0)], t1 = [-Math.sin(a1), -Math.cos(a1)];
-  return `<path d="M${_ffN(x0)},${_ffN(y0)} A${_ffN(r)},${_ffN(r)} 0 ${grande} 1 ${_ffN(x1)},${_ffN(y1)}" `
+  return `<path d="M${_ffN(x0)},${_ffN(y0)} A${_ffN(r)},${_ffN(r)} 0 ${grande} 0 ${_ffN(x1)},${_ffN(y1)}" `
        + `fill="none" stroke="${c}" stroke-width="0.9"/>`
        + _ffPunta(x0, y0, t0[0], t0[1], c, 4.2) + _ffPunta(x1, y1, t1[0], t1[1], c, 4.2)
        + _ffTexto(cx + (r + (opts.dentro ? -9 : 8))*Math.cos(am),
-                  cy - (r + (opts.dentro ? -9 : 8))*Math.sin(am), txt, c,
-                  {fs:12, rot:90 - am*180/Math.PI});
+                  cy - (r + (opts.dentro ? -9 : 8))*Math.sin(am), txt, c, {fs:12, rot});
 }
 // Línea auxiliar a trazos (un radio, un eje de simetría): sirve de referencia
 // para leer el ángulo.
