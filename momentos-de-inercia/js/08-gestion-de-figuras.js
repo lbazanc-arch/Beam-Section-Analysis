@@ -89,6 +89,7 @@ function centroideDesdeClic(type, wx, wy){
 }
 
 function placeFigure(type, cx, cy){
+  if(modoEspacio === '3d') return placeSolid(type);     // 29-vistas-3d-masa.js
   registrarCambio();
   const def = FIG_DEFS[type];
   const id = ++figIdCounter;
@@ -131,6 +132,13 @@ function cerrarEdicionSiSobra(){
   if(!sigue) cerrarEdicionFigura();
 }
 
+// Marcadas con Mover / editar. El 3D las consulta para dibujar la selección
+// (29-); en 2D el dibujo mira `selFiguras` directamente.
+function figuraMarcada(id){ return selFiguras.indexOf(id) >= 0; }
+function alternarFigura(id){
+  const i = selFiguras.indexOf(id);
+  if(i >= 0) selFiguras.splice(i, 1); else selFiguras.push(id);
+}
 function selectFigure(id){
   selectedFigId = id;
   renderFigList();

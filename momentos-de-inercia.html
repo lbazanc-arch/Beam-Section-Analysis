@@ -36,6 +36,12 @@
     </button>
     <div class="tb-sep"></div>
     <div class="tb-zona" id="tbZona1">
+      <!-- Espacio de trabajo: el botón muestra el modo ACTUAL (2D o 3D) y abre
+           #menuEspacio para cambiarlo. El 3D es de inercia de MASA (29-). -->
+      <button class="tool-btn" id="btnEspacio" onclick="menuEspacio(event)" title="Espacio de trabajo: sección plana (2D). Pulsa para cambiar.">
+        <svg viewBox="0 0 40 34"><path d="M13 12 l7 -4 l8 4 v10 l-8 4 l-7 -4 Z M20 8 v18 M13 12 l7 4 l8 -4" fill="none" stroke="#c9930f" stroke-width="2.2" stroke-linejoin="round"/></svg>
+        <span>2D</span>
+      </button>
       <button class="tool-btn" id="btnFiguras" onclick="abrirPaleta(event)" title="Insertar una figura en el panel">
         <svg viewBox="0 0 40 34"><rect x="8" y="9" width="11" height="11" fill="none" stroke="#c9930f" stroke-width="2.2"/><circle cx="27" cy="20" r="6" fill="none" stroke="#c9930f" stroke-width="2.2"/></svg>
         <span>Figuras</span>
@@ -129,12 +135,68 @@
   </div>
 </div>
 
+    <div class="tb-menu" id="menuEspacio"><div class="tb-menu-head">Espacio de trabajo</div><div class="tb-menu-body">
+      <div style="display:flex;flex-direction:column;gap:5px;padding:0 8px;">
+        <button class="modo-btn active" id="esp-2d" onclick="elegirEspacio('2d')">Sección plana (2D)</button>
+        <button class="modo-btn" id="esp-3d" onclick="elegirEspacio('3d')">Cuerpo sólido (3D) — inercia de masa</button>
+      </div>
+      <div style="font-size:9px;color:var(--muted);margin:6px 8px 0;line-height:1.45;">
+        Sección plana: inercia de áreas, en mm⁴. Cuerpo sólido: inercia de masa, en kg·m². Cambiar de espacio vacía el panel.
+      </div>
+    </div></div>
+
     <div class="tb-menu" id="menuFiguras">
     <div class="tb-menu-head">Insertar figura</div>
     <div class="tb-menu-body"><div class="pal">
           <!-- Cuadrícula única de 3 columnas, como en el Cap. 9: las dos
                categorías separadas hacían el panel el doble de alto y obligaban
                a desplazarse para ver los círculos. -->
+          <div class="pal-grid" id="palGrid3d" style="display:none">
+            <button class="fig-btn" onclick="selectFigType('s_prisma')" id="figbtn-s_prisma">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M10 16 l12 -6 l12 6 v16 l-12 6 l-12 -6 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M10 16 l12 6 l12 -6 M22 22 v16" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="25" r="2.5" fill="#f0c040"/></svg>
+            <span>Prisma</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_cilindro')" id="figbtn-s_cilindro">
+            <svg viewBox="0 0 44 44" fill="none"><ellipse cx="22" cy="12" rx="12" ry="4" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M10 12 v20 a12 4 0 0 0 24 0 v-20" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><circle cx="22" cy="24" r="2.5" fill="#f0c040"/></svg>
+            <span>Cilindro</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_semicilindro')" id="figbtn-s_semicilindro">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M10 12 a12 4 0 0 1 24 0 v20 a12 4 0 0 1 -24 0 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)" transform="translate(0,0)"/><path d="M10 12 v20 M34 12 v20" stroke="currentColor" stroke-width="1.2"/><path d="M10 12 a12 4 0 0 0 24 0" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/><circle cx="24" cy="24" r="2.5" fill="#f0c040"/></svg>
+            <span>Medio cil.</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_semicilindro_t')" id="figbtn-s_semicilindro_t">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M6 32 a12 12 0 0 1 24 0 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M6 32 l8 -5 a12 12 0 0 1 24 0 l-8 5 M30 32 l8 -5" stroke="currentColor" stroke-width="1.4" fill="rgba(168,232,216,.10)"/><circle cx="18" cy="27" r="2.5" fill="#f0c040"/></svg>
+            <span>Medio cil. tumb.</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_cono')" id="figbtn-s_cono">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M10 32 a12 4 0 0 0 24 0 L22 6 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M10 32 a12 4 0 0 1 24 0" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="28" r="2.5" fill="#f0c040"/></svg>
+            <span>Cono</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_esfera')" id="figbtn-s_esfera">
+            <svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="15" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><ellipse cx="22" cy="22" rx="15" ry="5" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/><circle cx="22" cy="22" r="2.5" fill="#f0c040"/></svg>
+            <span>Esfera</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_semiesfera')" id="figbtn-s_semiesfera">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M7 28 a15 15 0 0 1 30 0 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><ellipse cx="22" cy="28" rx="15" ry="4" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="23" r="2.5" fill="#f0c040"/></svg>
+            <span>Semiesfera</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_piramide')" id="figbtn-s_piramide">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8 30 l14 -24 l14 24 l-8 5 l-6 -2 l-6 2 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M22 6 l-6 27 M22 6 l6 27" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="27" r="2.5" fill="#f0c040"/></svg>
+            <span>Pirámide</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_conotrunc')" id="figbtn-s_conotrunc">
+            <svg viewBox="0 0 44 44" fill="none"><ellipse cx="22" cy="11" rx="7" ry="2.5" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M15 11 L8 32 a14 4.5 0 0 0 28 0 L29 11" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M8 32 a14 4.5 0 0 1 28 0" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="25" r="2.5" fill="#f0c040"/></svg>
+            <span>Cono trunc.</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_paraboloide')" id="figbtn-s_paraboloide">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8 32 Q22 -18 36 32 a14 4.5 0 0 1 -28 0 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M8 32 a14 4.5 0 0 0 28 0" stroke="currentColor" stroke-width="1.2"/><circle cx="22" cy="26" r="2.5" fill="#f0c040"/></svg>
+            <span>Paraboloide</span>
+            </button>
+            <button class="fig-btn" onclick="selectFigType('s_cuna')" id="figbtn-s_cuna">
+            <svg viewBox="0 0 44 44" fill="none"><path d="M8 34 L34 34 L8 12 Z" stroke="currentColor" stroke-width="2" fill="rgba(168,232,216,.18)"/><path d="M8 12 l8 -5 l26 22 l-8 5 M34 34 l8 -5" stroke="currentColor" stroke-width="1.4" fill="rgba(168,232,216,.10)"/><circle cx="17" cy="27" r="2.5" fill="#f0c040"/></svg>
+            <span>Cuña</span>
+            </button>
+          </div>
           <div class="pal-grid" id="palGrid">
             <div class="pal-fam">Rectas</div>
             <button class="fig-btn" onclick="selectFigType('rect')" id="figbtn-rect">
@@ -319,10 +381,18 @@
               <div class="field"><label>X</label><input type="number" id="posX" value="0" step="any" onchange="updateFigFromProp()"></div>
               <div class="field"><label>Y</label><input type="number" id="posY" value="0" step="any" onchange="updateFigFromProp()"></div>
             </div>
-            <div class="field">
+            <!-- La cota Z solo existe en 3D; en 2D queda oculta. -->
+            <div class="field" id="posZField" style="display:none">
+              <label>Z</label><input type="number" id="posZ" value="0" step="any" onchange="updateFigFromProp()">
+            </div>
+            <div class="field" id="rotField">
               <label>Rotación α (°)</label>
               <input type="number" id="rotation" value="0" step="1" onchange="updateFigFromProp()">
             </div>
+            <!-- Densidad de la pieza (3D) y el bloque de giro, que va al final
+                 del panel como en centroide. -->
+            <div id="densidadBox"></div>
+            <div id="giro3dBox"></div>
           </div>
         </div>
 
@@ -408,6 +478,10 @@
 <script src="momentos-de-inercia/js/25-controles-unidades-historial.js?v=20260924c"></script>
 <script src="momentos-de-inercia/js/26-catalogo-perfiles-e-inicio.js?v=20260924c"></script>
 <script src="momentos-de-inercia/js/27-fichas-de-figura.js?v=20260924c"></script>
+<script src="momentos-de-inercia/js/28-inercia-de-masa.js?v=20260924c"></script>
+<script src="momentos-de-inercia/js/31-vista-isometrica.js?v=20260924c"></script>
+<script src="momentos-de-inercia/js/29-vistas-3d-masa.js?v=20260924c"></script>
+<script src="momentos-de-inercia/js/30-fichas-de-solido.js?v=20260924c"></script>
 
 <!-- ── MODAL DE UNIDADES ── -->
 <!-- MODAL GUARDAR PROYECTO -->

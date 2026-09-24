@@ -189,6 +189,12 @@ function _tikzFichaPerfil(tipo){
 }
 
 function construirLatex(){
+  // El informe de INERCIA DE MASA aun no esta escrito: en 3D se avisa en vez
+  // de armar el de areas con un resultado que no le corresponde.
+  if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d'){
+    aviso('El informe en LaTeX del cuerpo solido todavia no esta disponible.', 'error');
+    return null;
+  }
   if(!results){ aviso('Primero calcula el momento de inercia.'); return null; }
   _yaDichoIn = {};
   const st = results.steps;

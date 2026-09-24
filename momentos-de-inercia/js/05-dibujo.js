@@ -2,6 +2,8 @@
 //  RENDER
 // ═══════════════════════════════════════════════════════════
 function render(){
+  // En 3D dibuja las dos vistas ortogonales (29-vistas-3d-masa.js).
+  if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d' && typeof render3d === 'function'){ render3d(); return; }
   const W = canvas.clientWidth, H = canvas.clientHeight;
   ctx.clearRect(0,0,W,H);
   // Fondo OPACO: sin esto el canvas queda transparente y al exportarlo a PDF

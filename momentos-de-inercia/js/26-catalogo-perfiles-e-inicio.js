@@ -206,6 +206,10 @@ function _figuraInformeIn(){
 }
 
 function downloadPDF(){
+  if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d'){
+    aviso('El informe del cuerpo solido todavia no esta disponible.', 'error');
+    return;
+  }
   let giro = null;          // bloque del deslizador de Mohr, si se aparta del papel
   let guardado = null;      // lienzo, vista, selección y visibilidad, para reponerlos
   return bsaInformeRapido({

@@ -104,6 +104,7 @@ document.addEventListener('click', ev=>{
 });
 
 function calculate(){
+  if(modoEspacio === '3d') return calcularMasa3d();     // 29-vistas-3d-masa.js
   if(!figures.length){ aviso('Agrega al menos una figura.'); return; }
 
   const u4 = unit+'⁴';

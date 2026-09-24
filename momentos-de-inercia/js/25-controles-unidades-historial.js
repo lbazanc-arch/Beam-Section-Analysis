@@ -543,6 +543,7 @@ function figuresBBox(){
 
 // Encuadra y CENTRA la sección compuesta dentro del área visible
 function fitView(){
+  if(modoEspacio === '3d') return fitView3d();          // 29-vistas-3d-masa.js
   const cvEl = document.getElementById('mainCanvas');
   const area = document.getElementById('canvasArea');
   const W = (cvEl && cvEl.clientWidth)  || (area && area.clientWidth)  || 800;
@@ -654,6 +655,18 @@ const EJEMPLOS_IN = [
 ];
 function abrirEjemplosIn(){
   const el = document.getElementById('ejLista');
+  // En 3D la ventana enseña el ejemplo de masas, no los planos: cargar uno
+  // plano estando en 3D no tenía sentido (mismo criterio que centroide).
+  if(modoEspacio === '3d'){
+    if(el) el.innerHTML = EJEMPLOS_3D.slice(0,1).map((e,i)=>
+        '<button type="button" class="ej-item" onclick="loadExampleSection(\'' + e.id + '\')">'
+      + '<div class="ej-cab"><span class="ej-num">' + (i+1) + '</span><span class="ej-nom">' + e.nombre + '</span></div>'
+      + '<div class="ej-desc">' + e.desc + '</div>'
+      + '<div class="ej-ref"><b>Referencia:</b> ' + e.esperado + '</div>'
+      + '</button>').join('');
+    const m3 = document.getElementById('ejModal'); if(m3) m3.classList.add('show');
+    return;
+  }
   // Un solo ejemplo a la vista; los demás siguen en el código como casos de
   // verificación, que es lo que contrasta la consola (CLAUDE.md §4).
   if(el) el.innerHTML = EJEMPLOS_IN.slice(0,1).map((e,i)=>
@@ -681,6 +694,7 @@ function comprobarEjemploIn(ej){
 
 // Sin argumento carga la sección de 18 figuras, para no romper llamadas antiguas.
 function loadExampleSection(id){
+  if(modoEspacio === '3d') return loadExample3d(id);    // 29-vistas-3d-masa.js
   const ej = EJEMPLOS_IN.find(e=>e.id === id) || EJEMPLOS_IN[0];
   resetAll();
   mohrTheta = 0;

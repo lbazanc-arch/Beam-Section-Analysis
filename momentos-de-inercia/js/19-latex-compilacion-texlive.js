@@ -42,6 +42,10 @@ function _panelLatexPDF(){
 // generar no se vea por un instante el PDF anterior.
 
 function generarPDFLatex(){
+  if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d'){
+    aviso('El informe en LaTeX del cuerpo solido todavia no esta disponible.', 'error');
+    return;
+  }
   const btn = document.getElementById('btnLatex');
   if(btn && btn.dataset.ocupado === '1') return;
 

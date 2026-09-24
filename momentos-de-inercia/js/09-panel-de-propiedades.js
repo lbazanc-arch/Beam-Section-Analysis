@@ -2,6 +2,7 @@
 //  PROPERTIES PANEL
 // ═══════════════════════════════════════════════════════════
 function buildPropPanel(fig){
+  if(modoEspacio === '3d') return buildPropPanel3d(fig);   // 29-vistas-3d-masa.js
   const def = FIG_DEFS[fig.type];
   document.getElementById('propTitle').textContent = fig.name;
 
@@ -159,6 +160,7 @@ function setSectorAngleMode(mode){
 }
 
 function updateFigFromProp(){
+  if(modoEspacio === '3d') return updateFigFromProp3d();   // 29-vistas-3d-masa.js
   const fig = figures.find(f=>f.id===selectedFigId);
   if(!fig) return;
   // Aquí el 0 SÍ es un valor válido, así que no vale `parseFloat(...)||0`:
