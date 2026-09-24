@@ -329,6 +329,13 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 /* Punto de color dentro de cada botón de anclaje. */
 .anc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;
   vertical-align:middle;}
+/* Las tres vistas de un sólido: planta y alzado en una fila, isométrica debajo. */
+.fs-fila{display:flex;gap:6px;align-items:flex-start;}
+.fs-fila.fs-iso{margin-top:4px;}
+.fs-vista{flex:1 1 0;min-width:0;}
+.fs-fila.fs-iso .fs-vista{max-width:62%;margin:0 auto;}
+.fs-tit{font-size:8.5px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.3px;text-align:center;margin-bottom:1px;}
 /* Línea que separa las medidas de la posición. */
 .prop-sep{height:1px;background:var(--border2);margin:11px 0 9px;}
 .ref-fig-title{font-size:9px;color:var(--grn2);font-weight:700;text-transform:uppercase;

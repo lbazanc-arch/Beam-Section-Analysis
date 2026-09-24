@@ -595,7 +595,8 @@ function updateGiro3d(val){
 // Isométrica de referencia: la pieza SIN girar, apoyada por el centro de su
 // base en el origen y con los ejes X, Y, Z. Es la postura desde la que se mide
 // cualquier giro, así que el alumno ve contra qué está girando.
-function svgIsoReferencia(fig){
+function svgIsoReferencia(fig, opts){
+  opts = opts || {};
   if(typeof escenaIso !== 'function') return '';
   const base = Object.assign({}, fig, {rotation:0, rotXZ:0, rotYZ:0, volteado:false, cx:0, cy:0, cz:0});
   const off = solidAnchorOffsetFig(base, 'BM');
@@ -632,9 +633,25 @@ function svgIsoReferencia(fig){
     g += `<line x1="${tu(O.u)}" y1="${tv(O.v)}" x2="${tu(e.u)}" y2="${tv(e.v)}" stroke="#0d3a8f" stroke-width="1.2" marker-end="url(#pfEje)"/>`
        + `<text x="${tu(e.u)}" y="${tv(e.v)}" dx="4" dy="-3" font-size="10" font-weight="800" fill="#0d3a8f">${e.n}</text>`;
   });
+  // Puntos de anclaje, con su color y el activo resaltado: así se ve en la
+  // isométrica dónde cae el punto por el que se coloca la pieza, igual que en
+  // las dos vistas planas (2026-09-23).
+  if(opts.anclas !== false && typeof colorAncla === 'function'){
+    (SOLID_ANCHORS || []).forEach(a=>{
+      let q; try{ q = solidAnchorOffsetFig(base, a); }catch(e){ return; }
+      const w = isoProy(base.cx + q.dx, base.cy + q.dy, base.cz + q.dz);
+      const ax = tu(w.u), ay = tv(w.v), col = colorAncla(a);
+      if(a === opts.activa)
+        g += `<circle cx="${ax}" cy="${ay}" r="6.6" fill="${col}" opacity=".22"/>`
+           + `<circle cx="${ax}" cy="${ay}" r="3.7" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
+      else
+        g += `<circle cx="${ax}" cy="${ay}" r="2.6" fill="${col}" stroke="#fff" stroke-width="0.9"/>`;
+    });
+  }
   g += `<circle cx="${tu(O.u)}" cy="${tv(O.v)}" r="2.4" fill="#0d3a8f"/>`
-     + `<text x="${tu(O.u)}" y="${tv(O.v)}" dx="-9" dy="10" font-size="9" font-weight="700" fill="#0d3a8f">O</text>`;
-  return `<svg viewBox="0 0 ${W} ${H}" class="croq-svg">${g}</svg>`;
+     + `<text x="${tu(O.u)}" y="${tv(O.v)}" dx="-9" dy="11" font-size="9" font-weight="700" fill="#0d3a8f">O</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="ref-fig-svg" role="img" `
+       + `aria-label="Vista isométrica de la pieza sin girar, con los ejes y los puntos de anclaje">${g}</svg>`;
 }
 function buildPropPanel3d(fig){
   const def = SOLID_DEFS[fig.type];
@@ -643,19 +660,25 @@ function buildPropPanel3d(fig){
   document.getElementById('signPos').classList.toggle('active', fig.sign===1);
   document.getElementById('signNeg').classList.toggle('active', fig.sign===-1);
   const df = document.getElementById('dimFields');
-  const ref = REF_SOLIDS[fig.type];
-  df.innerHTML = ref ? `<div class="ref-fig-box"><div class="ref-fig-title">${ref.title}</div>${ref.svg}<div class="ref-fig-formula">${ref.formulas}</div></div>` : '';
-  // Posición inicial: la pieza sin girar, con los ejes. Es la referencia desde
-  // la que se mide cualquier giro (decisión del profesor, 2026-09-18).
-  if(fig.type !== 's_esfera'){
-    const iso = svgIsoReferencia(fig);
-    if(iso){
-      const rb = document.createElement('div'); rb.className = 'field';
-      rb.innerHTML = '<label>Posición inicial (sin girar)</label>'
-        + '<div class="ref-fig-box" style="text-align:center">' + iso
-        + '<div class="ref-fig-formula">Se coloca por el centro de su base, en el origen.</div></div>';
-      df.appendChild(rb);
-    }
+  // Ficha acotada: planta, alzado e isométrica de la pieza SIN GIRAR, con las
+  // cotas, el centroide y los puntos de anclaje (2026-09-23). El giro se
+  // aplica después, en el bloque de abajo. REF_SOLIDS ya no se usa para
+  // dibujar; queda como respaldo si un sólido no tuviera cotas declaradas.
+  const anclaAct = fig.activeAnchor || 'BM';
+  const ficha = (typeof fichaSolidoSVG === 'function') ? fichaSolidoSVG(fig.type, {activa:anclaAct}) : '';
+  const infoS = (typeof formulasSolidoHTML === 'function') ? formulasSolidoHTML(fig.type) : '';
+  if(ficha){
+    df.innerHTML = '<div class="ref-fig-box">'
+      + (infoS ? '<button type="button" class="ref-fig-info" onclick="alternarInfoFigura(this)"'
+               + ' title="Fórmulas del sólido" aria-label="Fórmulas del sólido">i</button>' : '')
+      + '<div class="ref-fig-title">' + (def.name || '') + ' — sin girar</div>'
+      + ficha
+      + (typeof leyendaAnclasHTML === 'function' ? leyendaAnclasHTML() : '')
+      + (infoS ? '<div class="ref-fig-pop" hidden>' + infoS + '</div>' : '')
+      + '</div>';
+  } else {
+    const ref = REF_SOLIDS[fig.type];
+    df.innerHTML = ref ? `<div class="ref-fig-box"><div class="ref-fig-title">${ref.title}</div>${ref.svg}</div>` : '';
   }
   // Volteo (base arriba). La esfera no cambia al voltearla.
   if(fig.type !== 's_esfera'){
@@ -716,8 +739,10 @@ function buildPropPanel3d(fig){
     const btn = document.createElement('button');
     const act = a === (fig.activeAnchor||'BM');
     btn.className = 'anchor-btn' + (act ? ' active' : ''); btn.style.fontWeight = act ? '700' : '500';
-    btn.textContent = SOLID_ANCHOR_LABELS[a];
-    btn.onclick = ()=>{ fig.activeAnchor = a; fig.anchor = a; buildPropPanel3d(fig); render(); };
+    const col = (typeof colorAncla === 'function') ? colorAncla(a) : null;
+    btn.innerHTML = (col ? '<span class="anc-dot" style="background:' + col + '"></span>' : '')
+                  + SOLID_ANCHOR_LABELS[a];
+    btn.onclick = ()=>{ fig.activeAnchor = a; fig.anchor = a; buildPropPanel3d(fig); render(); };   // la ficha resalta el punto nuevo
     ab.appendChild(btn);
   });
   const pl = document.getElementById('posLabel');
