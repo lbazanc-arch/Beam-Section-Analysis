@@ -13,8 +13,8 @@ window.addEventListener('resize', resizeCanvas);
 //    en pantalla, y después se deja como estaba;
 //  - lo que no va al papel: el recuadro para escribir el punto P, la sección
 //    del punto si no hay punto, y el bloque del deslizador si θ = 0 (sin giro
-//    no hay resultado que enseñar). La barra de notación, «Rotar ejes» y la
-//    pista de la rigidez llevan data-bsa-pantalla en 23-;
+//    no hay resultado que enseñar). La barra de notación y «Rotar ejes»
+//    llevan data-bsa-pantalla en 23-;
 //  - CSS_INFORME_IN, el CSS de las clases del panel pensado para el papel.
 function _opcionesMohrPantalla(){
   if(!results || !(Math.abs(mohrTheta) > 1e-9)) return {};
@@ -226,12 +226,12 @@ function downloadPDF(){
       guardado = {sw:canvas.style.width, sh:canvas.style.height, cw:canvas.width, ch:canvas.height,
         viewTx:viewTx, viewTy:viewTy, viewScale:viewScale, grilla:VIS.grilla, ejes:VIS.ejes,
         selectedFigId:selectedFigId, selFiguras:selFiguras, selectedFigType:selectedFigType,
-        ghostPos:ghostPos, resaltada:_figResaltada, copia:copia};
+        ghostPos:ghostPos, copia:copia};
       // La figura de cabecera, sin rejilla ni ejes: los rótulos X e Y van en
       // los bordes del lienzo y cuentan como dibujo, así que el recorte salía
       // casi del tamaño del lienzo entero, con franjas vacías.
       VIS.grilla = false; VIS.ejes = false;
-      selectedFigId = null; selFiguras = []; selectedFigType = null; ghostPos = null; _figResaltada = null;
+      selectedFigId = null; selFiguras = []; selectedFigType = null; ghostPos = null;
       _figuraInformeIn();
       _redibujarMohr(3);
       const sl = document.getElementById('mohrSlider');
@@ -253,7 +253,7 @@ function downloadPDF(){
         viewTx = g.viewTx; viewTy = g.viewTy; viewScale = g.viewScale;
         VIS.grilla = g.grilla; VIS.ejes = g.ejes;
         selectedFigId = g.selectedFigId; selFiguras = g.selFiguras;
-        selectedFigType = g.selectedFigType; ghostPos = g.ghostPos; _figResaltada = g.resaltada;
+        selectedFigType = g.selectedFigType; ghostPos = g.ghostPos;
         render();
         // Y encima, los píxeles de antes del informe (el fondo es opaco y el
         // tamaño el mismo: la copia tapa el lienzo entero, píxel a píxel).

@@ -42,13 +42,11 @@ function aviso(msg, tipo){
 
 // ── Visibilidad de capas del dibujo ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, ejes:true, cotas:true, centroide:true, radios:true};
+const VIS = {grilla:true, ejes:true, cotas:true, centroide:true, radios:true, iso:false};   // iso: recuadro isométrico, solo en 3D
 // Giro interactivo de los ejes u, v (propuesta 1, 2026-09-08): en grados, lo
 // mueve el deslizador bajo el círculo de Mohr y lo dibujan la sección y el
-// círculo a la vez. `_figResaltada` es la parte que la tarjeta «dónde está la
-// rigidez» tiene bajo el ratón (propuesta 2).
+// círculo a la vez.
 let mohrTheta = 0;
-let _figResaltada = null;
 function setVis(cual, valor){ VIS[cual] = !!valor; render(); }
 
 let isDragging = false, dragStart = null, dragViewStart = null;

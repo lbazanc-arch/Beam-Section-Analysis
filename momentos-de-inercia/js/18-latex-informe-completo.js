@@ -845,19 +845,6 @@ function construirLatex(){
       + ftex(sPropIx) + ' + ' + ftex(sStIx) + ' = ' + ftex(results.Ix) + U4 + ' \\]\n';
     tex += '\\[ \\bar{I}_y = \\sum \\left(\\bar{I}_{y}\' + A_i\\,d_{x_i}^{2}\\right) = '
       + ftex(sPropIy) + ' + ' + ftex(sStIy) + ' = ' + ftex(results.Iy) + U4 + ' \\]\n';
-    // Dónde está la rigidez (propuesta 2, 2026-09-08): la parte que más aporta
-    // a Ix y cuánto de ese aporte es traslado. Una frase, una vez.
-    if(st.length > 1 && Math.abs(results.Ix) > 1e-12 && _primeraVezIn('rigidez')){
-      let mayor = null, pctMayor = -Infinity;
-      st.forEach((s,i)=>{ const p = s.Ix_f/results.Ix; if(p > pctMayor){ pctMayor = p; mayor = {s, i}; } });
-      if(mayor){
-        const tras = mayor.s.fig.sign*mayor.s.a*mayor.s.dy*mayor.s.dy;
-        const q = Math.abs(mayor.s.Ix_f) > 1e-12 ? tras/mayor.s.Ix_f*100 : 0;
-        tex += '\\noindent{\\footnotesize La parte ' + (mayor.i+1) + ' aporta el ' + (pctMayor*100).toFixed(1) + '\\,\\% de $\\bar{I}_x$'
-          + (q > 60 ? ', casi todo por el traslado $A\\,d_y^{2}$: la rigidez la da el material \\textbf{lejos} del eje, que es la raz\\\'on de que un perfil I ponga las alas lejos del alma.'
-                    : (q > 0 ? ', y el ' + q.toFixed(0) + '\\,\\% de ese aporte es el traslado $A\\,d_y^{2}$.' : '.')) + '}\\\\[3pt]\n';
-      }
-    }
     tex += '\\[ \\bar{P}_{xy} = \\sum \\left(\\bar{P}_{xy}\' + A_i\\,d_{x_i}d_{y_i}\\right) = '
       + ftex(ceroIn(sPropIxy)) + ' + ' + ftex(ceroIn(sStIxy)) + ' = ' + ftex(pxySec) + U4 + ' \\]\n';
     tex += '\\subpaso{Momento polar y radios de giro}\n';

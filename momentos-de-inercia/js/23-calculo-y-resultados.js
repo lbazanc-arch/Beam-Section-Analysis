@@ -562,7 +562,6 @@ function renderResults(res, u4, u2, u1){
       <div class="summary-box highlight"><div class="s-lbl">P<sub>xyG</sub></div><div class="s-val">${f(pxySec)}</div><div class="s-unit">${u4}</div></div>
       <div class="summary-box"><div class="s-lbl">kₓ (radio giro)</div><div class="s-val">${n2(res.kx)}</div><div class="s-unit">${u1}</div></div>
     </div>
-    ${htmlRigidez(res)}
     <div class="verdict" style="margin-top:10px"><div class="verdict-t">Signo de P<sub>xy</sub></div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <svg viewBox="0 0 96 96" style="width:84px;height:84px;flex:none"><line x1="8" y1="48" x2="88" y2="48" stroke="#66727e" stroke-width="1.2"/><line x1="48" y1="8" x2="48" y2="88" stroke="#66727e" stroke-width="1.2"/>
@@ -748,41 +747,3 @@ function mohrGirar(v){
   render();
 }
 
-// ── «Dónde está la rigidez» (propuesta 2): cuánto aporta cada parte a Ix e Iy,
-//    partido en inercia propia y traslado A·d², con huecos en negativo. Al pasar
-//    el ratón por una barra se resalta la parte en el lienzo. ──
-function htmlRigidez(res){
-  const filas = res.steps.map((s,i)=>{
-    const g = s.fig.sign;
-    return {i, fig:s.fig, nom:s.fig.name, color:s.fig.color,
-      pIx:g*s.Ixc, tIx:g*s.a*s.dy*s.dy, pIy:g*s.Iyc, tIy:g*s.a*s.dx*s.dx};
-  });
-  const maxAbs = Math.max(1e-12, ...filas.map(r=>Math.max(Math.abs(r.pIx)+Math.abs(r.tIx), Math.abs(r.pIy)+Math.abs(r.tIy))));
-  const barra = (prop, tras, total) => {
-    const wP = Math.abs(prop)/maxAbs*100, wT = Math.abs(tras)/maxAbs*100;
-    const pct = Math.abs(total) > 1e-12 ? ((prop+tras)/total*100) : 0;
-    return '<div style="display:flex;align-items:center;gap:6px">'
-      + '<div style="flex:1;height:10px;background:#eef2fb;border-radius:3px;overflow:hidden;display:flex">'
-      + '<div title="inercia propia" style="width:'+wP.toFixed(1)+'%;background:'+(prop<0?'#c0392b':'#0d3a8f')+';opacity:.55"></div>'
-      + '<div title="traslado A·d²" style="width:'+wT.toFixed(1)+'%;background:'+(tras<0?'#c0392b':'#0d3a8f')+'"></div></div>'
-      + '<span style="font-size:10px;color:var(--muted);min-width:44px;text-align:right">'+pct.toFixed(1)+' %</span></div>';
-  };
-  let mayor = filas[0], mayorPct = -1;
-  filas.forEach(r=>{ const pct = Math.abs(res.Ix) > 1e-12 ? (r.pIx+r.tIx)/res.Ix : 0; if(pct > mayorPct){ mayorPct = pct; mayor = r; } });
-  const qTras = mayor && Math.abs(mayor.pIx+mayor.tIx) > 1e-12 ? mayor.tIx/(mayor.pIx+mayor.tIx)*100 : 0;
-  return '<div class="proc-block" style="margin-top:12px">'
-    + '<div class="proc-subtitle">Dónde está la rigidez</div>'
-    + '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Franja clara: inercia propia Ī; oscura: traslado A·d² (rojo si resta).<span data-bsa-pantalla> Pasa el ratón para ver la parte.</span></div>'
-    + '<table class="tabla" style="width:100%"><thead><tr><th>Parte</th><th style="width:38%">Ī<sub>xG</sub></th><th style="width:38%">Ī<sub>yG</sub></th></tr></thead><tbody>'
-    + filas.map(r=>'<tr onmouseenter="resaltarFigura('+r.fig.id+')" onmouseleave="resaltarFigura(null)" style="cursor:default">'
-      + '<td style="white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+r.color+';margin-right:5px;vertical-align:middle"></span>'+(r.i+1)+' · '+esc(r.nom)+(r.fig.sign<0?' (hueco)':'')+'</td>'
-      + '<td>'+barra(r.pIx, r.tIx, res.Ix)+'</td><td>'+barra(r.pIy, r.tIy, res.Iy)+'</td></tr>').join('')
-    + '</tbody></table>'
-    + (mayor ? '<div style="font-size:11px;margin-top:6px">La parte <b>'+(mayor.i+1)+'</b> aporta el <b>'+(mayorPct*100).toFixed(1)+' %</b> de Ī<sub>xG</sub>'
-       + (qTras > 60 ? ' (casi todo traslado A·d²).' : (qTras > 0 ? ', el '+qTras.toFixed(0)+' % por traslado A·d².' : '.')) + '</div>' : '')
-    + '</div>';
-}
-function resaltarFigura(id){
-  _figResaltada = id;
-  render();
-}

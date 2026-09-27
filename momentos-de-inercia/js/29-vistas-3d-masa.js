@@ -78,7 +78,7 @@ function setModoEspacio(m, opts){
   });
   const mostrar = (id, si) => { const e = document.getElementById(id); if(e) e.style.display = si ? '' : 'none'; };
   mostrar('palGrid', !es3); mostrar('palGrid3d', es3);
-  mostrar('posZField', es3); mostrar('rotField', !es3);
+  mostrar('posZField', es3); mostrar('rotField', !es3); mostrar('visIsoItem', es3);
   if(!es3){
     const gb = document.getElementById('giro3dBox'); if(gb) gb.innerHTML = '';
     const db = document.getElementById('densidadBox'); if(db) db.innerHTML = '';
@@ -346,7 +346,7 @@ function marcarCentroide3d(c, vistaId, proj, res, opts){
     c.fillStyle='rgba(255,255,255,.9)'; c.fillRect(p.x+10,p.y+2,w,14);
     c.fillStyle=ring; c.fillText(txt, p.x+14, p.y+12);
   };
-  punto(pC, '#f0c040', '#b8860c', 'C', '('+decFix(res.xbar,'len')+' , '+decFix(vC,'len')+')');
+  punto(pC, '#f0c040', '#b8860c', res.letraPunto || 'C', '('+decFix(res.xbar,'len')+' , '+decFix(vC,'len')+')');
   if(res.hetero && res.sep > 1e-9){
     const vG = vistaId==='planta' ? res.yg : res.zg;
     const pG = {x: proj.px(res.xg), y: proj.py(vG)};
@@ -1004,9 +1004,13 @@ function _ordenesVistaPropia(fig, vistaId){
 // Los giros de una pieza, en una línea: «X–Y: 30° · X–Z: 90°». Vacío si no
 // gira. En un sólido de revolución el giro en planta no se ve, pero se dice
 // igual, porque está en el modelo y en el archivo.
+// Dice el ángulo del PANEL —hacia dónde apunta el eje de la pieza—, no el giro
+// interno: con el convenio del 2026-09-24 el campo, el PDF y este rótulo tienen
+// que decir el mismo número (una cabeza tumbada salía «X–Z: −90°» donde el
+// panel dice 0°). Qué planos se nombran lo sigue decidiendo el giro aplicado.
 function textoGiros3d(fig){
   const t = PLANOS_GIRO.filter(p=>Math.abs(anguloPlano(fig, p.id)) > 1e-9)
-    .map(p=>p.label + ': ' + r2(anguloPlano(fig, p.id)) + '°');
+    .map(p=>(p.id === 'xy' ? 'marca' : 'eje') + ' a ' + r2(anguloPanel(fig, p.id)) + '° de ' + p.desde + ' (' + p.label + ')');
   return t.length ? ' · ' + t.join(' · ') : '';
 }
 function croquisSolido(fig, idx){
@@ -1105,127 +1109,191 @@ function calcularMasa3d(){
   // kg·unidad² → kg·m². Las longitudes se siguen dando en la unidad de dibujo.
   const met = (typeof LEN_FAC_I === 'object' && LEN_FAC_I[unit]) ? LEN_FAC_I[unit] : 1;
   R.met = met; R.aSI = met*met;
+  // Las vistas 3D (copiadas de centroide) marcan el punto que encuentran en
+  // xbar/ybar/zbar cuando el resultado es `es3d`; aquí ese punto es el CENTRO
+  // DE MASA, así que se le da con esos nombres y con su letra, G. Sin esto el
+  // centro de masa no se marcaba en ninguna vista.
+  R.es3d = true; R.xbar = R.cg.x; R.ybar = R.cg.y; R.zbar = R.cg.z;
+  R.letraPunto = 'G'; R.hetero = false;
   results = R;
   renderResults3dMasa(R);
 }
 
 // ══ Resultados en pantalla ════════════════════════════════════════════════
-// Ecuación con números y resultado, más las tablas: las explicaciones van al
-// informe (§7 de CLAUDE.md).
+// El mismo recorrido que el 3D de centroide (2026-09-27, petición del
+// profesor): las tres vistas del cuerpo, una tarjeta por sólido con su fórmula,
+// su tabla y su croquis, la tabla resumen, el resultado con sus ecuaciones y el
+// cuerpo resuelto con el punto marcado. Aquí, además, el traslado a los ejes
+// del origen, el tensor en O y en G y los ejes principales. Solo ecuación y
+// resultado: las explicaciones van al informe (§7 de CLAUDE.md).
+//
+// Unidades: posiciones en la unidad de dibujo, masas en kg e inercias en
+// kg·m² (res.aSI pasa de kg·unidad² a kg·m²).
 function renderResults3dMasa(res){
+  const u1 = unit, u3 = unit + '³';
   const rp = document.getElementById('resultsPanel'); if(rp) rp.style.display = 'block';
   const hint = document.getElementById('noResultsHint'); if(hint) hint.style.display = 'none';
   const ra = document.getElementById('resultsArea'); if(ra) ra.style.display = 'block';
   setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
-
   const f = v => fmtVal(v), nL = v => decFix(v,'len');
-  const uL = unit, u3 = unit + '³';
-  const kI = res.aSI;                       // kg·unidad² → kg·m²
-  const I = v => fmtVal(v*kI);              // una inercia, ya en kg·m²
-  const cero = v => Math.abs(v) < 1e-12 ? 0 : v;
-  let html = '';
+  const kI = res.aSI, I = v => fmtVal(v*kI);
+  const esc0 = Math.max(Math.abs(res.G.xx), Math.abs(res.G.yy), Math.abs(res.G.zz), 1e-300);
+  const nulo = v => Math.abs(v) < 1e-9*esc0;
+  const uI = '\\,\\text{kg}\\cdot\\text{m}^{2}';
+  const P = res.partes;
+  const girada = fg => giroFueraDePlanta(fg) || Math.abs(anguloPlano(fg,'xy')) > 1e-9;
+  let html = '<div class="res3d">';
 
-  // ── Las dos vistas ──
+  // ✎ Las tres vistas, en una fila, como en centroide.
+  const _tit = t => `<div style="font-size:10.5px;font-weight:700;color:var(--grn2);margin-bottom:3px;text-align:center">${t}</div>`;
+  const _pie = t => `<div style="font-size:10px;color:var(--muted);margin-top:5px;text-align:center">${t}</div>`;
   html += `<div class="res-section">
-    <div class="res-section-title"><div class="num" style="background:var(--grn)">✎</div>El cuerpo</div>
-    <canvas id="cv3dRes" style="width:100%;max-width:760px;height:300px;display:block;margin:0 auto"></canvas>
-  </div>`;
-
-  // ── Tabla de piezas ──
-  let filas = '';
-  res.partes.forEach((p, i)=>{
-    const neg = p.signo === -1;
-    filas += `<tr${neg ? ' style="color:var(--rojo,#c0392b)"' : ''}>
-      <td class="name-cell">${i+1}. ${p.fig.name}${neg ? ' (hueco)' : ''}</td>
-      <td class="num-cell">${f(p.V)}</td>
-      <td class="num-cell">${f(p.fig.rho)} <span style="font-size:9px;color:var(--muted)">${p.fig.rhoU || densUnidad}</span></td>
-      <td class="num-cell">${f(p.m)}</td>
-      <td class="num-cell">${nL(p.g.x)}</td>
-      <td class="num-cell">${nL(p.g.y)}</td>
-      <td class="num-cell">${nL(p.g.z)}</td>
-      <td class="num-cell">${I(p.enOrigen.xx)}</td>
-      <td class="num-cell">${I(p.enOrigen.yy)}</td>
-      <td class="num-cell">${I(p.enOrigen.zz)}</td>
-    </tr>`;
-  });
-  html += `<div class="res-section">
-    <div class="res-section-title"><div class="num" style="background:var(--grn)">1</div>Las piezas</div>
-    <div style="overflow-x:auto"><table class="fig-table">
-      <thead><tr>
-        <th>Pieza</th><th>V (${u3})</th><th>ρ</th><th>m (kg)</th>
-        <th>x̃ (${uL})</th><th>ỹ (${uL})</th><th>z̃ (${uL})</th>
-        <th>I<sub>x</sub> (kg·m²)</th><th>I<sub>y</sub></th><th>I<sub>z</sub></th>
-      </tr></thead>
-      <tbody>${filas}</tbody>
-      <tfoot><tr style="font-weight:700">
-        <td class="name-cell">Σ</td><td class="num-cell">—</td><td class="num-cell">—</td>
-        <td class="num-cell">${f(res.m)}</td>
-        <td class="num-cell">${nL(res.cg.x)}</td><td class="num-cell">${nL(res.cg.y)}</td><td class="num-cell">${nL(res.cg.z)}</td>
-        <td class="num-cell">${I(res.O.xx)}</td><td class="num-cell">${I(res.O.yy)}</td><td class="num-cell">${I(res.O.zz)}</td>
-      </tr></tfoot>
-    </table></div>
-    <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5">
-      I de cada pieza respecto de los ejes del ORIGEN, ya con el traslado: I<sub>x</sub> = Ī<sub>x</sub> + m(d<sub>y</sub>² + d<sub>z</sub>²).
-      Un hueco entra con masa negativa.
-    </div>
-  </div>`;
-
-  // ── Masa y centro de masa ──
-  html += `<div class="res-section">
-    <div class="res-section-title"><div class="num" style="background:var(--grn)">2</div>Masa y centro de masa</div>
-    <div class="eq-row"><div class="eq-lbl">m</div><div class="eq-body">m = Σ ρ<sub>i</sub> V<sub>i</sub> = <b>${f(res.m)}</b> kg</div></div>
-    <div class="eq-row"><div class="eq-lbl">G</div><div class="eq-body">
-      x̄ = Σm<sub>i</sub>x̃<sub>i</sub>/Σm<sub>i</sub> = <b>${nL(res.cg.x)}</b> ${uL} &nbsp;·&nbsp;
-      ȳ = <b>${nL(res.cg.y)}</b> ${uL} &nbsp;·&nbsp; z̄ = <b>${nL(res.cg.z)}</b> ${uL}</div></div>
-  </div>`;
-
-  // ── El tensor, en O y en G ──
-  const filaT = (t, k) => `<tr>
-      <td class="name-cell">${k}</td>
-      <td class="num-cell">${I(t.xx)}</td><td class="num-cell">${I(t.yy)}</td><td class="num-cell">${I(t.zz)}</td>
-      <td class="num-cell">${I(cero(t.xy))}</td><td class="num-cell">${I(cero(t.yz))}</td><td class="num-cell">${I(cero(t.xz))}</td>
-    </tr>`;
-  html += `<div class="res-section">
-    <div class="res-section-title"><div class="num" style="background:var(--grn)">3</div>Momentos y productos de inercia</div>
-    <div style="overflow-x:auto"><table class="fig-table">
-      <thead><tr><th>Respecto de</th>
-        <th>I<sub>xx</sub></th><th>I<sub>yy</sub></th><th>I<sub>zz</sub></th>
-        <th>P<sub>xy</sub></th><th>P<sub>yz</sub></th><th>P<sub>xz</sub></th></tr></thead>
-      <tbody>${filaT(res.O, 'el origen O')}${filaT(res.G, 'el centro de masa G')}</tbody>
-    </table></div>
-    <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5">
-      Todo en kg·m². Del origen al centro de masa se baja con el mismo traslado al revés:
-      Ī<sub>xx</sub> = I<sub>xx</sub> − m(ȳ² + z̄²).
-    </div>
-    <div class="eq-row"><div class="eq-lbl">k</div><div class="eq-body">
-      Radios de giro respecto de G: k<sub>x</sub> = √(Ī<sub>xx</sub>/m) = <b>${f(res.kG.x*res.met)}</b> m &nbsp;·&nbsp;
-      k<sub>y</sub> = <b>${f(res.kG.y*res.met)}</b> m &nbsp;·&nbsp; k<sub>z</sub> = <b>${f(res.kG.z*res.met)}</b> m</div></div>
-  </div>`;
-
-  // ── Ejes principales ──
-  const nombra = ['I₁ (máximo)', 'I₂', 'I₃ (mínimo)'];
-  const cajas = res.principales.map((e, i)=>`
-    <div class="principal-box${i===0 ? ' main' : ''}">
-      <div class="p-lbl">${nombra[i]}</div>
-      <div class="p-val">${I(e.I)}</div>
-      <div class="p-unit">kg·m²</div>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.4">
-        dirección (${e.u.map(v=>(Math.abs(v)<1e-12?0:v).toFixed(4)).join(' ; ')})
+    <div class="res-section-title"><div class="num" style="background:var(--grn)">✎</div>Las tres vistas del cuerpo</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:2 1 300px;min-width:230px">
+        ${_tit('Planta (X–Y) y alzado (X–Z)')}
+        <canvas id="compositeCanvas" style="width:100%;height:340px;display:block;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
+        ${_pie('Con las cotas generales y el número de cada sólido.')}
       </div>
-    </div>`).join('');
-  html += `<div class="res-section">
-    <div class="res-section-title"><div class="num" style="background:var(--grn)">4</div>Ejes principales de inercia (en G)</div>
-    <div class="principal-grid">${cajas}</div>
-    <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5">
-      Son las tres direcciones en las que los productos de inercia se anulan, y sus momentos.
-      En el plano equivalen a θ<sub>p</sub> y al círculo de Mohr.
+      <div style="flex:1 1 170px;min-width:160px">
+        ${_tit('Isométrica')}
+        <canvas id="isoCanvas" style="width:100%;height:340px;display:block;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
+        ${_pie('Observador en la dirección (1, 1, 1).')}
+      </div>
     </div>
-  </div>`;
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;">
+      Masa que <b style="color:var(--grn2)">suma</b> = sólido &nbsp;|&nbsp; masa que <b style="color:#c0392b">resta</b> = trama (//) &nbsp;|&nbsp; cada sólido lleva su número
+    </div></div>`;
 
-  const cont = document.getElementById('resultsContent') || document.getElementById('resultsPanel');
+  // 1. Una tarjeta por sólido: fórmula, tabla y croquis de tres vistas.
+  html += `<div class="res-section"><div class="res-section-title"><div class="num">1</div>Masa y tensor propio de cada sólido</div>`;
+  P.forEach((p, i)=>{
+    const fg = p.fig, def = SOLID_DEFS[fg.type], F = (typeof FORMULA_I_SOLIDO === 'object' && FORMULA_I_SOLIDO[fg.type]) || {};
+    const nom = fg.etiqueta || fg.name || def.name;
+    const signo = p.signo === 1 ? '<span style="color:var(--grn2);font-weight:700">＋ Suma</span>'
+                                : '<span style="color:#c0392b;font-weight:700">－ Resta (hueco)</span>';
+    const t = p.centroidal, gir = girada(fg);
+    const fI = [F.xx && ('\\bar{I}_{xx} = ' + F.xx), F.yy && ('\\bar{I}_{yy} = ' + (F.yy === '=\\bar{I}_{xx}' ? '\\bar{I}_{xx}' : F.yy)),
+                F.zz && ('\\bar{I}_{zz} = ' + F.zz), F.xz && ('\\bar{P}_{xz} = ' + F.xz)].filter(Boolean);
+    const prod = [['xy','P̄<sub>xy</sub>'],['yz','P̄<sub>yz</sub>'],['xz','P̄<sub>xz</sub>']].filter(([k])=>!nulo(t[k]||0));
+    html += `<div class="fig-card"><div class="fig-card-datos">
+        <div class="fig-card-h"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${fg.color}"></span><b>${i+1}. ${esc(nom)}</b> ${signo}${gir ? ' <span style="font-size:10.5px;color:var(--muted)">· girado</span>' : ''}</div>
+        <div class="eq-row"><div class="eq-body">${kx((def.formula ? def.formula.V + '\\qquad ' : '') + 'm = \\rho\\,V')}</div></div>
+        ${fI.length ? `<div class="eq-row"><div class="eq-body">${kx(fI.join('\\qquad '))}</div></div>` : ''}
+        <table class="fig-tabla"><thead><tr><th>Magnitud</th><th>Símbolo</th><th style="text-align:right">Valor</th><th>Unidad</th></tr></thead><tbody>
+          <tr><td>Volumen</td><td><i>V<sub>i</sub></i></td><td class="v">${f(p.V)}</td><td>${u3}</td></tr>
+          <tr><td>Densidad</td><td><i>ρ<sub>i</sub></i></td><td class="v">${f(fg.rho)}</td><td>${esc(fg.rhoU || densUnidad)}</td></tr>
+          <tr><td>Masa</td><td><i>m<sub>i</sub></i></td><td class="v">${f(p.m)}</td><td>kg</td></tr>
+          <tr><td>Centroide x</td><td><i>x̃<sub>i</sub></i></td><td class="v">${nL(p.g.x)}</td><td>${u1}</td></tr>
+          <tr><td>Centroide y</td><td><i>ỹ<sub>i</sub></i></td><td class="v">${nL(p.g.y)}</td><td>${u1}</td></tr>
+          <tr><td>Centroide z</td><td><i>z̃<sub>i</sub></i></td><td class="v">${nL(p.g.z)}</td><td>${u1}</td></tr>
+          <tr><td>${gir ? 'Momento propio, girado' : 'Momento propio'} x</td><td><i>Ī<sub>xx</sub></i></td><td class="v">${I(t.xx)}</td><td>kg·m²</td></tr>
+          <tr><td>${gir ? 'Momento propio, girado' : 'Momento propio'} y</td><td><i>Ī<sub>yy</sub></i></td><td class="v">${I(t.yy)}</td><td>kg·m²</td></tr>
+          <tr><td>${gir ? 'Momento propio, girado' : 'Momento propio'} z</td><td><i>Ī<sub>zz</sub></i></td><td class="v">${I(t.zz)}</td><td>kg·m²</td></tr>
+          ${prod.map(([k, s])=>`<tr><td>Producto propio</td><td><i>${s}</i></td><td class="v">${I(t[k])}</td><td>kg·m²</td></tr>`).join('')}
+        </tbody></table></div>
+      <div class="fig-card-dib tres-vistas">${croquisSolido(fg, i)}</div></div>`;
+  });
+  html += `</div>`;
+
+  // 2. Tabla resumen: masa y momentos estáticos.
+  let Sx = 0, Sy = 0, Sz = 0;
+  P.forEach(p=>{ Sx += p.m*p.g.x; Sy += p.m*p.g.y; Sz += p.m*p.g.z; });
+  html += `<div class="res-section"><div class="res-section-title"><div class="num">2</div>Tabla resumen de sólidos</div>
+    <div style="overflow-x:auto;"><table class="tabla-res"><thead><tr>
+      <th>N°</th><th>Sólido</th><th style="text-align:center">Signo</th>
+      <th>m<sub>i</sub><br><span>(kg)</span></th><th>x̃<sub>i</sub><br><span>(${u1})</span></th><th>ỹ<sub>i</sub><br><span>(${u1})</span></th><th>z̃<sub>i</sub><br><span>(${u1})</span></th>
+      <th>m<sub>i</sub>x̃<sub>i</sub></th><th>m<sub>i</sub>ỹ<sub>i</sub></th><th>m<sub>i</sub>z̃<sub>i</sub></th>
+    </tr></thead><tbody>`;
+  P.forEach((p, i)=>{
+    const fg = p.fig;
+    html += `<tr><td>${i+1}</td><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${fg.color};margin-right:5px"></span>${esc(fg.etiqueta || fg.name)}</td>
+      <td style="text-align:center;font-weight:800;color:${p.signo > 0 ? 'var(--grn2)' : '#c0392b'}">${p.signo > 0 ? '＋' : '－'}</td>
+      <td class="v">${f(p.m)}</td><td class="v">${nL(p.g.x)}</td><td class="v">${nL(p.g.y)}</td><td class="v">${nL(p.g.z)}</td>
+      <td class="v">${f(p.m*p.g.x)}</td><td class="v">${f(p.m*p.g.y)}</td><td class="v">${f(p.m*p.g.z)}</td></tr>`;
+  });
+  html += `<tr class="fila-total"><td colspan="3">Σ (Total)</td><td class="v">${f(res.m)}</td><td>—</td><td>—</td><td>—</td>
+      <td class="v">${f(Sx)}</td><td class="v">${f(Sy)}</td><td class="v">${f(Sz)}</td></tr></tbody></table></div></div>`;
+
+  // 3. Centro de masa.
+  const coc = (n, num, val) => kx(`\\bar{${n}} = \\dfrac{\\sum m_{i}\\tilde{${n}}_{i}}{\\sum m_{i}} = \\dfrac{${ftex(num)}}{${ftex(res.m)}} = ${kres(ftex(val)+'\\,'+utex(u1))}`);
+  html += `<div class="res-section"><div class="res-section-title"><div class="num">3</div>Masa y centro de masa</div>
+    <div class="proc-block proc-cols">
+      <div class="proc-col"><div class="proc-sub">Masa total</div>
+        <div class="eq-row"><div class="eq-body">${kx(`m = \\sum m_{i} = ${kres(ftex(res.m)+'\\,\\text{kg}')}`)}</div></div></div>
+      <div class="proc-col"><div class="proc-sub">Coordenadas del centro de masa G</div>
+        <div class="eq-row"><div class="eq-body">${coc('x', Sx, res.cg.x)}</div></div>
+        <div class="eq-row"><div class="eq-body">${coc('y', Sy, res.cg.y)}</div></div>
+        <div class="eq-row"><div class="eq-body">${coc('z', Sz, res.cg.z)}</div></div></div>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-box"><div class="s-lbl">Masa total m</div><div class="s-val">${f(res.m)}</div><div class="s-unit">kg</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">x̄</div><div class="s-val">${nL(res.cg.x)}</div><div class="s-unit">${u1}</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">ȳ</div><div class="s-val">${nL(res.cg.y)}</div><div class="s-unit">${u1}</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">z̄</div><div class="s-val">${nL(res.cg.z)}</div><div class="s-unit">${u1}</div></div>
+    </div></div>`;
+
+  // 4. Traslado a los ejes del origen (Steiner en 3D).
+  html += `<div class="res-section"><div class="res-section-title"><div class="num">4</div>Traslado a los ejes del origen</div>
+    <div class="proc-block"><div class="eq-row"><div class="eq-body">${kx('I_{xx} = \\bar{I}_{xx} + m\\,(d_y^{2}+d_z^{2})\\qquad I_{yy} = \\bar{I}_{yy} + m\\,(d_x^{2}+d_z^{2})\\qquad I_{zz} = \\bar{I}_{zz} + m\\,(d_x^{2}+d_y^{2})')}</div></div></div>
+    <div style="overflow-x:auto;"><table class="tabla-res"><thead><tr>
+      <th>N°</th><th>Sólido</th>
+      <th>Ī<sub>xx</sub></th><th>I<sub>xx</sub> en O</th><th>Ī<sub>yy</sub></th><th>I<sub>yy</sub> en O</th><th>Ī<sub>zz</sub></th><th>I<sub>zz</sub> en O</th>
+    </tr></thead><tbody>`;
+  P.forEach((p, i)=>{
+    const t = p.centroidal, o = p.enOrigen;
+    html += `<tr><td>${i+1}</td><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.fig.color};margin-right:5px"></span>${esc(p.fig.etiqueta || p.fig.name)}</td>
+      <td class="v">${I(t.xx)}</td><td class="v">${I(o.xx)}</td><td class="v">${I(t.yy)}</td><td class="v">${I(o.yy)}</td><td class="v">${I(t.zz)}</td><td class="v">${I(o.zz)}</td></tr>`;
+  });
+  html += `<tr class="fila-total"><td colspan="2">Σ (Total)</td><td>—</td><td class="v">${I(res.O.xx)}</td><td>—</td><td class="v">${I(res.O.yy)}</td><td>—</td><td class="v">${I(res.O.zz)}</td></tr></tbody></table></div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;">Todo en kg·m². Un hueco entra con masa negativa.</div></div>`;
+
+  // 5. El tensor en el centro de masa, y los radios de giro.
+  const hayProd = !(nulo(res.G.xy) && nulo(res.G.yz) && nulo(res.G.xz));
+  html += `<div class="res-section"><div class="res-section-title"><div class="num">5</div>Tensor de inercia en el centro de masa</div>
+    <div class="proc-block proc-cols">
+      <div class="proc-col"><div class="proc-sub">De los ejes de O a los de G</div>
+        <div class="eq-row"><div class="eq-body">${kx(`\\bar{I}_{xx} = I_{xx} - m(\\bar{y}^{2}+\\bar{z}^{2}) = ${kres(ftex(res.G.xx*kI)+uI)}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`\\bar{I}_{yy} = I_{yy} - m(\\bar{x}^{2}+\\bar{z}^{2}) = ${kres(ftex(res.G.yy*kI)+uI)}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`\\bar{I}_{zz} = I_{zz} - m(\\bar{x}^{2}+\\bar{y}^{2}) = ${kres(ftex(res.G.zz*kI)+uI)}`)}</div></div></div>
+      <div class="proc-col"><div class="proc-sub">Radios de giro respecto de G</div>
+        <div class="eq-row"><div class="eq-body">${kx(`k_{x} = \\sqrt{\\bar{I}_{xx}/m} = ${kres(ftex(res.kG.x*res.met)+'\\,\\text{m}')}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`k_{y} = \\sqrt{\\bar{I}_{yy}/m} = ${kres(ftex(res.kG.y*res.met)+'\\,\\text{m}')}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`k_{z} = \\sqrt{\\bar{I}_{zz}/m} = ${kres(ftex(res.kG.z*res.met)+'\\,\\text{m}')}`)}</div></div></div>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-box highlight"><div class="s-lbl">Ī<sub>xx</sub></div><div class="s-val">${I(res.G.xx)}</div><div class="s-unit">kg·m²</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">Ī<sub>yy</sub></div><div class="s-val">${I(res.G.yy)}</div><div class="s-unit">kg·m²</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">Ī<sub>zz</sub></div><div class="s-val">${I(res.G.zz)}</div><div class="s-unit">kg·m²</div></div>
+      <div class="summary-box"><div class="s-lbl">Productos</div><div class="s-val" style="font-size:12px">${hayProd
+        ? 'P̄<sub>xy</sub> ' + I(res.G.xy) + '<br>P̄<sub>yz</sub> ' + I(res.G.yz) + '<br>P̄<sub>xz</sub> ' + I(res.G.xz)
+        : 'nulos'}</div><div class="s-unit">${hayProd ? 'kg·m²' : 'los ejes ya son principales'}</div></div>
+    </div></div>`;
+
+  // 6. Ejes principales.
+  const nombra = ['I₁ (máximo)', 'I₂', 'I₃ (mínimo)'];
+  html += `<div class="res-section"><div class="res-section-title"><div class="num">6</div>Ejes principales de inercia (en G)</div>
+    <div class="principal-grid">${res.principales.map((e, i)=>`
+      <div class="principal-box${i === 0 ? ' main' : ''}">
+        <div class="p-lbl">${nombra[i]}</div>
+        <div class="p-val">${I(e.I)}</div>
+        <div class="p-unit">kg·m²</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.4">dirección (${e.u.map(v=>(Math.abs(v) < 1e-12 ? 0 : v).toFixed(4)).join(' ; ')})</div>
+      </div>`).join('')}</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;">Comprobación: I₁ + I₂ + I₃ = ${I(res.principales.reduce((s, e)=>s + e.I, 0))} = Ī<sub>xx</sub> + Ī<sub>yy</sub> + Ī<sub>zz</sub> kg·m².</div></div>`;
+
+  // 7. El cuerpo resuelto, con G.
+  html += `<div class="res-section"><div class="res-section-title"><div class="num">7</div>Cuerpo resuelto — ubicación de G en planta y alzado</div>
+    <canvas id="finalCanvas" style="width:100%;max-width:860px;height:400px;display:block;margin:0 auto;border-radius:10px;border:1px solid var(--border);background:#fff;"></canvas>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;"><b style="color:#b8860c">G</b> = centro de masa. En la planta se lee (x̄, ȳ); en el alzado, (x̄, z̄).</div></div>`;
+
+  html += '</div>';
+  const cont = document.getElementById('resultsPanel');
   if(cont) cont.innerHTML = html;
-  // Las dos vistas, ya con el resultado en la mano.
-  try{ drawVistas3dEn('cv3dRes', {res}); }catch(e){}
+  try{ if(cont) renderKatex(cont); }catch(e){ console.warn('KaTeX:', e); }
+  setTimeout(()=>{ try{ drawVistas3dEn('compositeCanvas', {cotas:true, numerar:true}); }catch(e){}
+                   try{ drawVistas3dEn('finalCanvas', {cotas:false, marcarG:true}); }catch(e){}
+                   try{ if(typeof dibujarIsoEnCanvas === 'function') dibujarIsoEnCanvas('isoCanvas', {marcarC:true, numerar:true, ejes:true}); }catch(e){} }, 90);
 }
 
 // ══ Ejemplos del 3D ═══════════════════════════════════════════════════════

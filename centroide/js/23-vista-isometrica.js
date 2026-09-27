@@ -115,7 +115,7 @@ function dibujarIsoEn(c, x0, y0, W, H, opts){
   if(E.C){
     const ux = px(E.C.u), uy = py(E.C.v);
     c.beginPath(); c.arc(ux, uy, 6, 0, Math.PI*2); c.fillStyle = '#f0c040'; c.fill(); c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.stroke();
-    c.fillStyle = '#b8860c'; c.font = 'bold 12px Inter'; c.fillText('C', ux+9, uy-6);
+    c.fillStyle = '#b8860c'; c.font = 'bold 12px Inter'; c.fillText(results.letraPunto || 'C', ux+9, uy-6);
     if(opts.marcarC !== 'solo'){
       const txt = '(' + decFix(results.xbar,'len') + ', ' + decFix(results.ybar,'len') + ', ' + decFix(results.zbar,'len') + ')';
       c.font = 'bold 9.5px Inter'; const w = c.measureText(txt).width + 8;

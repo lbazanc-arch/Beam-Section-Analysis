@@ -23,7 +23,7 @@ function render(){
   for(const fig of figures){
     // Una figura se resalta si es la activa O si está marcada con la
     // herramienta Mover / editar.
-    drawFigure(fig, fig.id === selectedFigId || selFiguras.indexOf(fig.id) >= 0 || fig.id === _figResaltada);
+    drawFigure(fig, fig.id === selectedFigId || selFiguras.indexOf(fig.id) >= 0);
   }
 
   // Ghost (figure being placed)

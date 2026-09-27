@@ -707,6 +707,47 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 .bsa-guardado-x:hover{border-color:#c0392b; background:#fef2f2;}
 .bsa-guardados-vacio{font-size:11px; color:var(--muted); padding:8px 2px 12px;}
 
+/* ══ Resultados del 3D de masas (2026-09-27) ══
+   Las piezas de la resolución 3D de centroide: una tarjeta por sólido con su
+   croquis de tres vistas, la tabla resumen y las ecuaciones en columnas. Lo que
+   en momentos ya existía con otro aspecto (la .fig-card del 2D) va acotado a
+   .res3d, para no tocar la pantalla de las secciones planas. */
+.res3d .fig-card{display:flex;flex-direction:row;gap:12px;align-items:stretch;background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:13px 14px;margin-bottom:11px;}
+.res3d .fig-card-datos{flex:1;min-width:0;display:flex;flex-direction:column;}
+.fig-card-h{display:flex;align-items:center;gap:7px;font-size:12.5px;margin-bottom:9px;flex-wrap:wrap;}
+.res3d .fig-card-dib.tres-vistas{flex:0 0 490px;display:flex;align-items:stretch;max-width:none;margin:0;}
+.res3d .fig-card-dib .croq{width:100%;display:flex;flex-direction:column;justify-content:center;margin:0;}
+.fig-tabla{width:100%;border-collapse:collapse;font-size:11px;}
+.fig-tabla th{text-align:left;padding:5px 7px;font-size:9.5px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.5px;font-weight:800;border-bottom:1px solid var(--border);}
+.fig-tabla td{padding:5px 7px;border-bottom:1px solid var(--border);}
+.fig-tabla tr:last-child td{border-bottom:none;}
+.fig-tabla .v{text-align:right;font-weight:800;color:var(--grn2);font-style:italic;}
+.fig-tabla i{font-style:italic;color:var(--text);}
+.tabla-res{width:100%;border-collapse:collapse;font-size:11px;min-width:520px;}
+.tabla-res th{padding:7px 8px;font-size:9.5px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.4px;font-weight:800;border-bottom:1.5px solid var(--border2);text-align:right;}
+.tabla-res th:nth-child(1),.tabla-res th:nth-child(2){text-align:left;}
+.tabla-res th span{font-weight:600;text-transform:none;letter-spacing:0;}
+.tabla-res td{padding:7px 8px;border-bottom:1px solid var(--border);}
+.tabla-res td.v{text-align:right;font-weight:700;color:var(--grn2);font-style:italic;}
+.tabla-res .fila-total td{background:rgba(13,58,143,.06);font-weight:800;color:var(--grn2);
+  border-top:2px solid var(--grn);border-bottom:none;}
+.proc-sub{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.7px;margin-bottom:7px;}
+.proc-block.proc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 28px;}
+.proc-block.proc-cols .proc-col{min-width:0;}
+.proc-block.proc-cols .proc-sub{margin-top:0;}
+/* En fila mientras la tabla y las tres vistas caben juntas; por debajo de
+   900 px (el mismo corte que la tarjeta del 2D) la tabla va arriba y el croquis
+   debajo, a todo el ancho: en fila, las tres vistas estrujaban la tabla. */
+@media (max-width:1000px){ .res3d .fig-card-dib.tres-vistas{flex:0 0 46%;} }
+@media (max-width:900px){
+  .res3d .fig-card{flex-direction:column;}
+  .res3d .fig-card-dib.tres-vistas{flex:0 0 auto;width:100%;}
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    DISPOSICIÓN COMÚN A LOS CINCO TEMAS
    Bloque IDÉNTICO al final de los cinco estilos.css. Fija dimensiones y

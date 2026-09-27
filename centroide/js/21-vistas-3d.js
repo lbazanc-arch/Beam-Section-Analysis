@@ -266,7 +266,7 @@ function marcarCentroide3d(c, vistaId, proj, res, opts){
     c.fillStyle='rgba(255,255,255,.9)'; c.fillRect(p.x+10,p.y+2,w,14);
     c.fillStyle=ring; c.fillText(txt, p.x+14, p.y+12);
   };
-  punto(pC, '#f0c040', '#b8860c', 'C', '('+decFix(res.xbar,'len')+' , '+decFix(vC,'len')+')');
+  punto(pC, '#f0c040', '#b8860c', res.letraPunto || 'C', '('+decFix(res.xbar,'len')+' , '+decFix(vC,'len')+')');
   if(res.hetero && res.sep > 1e-9){
     const vG = vistaId==='planta' ? res.yg : res.zg;
     const pG = {x: proj.px(res.xg), y: proj.py(vG)};
@@ -971,9 +971,13 @@ function _ordenesVistaPropia(fig, vistaId){
 // Los giros de una pieza, en una línea: «X–Y: 30° · X–Z: 90°». Vacío si no
 // gira. En un sólido de revolución el giro en planta no se ve, pero se dice
 // igual, porque está en el modelo y en el archivo.
+// Dice el ángulo del PANEL —hacia dónde apunta el eje de la pieza—, no el giro
+// interno: con el convenio del 2026-09-24 el campo, el PDF y este rótulo tienen
+// que decir el mismo número (una cabeza tumbada salía «X–Z: −90°» donde el
+// panel dice 0°). Qué planos se nombran lo sigue decidiendo el giro aplicado.
 function textoGiros3d(fig){
   const t = PLANOS_GIRO.filter(p=>Math.abs(anguloPlano(fig, p.id)) > 1e-9)
-    .map(p=>p.label + ': ' + r2(anguloPlano(fig, p.id)) + '°');
+    .map(p=>(p.id === 'xy' ? 'marca' : 'eje') + ' a ' + r2(anguloPanel(fig, p.id)) + '° de ' + p.desde + ' (' + p.label + ')');
   return t.length ? ' · ' + t.join(' · ') : '';
 }
 function croquisSolido(fig, idx){
