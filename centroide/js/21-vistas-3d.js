@@ -1097,7 +1097,7 @@ function renderResults3d(res){
     const def = SOLID_DEFS[s.fig.type];
     const nom = s.fig.etiqueta || s.fig.name || def.name;
     const signo = s.fig.sign===1 ? '<span style="color:var(--grn2);font-weight:700">＋ Suma</span>' : '<span style="color:#c0392b;font-weight:700">－ Resta (hueco)</span>';
-    html += `<div class="fig-card"><div class="fig-card-datos">
+    html += `<div class="fig-card fig-card-3d"><div class="fig-card-datos">
         <div class="fig-card-h"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s.fig.color}"></span><b>${i+1}. ${esc(nom)}</b> ${signo}</div>
         <div class="eq-row"><div class="eq-body">${kx(def.formula.V + '\\quad ' + def.formula.c + (def.formula.cx ? '\\quad ' + def.formula.cx : ''))}</div></div>
         <table class="fig-tabla"><thead><tr><th>Magnitud</th><th>Símbolo</th><th style="text-align:right">Valor</th><th>Unidad</th></tr></thead><tbody>
