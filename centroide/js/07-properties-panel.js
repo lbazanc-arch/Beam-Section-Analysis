@@ -118,7 +118,7 @@ function buildPropPanel(fig){
   if(isSector){
     const help = document.createElement('div');
     help.style.cssText = 'font-size:9px;color:var(--muted);margin:2px 0 4px;line-height:1.4;';
-    const semi = r2(fig.dims.alpha), tot = r2(fig.dims.alpha*2);
+    const semi = decAng(fig.dims.alpha), tot = decAng(fig.dims.alpha*2);
     help.innerHTML = `θ = ${semi}° (semiángulo) &nbsp;·&nbsp; 2θ = ${tot}° (ángulo total). Las fórmulas usan θ en radianes.`;
     df.appendChild(help);
   }

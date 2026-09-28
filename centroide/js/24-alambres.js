@@ -234,7 +234,7 @@ function formulaLinea(fig, tex){
                                c:'\\bar{y}_{loc} = \\dfrac{2R}{\\pi} = \\dfrac{2(' + D(d.r) + ')}{\\pi}', cVal:2*d.r/Math.PI};
     case 'l_cuarto':   return {L, sim:'L_i = \\dfrac{\\pi R}{2}', sus:'\\dfrac{\\pi(' + D(d.r) + ')}{2}',
                                c:'\\bar{x}_{loc} = \\bar{y}_{loc} = \\dfrac{2R}{\\pi} = \\dfrac{2(' + D(d.r) + ')}{\\pi}', cVal:2*d.r/Math.PI};
-    case 'l_arco': { const g = _arcoGeom(d.r, d.phi), al = D(d.phi/2);
+    case 'l_arco': { const g = _arcoGeom(d.r, d.phi), al = decP(d.phi/2,'ang');
       return {L, sim:'L_i = 2\\alpha R \\quad (\\alpha = \\varphi/2 \\text{ en radianes})',
               sus:'2\\left(' + al + '^\\circ\\cdot\\dfrac{\\pi}{180}\\right)(' + D(d.r) + ')',
               c:'\\bar{y}_{loc} = \\dfrac{R\\,' + sen + '\\alpha}{\\alpha} = \\dfrac{(' + D(d.r) + ')\\,' + sen + '(' + al + '^\\circ)}{' + al + '^\\circ\\cdot\\pi/180}',
@@ -327,7 +327,7 @@ function renderResultsAlambre(res){
     const eqL = fr.sus ? `${fr.sim.replace(/ \\quad .*$/, '')} = ${fr.sus} = ${kres(decStr(s.l,'len') + '\\,' + U)}`
                        : `L_i = ${kres(decStr(s.l,'len') + '\\,' + U)}`;
     html += `<div class="fig-card"><div class="fig-card-datos">
-        <div class="fig-card-h"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s.fig.color}"></span><b>${i+1}. ${esc(nom)}</b>${Math.abs(s.fig.rotation||0) >= 0.5 ? ` <span style="color:var(--muted);font-weight:500">· α = ${nL(s.fig.rotation)}°</span>` : ''}</div>
+        <div class="fig-card-h"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s.fig.color}"></span><b>${i+1}. ${esc(nom)}</b>${Math.abs(s.fig.rotation||0) >= 0.5 ? ` <span style="color:var(--muted);font-weight:500">· α = ${decAng(s.fig.rotation)}°</span>` : ''}</div>
         <div class="eq-row"><div class="eq-body">${kx(eqL)}</div></div>
         ${fr.c ? `<div class="eq-row"><div class="eq-body">${kx(fr.c + ' = ' + kres(decStr(fr.cVal,'len') + '\\,' + U))}</div></div>` : ''}
         <table class="fig-tabla"><thead><tr><th>Magnitud</th><th>Símbolo</th><th style="text-align:right">Valor</th><th>Unidad</th></tr></thead><tbody>
@@ -607,12 +607,12 @@ function construirLatexAlambre(){
            + ' \\qquad \\tilde{y}_{' + (i+1) + '} = ' + decP(s.yi,'len') + U1 + ' \\]\n';
     });
     if(Math.abs(giro) >= 0.5)
-      tex += nota('giro-l', 'El tramo está orientado $\\alpha = ' + decP(giro,'len') + '^\\circ$ respecto del eje $X$: el giro '
+      tex += nota('giro-l', 'El tramo está orientado $\\alpha = ' + decP(giro,'ang') + '^\\circ$ respecto del eje $X$: el giro '
         + 'reubica el centroide propio, y con él $\\tilde{x}$ e $\\tilde{y}$, pero no altera la longitud.');
     tex += '\\end{minipage}\\hfill\n';
     tex += '\\begin{minipage}[t]{0.36\\textwidth}\n\\vspace{2pt}\\centering\n' + tikzCroquisFigura(f, 4.4) + '\n';
     tex += '\\\\[2pt]{\\scriptsize\\color{bsaMuted}Croquis acotado en ' + uTxt
-         + (Math.abs(giro) >= 0.5 ? ', orientado $\\alpha = ' + decP(giro,'len') + '^\\circ$' : '') + '}\n';
+         + (Math.abs(giro) >= 0.5 ? ', orientado $\\alpha = ' + decP(giro,'ang') + '^\\circ$' : '') + '}\n';
     tex += '\\end{minipage}\n\\end{minipage}\n\\vspace{4pt}\n';
   });
 

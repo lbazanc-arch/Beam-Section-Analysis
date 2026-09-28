@@ -324,9 +324,9 @@ function decStr(v, kind){
   if(typeof v!=='number' || !isFinite(v)) return String(v);
   return (Math.abs(v) < 0.5*Math.pow(10,-d) ? 0 : v).toFixed(d);   // sin «-0.00»
 }
-// Un ángulo en pantalla. Centroide no tiene decimales de ángulo: van con
-// los de longitud, como en el informe (decP(...,'len')).
-function decAng(v){ return decStr(v, 'len'); }
+// Un ángulo en pantalla, con los decimales de ÁNGULOS de la ventana (hasta el
+// 2026-09-27 centroide no los tenía y los ángulos iban con los de longitud).
+function decAng(v){ return decStr(v, 'ang'); }
 // El valor de un CAMPO de entrada NO se redondea a los decimales de pantalla.
 // La posición y el giro se leen juntos (updateFigFromProp): con 1 decimal, tocar
 // el giro devolvía a la figura la posición redondeada y la movía, y el giro
@@ -350,6 +350,7 @@ function fillDecSelect(id, val){
 function openDecModal(){
   fillDecSelect('selDecLen',DEC.len);
   fillDecSelect('selDecArea',DEC.area);
+  fillDecSelect('selDecAng',DEC.ang);
   updateDecPreview();
   document.getElementById('decModal').classList.add('show');
 }
@@ -359,10 +360,11 @@ function updateDecPreview(){
   const dl=g('selDecLen'), dar=g('selDecArea');
   const eL=document.getElementById('dpL');  if(eL)  eL.textContent=(12.3456789).toFixed(dl)+' '+unit;
   const eA=document.getElementById('dpAr'); if(eA)  eA.textContent=(48123.987654).toFixed(dar)+' '+unit+'\u00B2';
+  const eG=document.getElementById('dpAng'); if(eG)  eG.textContent=(33.69007).toFixed(g('selDecAng'))+'\u00B0';
 }
 function applyDecModal(){
   const g=id=>{const e=document.getElementById(id); return e?(parseInt(e.value,10)||2):2;};
-  DEC={len:g('selDecLen'), area:g('selDecArea')};
+  DEC={len:g('selDecLen'), area:g('selDecArea'), ang:g('selDecAng')};
   syncDecTag(); closeDecModal();
   render();
   // calculate elige el cálculo del modo. renderResults es el del 2D: en 3D lanzaba y

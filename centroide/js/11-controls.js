@@ -203,7 +203,7 @@ function _abrirEstadoDeArchivo(s, modo){
   restaurarCuerpoDeArchivo(s, modo);      // tras la unidad: uGamma() depende de ella
   extraPoint = s.extraPoint?JSON.parse(JSON.stringify(s.extraPoint)):null;
   axisAngle  = (typeof s.axisAngle==='number')?s.axisAngle:null;
-  if(s.DEC) DEC=JSON.parse(JSON.stringify(s.DEC));
+  if(s.DEC) DEC=Object.assign({len:2, area:2, ang:2}, JSON.parse(JSON.stringify(s.DEC)));   // sin «ang»: 2
   if(typeof s.notationExp==='number') notationExp=s.notationExp;
   selectedFigId=null; selectedFigType=null; selFiguras=[];
   selectFigure(null); actualizarInfoSel();

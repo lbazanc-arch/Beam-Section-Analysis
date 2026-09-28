@@ -75,7 +75,7 @@ function formulaArea(fig){
       return {sim:'A_i = \\dfrac{\\pi R^{2}}{4}', sus:'A_i = \\dfrac{\\pi ('+D(d.r)+')^{2}}{4}'};
     case 'sector':
       return {sim:'A_i = \\theta R^{2} \\quad (\\theta \\text{ en radianes})',
-              sus:'A_i = \\left('+D(d.alpha)+'^\\circ\\cdot\\dfrac{\\pi}{180}\\right)('+D(d.r)+')^{2}'};
+              sus:'A_i = \\left('+decP(d.alpha,'ang')+'^\\circ\\cdot\\dfrac{\\pi}{180}\\right)('+D(d.r)+')^{2}'};
     case 'parabola':
       return {sim:'A_i = \\dfrac{2\\,b\\,h}{3}', sus:'A_i = \\dfrac{2('+D(d.b)+')('+D(d.h)+')}{3}'};
     case 'semiparabola':
@@ -90,8 +90,8 @@ function formulaArea(fig){
       return {sim:'A_i = \\dfrac{\\pi\\,a\\,b}{2}', sus:'A_i = \\dfrac{\\pi('+D(d.a)+')('+D(d.b)+')}{2}'};
     case 'segmento':
       return {sim:'A_i = R^{2}\\left(\\theta - \\sen\\theta\\cos\\theta\\right) \\quad (\\theta \\text{ en radianes})',
-              sus:'A_i = ('+D(d.r)+')^{2}\\left[\\left('+D(d.alpha)+'^\\circ\\cdot\\tfrac{\\pi}{180}\\right)'
-                 + ' - \\sen('+D(d.alpha)+'^\\circ)\\cos('+D(d.alpha)+'^\\circ)\\right]'};
+              sus:'A_i = ('+D(d.r)+')^{2}\\left[\\left('+decP(d.alpha,'ang')+'^\\circ\\cdot\\tfrac{\\pi}{180}\\right)'
+                 + ' - \\sen('+decP(d.alpha,'ang')+'^\\circ)\\cos('+decP(d.alpha,'ang')+'^\\circ)\\right]'};
     case 'trapecio':
       return {sim:'A_i = \\dfrac{(a+b)\\,h}{2}',
               sus:'A_i = \\dfrac{('+D(d.a)+'+'+D(d.b)+')('+D(d.h)+')}{2}'};
@@ -128,7 +128,7 @@ function centroideLocalTex(fig){
     case 'sector': {
       const t = d.alpha*Math.PI/180;
       return '\\bar{y}_{loc} = \\dfrac{2R\\sen\\theta}{3\\theta} = '
-           + '\\dfrac{2('+D(d.r)+')\\sen('+D(d.alpha)+'^\\circ)}{3('+D(d.alpha)+'^\\circ)} = '
+           + '\\dfrac{2('+D(d.r)+')\\sen('+decP(d.alpha,'ang')+'^\\circ)}{3('+decP(d.alpha,'ang')+'^\\circ)} = '
            + D(2*d.r*Math.sin(t)/(3*t));
     }
     case 'parabola':
@@ -831,7 +831,7 @@ function construirLatex(){
            + ' \\qquad \\tilde{y}_{' + (i+1) + '} = ' + decP(s.yi,'len') + U1 + ' \\]\n';
     });
     if(Math.abs(giro) >= 0.5){
-      tex += nota('giro', 'La parte está girada $\\beta = ' + decP(giro,'len') + '^\\circ$ respecto del eje $X$. El giro '
+      tex += nota('giro', 'La parte está girada $\\beta = ' + decP(giro,'ang') + '^\\circ$ respecto del eje $X$. El giro '
         + 'reubica el centroide propio, y con él $\\tilde{x}$ e $\\tilde{y}$, pero no altera el área.');
     }
 
@@ -871,7 +871,7 @@ function construirLatex(){
     tex += '\\begin{minipage}[t]{0.36\\textwidth}\n\\vspace{2pt}\\centering\n'
          + tikzCroquisFigura(f, 4.4) + '\n';
     tex += '\\\\[2pt]{\\scriptsize\\color{bsaMuted}Croquis acotado en ' + uTxt
-         + (Math.abs(giro) >= 0.5 ? ', girado $\\beta = ' + decP(giro,'len') + '^\\circ$' : '') + '}\n';
+         + (Math.abs(giro) >= 0.5 ? ', girado $\\beta = ' + decP(giro,'ang') + '^\\circ$' : '') + '}\n';
     if(tb){
       tex += '\\\\[8pt]\n' + _tikzFichaPerfil(f.type) + '\n'
            + '\\\\[2pt]{\\scriptsize\\color{bsaMuted}Notación de la tabla, según Beer et al. (2017)}\n';

@@ -114,7 +114,7 @@ function actualizarPrevTrans(){
       + decP(t.dx,'len') + ' ; ' + decP(t.dy,'len') + (modoEspacio === '3d' ? ' ; ' + decP(t.dz,'len') : '') + ') ' + unit
       + ', midiendo desde ' + t.ref.nombre + '.';
   } else {
-    p.textContent = 'Las ' + t.destinos.length + ' figura(s) giran ' + t.ang
+    p.textContent = 'Las ' + t.destinos.length + ' figura(s) giran ' + decAng(t.ang)
       + '° alrededor de ' + t.ref.nombre + ' (' + decP(t.ref.x,'len') + ' ; '
       + decP(t.ref.y,'len') + ') ' + unit + ', arrastrando su propia orientación.';
   }
