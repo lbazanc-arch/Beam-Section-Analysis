@@ -55,6 +55,12 @@ let pesoSeq = 0;
 let pesoActivo = null;     // id del valor que se está asignando
 let nodoSeq = 0, tramoSeq = 0;
 let tool = 'pan', selNodo = null;
+// El punto por el que va un tramo mientras se dibuja (04-): el último de la
+// cadena del Tramo recto o el inicio del Tramo curvo. {id, x, y}: id es el del
+// nudo si ya existe; si no, el nudo se crea al cerrar el tramo, no antes.
+let puntoPendiente = null;
+// La ventana del Tramo curvo abierta (04-): {modo:'nuevo'|'editar', tramo, lado, A0, B0}.
+let arcoVentana = null;
 let gesto = null;   // gesto unificado del botón "Mover / editar" (criterio cap9)
 const UMBRAL_ARRASTRE = 4, UMBRAL_MANTENER_MS = 450;
 let selN = [], selT = [], infoNodo = null, infoTramo = null;
@@ -191,13 +197,20 @@ function colorCapa(g){
 }
 
 // ── Geometría de un tramo ──
-// Un tramo curvo se define por su cuerda y una flecha (sagita).
+// Un tramo curvo se define por su cuerda y una flecha (sagita). La ventana del
+// Tramo curvo (04-) la pide como radio, lado y arco menor o mayor, al estilo de
+// AutoCAD, y la convierte con flechaDesdeRadio: el modelo sigue guardando la
+// flecha, así que los archivos no cambian.
 function arcoDeTramo(t){
-  const a = nodo(t.a), b = nodo(t.b);
-  if(!a||!b || t.tipo !== 'arco' || esCero(t.flecha||0)) return null;
+  if(t.tipo !== 'arco') return null;
+  return arcoEntre(nodo(t.a), nodo(t.b), t.flecha);
+}
+// El arco de a a b con flecha f (a y b, con x e y). Lo usan el modelo y la
+// ventana del Tramo curvo, que dibuja su vista previa antes de crear nada.
+function arcoEntre(a, b, f){
+  if(!a || !b || esCero(f || 0)) return null;
   const dx = b.x-a.x, dy = b.y-a.y, c = Math.hypot(dx,dy);
   if(c < 1e-12) return null;
-  const f = t.flecha;
   const Rr = (c*c/4 + f*f)/(2*Math.abs(f));       // radio del arco
   const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
   const ux = dx/c, uy = dy/c, nx = -uy, ny = ux;   // normal a la cuerda
@@ -208,9 +221,34 @@ function arcoDeTramo(t){
   let d = t2 - t1;
   while(d >  Math.PI) d -= 2*Math.PI;
   while(d < -Math.PI) d += 2*Math.PI;
-  if(Math.abs(f) > c/2){ d = d > 0 ? d - 2*Math.PI : d + 2*Math.PI; }
+  const mayor = Math.abs(f) > c/2;
+  if(mayor){ d = d > 0 ? d - 2*Math.PI : d + 2*Math.PI; }
+  // Media circunferencia exacta (flecha = media cuerda, que es lo que da escribir
+  // R = c/2 en la ventana): el centro cae EN la cuerda, las dos mitades dan el
+  // mismo giro y el redondeo decidía el lado. Se toma la que pasa por el lado de
+  // la flecha; en los demás casos ya se cumple y esto no cambia nada.
+  const bx = (mayor ? -nx : nx)*sg, by = (mayor ? -ny : ny)*sg;
+  const tm = t1 + d/2;
+  if(Math.cos(tm)*bx + Math.sin(tm)*by < 0) d = d > 0 ? d - 2*Math.PI : d + 2*Math.PI;
   return {cx, cy, R:Rr, t1, d, cuerda:c};
 }
+// Radio, lado y arco menor o mayor ↔ flecha del modelo. `lado` +1: el arco se
+// comba hacia la IZQUIERDA de quien va de a a b; −1, hacia la derecha. Con el
+// arco MAYOR la flecha lleva el signo contrario, porque arcoEntre pone el
+// centro del mismo lado en los dos casos: es como se leyeron siempre los
+// archivos, y no se toca.
+function flechaDesdeRadio(c, R, lado, mayor){
+  const h = Math.sqrt(Math.max(0, R*R - c*c/4));
+  if(h < 1e-12*Math.max(1, R)) mayor = false;          // media circunferencia
+  return (mayor ? -1 : 1) * lado * (mayor ? R + h : R - h);
+}
+function radioDesdeFlecha(c, f){
+  const af = Math.abs(f);
+  if(af < 1e-12 || c < 1e-12) return null;
+  const mayor = af > c/2*(1 + 1e-12);
+  return {R:(c*c/4 + f*f)/(2*af), mayor, lado:Math.sign(f) * (mayor ? -1 : 1)};
+}
+function radioDeTramo(t){ const a = arcoDeTramo(t); return a ? a.R : null; }
 function puntosTramo(t, N){
   const a = nodo(t.a), b = nodo(t.b);
   if(!a||!b) return [];
@@ -918,7 +956,7 @@ function calcular(){
 
 function renderError(r){
   let t;
-  if(r.error === 'sin-tramos') t = 'Arma la compuerta: coloca nudos y únelos con tramos.';
+  if(r.error === 'sin-tramos') t = 'Arma la compuerta con Tramo recto o Tramo curvo.';
   else if(r.error === 'sin-liquido') t = 'Ningún tramo está mojado: añade líquido en la zona 1 o en la zona 2 (panel <b>Líquidos</b>) con un nivel por encima de la compuerta.';
   else if(r.error === 'determinacion'){
     const d = r.diag, g = d.inc - d.eq;

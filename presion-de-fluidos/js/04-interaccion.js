@@ -22,10 +22,22 @@ function tramoEn(mx,my){
   }
   return mejor;
 }
-function addNodo(x,y){
-  const n={id:++nodoSeq,x:snap(x),y:snap(y),nombre:'',apoyo:null,apAng:90,apModo:'angulo',apLado:2,
+// `exacto`: la posición ya viene enganchada a la rejilla, o la escribió el alumno.
+function addNodo(x,y,exacto){
+  const n={id:++nodoSeq,x:exacto?x:snap(x),y:exacto?y:snap(y),nombre:'',apoyo:null,apAng:90,apModo:'angulo',apLado:2,
            apAngFijo:90,rotula:false,tope:null};
   nodos.push(n); reNombrar(); return n;
+}
+// El nudo que ya está en (x, y), si lo hay: un toque que engancha a la rejilla
+// sobre un nudo, o unas coordenadas escritas en la ventana, lo reutilizan.
+function nodoEnPunto(x, y){
+  const tol = v => 1e-6*Math.max(1, Math.abs(v));
+  return nodos.find(n=>Math.abs(n.x - x) <= tol(x) && Math.abs(n.y - y) <= tol(y)) || null;
+}
+function mismoPunto(P, Q){
+  if(P.id !== null && P.id === Q.id) return true;
+  return Math.abs(P.x - Q.x) <= 1e-9*Math.max(1, Math.abs(P.x))
+      && Math.abs(P.y - Q.y) <= 1e-9*Math.max(1, Math.abs(P.y));
 }
 function addTramo(a,b,tipo){
   if(a===b) return null;
@@ -39,17 +51,30 @@ function onDown(e){
   const n=nodoEn(mx,my); const [wx,wy]=aMundo(mx,my);
   // El panel de resultados se oculta solo si el modelo cambia (06-): tocar un
   // nudo que ya existe, o unir dos que ya une un tramo, no cambia nada.
-  if(tool==='nudo'){ if(!n){ registrarCambio(); addNodo(wx,wy); invalidarResultados(); } refrescar(); }
-  else if(tool==='recto'||tool==='arco'){
-    if(n){ if(selNodo===null) selNodo=n.id;
-      else {
-        if(n.id!==selNodo && !_tramoEntre(selNodo, n.id)){
-          registrarCambio(); addTramo(selNodo,n.id,tool==='arco'?'arco':'recto'); invalidarResultados();
-        }
-        selNodo=null;
-      }
-      refrescar(); }
-    else { selNodo=null; dibujar(); }
+  if(tool==='recto' || tool==='arco'){
+    // El punto tocado: un nudo que ya existe (o uno en ese mismo sitio de la
+    // rejilla) o un punto nuevo, que no entra en el modelo hasta cerrar el tramo.
+    let aqui;
+    if(n) aqui = {id:n.id, x:n.x, y:n.y};
+    else {
+      const x = snap(wx), y = snap(wy), e = nodoEnPunto(x, y);
+      aqui = e ? {id:e.id, x:e.x, y:e.y} : {id:null, x, y};
+    }
+    const P0 = puntoPendiente;
+    if(!P0){ puntoPendiente = aqui; dibujar(); return; }        // arranque: aún no cambia nada
+    if(mismoPunto(P0, aqui)) return;
+    if(tool === 'arco'){ abrirArcoNuevo(P0, aqui); return; }    // el radio lo pide la ventana
+    // Tramo recto: se construye NUDO A NUDO, como en armaduras y fuerzas internas
+    // (2026-09-27, petición del profesor): cada toque se une al anterior y la
+    // cadena sigue. No hay herramienta de nudo suelto: un nudo existe porque es
+    // el extremo de un tramo. La cadena se corta al cambiar de herramienta o con Esc.
+    if(P0.id !== null && aqui.id !== null && _tramoEntre(P0.id, aqui.id)){ puntoPendiente = aqui; dibujar(); return; }
+    registrarCambio();
+    const na = (P0.id !== null && nodo(P0.id)) || addNodo(P0.x, P0.y, true);
+    const nb = (aqui.id !== null && nodo(aqui.id)) || addNodo(aqui.x, aqui.y, true);
+    addTramo(na.id, nb.id, 'recto');
+    puntoPendiente = {id:nb.id, x:nb.x, y:nb.y};
+    invalidarResultados(); refrescar();
   }
   else if(tool==='apoyo'){ if(n) abrirApoyoModal(n.id); }
   else if(tool==='tope'){ if(n) abrirTopeModal(n.id); }
@@ -81,6 +106,8 @@ function onMove(e){
   const mx=e.clientX-r.left, my=e.clientY-r.top;
   if(panDrag){ vx=panDrag.vx-(mx-panDrag.mx)/escala; vy=panDrag.vy+(my-panDrag.my)/escala; dibujar(); return; }
   mouseW=aMundo(mx, my);
+  // Tramo en curso: la línea a trazos sigue al puntero (03-).
+  if(!gesto && puntoPendiente && (tool==='recto' || tool==='arco')){ dibujar(); return; }
 
   // ── Botón unificado "Mover / editar" (criterio cap9) ──
   if(gesto){
@@ -253,26 +280,29 @@ function activarEliminar(){
 }
 
 function onDbl(e){
+  // Dibujando, dos toques seguidos son dos puntos del tramo, no una edición.
+  if(tool==='recto' || tool==='arco') return;
   const r=cv.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
   const n=nodoEn(mx,my);
   if(n){ abrirEdNodo(n.id); return; }
   const t=tramoEn(mx,my);
+  if(t && t.tipo === 'arco'){ abrirArcoEdicion(t.id); return; }   // su radio y su lado
   if(t){ infoTramo=t.id; if(selT.indexOf(t.id)<0) selT.push(t.id); refrescar(); }
 }
 
 function setTool(t){
-  tool=t; selNodo=null;
-  ['nudo','recto','arco','apoyo','tope','peso','sel','pan'].forEach(k=>{
+  tool=t; selNodo=null; puntoPendiente=null;
+  ['recto','arco','apoyo','tope','peso','sel','pan'].forEach(k=>{
     const el=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active',k===t);
   });
   // El botón Eliminar no sigue el patrón de id 't'+Nombre, se marca aparte.
   const bd = document.getElementById('btnDel');
   if(bd) bd.classList.toggle('active', t==='borrar');
-  const hints={nudo:'Haz clic para colocar un nudo.',
-    recto:'Haz clic en dos nudos para unirlos con un tramo recto.',
-    arco:'Haz clic en dos nudos para unirlos con un tramo curvo.',
+  const hints={
+    recto:'Toca para colocar nudos: cada uno se une al anterior con un tramo recto. Esc corta la cadena.',
+    arco:'Toca el inicio y el fin del arco (un nudo o un punto nuevo); la ventana pide el radio.',
     apoyo:'Haz clic en un nudo y elige su apoyo o su rótula interna.',
     tope:'Haz clic en un nudo para colocar un tope liso: una fuerza incógnita, normal a la compuerta (o con la dirección que indiques).',
     peso:'Toca los tramos a los que quieras asignar el peso elegido; tócalos de nuevo para quitárselo.',
@@ -347,7 +377,7 @@ function restaurarInstantanea(txt){
   selT = selT.filter(id=>tramos.some(t=>t.id===id));
   if(!nodos.some(n=>n.id===infoNodo))   infoNodo = null;
   if(!tramos.some(t=>t.id===infoTramo)) infoTramo = null;
-  selNodo = null;
+  selNodo = null; puntoPendiente = null;
   // El panel enseñaba la solución del modelo de antes de deshacer (06-).
   invalidarResultados();
   refrescar();
@@ -425,4 +455,174 @@ function applyEdNodo(){
   registrarCambio();
   n.x = x; n.y = y; invalidarResultados();
   closeEdNodo(); refrescar();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TRAMO CURVO: dos puntos y el radio, al estilo del ARC de AutoCAD
+//  (2026-09-27, petición del profesor). Los dos puntos se tocan en el lienzo
+//  —un nudo que ya existe o un punto nuevo de la rejilla— y la ventana los
+//  enseña con sus coordenadas, que se pueden corregir a mano; ahí se piden el
+//  radio, hacia qué lado se comba y si es el arco mayor. Nada entra en el
+//  modelo hasta Aplicar. El modelo sigue guardando la FLECHA (01-): el radio es
+//  una conversión de borde y los archivos no cambian. Con doble clic sobre un
+//  arco, o con su botón de la lista, la misma ventana edita su radio y su lado.
+// ═══════════════════════════════════════════════════════════
+function _numCampo(v){ return String(+(+v).toFixed(6)); }
+function _campoArco(id, v, soloLectura){
+  const e = document.getElementById(id); if(!e) return;
+  e.value = v; e.readOnly = !!soloLectura;
+  e.style.background = soloLectura ? 'var(--bg,#f3f5f7)' : '';
+}
+function _prepararArco(modo, a, b, extra){
+  arcoVentana = Object.assign({modo, lado:1,
+    A0:{id:a.id, x:a.x, y:a.y, tx:_numCampo(a.x), ty:_numCampo(a.y)},
+    B0:{id:b.id, x:b.x, y:b.y, tx:_numCampo(b.x), ty:_numCampo(b.y)}}, extra || {});
+  const fijo = modo === 'editar';
+  _campoArco('arAx', arcoVentana.A0.tx, fijo); _campoArco('arAy', arcoVentana.A0.ty, fijo);
+  _campoArco('arBx', arcoVentana.B0.tx, fijo); _campoArco('arBy', arcoVentana.B0.ty, fijo);
+}
+function abrirArcoNuevo(Pa, Pb){
+  _prepararArco('nuevo', Pa, Pb);
+  // Por defecto, un cuarto de circunferencia: la compuerta radial de siempre.
+  const c = Math.hypot(Pb.x - Pa.x, Pb.y - Pa.y);
+  document.getElementById('arR').value = _numCampo(c/Math.SQRT2);
+  document.getElementById('arMayor').checked = false;
+  document.getElementById('arTitulo').textContent = 'Tramo curvo nuevo';
+  _abrirVentanaArco();
+}
+function abrirArcoEdicion(id){
+  const t = tramos.find(z=>z.id===id); if(!t || t.tipo !== 'arco') return;
+  const a = nodo(t.a), b = nodo(t.b); if(!a || !b) return;
+  const c = Math.hypot(b.x - a.x, b.y - a.y);
+  const r = radioDesdeFlecha(c, t.flecha || 0) || {R:c/Math.SQRT2, mayor:false, lado:1};
+  _prepararArco('editar', a, b, {tramo:id, lado:r.lado});
+  document.getElementById('arR').value = _numCampo(r.R);
+  document.getElementById('arMayor').checked = r.mayor;
+  document.getElementById('arTitulo').textContent = 'Tramo curvo ' + nomTramo(t);
+  _abrirVentanaArco();
+}
+function _abrirVentanaArco(){
+  document.querySelectorAll('#arcoModal .uLen').forEach(s=>{ s.textContent = unitLen; });
+  document.getElementById('arcoModal').classList.add('show');
+  dibujarCroquisArco();
+  const r = document.getElementById('arR');
+  if(r) setTimeout(()=>{ r.focus(); r.select(); }, 50);
+}
+// Un punto de la ventana: el nudo que se tocó si sus campos siguen igual, o el
+// de las coordenadas escritas (reutilizando el nudo que ya esté ahí).
+function _puntoArco(P0, idx, idy){
+  const sx = document.getElementById(idx).value, sy = document.getElementById(idy).value;
+  if(sx === P0.tx && sy === P0.ty) return {id:P0.id, x:P0.x, y:P0.y};
+  const x = parseFloat(sx), y = parseFloat(sy);
+  if(!isFinite(x) || !isFinite(y)) return null;
+  const e = nodoEnPunto(x, y);
+  return e ? {id:e.id, x:e.x, y:e.y} : {id:null, x, y};
+}
+function leerArco(){
+  const V = arcoVentana; if(!V) return {error:'Sin tramo.'};
+  const A = _puntoArco(V.A0, 'arAx', 'arAy'), B = _puntoArco(V.B0, 'arBx', 'arBy');
+  const R = parseFloat(document.getElementById('arR').value);
+  const mayor = document.getElementById('arMayor').checked;
+  if(!A || !B || !isFinite(R)) return {A, B, error:'Escribe números en las coordenadas y en el radio.'};
+  const c = Math.hypot(B.x - A.x, B.y - A.y);
+  if(c < 1e-9 || (A.id !== null && A.id === B.id))
+    return {A, B, error:'El inicio y el fin coinciden: el arco necesita dos puntos distintos.'};
+  if(!(R > 0) || R < c/2*(1 - 1e-9))
+    return {A, B, c, error:'El radio tiene que ser al menos la mitad de la cuerda: ' + dec(c/2,'len') + ' ' + unitLen + '.'};
+  const Ru = Math.max(R, c/2);
+  return {A, B, c, R:Ru, lado:V.lado, mayor, f:flechaDesdeRadio(c, Ru, V.lado, mayor)};
+}
+// Hacia dónde se comba, dicho como se ve en la pantalla: con la cuerda más bien
+// horizontal, «hacia arriba» o «hacia abajo»; si no, a la izquierda o a la derecha.
+function _textoLadoArco(A, B, lado){
+  const c = Math.hypot(B.x - A.x, B.y - A.y) || 1;
+  const nx = -(B.y - A.y)/c*lado, ny = (B.x - A.x)/c*lado;
+  if(Math.abs(ny) >= Math.abs(nx)) return ny > 0 ? 'Hacia arriba' : 'Hacia abajo';
+  return nx > 0 ? 'Hacia la derecha' : 'Hacia la izquierda';
+}
+function setLadoArco(l){ if(arcoVentana){ arcoVentana.lado = l; dibujarCroquisArco(); } }
+function dibujarCroquisArco(){
+  const V = arcoVentana; if(!V) return;
+  const L = leerArco(), A = L.A, B = L.B;
+  const eti = (Q, base) => base + (Q ? (Q.id !== null && nodo(Q.id) ? ' · nudo ' + nodo(Q.id).nombre : ' · nudo nuevo') : '');
+  document.getElementById('arLblA').textContent = eti(A, 'Inicio');
+  document.getElementById('arLblB').textContent = eti(B, 'Fin');
+  // Los dos botones del lado, marcados como toda opción elegida (§7 de CLAUDE.md).
+  [[1, 'arLado1'], [-1, 'arLado2']].forEach(([l, id])=>{
+    const b = document.getElementById(id); if(!b) return;
+    b.textContent = (A && B && L.c !== undefined) ? _textoLadoArco(A, B, l) : (l > 0 ? 'Un lado' : 'El otro lado');
+    b.classList.toggle('active', V.lado === l);
+  });
+  const svg = document.getElementById('arCroquis'), info = document.getElementById('arInfo');
+  if(!svg || !info) return;
+  const arc = L.error ? null : arcoEntre(A, B, L.f);
+  const muestras = [];
+  if(arc) for(let i = 0; i <= 64; i++){
+    const th = arc.t1 + arc.d*i/64;
+    muestras.push({x:arc.cx + arc.R*Math.cos(th), y:arc.cy + arc.R*Math.sin(th)});
+  }
+  let pts = (A && B) ? [A, B] : [];
+  if(arc) pts = pts.concat(muestras, [{x:arc.cx, y:arc.cy}]);
+  info.style.color = L.error ? '#c0392b' : '';
+  if(!pts.length){ svg.innerHTML = ''; info.textContent = L.error || ''; return; }
+  const W2 = 360, H2 = 200, m = 28;
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const k = Math.min((W2 - 2*m)/Math.max(x1 - x0, 1e-9), (H2 - 2*m)/Math.max(y1 - y0, 1e-9));
+  const X = x => m + (x - x0)*k + ((W2 - 2*m) - (x1 - x0)*k)/2;
+  const Y = y => H2 - m - (y - y0)*k - ((H2 - 2*m) - (y1 - y0)*k)/2;
+  const F = v => v.toFixed(1);
+  let s = '<line x1="' + F(X(A.x)) + '" y1="' + F(Y(A.y)) + '" x2="' + F(X(B.x)) + '" y2="' + F(Y(B.y))
+        + '" stroke="#9aa3ad" stroke-width="1.2" stroke-dasharray="5,4"/>';
+  let fuera = (Q) => [0, -1];                     // hacia dónde se aparta el nombre
+  if(arc){
+    const C = {x:arc.cx, y:arc.cy};
+    [A, B].forEach(Q=>{ s += '<line x1="' + F(X(C.x)) + '" y1="' + F(Y(C.y)) + '" x2="' + F(X(Q.x)) + '" y2="' + F(Y(Q.y))
+      + '" stroke="#9aa3ad" stroke-width="1" stroke-dasharray="3,3"/>'; });
+    s += '<polyline points="' + muestras.map(p=>F(X(p.x)) + ',' + F(Y(p.y))).join(' ')
+       + '" fill="none" stroke="#0f5c56" stroke-width="3" stroke-linecap="round"/>';
+    s += '<path d="M' + F(X(C.x) - 5) + ' ' + F(Y(C.y)) + 'h10M' + F(X(C.x)) + ' ' + F(Y(C.y) - 5) + 'v10" stroke="#0b3f3a" stroke-width="1.4"/>';
+    s += '<text x="' + F(X(C.x) + 7) + '" y="' + F(Y(C.y) + 13) + '" font-size="10" font-weight="700" fill="#0b3f3a">O</text>';
+    const mR = {x:(C.x + A.x)/2, y:(C.y + A.y)/2};
+    s += '<text x="' + F(X(mR.x) + 6) + '" y="' + F(Y(mR.y) - 6) + '" font-size="10" font-weight="700" fill="#0b3f3a">R = '
+       + dec(L.R,'len') + ' ' + unitLen + '</text>';
+    fuera = (Q) => { const d = Math.hypot(Q.x - C.x, Q.y - C.y) || 1; return [(Q.x - C.x)/d, (Q.y - C.y)/d]; };
+  }
+  [[A, 'Inicio'], [B, 'Fin']].forEach(([Q, nom])=>{
+    const nombre = (Q.id !== null && nodo(Q.id)) ? nodo(Q.id).nombre : nom;
+    const [ux, uy] = fuera(Q);
+    s += '<circle cx="' + F(X(Q.x)) + '" cy="' + F(Y(Q.y)) + '" r="4.5" fill="#0b3f3a" stroke="#fff" stroke-width="1.5"/>';
+    s += '<text x="' + F(X(Q.x) + ux*14) + '" y="' + F(Y(Q.y) - uy*14 + 4) + '" font-size="10.5" font-weight="700" fill="#0b3f3a" text-anchor="'
+       + (ux > 0.3 ? 'start' : (ux < -0.3 ? 'end' : 'middle')) + '">' + escaparTexto(nombre) + '</text>';
+  });
+  svg.innerHTML = s;
+  info.textContent = L.error ? L.error
+    : 'Cuerda ' + dec(L.c,'len') + ' ' + unitLen + ' · arco de ' + dec(Math.abs(arc.d)*180/Math.PI,'ang')
+      + '° · flecha ' + dec(Math.abs(L.f),'len') + ' ' + unitLen + ' · centro O (' + dec(arc.cx,'len') + ' ; ' + dec(arc.cy,'len') + ')';
+}
+function aplicarArco(){
+  const V = arcoVentana; if(!V) return;
+  const L = leerArco();
+  if(L.error){ aviso(L.error, 'error'); return; }
+  if(V.modo === 'editar'){
+    const t = tramos.find(z=>z.id===V.tramo);
+    if(!t){ cerrarArco(); return; }
+    // Aplicar lo mismo no es un cambio: ni paso de deshacer ni panel oculto.
+    if(Math.abs((t.flecha || 0) - L.f) <= 1e-12*Math.max(1, Math.abs(L.f))){ cerrarArco(); return; }
+    registrarCambio(); t.flecha = L.f; invalidarResultados(); cerrarArco(); refrescar();
+    return;
+  }
+  if(L.A.id !== null && L.B.id !== null && _tramoEntre(L.A.id, L.B.id)){
+    aviso('Ya hay un tramo entre ' + nodo(L.A.id).nombre + ' y ' + nodo(L.B.id).nombre + '.', 'error'); return;
+  }
+  registrarCambio();
+  const na = (L.A.id !== null && nodo(L.A.id)) || addNodo(L.A.x, L.A.y, true);
+  const nb = (L.B.id !== null && nodo(L.B.id)) || addNodo(L.B.x, L.B.y, true);
+  const t = addTramo(na.id, nb.id, 'arco');      // la flecha se mide de a hacia b, como en la ventana
+  if(t) t.flecha = L.f;
+  invalidarResultados(); cerrarArco(); refrescar();
+}
+function cerrarArco(){
+  const m = document.getElementById('arcoModal'); if(m) m.classList.remove('show');
+  arcoVentana = null; puntoPendiente = null; dibujar();
 }

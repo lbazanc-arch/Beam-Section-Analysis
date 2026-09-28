@@ -658,6 +658,25 @@ function dibujar(){
     _rotulo(nomTramo(t), md[0]+6, md[1]-9, '#0b3f3a', 0, -1, '700 10px Inter,sans-serif', 'left', _ROT_NOMBRE);
   });
 
+  // ── Tramo en curso (04-): el punto de partida y, hasta el puntero, a trazos ──
+  if(puntoPendiente && (tool === 'recto' || tool === 'arco')){
+    const P0 = (puntoPendiente.id !== null && nodo(puntoPendiente.id)) || puntoPendiente;
+    const [x1, y1] = aPantalla(P0.x, P0.y);
+    ctx.save();
+    if(mouseW && !arcoVentana){
+      const [x2, y2] = aPantalla(snap(mouseW[0]), snap(mouseW[1]));
+      ctx.strokeStyle = 'rgba(15,92,86,.55)'; ctx.lineWidth = 2.4; ctx.setLineDash([7,5]);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    ctx.setLineDash([3,3]); ctx.strokeStyle = '#0f5c56'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x1, y1, 11, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    if(puntoPendiente.id === null){                      // aún no es un nudo
+      ctx.beginPath(); ctx.arc(x1, y1, 4.5, 0, Math.PI*2); ctx.fillStyle = '#0f5c56'; ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // ── Apoyos, rótulas, topes, nudos ──
   nodos.forEach(n=>{
     const [px,py]=aPantalla(n.x,n.y);

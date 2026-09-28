@@ -141,7 +141,7 @@ function confirmarAnchoPendiente(){
 // ── Jerarquía de Esc (criterio cap9): cierra lo más superficial primero ────
 function manejarEsc(){
   // 1) Un modal abierto: se cierra con su función propia para no dejar estado sucio
-  const cierres = {edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal', pesoModal:'cerrarPeso',
+  const cierres = {arcoModal:'cerrarArco', edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal', pesoModal:'cerrarPeso',
     ejModal:'cerrarEjemplos',
     unitsModal:'closeUnitsModal', decModal:'closeDecModal',
     guardarModal:'cerrarGuardar', histModal:'cerrarHistorial',
@@ -158,8 +158,8 @@ function manejarEsc(){
   if(av && av.classList.contains('visible')){ cerrarAviso(); return; }
   // 3) Un gesto a medias
   if(panDrag || gesto || pinchDist!==null){ cancelarGestoEnCurso(); dibujar(); return; }
-  // 4) El primer nudo de un tramo pendiente de cerrar
-  if(selNodo!==null){ selNodo=null; dibujar(); return; }
+  // 4) Un tramo a medio dibujar: se corta la cadena (o se suelta el inicio del arco)
+  if(puntoPendiente || selNodo!==null){ puntoPendiente=null; selNodo=null; dibujar(); return; }
   // 5) La selección actual
   if(selN.length || selT.length || infoNodo!==null || infoTramo!==null){
     selN=[]; selT=[]; infoNodo=null; infoTramo=null; refrescar(); return;

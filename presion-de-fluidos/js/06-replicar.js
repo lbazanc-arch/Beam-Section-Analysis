@@ -10,7 +10,7 @@ function depurarSeleccionPF(){
   if(infoTramo !== null && !tramos.some(t=>t.id===infoTramo)) infoTramo = null;
 }
 // Vacía la selección entera: limpiar, cargar un ejemplo y abrir un ejercicio.
-function vaciarSeleccionPF(){ selN = []; selT = []; infoNodo = null; infoTramo = null; selNodo = null; }
+function vaciarSeleccionPF(){ selN = []; selT = []; infoNodo = null; infoTramo = null; selNodo = null; puntoPendiente = null; }
 // El panel de resultados no puede seguir enseñando la solución de un modelo que
 // ya cambió: se oculta como al limpiar.
 function invalidarResultados(){
@@ -174,10 +174,6 @@ function invertirCara(id){
   const t=tramos.find(z=>z.id===id); if(!t) return;
   t.invertir = !t.invertir; invalidarResultados(); refrescar();
 }
-function cambiarFlecha(id,v){
-  const t=tramos.find(z=>z.id===id); if(!t) return;
-  t.flecha=parseFloat(v)||0; invalidarResultados(); refrescar();
-}
 // Texto corto de la orientación de un tope o apoyo móvil, para las listas.
 // Dice el ángulo como el alumno lo escribió (dónde se apoya, desde dónde
 // empuja) o, si lo fija la compuerta, el agudo con el eje más cercano; nunca
@@ -200,13 +196,13 @@ function pintarListas(){
         + '<input type="checkbox" '+(act?'checked':'')+' onchange="toggleActivo('+t.id+')" '
         + 'title="Incluir en el análisis" style="width:14px;height:14px;accent-color:#0f5c56">'
         + '<div class="nm">'+nomTramo(t)+' · '+(t.tipo==='arco'?'curvo':'recto')+(pesoDe(t) ? ' · '+escaparTexto(pesoDe(t).nom) : '')+'</div>'
-        + (t.tipo==='arco' ? '<input type="number" step="any" value="'+t.flecha+'" title="flecha (sagita)" '
-            + 'style="width:52px;padding:2px 4px;border:1px solid var(--border2);border-radius:4px;font-size:10px" '
-            + 'onchange="cambiarFlecha('+t.id+',this.value)">' : '')
+        // El arco se edita por su radio, en la ventana del Tramo curvo (04-).
+        + (t.tipo==='arco' ? '<button class="cara-btn" onclick="abrirArcoEdicion('+t.id+')" '
+            + 'title="Radio y curvatura del tramo">R '+dec(radioDeTramo(t) || 0,'len')+' \u270e</button>' : '')
         + '<button class="cara-btn'+(t.invertir?' on':'')+'" onclick="invertirCara('+t.id+')" '
         + 'title="Qué cara mira a la zona 1. Se deduce de la cadena de la compuerta; púlsalo solo si el dibujo del líquido no coincide">Z1 '+cara1+'</button>'
         + '<button class="x" onclick="borrarTramo('+t.id+')">×</button></div>';
-    }).join('') : '<div class="list-empty">Sin tramos. Coloca nudos y únelos.</div>';
+    }).join('') : '<div class="list-empty">Sin tramos. Dibuja la compuerta con Tramo recto o Tramo curvo.</div>';
   }
   const la=document.getElementById('listaApoyos');
   if(la){
