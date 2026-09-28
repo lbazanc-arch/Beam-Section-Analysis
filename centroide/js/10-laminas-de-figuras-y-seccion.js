@@ -83,7 +83,7 @@ function renderResults(res, u4, u2, u1){
   if(!resultadoSinDesplazar) setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
 
   const f  = v => fmtVal(v);
-  const nL = v => decFix(v,'len');
+  const nL = v => decStr(v,'len');
   const het = res.hetero;
   const simb = matSimbolo();
   // En magnitud «densidad» lo que se calcula es MASA (ρ·A·t = kg), no peso; en

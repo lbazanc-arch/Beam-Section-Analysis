@@ -420,9 +420,9 @@ function drawCompositeFigure(canvasId) {
     c.strokeStyle=clr; c.lineWidth=1.1;
     c.beginPath(); c.moveTo(p0.x,p0.y); c.lineTo(p1.x,p1.y); c.stroke();
     c.restore();
-    etiq.add('R='+d.r+unit, (p0.x+p1.x)/2, (p0.y+p1.y)/2, clr, 'bold 9px Inter');
+    etiq.add('R='+decStr(d.r,'len')+unit, (p0.x+p1.x)/2, (p0.y+p1.y)/2, clr, 'bold 9px Inter');
     if(fig.type==='sector' || fig.type==='segmento'){
-      etiq.add('\u03b8='+d.alpha+'\u00b0', p0.x, p0.y, clr, '9px Inter');
+      etiq.add('\u03b8='+decAng(d.alpha)+'\u00b0', p0.x, p0.y, clr, '9px Inter');
     }
   }
   // Huecos prohibidos: la caja de cada figura y las bandas donde van las cotas.

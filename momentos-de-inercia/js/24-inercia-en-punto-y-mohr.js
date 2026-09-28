@@ -275,9 +275,9 @@ function drawMohr(data, target, override){
     // rótulo del arco 2θ
     const am2=-(aA+aU)/2;
     const lx2=cx_s+(rr2+14)*Math.cos(am2), ly2=cy_s+(rr2+14)*Math.sin(am2);
-    box('2θ = '+decFix(2*rt.ang,'ang')+'°', lx2, ly2);
+    box('2θ = '+decStr(2*rt.ang,'ang')+'°', lx2, ly2);
     cx2.font='bold 12px Inter'; cx2.textAlign='right'; cx2.fillStyle='#c0392b';
-    cx2.fillText('Ejes girados θ = '+decFix(rt.ang,'ang')+'°', ox+cw, H-8);
+    cx2.fillText('Ejes girados θ = '+decStr(rt.ang,'ang')+'°', ox+cw, H-8);
     // En θp el radio C→U cae sobre el eje I: la asimetría desaparece (Puv = 0)
     // y el punto U es Imax o Imin (propuesta 1, 2026-09-08).
     if(Math.abs(rt.Iuv) < 1e-6*Math.max(R, 1)){

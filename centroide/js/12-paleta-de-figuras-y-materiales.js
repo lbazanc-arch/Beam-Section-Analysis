@@ -313,6 +313,28 @@ function decFix(v, kind){
   if(typeof v!=='number' || !isFinite(v)) return v;
   return parseFloat(v.toFixed(d));
 }
+// Texto con EXACTAMENTE los decimales elegidos: «110.0000», no «110».
+// decFix devuelve un NÚMERO y al escribirlo se pierden los ceros de la derecha,
+// así que con 4 decimales la pantalla decía «110», «290.07» y «647.946» en la
+// misma tabla, y el PDF «110.0000» (2026-09-27). Todo lo que se enseña pasa por
+// aquí; decFix queda para los datos del alumno (γ, ρ), que se escriben como él
+// los dio.
+function decStr(v, kind){
+  const d = DEC[kind]!==undefined ? DEC[kind] : 2;
+  if(typeof v!=='number' || !isFinite(v)) return String(v);
+  return (Math.abs(v) < 0.5*Math.pow(10,-d) ? 0 : v).toFixed(d);   // sin «-0.00»
+}
+// Un ángulo en pantalla. Centroide no tiene decimales de ángulo: van con
+// los de longitud, como en el informe (decP(...,'len')).
+function decAng(v){ return decStr(v, 'len'); }
+// El valor de un CAMPO de entrada NO se redondea a los decimales de pantalla.
+// La posición y el giro se leen juntos (updateFigFromProp): con 1 decimal, tocar
+// el giro devolvía a la figura la posición redondeada y la movía, y el giro
+// se guardaba con los decimales de longitud. Se quita solo el ruido de coma
+// flotante.
+function valorCampo(v){
+  return (typeof v==='number' && isFinite(v)) ? String(+v.toFixed(6)) : v;
+}
 function decTagText(){ return '0.'+'0'.repeat(DEC.len); }
 function syncDecTag(){ const e=document.getElementById('decTag'); if(e) e.textContent=decTagText(); }
 function fillDecSelect(id, val){

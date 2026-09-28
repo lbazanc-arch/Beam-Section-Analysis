@@ -235,7 +235,7 @@ function drawResultsOverlay(){
       ctx.setLineDash([]);
       const a = i === 0 ? -Math.PI/4 : -3*Math.PI/4;
       const lx = sp.x + rpx*Math.cos(a), ly = sp.y + rpx*Math.sin(a);
-      const txt = (i === 0 ? 'kx = ' : 'ky = ') + decFix(k,'len') + ' ' + unit;
+      const txt = (i === 0 ? 'kx = ' : 'ky = ') + decStr(k,'len') + ' ' + unit;
       ctx.font = 'bold 10px Inter'; ctx.textAlign = 'center';
       const w = ctx.measureText(txt).width + 8;
       ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fillRect(lx-w/2, ly-13, w, 15);
@@ -265,7 +265,7 @@ function drawResultsOverlay(){
     ctx.beginPath(); ctx.arc(0,0,ra, 0, -thR, thR>0); ctx.stroke();
     const am=-thR/2;
     ctx.font='bold 12px Inter'; ctx.textAlign='left';
-    const tx='θ = '+decFix(mohrTheta,'ang')+'°' + (enPrincipal ? '  (= θp: ejes principales)' : '');
+    const tx='θ = '+decStr(mohrTheta,'ang')+'°' + (enPrincipal ? '  (= θp: ejes principales)' : '');
     const wt=ctx.measureText(tx).width+8;
     ctx.fillStyle='rgba(255,255,255,.92)';
     ctx.fillRect((ra+8)*Math.cos(am)-3, (ra+8)*Math.sin(am)-11, wt, 16);
@@ -312,7 +312,7 @@ function drawResultsOverlay(){
       ctx.beginPath(); ctx.arc(0,0,ra, 0, -thR, thR>0); ctx.stroke();
       const am=-thR/2;
       ctx.font='bold 12px Inter'; ctx.textAlign='left';
-      const tx='θ='+decFix(ep.rot.ang,'ang')+'°';
+      const tx='θ='+decStr(ep.rot.ang,'ang')+'°';
       const wt=ctx.measureText(tx).width+8;
       ctx.fillStyle='rgba(255,255,255,.92)';
       ctx.fillRect((ra+8)*Math.cos(am)-3, (ra+8)*Math.sin(am)-11, wt, 16);
@@ -331,4 +331,5 @@ function hexAlpha(hex,a){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return `rgba(${r},${g},${b},${a})`;
 }
-function r2(v){ return typeof v==='number' ? (Math.abs(v)<0.001?0:decFix(v,'len')) : v; }
+// Una longitud escrita (rótulos, pistas). Para un CAMPO, valorCampo (25-).
+function r2(v){ return typeof v==='number' ? decStr(Math.abs(v)<0.001?0:v,'len') : v; }

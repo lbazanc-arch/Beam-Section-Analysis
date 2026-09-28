@@ -252,8 +252,9 @@ function renderResultados(res){
       if(R && R.rx !== undefined) exFx.push('R_{x'+n.nombre+'}');
       if(R && R.ry !== undefined) exFy.push('R_{y'+n.nombre+'}');
     }
-    if(!esCero(n.fx)) exFx.push(fmtNum(n.fx));
-    if(!esCero(n.fy)) exFy.push(fmtNum(n.fy));
+    // La carga es una FUERZA: con sus decimales, como en el PDF (2026-09-27).
+    if(!esCero(n.fx)) exFx.push(f(n.fx));
+    if(!esCero(n.fy)) exFy.push(f(n.fy));
 
     h += '<div class="eq-row"><div class="eq-body">'
        + kx('\\sum F_x = 0:\\quad ' + (exFx.join(' + ').replace(/\+ -/g,'- ') || '0') + ' = 0')

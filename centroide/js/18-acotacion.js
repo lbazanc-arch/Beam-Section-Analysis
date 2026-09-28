@@ -74,7 +74,7 @@ function planCotas(valores, pos, medir, opts){
     // aquí se mide y se compara, así que se fuerza a texto: si no, .length es
     // undefined, el ancho sale NaN y el reparto en niveles deja de funcionar
     // sin dar ningún error (todo cae en el nivel 0 y las etiquetas se pisan).
-    const txt = String(decFix(Math.abs(usados[i+1]-usados[i]),'len'));
+    const txt = String(decStr(Math.abs(usados[i+1]-usados[i]),'len'));
     segs.push({a, b, txt, centro:(a+b)/2, ancho: medir(txt)});
   }
   const ocupado = [];
@@ -167,7 +167,7 @@ function pintarCotaTotal(c, c0, c1, eje, base, cfg){
     else         { c.moveTo(base, q); c.lineTo(base-3.2, q+dir*7); c.lineTo(base+3.2, q+dir*7); }
     c.closePath(); c.fill();
   };
-  const txt = decFix(Math.abs(c1-c0),'len') + ' ' + unit;
+  const txt = decStr(Math.abs(c1-c0),'len') + ' ' + unit;
   c.beginPath();
   if(eje==='x'){ c.moveTo(a, base); c.lineTo(b, base); } else { c.moveTo(base, a); c.lineTo(base, b); }
   c.stroke();
@@ -198,7 +198,7 @@ function dibujarAngulosFiguras(c, proy){
     c.beginPath(); c.arc(p.x, p.y, R, Math.min(a0,a1), Math.max(a0,a1)); c.stroke();
     const am = (a0+a1)/2;
     const tx = p.x + (R+13)*Math.cos(am), ty = p.y + (R+13)*Math.sin(am);
-    const txt = decFix(g,'len').replace(/\.?0+$/,'') + '°';
+    const txt = decAng(g) + '°';
     const w = c.measureText(txt).width;
     c.save(); c.fillStyle = CANVAS_BG; c.fillRect(tx-w/2-3, ty-7, w+6, 14); c.restore();
     c.textAlign='center'; c.fillText(txt, tx, ty);

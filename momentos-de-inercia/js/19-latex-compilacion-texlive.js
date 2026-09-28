@@ -194,16 +194,16 @@ function croquisFigura(fig, idx){
       <line x1="${px(b.left)}" y1="${H-16}" x2="${px(b.right)}" y2="${H-16}" stroke="#64748b" stroke-width=".9"/>
       <line x1="${px(b.left)}" y1="${H-20}" x2="${px(b.left)}" y2="${H-12}" stroke="#64748b" stroke-width=".9"/>
       <line x1="${px(b.right)}" y1="${H-20}" x2="${px(b.right)}" y2="${H-12}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${(px(b.left)+px(b.right))/2}" y="${H-6}" font-size="8.5" fill="#475569" text-anchor="middle">${decFix(bw,'len')} ${unit}</text>
+      <text x="${(px(b.left)+px(b.right))/2}" y="${H-6}" font-size="8.5" fill="#475569" text-anchor="middle">${decStr(bw,'len')} ${unit}</text>
       <line x1="${W-16}" y1="${py(b.bottom)}" x2="${W-16}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
       <line x1="${W-20}" y1="${py(b.bottom)}" x2="${W-12}" y2="${py(b.bottom)}" stroke="#64748b" stroke-width=".9"/>
       <line x1="${W-20}" y1="${py(b.top)}" x2="${W-12}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
       <text x="${W-8}" y="${(py(b.bottom)+py(b.top))/2}" font-size="8.5" fill="#475569"
-            text-anchor="middle" transform="rotate(-90 ${W-8} ${(py(b.bottom)+py(b.top))/2})">${decFix(bh,'len')} ${unit}</text>
+            text-anchor="middle" transform="rotate(-90 ${W-8} ${(py(b.bottom)+py(b.top))/2})">${decStr(bh,'len')} ${unit}</text>
     </svg>
     <div class="croq-d">
-      <span>x̃ = ${decFix(fig.cx,'len')} ${unit}</span>
-      <span>ỹ = ${decFix(fig.cy,'len')} ${unit}</span>
+      <span>x̃ = ${decStr(fig.cx,'len')} ${unit}</span>
+      <span>ỹ = ${decStr(fig.cy,'len')} ${unit}</span>
     </div>
   </div>`;
 }

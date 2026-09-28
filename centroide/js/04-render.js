@@ -269,7 +269,7 @@ function drawResultsOverlay(){
   ctx.fillStyle='#b8860c'; ctx.font='bold 13px Inter'; ctx.textAlign='left';
   ctx.fillText('C',sp.x+11,sp.y-8);
   // coordenadas del centroide, legibles sobre el dibujo
-  const txtC='('+decFix(results.xbar,'len')+' , '+decFix(results.ybar,'len')+')';
+  const txtC='('+decStr(results.xbar,'len')+' , '+decStr(results.ybar,'len')+')';
   ctx.font='bold 10px Inter';
   const wC=ctx.measureText(txtC).width+8;
   ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fillRect(sp.x+10,sp.y+2,wC,14);
@@ -289,7 +289,7 @@ function drawResultsOverlay(){
     ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
     ctx.fillStyle='#c0392b'; ctx.font='bold 13px Inter';
     ctx.fillText('G',sg.x+11,sg.y-8);
-    const txtG='('+decFix(results.xg,'len')+' , '+decFix(results.yg,'len')+')';
+    const txtG='('+decStr(results.xg,'len')+' , '+decStr(results.yg,'len')+')';
     ctx.font='bold 10px Inter';
     const wG=ctx.measureText(txtG).width+8;
     ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fillRect(sg.x+10,sg.y+2,wG,14);
@@ -297,7 +297,7 @@ function drawResultsOverlay(){
 
     // distancia entre C y G
     const mx=(sp.x+sg.x)/2, my=(sp.y+sg.y)/2;
-    const txt='d = '+decFix(results.sep,'len')+' '+unit;
+    const txt='d = '+decStr(results.sep,'len')+' '+unit;
     ctx.font='bold 10px Inter'; ctx.textAlign='center';
     const w=ctx.measureText(txt).width+8;
     ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fillRect(mx-w/2,my-16,w,15);
@@ -335,4 +335,5 @@ function hexAlpha(hex,a){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return `rgba(${r},${g},${b},${a})`;
 }
-function r2(v){ return typeof v==='number' ? (Math.abs(v)<0.001?0:decFix(v,'len')) : v; }
+// Una longitud escrita (rótulos, pistas). Para un CAMPO, valorCampo (12-).
+function r2(v){ return typeof v==='number' ? decStr(Math.abs(v)<0.001?0:v,'len') : v; }

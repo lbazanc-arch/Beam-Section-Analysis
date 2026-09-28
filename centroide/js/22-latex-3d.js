@@ -328,7 +328,7 @@ function construirLatex3d(){
     PLANOS_GIRO.forEach(q=>{
       if(Math.abs(anguloPlano(f, q.id)) <= 1e-9) return;
       postura.push('en el plano ' + q.tex + ', ' + q.que + ' a $'
-                 + decP(anguloPanel(f, q.id),'ang') + '^{\\circ}$ de ' + q.desdeTex);
+                 + decP(anguloPanel(f, q.id),'len') + '^{\\circ}$ de ' + q.desdeTex);
     });
     const posturaTex = postura.length ? '\\ {\\small\\color{bsaMuted}[' + postura.join('; ') + ']}' : '';
     // Hacia dónde se mide el centroide propio desde la base. Con la pieza

@@ -452,12 +452,12 @@ function drawCompositeFigure(canvasId) {
         // Las etiquetas NO se escriben aquí: se encolan en el colocador y se
         // pintan al final, para que puedan apartarse unas de otras.
         const mx=(p0.x+p1.x)/2, my=(p0.y+p1.y)/2;
-        etiq.add('R='+d.r+unit, mx-8*Math.sin(ang), my+8*Math.cos(ang)-2, clr, 'bold 9px Inter');
+        etiq.add('R='+decStr(d.r,'len')+unit, mx-8*Math.sin(ang), my+8*Math.cos(ang)-2, clr, 'bold 9px Inter');
         if(fig.type==='sector' || fig.type==='segmento'){
-          etiq.add('\u03b8='+d.alpha+'\u00b0', p0.x, p0.y+13, clr, '9px Inter');
+          etiq.add('\u03b8='+decAng(d.alpha)+'\u00b0', p0.x, p0.y+13, clr, '9px Inter');
         }
         if(fig.type==='l_arco'){
-          etiq.add('\u03c6='+d.phi+'\u00b0', p0.x, p0.y+13, clr, '9px Inter');
+          etiq.add('\u03c6='+decAng(d.phi)+'\u00b0', p0.x, p0.y+13, clr, '9px Inter');
         }
         c.restore();
       }

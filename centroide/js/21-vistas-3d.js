@@ -266,13 +266,13 @@ function marcarCentroide3d(c, vistaId, proj, res, opts){
     c.fillStyle='rgba(255,255,255,.9)'; c.fillRect(p.x+10,p.y+2,w,14);
     c.fillStyle=ring; c.fillText(txt, p.x+14, p.y+12);
   };
-  punto(pC, '#f0c040', '#b8860c', res.letraPunto || 'C', '('+decFix(res.xbar,'len')+' , '+decFix(vC,'len')+')');
+  punto(pC, '#f0c040', '#b8860c', res.letraPunto || 'C', '('+decStr(res.xbar,'len')+' , '+decStr(vC,'len')+')');
   if(res.hetero && res.sep > 1e-9){
     const vG = vistaId==='planta' ? res.yg : res.zg;
     const pG = {x: proj.px(res.xg), y: proj.py(vG)};
     c.save(); c.strokeStyle='#c0392b'; c.lineWidth=1.6; c.setLineDash([4,3]);
     c.beginPath(); c.moveTo(pC.x,pC.y); c.lineTo(pG.x,pG.y); c.stroke(); c.restore();
-    punto(pG, '#c0392b', '#96281b', 'G', '('+decFix(res.xg,'len')+' , '+decFix(vG,'len')+')');
+    punto(pG, '#c0392b', '#96281b', 'G', '('+decStr(res.xg,'len')+' , '+decStr(vG,'len')+')');
   }
   c.textAlign='start';
 }
@@ -667,7 +667,7 @@ function vistaPlanoGiroSVG(fig, planoId){
     g += `<line x1="${_ffN(O.x - L*0.3*Math.cos(a1))}" y1="${_ffN(O.y + L*0.3*Math.sin(a1))}" `
        + `x2="${_ffN(O.x + L*Math.cos(a1))}" y2="${_ffN(O.y - L*Math.sin(a1))}" `
        + `stroke="${FF_COL.cen}" stroke-width="1.1" stroke-dasharray="5,3"/>`
-       + _ffCotaAngulo(O.x, O.y, r, Math.min(a0,a1), Math.max(a0,a1), r2(aPanel) + '°', FF_COL.cen);
+       + _ffCotaAngulo(O.x, O.y, r, Math.min(a0,a1), Math.max(a0,a1), decAng(aPanel) + '°', FF_COL.cen);
   }
   // El punto de anclaje: es el centro del giro.
   const cAnc = (typeof colorAncla === 'function') ? colorAncla(aAct) : FF_COL.cen;
@@ -688,7 +688,7 @@ function bloqueGiro3dHTML(fig){
     + '<div class="field"><label>Girar en el plano</label><div class="anchor-row">' + botones + '</div></div>'
     + '<div class="field"><label>Ángulo en ' + pl.label
     + ' <span style="color:var(--grn2);font-weight:800">(°)</span></label>'
-    + '<input type="number" id="giro3d" step="any" value="' + r2(anguloPanel(fig, pl.id)) + '" '
+    + '<input type="number" id="giro3d" step="any" value="' + valorCampo(anguloPanel(fig, pl.id)) + '" '
     + 'onchange="updateGiro3d(this.value)">'
     + '<div style="font-size:9.5px;color:var(--muted);margin-top:5px;line-height:1.45;">'
     + 'Ángulo que forma ' + pl.que + ' con ' + pl.desde + ', hacia ' + pl.hacia + ' (antihorario, giro '
@@ -860,7 +860,7 @@ function updateFigFromProp3d(){
 function updatePropPanel3d(){
   const fig = figures.find(f=>f.id===selectedFigId); if(!fig) return;
   const a = anclaSolido(fig);
-  const set = (id, v) => { const e = document.getElementById(id); if(e) e.value = r2(v); };
+  const set = (id, v) => { const e = document.getElementById(id); if(e) e.value = valorCampo(v); };
   set('posX', a.x); set('posY', a.y); set('posZ', a.z);
   set('giro3d', anguloPanel(fig, planoGiro3d));
 }
@@ -977,7 +977,7 @@ function _ordenesVistaPropia(fig, vistaId){
 // panel dice 0°). Qué planos se nombran lo sigue decidiendo el giro aplicado.
 function textoGiros3d(fig){
   const t = PLANOS_GIRO.filter(p=>Math.abs(anguloPlano(fig, p.id)) > 1e-9)
-    .map(p=>(p.id === 'xy' ? 'marca' : 'eje') + ' a ' + r2(anguloPanel(fig, p.id)) + '° de ' + p.desde + ' (' + p.label + ')');
+    .map(p=>(p.id === 'xy' ? 'marca' : 'eje') + ' a ' + decAng(anguloPanel(fig, p.id)) + '° de ' + p.desde + ' (' + p.label + ')');
   return t.length ? ' · ' + t.join(' · ') : '';
 }
 function croquisSolido(fig, idx){
@@ -1003,7 +1003,7 @@ function croquisSolido(fig, idx){
     if(!esPl){
       const vb = fig.volteado ? h1 : h0, xa = px(b.left)-9, ym = (py(vb)+gy)/2;
       extra = `<line x1="${xa}" y1="${py(vb)}" x2="${xa}" y2="${gy}" stroke="#e2aa1b" stroke-width="1"/>`
-            + `<text x="${xa-3}" y="${ym}" font-size="8" fill="#b8860c" text-anchor="middle" transform="rotate(-90 ${xa-3} ${ym})">${decFix(def.cBase(fig.dims),'len')}</text>`;
+            + `<text x="${xa-3}" y="${ym}" font-size="8" fill="#b8860c" text-anchor="middle" transform="rotate(-90 ${xa-3} ${ym})">${decStr(def.cBase(fig.dims),'len')}</text>`;
     }
     return `<svg viewBox="0 0 ${W} ${H}" class="croq-svg">
       <path d="${path}" fill="${col}" fill-opacity="${neg?0.10:0.22}" stroke="${col}" stroke-width="1.5" stroke-dasharray="${neg?'4 3':'0'}"/>
@@ -1011,9 +1011,9 @@ function croquisSolido(fig, idx){
       <line x1="${px(b.left)}" y1="${gy}" x2="${px(b.right)}" y2="${gy}" stroke="${col}" stroke-width=".8" stroke-dasharray="3 2" opacity=".5"/>
       <circle cx="${gx}" cy="${gy}" r="3.2" fill="#e2aa1b" stroke="#fff" stroke-width="1"/>${extra}
       <line x1="${px(b.left)}" y1="${H-13}" x2="${px(b.right)}" y2="${H-13}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${(px(b.left)+px(b.right))/2}" y="${H-4}" font-size="8" fill="#475569" text-anchor="middle">${decFix(bw,'len')}</text>
+      <text x="${(px(b.left)+px(b.right))/2}" y="${H-4}" font-size="8" fill="#475569" text-anchor="middle">${decStr(bw,'len')}</text>
       <line x1="${W-12}" y1="${py(h0)}" x2="${W-12}" y2="${py(h1)}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${W-5}" y="${(py(h0)+py(h1))/2}" font-size="8" fill="#475569" text-anchor="middle" transform="rotate(-90 ${W-5} ${(py(h0)+py(h1))/2})">${decFix(bh,'len')}</text>
+      <text x="${W-5}" y="${(py(h0)+py(h1))/2}" font-size="8" fill="#475569" text-anchor="middle" transform="rotate(-90 ${W-5} ${(py(h0)+py(h1))/2})">${decStr(bh,'len')}</text>
     </svg>`;
   };
 
@@ -1050,7 +1050,7 @@ function croquisSolido(fig, idx){
       ${cel('Alzado (X–Z)', vista('alzado'))}
       ${cel('Isométrica', iso())}
     </div>
-    <div class="croq-d"><span>x̃ = ${decFix(fig.cx,'len')}</span><span>ỹ = ${decFix(fig.cy,'len')}</span><span>z̃ = ${decFix(fig.cz,'len')} ${unit}</span></div>
+    <div class="croq-d"><span>x̃ = ${decStr(fig.cx,'len')}</span><span>ỹ = ${decStr(fig.cy,'len')}</span><span>z̃ = ${decStr(fig.cz,'len')} ${unit}</span></div>
   </div>`;
 }
 
@@ -1061,7 +1061,7 @@ function renderResults3d(res){
   const hint = document.getElementById('noResultsHint'); if(hint) hint.style.display = 'none';
   const ra = document.getElementById('resultsArea'); if(ra) ra.style.display = 'block';
   if(!resultadoSinDesplazar) setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);   // 10-
-  const f = v => fmtVal(v), nL = v => decFix(v,'len');
+  const f = v => fmtVal(v), nL = v => decStr(v,'len');
   const het = res.hetero, simb = matSimbolo();
   const Wsim = (matMagnitud==='densidad') ? 'm' : 'W';
   let html = '';

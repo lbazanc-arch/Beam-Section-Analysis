@@ -211,7 +211,7 @@ function tikzMohr(r, u4, opts){
     s += '  \\node[font=\\tiny\\bfseries, text=bsaRojo, fill=white, inner sep=1.5pt, anchor='
        + hacia + '] at ('
        + c(rl * Math.cos(aMid)) + ',' + c(rl * Math.sin(aMid)) + ')\n'
-       + '        {$2\\theta_p = ' + dosTh.toFixed(2) + '^\\circ$};\n';
+       + '        {$2\\theta_p = ' + decP(dosTh,'ang') + '^\\circ$};\n';
   }
 
   // ── ejes girados por el usuario: puntos U y V sobre el MISMO circulo ──
@@ -244,7 +244,7 @@ function tikzMohr(r, u4, opts){
       s += '  \\node[font=\\tiny\\bfseries, text=bsaAcc2, fill=white, inner sep=1.5pt, anchor='
          + (Math.cos(aM) >= 0 ? 'west' : 'east') + '] at ('
          + c(rlU * Math.cos(aM)) + ',' + c(rlU * Math.sin(aM)) + ')\n'
-         + '        {$2\\theta = ' + (2 * rt.ang).toFixed(2) + '^\\circ$};\n';
+         + '        {$2\\theta = ' + decP(2 * rt.ang,'ang') + '^\\circ$};\n';
     }
   }
 
@@ -253,9 +253,9 @@ function tikzMohr(r, u4, opts){
      + c(-(rc + 1.30)) + ')\n'
      + '        {' + (yaPrincipales
          ? 'El producto de inercia es nulo ' + donde + ': los ejes $x$ e $y$ YA son principales '
-           + '($\\theta_p = ' + thP.toFixed(2) + '^\\circ$),\\\\ y por eso $A$ y $B$ caen sobre el eje $I$.'
+           + '($\\theta_p = ' + decP(thP,'ang') + '^\\circ$),\\\\ y por eso $A$ y $B$ caen sobre el eje $I$.'
          : 'Los ejes principales ' + donde + ' giran $\\theta_p = '
-           + thP.toFixed(2) + '^\\circ$;\\\\ en el c\\\'irculo ese giro se mide duplicado.')
+           + decP(thP,'ang') + '^\\circ$;\\\\ en el c\\\'irculo ese giro se mide duplicado.')
      + '};\n';
 
   return s;

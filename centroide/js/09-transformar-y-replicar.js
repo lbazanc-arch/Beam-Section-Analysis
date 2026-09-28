@@ -313,7 +313,7 @@ function fmtVal(v){
       const mant = v / Math.pow(10, exp);
       return mant.toFixed(DEC.area) + ' ×10<sup>' + exp + '</sup>';
     }
-    return decFix(v,'area').toString();
+    return decStr(v,'area').toString();
   }
   const factor = Math.pow(10, notationExp);
   return (v / factor).toFixed(DEC.area) + ' ×10<sup>' + notationExp + '</sup>';
@@ -338,7 +338,7 @@ function ftex(v){
       const exp=Math.floor(Math.log10(abs)); const mant=v/Math.pow(10,exp);
       return mant.toFixed(DEC.area)+'\\times 10^{'+exp+'}';
     }
-    return String(decFix(v,'area'));
+    return String(decStr(v,'area'));
   }
   const factor=Math.pow(10,notationExp);
   return (v/factor).toFixed(DEC.area)+'\\times 10^{'+notationExp+'}';
@@ -469,16 +469,16 @@ function croquisFigura(fig, idx){
       <line x1="${px(b.left)}" y1="${H-16}" x2="${px(b.right)}" y2="${H-16}" stroke="#64748b" stroke-width=".9"/>
       <line x1="${px(b.left)}" y1="${H-20}" x2="${px(b.left)}" y2="${H-12}" stroke="#64748b" stroke-width=".9"/>
       <line x1="${px(b.right)}" y1="${H-20}" x2="${px(b.right)}" y2="${H-12}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${(px(b.left)+px(b.right))/2}" y="${H-6}" font-size="8.5" fill="#475569" text-anchor="middle">${decFix(bw,'len')} ${unit}</text>
+      <text x="${(px(b.left)+px(b.right))/2}" y="${H-6}" font-size="8.5" fill="#475569" text-anchor="middle">${decStr(bw,'len')} ${unit}</text>
       <line x1="${W-16}" y1="${py(b.bottom)}" x2="${W-16}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
       <line x1="${W-20}" y1="${py(b.bottom)}" x2="${W-12}" y2="${py(b.bottom)}" stroke="#64748b" stroke-width=".9"/>
       <line x1="${W-20}" y1="${py(b.top)}" x2="${W-12}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
       <text x="${W-8}" y="${(py(b.bottom)+py(b.top))/2}" font-size="8.5" fill="#475569"
-            text-anchor="middle" transform="rotate(-90 ${W-8} ${(py(b.bottom)+py(b.top))/2})">${decFix(bh,'len')} ${unit}</text>
+            text-anchor="middle" transform="rotate(-90 ${W-8} ${(py(b.bottom)+py(b.top))/2})">${decStr(bh,'len')} ${unit}</text>
     </svg>
     <div class="croq-d">
-      <span>x̃ = ${decFix(fig.cx,'len')} ${unit}</span>
-      <span>ỹ = ${decFix(fig.cy,'len')} ${unit}</span>
+      <span>x̃ = ${decStr(fig.cx,'len')} ${unit}</span>
+      <span>ỹ = ${decStr(fig.cy,'len')} ${unit}</span>
     </div>
   </div>`;
 }
@@ -563,10 +563,10 @@ function drawSeccionFinal(canvasId){
   const separados = results.hetero && results.sep>1e-9;
   const pts=[{x:results.xbar,y:results.ybar,col:'#e2aa1b',ring:'#b8860c',lab:'C',
               desc: separados ? 'Centroide' : 'Centroide = C.G. = C.M.',
-              v:'('+decFix(results.xbar,'len')+' , '+decFix(results.ybar,'len')+')'}];
+              v:'('+decStr(results.xbar,'len')+' , '+decStr(results.ybar,'len')+')'}];
   if(separados){
     pts.push({x:results.xg,y:results.yg,col:'#c0392b',ring:'#96281b',lab:'G',
-              desc:'Centro de gravedad', v:'('+decFix(results.xg,'len')+' , '+decFix(results.yg,'len')+')'});
+              desc:'Centro de gravedad', v:'('+decStr(results.xg,'len')+' , '+decStr(results.yg,'len')+')'});
     c.save();
     c.strokeStyle='#c0392b'; c.lineWidth=1.6; c.setLineDash([5,3]);
     c.beginPath(); c.moveTo(sx(results.xbar),sy(results.ybar));

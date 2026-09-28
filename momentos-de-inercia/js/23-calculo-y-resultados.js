@@ -210,7 +210,7 @@ function fmtVal(v){
       const mant = v / Math.pow(10, exp);
       return mant.toFixed(DEC.iner) + ' ×10<sup>' + exp + '</sup>';
     }
-    return decFix(v,'iner').toString();
+    return decStr(v,'iner');
   }
   const factor = Math.pow(10, notationExp);
   return decMantisa(v / factor) + ' ×10<sup>' + notationExp + '</sup>';
@@ -245,7 +245,7 @@ function ftex(v){
       const exp=Math.floor(Math.log10(abs)); const mant=v/Math.pow(10,exp);
       return mant.toFixed(DEC.iner)+'\\times 10^{'+exp+'}';
     }
-    return String(decFix(v,'iner'));
+    return decStr(v,'iner');
   }
   const factor=Math.pow(10,notationExp);
   return decMantisa(v/factor)+'\\times 10^{'+notationExp+'}';
@@ -274,6 +274,10 @@ function setNotation(exp){
 let currentU4='', currentU2='', currentU1='';
 
 function renderResults(res, u4, u2, u1){
+  // Un resultado del 3D se pinta con el suyo. Lo llaman también la ventana de
+  // Decimales y la notación, que no saben en qué modo están: con el del 2D,
+  // cambiar los decimales en 3D lanzaba y la pantalla no cambiaba (2026-09-27).
+  if(res && res.es3d) return renderResults3dMasa(res);
   currentU4=u4; currentU2=u2; currentU1=u1;
   const rp = document.getElementById('resultsPanel');
   rp.style.display='block';
@@ -287,12 +291,12 @@ function renderResults(res, u4, u2, u1){
   setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
 
   const f = v => fmtVal(v);
-  const n4 = v => decFix(v,'ang');
-  const n2 = v => decFix(v,'len');
+  const n4 = v => decStr(v,'ang');
+  const n2 = v => decStr(v,'len');
   // Las areas y los momentos estaticos son numeros grandes: llevan los
   // decimales de AREA. Las coordenadas y las distancias, los de LONGITUD (n2).
   // n4 se queda SOLO para los angulos, que es lo que mide DEC.ang.
-  const nA = v => decFix(v,'area');
+  const nA = v => decStr(v,'area');
   const pct = v => v===0 ? '0' : (v>0?'+':'')+f(v);
   // ── Ruido de coma flotante en el producto de inercia ──
   // d_x y d_y son restas entre números del tamaño de la sección, así que arrastran
@@ -332,7 +336,7 @@ function renderResults(res, u4, u2, u1){
       const mx = Math.max(...vals), mn = Math.min(...vals);
       if(mx/mn > 1000)
         html += `<div class="verdict bad" style="margin-bottom:12px"><div class="verdict-t">¿Unidades mezcladas?</div>
-          Medidas de ${decFix(mn,'len')} y ${decFix(mx,'len')} ${esc(u1)} (factor ${Math.round(mx/mn)}): revisa que todas las cotas estén en ${esc(u1)}.</div>`;
+          Medidas de ${decStr(mn,'len')} y ${decStr(mx,'len')} ${esc(u1)} (factor ${Math.round(mx/mn)}): revisa que todas las cotas estén en ${esc(u1)}.</div>`;
     }
   }
   html += `<div class="res-section">
@@ -365,7 +369,7 @@ function renderResults(res, u4, u2, u1){
         const col = Math.abs(d)<3 ? 'var(--grn2)' : (Math.abs(d)<8 ? '#b45309' : '#c0392b');
         return `<td style="text-align:right;padding:4px 8px">${f(g)}</td>
                 <td style="text-align:right;padding:4px 8px;font-weight:700">${f(t2)}</td>
-                <td style="text-align:right;padding:4px 8px;color:${col}">${d>=0?'+':''}${decFix(d,'ang')}%</td>`;
+                <td style="text-align:right;padding:4px 8px;color:${col}">${d>=0?'+':''}${decStr(d,'ang')}%</td>`;
       };
       html += `<div class="proc-block" style="margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -610,7 +614,7 @@ function renderResults(res, u4, u2, u1){
       <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Ejes <b>u, v</b> girados θ: el punto U recorre <b>2θ</b> en el círculo; en θ<sub>p</sub>, P<sub>uv</sub> = 0.</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <input type="range" id="mohrSlider" min="-90" max="90" step="0.5" value="${decFix(mohrTheta,'ang')}" oninput="mohrGirar(this.value)" style="flex:1;min-width:180px">
-        <span id="mohrSliderVal" style="font-family:var(--mf);font-size:12.5px;min-width:70px">θ = ${decFix(mohrTheta,'ang')}°</span>
+        <span id="mohrSliderVal" style="font-family:var(--mf);font-size:12.5px;min-width:70px">θ = ${decStr(mohrTheta,'ang')}°</span>
         <button class="btn-sm" style="margin:0" onclick="mohrGirar(${res.thetaP})">θ = θ<sub>p</sub></button>
         <button class="btn-sm" style="margin:0" onclick="mohrGirar(0)">θ = 0</button>
       </div>
@@ -731,7 +735,7 @@ function renderResults(res, u4, u2, u1){
 function mohrGirar(v){
   mohrTheta = parseFloat(v) || 0;
   const sl = document.getElementById('mohrSlider'); if(sl && parseFloat(sl.value) !== mohrTheta) sl.value = mohrTheta;
-  const lab = document.getElementById('mohrSliderVal'); if(lab) lab.textContent = 'θ = ' + decFix(mohrTheta,'ang') + '°';
+  const lab = document.getElementById('mohrSliderVal'); if(lab) lab.textContent = 'θ = ' + decStr(mohrTheta,'ang') + '°';
   if(!results) return;
   const rt = rotateInertia(results.Ix, results.Iy, results.Ixy, mohrTheta);
   rt.ang = mohrTheta;

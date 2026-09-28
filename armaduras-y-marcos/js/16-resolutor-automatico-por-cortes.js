@@ -300,14 +300,14 @@ function renderAutoCortes(){
           + (p.otros.length ? ', por donde pasan ' + p.otros.join(' y ') : '') + ':</div>'
           + '<div class="eq-row"><div class="eq-body">'
           + kx('\\sum M_{' + nomC + '} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
-               + p.detalle.map(x=>(x.val>=0?' + ':' - ')+fmtNum2(Math.abs(x.val))).join('') + ' = 0')
+               + p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('') + ' = 0')
           + '</div></div>';
       } else {
         h += '<div class="hint-sm" style="margin:6px 0 2px">Suma de fuerzas en ' + p.eje
           + (p.citas && p.citas.length ? ', con las barras ya halladas en este corte sustituidas por su valor' : '') + ':</div>'
           + '<div class="eq-row"><div class="eq-body">'
           + kx('\\sum F_' + p.eje + ' = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
-               + p.detalle.map(x=>(x.val>=0?' + ':' - ')+fmtNum2(Math.abs(x.val))).join('') + ' = 0')
+               + p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('') + ' = 0')
           + '</div></div>';
       }
       const real = resultado.fuerzas[d.barra.id];

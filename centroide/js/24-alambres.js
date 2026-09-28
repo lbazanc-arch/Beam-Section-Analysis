@@ -295,11 +295,11 @@ function croquisLinea(fig, idx){
       <circle cx="${gx}" cy="${gy}" r="3.4" fill="#e2aa1b" stroke="#fff" stroke-width="1"/>
       <text x="${gx+6}" y="${gy-5}" font-size="9" font-weight="700" fill="#b8860c">C${idx+1}</text>
       <line x1="${px(b.left)}" y1="${H-16}" x2="${px(b.right)}" y2="${H-16}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${(px(b.left)+px(b.right))/2}" y="${H-6}" font-size="8.5" fill="#475569" text-anchor="middle">${decFix(bw,'len')} ${unit}</text>
+      <text x="${(px(b.left)+px(b.right))/2}" y="${H-6}" font-size="8.5" fill="#475569" text-anchor="middle">${decStr(bw,'len')} ${unit}</text>
       ${bh > 1e-9 ? `<line x1="${W-16}" y1="${py(b.bottom)}" x2="${W-16}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${W-8}" y="${(py(b.bottom)+py(b.top))/2}" font-size="8.5" fill="#475569" text-anchor="middle" transform="rotate(-90 ${W-8} ${(py(b.bottom)+py(b.top))/2})">${decFix(bh,'len')} ${unit}</text>` : ''}
+      <text x="${W-8}" y="${(py(b.bottom)+py(b.top))/2}" font-size="8.5" fill="#475569" text-anchor="middle" transform="rotate(-90 ${W-8} ${(py(b.bottom)+py(b.top))/2})">${decStr(bh,'len')} ${unit}</text>` : ''}
     </svg>
-    <div class="croq-d"><span>x̃ = ${decFix(fig.cx,'len')} ${unit}</span><span>ỹ = ${decFix(fig.cy,'len')} ${unit}</span></div>
+    <div class="croq-d"><span>x̃ = ${decStr(fig.cx,'len')} ${unit}</span><span>ỹ = ${decStr(fig.cy,'len')} ${unit}</span></div>
   </div>`;
 }
 
@@ -310,7 +310,7 @@ function renderResultsAlambre(res){
   const hint = document.getElementById('noResultsHint'); if(hint) hint.style.display = 'none';
   const ra = document.getElementById('resultsArea'); if(ra) ra.style.display = 'block';
   if(!resultadoSinDesplazar) setTimeout(()=>{ ra && ra.scrollIntoView({behavior:'smooth', block:'start'}); }, 150);   // 10-
-  const f = v => fmtVal(v), nL = v => decFix(v,'len');
+  const f = v => fmtVal(v), nL = v => decStr(v,'len');
   const U = utex(u1);
   let html = '';
 

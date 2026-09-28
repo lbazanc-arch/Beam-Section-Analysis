@@ -239,21 +239,27 @@ function construirLatex3dMasa(){
   // se da en kg·m², y mezclar milímetros en los brazos haría que las cuentas
   // de la tabla no se pudieran seguir. Los dibujos conservan su unidad.
   const M = R.met;
-  // `decP` va con los decimales configurados del tema, que son los del dibujo;
-  // aquí hacen falta los de una magnitud en SI, así que el informe lleva sus
-  // propios formateadores. Un valor demasiado pequeño para cuatro decimales se
-  // escribe en notación científica en vez de salir como 0.0000.
-  const num = (v, d) => {
-    if(!isFinite(v)) return '---';
-    if(v !== 0 && Math.abs(v) < 5e-5){
-      const e = Math.floor(Math.log10(Math.abs(v)));
-      return (v/Math.pow(10,e)).toFixed(3) + '\\times 10^{' + e + '}';
-    }
-    return (Math.abs(v) < 1e-12 ? 0 : v).toFixed(d === undefined ? 4 : d);
-  };
-  const L  = v => num(v*M);                            // una longitud, en m
-  const m4 = v => num(v);                              // una masa, en kg
-  const I4 = v => num(v*R.aSI);                        // una inercia, en kg·m²
+  // Las cifras siguen la ventana de Decimales, igual que la pantalla (2026-09-27;
+  // antes iban siempre con cuatro, y el volumen, con cuatro decimales de m³,
+  // salía «0.0002» y m = ρV no se podía rehacer):
+  //  · masas, volúmenes e inercias, con los de INERCIA y en notación científica
+  //    fuera de [0.01, 10000): es ftex, el mismo criterio que la tabla de la
+  //    pantalla, así que el papel y la pantalla dicen el mismo número;
+  //  · longitudes, con los de LONGITUD corridos a metros: con el modelo en mm y
+  //    dos decimales, 295.82 mm se escribe 0.29582 m, la misma precisión;
+  //  · las direcciones principales, que son cosenos, con cuatro fijos.
+  const dL = Math.max(0, Math.min(9, DEC.len + Math.round(-Math.log10(M))));
+  const num = v => isFinite(v) ? (Math.abs(v) < 5e-5 ? 0 : v).toFixed(4) : '---';
+  const L  = v => { const x = v*M; return isFinite(x) ? (Math.abs(x) < 0.5*Math.pow(10,-dL) ? 0 : x).toFixed(dL) : '---'; };
+  const m4 = v => ftex(v);                             // una masa, en kg
+  const I4 = v => ftex(v*R.aSI);                       // una inercia, en kg·m²
+  const V3 = v => ftex(v*M*M*M);                       // un volumen, en m³
+  // La densidad es un dato: se escribe como la dio el alumno, sin ceros de relleno.
+  const rhoTxt = v => String(+(+v).toPrecision(10));
+  // Una celda de tabla es TEXTO: el número va en modo matemático, porque ftex
+  // puede darlo en notación científica y «\times 10^{-4}» fuera de $…$ hace que
+  // LaTeX aborte sin PDF (le pasaba al mazo). Así, además, el menos es un menos.
+  const cM = s => '$' + s + '$', cB = s => '$\\mathbf{' + s + '}$';
   const uTxt = escLatex(unit);
   const nombreDe = f => escLatex(f.etiqueta || f.name || SOLID_DEFS[f.type].name);
   const celdaNombre = f => { const s = nombreDe(f);
@@ -355,10 +361,10 @@ function construirLatex3dMasa(){
     tex += _vistasSolido3(f, uTxt);
     // Volumen y masa
     const dimsTxt = def.dims.map(d=>'$' + d.id.replace('r2','R_2').replace(/^r$/,'R').replace(/^L$/,'L') + ' = '
-                     + num(f.dims[d.id]*M) + '$ m').join(',\\; ');
+                     + L(f.dims[d.id]) + '$ m').join(',\\; ');
     tex += '\\begin{align*}\n'
-      + 'V &= ' + decP(p.V*M*M*M, 'iner') + '\\ \\text{m}^{3}, \\qquad '
-      + '\\rho = ' + decP(f.rho, 'len') + '\\ \\text{' + escLatex(f.rhoU || densUnidad) + '} \\\\\n'
+      + 'V &= ' + V3(p.V) + '\\ \\text{m}^{3}, \\qquad '
+      + '\\rho = ' + rhoTxt(f.rho) + '\\ \\text{' + escLatex(f.rhoU || densUnidad) + '} \\\\\n'
       + 'm &= \\rho V = ' + (p.signo === -1 ? '-' : '') + m4(Math.abs(p.m)) + '\\ \\text{kg}\n'
       + '\\end{align*}\n';
     if(p.signo === -1) tex += porque('hueco',
@@ -405,12 +411,12 @@ function construirLatex3dMasa(){
     + '\\begin{tabular}{@{}l r r r r r r r@{}}\n\\hline\n'
     + 'Parte & $m$ & $\\tilde{x}$ & $\\tilde{y}$ & $\\tilde{z}$ & $I_{xx}$ & $I_{yy}$ & $I_{zz}$ \\\\\n\\hline\n';
   P.forEach((p,i)=>{
-    tex += (i+1) + '. ' + celdaNombre(p.fig) + ' & ' + m4(p.m)
-      + ' & ' + L(p.g.x) + ' & ' + L(p.g.y) + ' & ' + L(p.g.z)
-      + ' & ' + I4(p.enOrigen.xx) + ' & ' + I4(p.enOrigen.yy) + ' & ' + I4(p.enOrigen.zz) + ' \\\\\n';
+    tex += (i+1) + '. ' + celdaNombre(p.fig) + ' & ' + cM(m4(p.m))
+      + ' & ' + cM(L(p.g.x)) + ' & ' + cM(L(p.g.y)) + ' & ' + cM(L(p.g.z))
+      + ' & ' + cM(I4(p.enOrigen.xx)) + ' & ' + cM(I4(p.enOrigen.yy)) + ' & ' + cM(I4(p.enOrigen.zz)) + ' \\\\\n';
   });
-  tex += '\\hline\n$\\sum$ & \\textbf{' + m4(R.m) + '} & & & & \\textbf{' + I4(R.O.xx)
-       + '} & \\textbf{' + I4(R.O.yy) + '} & \\textbf{' + I4(R.O.zz) + '} \\\\\n\\hline\n'
+  tex += '\\hline\n$\\sum$ & ' + cB(m4(R.m)) + ' & & & & ' + cB(I4(R.O.xx))
+       + ' & ' + cB(I4(R.O.yy)) + ' & ' + cB(I4(R.O.zz)) + ' \\\\\n\\hline\n'
        + '\\end{tabular}\\end{center}\\endgroup\n\\vspace{6pt}\n';
 
   // ══ 4. Centro de masa ══
@@ -450,9 +456,9 @@ function construirLatex3dMasa(){
     'El radio de giro $k=\\sqrt{I/m}$ es la distancia a la que habría que concentrar toda la masa, en un punto, para que '
     + 'diese el mismo momento de inercia. Sirve para comparar cuerpos de masas distintas.');
   tex += '\\begin{align*}\n'
-    + 'k_x &= \\sqrt{\\bar{I}_{xx}/m} = ' + num(R.kG.x*M) + '\\ \\text{m}, \\qquad '
-    + 'k_y = ' + num(R.kG.y*M) + '\\ \\text{m}, \\qquad '
-    + 'k_z = ' + num(R.kG.z*M) + '\\ \\text{m}\n'
+    + 'k_x &= \\sqrt{\\bar{I}_{xx}/m} = ' + L(R.kG.x) + '\\ \\text{m}, \\qquad '
+    + 'k_y = ' + L(R.kG.y) + '\\ \\text{m}, \\qquad '
+    + 'k_z = ' + L(R.kG.z) + '\\ \\text{m}\n'
     + '\\end{align*}\n';
 
   // ══ 6. Ejes principales ══
@@ -468,7 +474,7 @@ function construirLatex3dMasa(){
     + ' & $I$ (kg$\\cdot$m$^{2}$) & $u_x$ & $u_y$ & $u_z$ \\\\\n\\hline\n';
   ['I_1\\ \\text{(máximo)}', 'I_2', 'I_3\\ \\text{(mínimo)}'].forEach((nom, i)=>{
     const e = R.principales[i];
-    tex += '$' + nom + '$ & ' + I4(e.I) + ' & ' + num(e.u[0]) + ' & ' + num(e.u[1]) + ' & ' + num(e.u[2]) + ' \\\\\n';
+    tex += '$' + nom + '$ & ' + cM(I4(e.I)) + ' & ' + cM(num(e.u[0])) + ' & ' + cM(num(e.u[1])) + ' & ' + cM(num(e.u[2])) + ' \\\\\n';
   });
   tex += '\\hline\n\\end{tabular}\\end{center}\\endgroup\n\\vspace{6pt}\n';
   tex += '\\subpaso{Comprobación}\n'

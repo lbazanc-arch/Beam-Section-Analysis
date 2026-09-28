@@ -98,7 +98,7 @@ function buildPropPanel(fig){
         // Mode-aware label/value/handler; alpha stored internally as half-angle.
         const total = angMode==='total';
         const lbl = total ? 'Ángulo total 2θ (°)' : 'Semiángulo θ (°)';
-        const val = total ? r2(fig.dims.alpha*2) : r2(fig.dims.alpha);
+        const val = total ? valorCampo(fig.dims.alpha*2) : valorCampo(fig.dims.alpha);
         const handler = total ? 'updateSectorAngle(this.value,true)' : 'updateSectorAngle(this.value,false)';
         d.innerHTML=`<label>${lbl}</label><input type="number" id="dim-alpha" value="${val}" step="any" min="0.001" max="${total?'360':'180'}" onchange="${handler}">`;
       } else {
@@ -130,7 +130,7 @@ function buildPropPanel(fig){
   // cy, al reabrir la ventana el campo volvía a dar la posición del centroide
   // aunque el alumno hubiera elegido otro punto de anclaje: parecía que el
   // anclaje se había perdido (2026-09-23). updatePropPanel ya hace la cuenta.
-  document.getElementById('rotation').value = r2(fig.rotation);
+  document.getElementById('rotation').value = valorCampo(fig.rotation);
   updatePropPanel();
 
   // Anchors
@@ -256,15 +256,15 @@ function updatePropPanel(){
   if(fig.es3d) return updatePropPanel3d();              // 21-vistas-3d.js
   const aa = fig.activeAnchor||'C';
   if(aa==='C'){
-    document.getElementById('posX').value=r2(fig.cx);
-    document.getElementById('posY').value=r2(fig.cy);
+    document.getElementById('posX').value=valorCampo(fig.cx);
+    document.getElementById('posY').value=valorCampo(fig.cy);
   } else {
     const def=FIG_DEFS[fig.type];const off=def.anchorOffset(fig.dims,aa);
     const rot=(fig.rotation||0)*Math.PI/180;
-    document.getElementById('posX').value=r2(fig.cx+off.dx*Math.cos(rot)-off.dy*Math.sin(rot));
-    document.getElementById('posY').value=r2(fig.cy+off.dx*Math.sin(rot)+off.dy*Math.cos(rot));
+    document.getElementById('posX').value=valorCampo(fig.cx+off.dx*Math.cos(rot)-off.dy*Math.sin(rot));
+    document.getElementById('posY').value=valorCampo(fig.cy+off.dx*Math.sin(rot)+off.dy*Math.cos(rot));
   }
-  document.getElementById('rotation').value=r2(fig.rotation||0);
+  document.getElementById('rotation').value=valorCampo(fig.rotation||0);
 }
 
 function setSign(s){

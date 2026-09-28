@@ -254,7 +254,6 @@ function fmtCoef(c){
   if(Math.abs(c+1) < 1e-9) return '-';
   return (Math.round(c*10000)/10000) + '\\,';
 }
-function fmtNum(v){ return (Math.round(v*10000)/10000).toString(); }
 
 // ═══════════════════════════════════════════════════════════
 //  FIGURAS SVG DE LA PANTALLA: DCL de nudo, porción del corte y comparativa

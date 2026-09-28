@@ -14,7 +14,11 @@ function resizeCanvas() {
   canvas.style.width = W+'px'; canvas.style.height = H+'px';
   ctx.scale(dpr,dpr);
   if(!viewTx && !viewTy) { viewTx = W/2; viewTy = H/2; }
-  render();
+  // El observador puede saltar ENTRE dos <script> (CLAUDE.md §5.3), y render
+  // vive en la pieza siguiente (05-dibujo.js): la consola decía, al azar, «render is
+  // not defined» al cargar la página. Si aún no existe, se dibuja al terminar.
+  if(typeof render === 'function') render();
+  else window.addEventListener('load', ()=>render(), {once:true});
 }
 new ResizeObserver(resizeCanvas).observe(document.getElementById('canvasArea'));
 

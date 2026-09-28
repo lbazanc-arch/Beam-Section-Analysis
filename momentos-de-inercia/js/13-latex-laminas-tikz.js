@@ -260,8 +260,8 @@ function tikzCotasCompuesta(cajaMundo, tx, ty){
     const wx = f.cx + co.x*Math.cos(rot) - co.y*Math.sin(rot);
     const wy = f.cy + co.x*Math.sin(rot) + co.y*Math.cos(rot);
     let txt = 'R=' + decP(d.r,'len');
-    if(f.type==='sector') txt += ',\\ 2\\theta=' + decP(d.alpha*2,'len') + '^\\circ';
-    if(f.type==='segmento') txt += ',\\ \\theta=' + decP(d.alpha,'len') + '^\\circ';
+    if(f.type==='sector') txt += ',\\ 2\\theta=' + decP(d.alpha*2,'ang') + '^\\circ';
+    if(f.type==='segmento') txt += ',\\ \\theta=' + decP(d.alpha,'ang') + '^\\circ';
     items.push({txt, ancla:{x:px(wx), y:py(wy)},
                 w: tikzMedirTexto(txt) + 0.22, h: ALTO_ROT});
   });
