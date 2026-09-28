@@ -83,7 +83,7 @@ function actualizarPrevTrans(){
       + dec(t.dx,'len') + ' ; ' + dec(t.dy,'len') + ') ' + unitLen
       + ', midiendo desde ' + t.ref.nombre + '.';
   } else {
-    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) giran ' + t.ang
+    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) giran ' + dec(t.ang,'ang')
       + '° alrededor de ' + t.ref.nombre + ' (' + dec(t.ref.x,'len') + ' ; '
       + dec(t.ref.y,'len') + ') ' + unitLen + '.';
   }

@@ -214,7 +214,7 @@ function cargarProyecto(id){
     barraSeq = barras.reduce((m,b)=>Math.max(m,b.id), 0);
     if(e.unidades){ unitLen = e.unidades.len || unitLen; unitFor = e.unidades.fuerza || unitFor; pintarChipUnidades(); }
     // Y el chip de decimales, igual que hace applyDecModal (10-) al cambiarlos.
-    if(e.decimales){ DEC = e.decimales; document.getElementById('chipDec').textContent = textoDecimales(); }
+    if(e.decimales){ DEC = Object.assign({len:2, fuerza:2, ang:2}, e.decimales); document.getElementById('chipDec').textContent = textoDecimales(); }
     invalidarResultados();
     reNombrar(); centrar(); refrescar();
     cerrarHistorial();

@@ -39,7 +39,7 @@ function renderMetodoEcuaciones(r){
     const gt = _grupos.find(g=>g.tramos.indexOf(t) >= 0) || _grupos[0];
     const sb = gt.simbolo;
     h += '<div class="sub-tramo-cab">Tramo '+t.nombre+' — L = '+dec(t.L,'len')+' '+unitLen
-      + (Math.abs(t.ang)>0.05 ? ' · inclinación '+t.ang.toFixed(1)+'°' : '') + '</div>';
+      + (Math.abs(t.ang)>0.05 ? ' · inclinación '+dec(t.ang,'ang')+'°' : '') + '</div>';
     t.subs.forEach((sub,si)=>{
       // La abscisa se mide desde el arranque del GRUPO (el punto de quiebre),
       // no desde el origen de la viga: recorrer un eje quebrado desde A no
@@ -162,7 +162,7 @@ function renderResultados(r){
     // El tipo de apoyo lleva el ángulo que escribió el alumno (dónde se apoya),
     // que no es la dirección de la reacción.
     const tipoAp = NOMBRE_APOYO[u.n.apoyo] + ((u.n.apoyo === 'movil' && Math.abs(anguloApoyo(u.n) - 90) > 1e-6)
-      ? ' (apoyado a ' + dec(bsaAnguloOpuesto(anguloApoyo(u.n)),'f') + '°)' : '');
+      ? ' (apoyado a ' + dec(bsaAnguloOpuesto(anguloApoyo(u.n)),'ang') + '°)' : '');
     h += '<tr><td><b>'+u.n.nombre+'</b></td><td>'+tipoAp+'</td><td>'+comp+'</td>'
       + '<td class="r"><b>'+(u.tipo==='M'?fm(v):f(v))+'</b></td>'
       + '<td>'+(u.tipo==='M'?uMom():unitFor)+'</td></tr>';
@@ -187,7 +187,7 @@ function renderResultados(r){
   r.internas.forEach(t=>{
     const mx = arr => arr.reduce((m,p)=>Math.abs(p)>Math.abs(m)?p:m, 0);
     h += '<tr><td><b>'+t.nombre+'</b></td><td class="r">'+nl(t.L)+' '+unitLen+'</td>'
-      + '<td class="r">'+t.ang.toFixed(1)+'°</td>'
+      + '<td class="r">'+dec(t.ang,'ang')+'°</td>'
       + '<td class="r">'+f(mx(t.puntos.map(p=>p.N)))+'</td>'
       + '<td class="r">'+f(mx(t.puntos.map(p=>p.V)))+'</td>'
       + '<td class="r">'+fm(mx(t.puntos.map(p=>p.M)))+'</td></tr>';
@@ -203,7 +203,7 @@ function renderResultados(r){
     + 'y pulsa Generar; cada uno lleva sus tres diagramas con su propia abscisa.</div>'
     + '<div class="vis-row" id="grupoSel">'
     + grupos.map(g=>'<label class="vis-item"><input type="checkbox" data-g="'+g.idx+'" checked>'
-        + '<span>' + g.recorrido + (g.inclinado ? ' · ' + g.ang.toFixed(1) + '°' : ' · recto')
+        + '<span>' + g.recorrido + (g.inclinado ? ' · ' + dec(g.ang,'ang') + '°' : ' · recto')
         + '</span></label>').join('')
     + '</div>'
     + '<div style="display:flex;gap:7px;margin:9px 0 12px">'
@@ -300,7 +300,7 @@ function htmlDiagramasGrupos(r, idxs){
     return '<div style="margin-bottom:16px">'
       + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">'
       + 'Tramo ' + g.recorrido + ' — '
-      + (g.inclinado ? 'inclinado ' + g.ang.toFixed(1) + '°' : 'recto')
+      + (g.inclinado ? 'inclinado ' + dec(g.ang,'ang') + '°' : 'recto')
       + ' · L = ' + dec(g.L,'len') + ' ' + unitLen
       + ' · abscisa <i>' + g.simbolo + '</i> desde ' + g.desde.nombre + '</div>'
       + '<div class="proc-block">' + svgDiagramas(r, g) + '</div>'
@@ -439,7 +439,7 @@ function vdPintarSelectores(){
       '<label class="vd-radio' + (i===_vdGrupo ? ' on' : '') + '">'
     + '<input type="radio" name="vdG" value="' + i + '"' + (i===_vdGrupo ? ' checked' : '')
     + ' onchange="vdCambioGrupo(' + i + ')">'
-    + '<span>' + g.recorrido + (g.inclinado ? ' · ' + g.ang.toFixed(1) + '°' : ' · recto')
+    + '<span>' + g.recorrido + (g.inclinado ? ' · ' + dec(g.ang,'ang') + '°' : ' · recto')
     + '</span></label>').join('');
   const sel = document.getElementById('vdSelCarga');
   sel.innerHTML = cargas.map(c=>

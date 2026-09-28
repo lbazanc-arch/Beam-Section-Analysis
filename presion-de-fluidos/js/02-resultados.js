@@ -26,7 +26,7 @@ function _dirAgudoHtml(u){
   if(bsaAnguloAgudoEje(u.dir.x, u.dir.y).grados < 1e-6) return '';
   return ' (a ' + bsaTextoAnguloAgudo(u.dir.x, u.dir.y) + ')';
 }
-function _gr(v){ return (Math.round(v*100)/100).toFixed(2).replace(/\.?0+$/,'') + '^\\circ'; }
+function _gr(v){ return dec(v,'ang') + '^\\circ'; }   // con los decimales de ÁNGULOS
 
 // ── Términos de cada ecuación, en LaTeX (los comparten pantalla y PDF) ──
 // Cada término es {v, lit, sus}: v da el signo real, `lit` es la expresión
@@ -214,7 +214,7 @@ function renderResultados(r){
     const d = c.des;
     h += '<div class="fig-card"><div class="fig-card-datos">'
       + '<div class="fig-card-h"><b>' + kx(c.nombre) + ' · tramo ' + nomTramo(c.t) + ' · zona ' + c.z + '</b>'
-      + '<span class="hint-sm" style="margin:0">' + (d ? (d.tipo === 'curvo' ? 'placa curva' : (d.horizontal ? 'placa horizontal' : (Math.abs(d.angPlaca-90) < 1e-6 ? 'placa vertical' : 'placa inclinada ' + d.angPlaca.toFixed(1) + '°'))) : '') + '</span></div>';
+      + '<span class="hint-sm" style="margin:0">' + (d ? (d.tipo === 'curvo' ? 'placa curva' : (d.horizontal ? 'placa horizontal' : (Math.abs(d.angPlaca-90) < 1e-6 ? 'placa vertical' : 'placa inclinada ' + dec(d.angPlaca,'ang') + '°'))) : '') + '</span></div>';
     if(!d){
       h += '<div class="hint-sm">Resultante por integración: ' + kx('F = ' + f(c.F)) + ' ' + uF + '.</div>';
     } else if(d.tipo === 'recto'){
@@ -247,10 +247,10 @@ function renderResultados(r){
       h += '<div class="proc-sub" style="margin-top:6px">Componente vertical (peso del bloque de líquido sobre la placa)</div>';
       if(d.segmento){
         h += '<div class="eq-row"><div class="eq-body">' + kx('A_{\\text{bloque}} = A_{\\text{trapecio}} ' + (d.segmento.haciaArriba ? '-' : '+') + ' A_{\\text{segmento}} = ' + nl(d.segmento.Atrap) + (d.segmento.haciaArriba ? ' - ' : ' + ') + nl(d.segmento.Aseg) + ' = ' + nl(d.segmento.A) + '\\ \\text{' + uL + '}^2') + '</div></div>'
-          + '<div class="hint-sm">Segmento circular: ' + kx('A = \\tfrac{R^2}{2}(\\varphi - \\sin\\varphi)') + ' con ' + kx('R = ' + nl(d.arc.R)) + ' ' + uL + ' y ' + kx('\\varphi = ' + (d.segmento.phi*180/Math.PI).toFixed(2) + '^\\circ') + '.</div>';
+          + '<div class="hint-sm">Segmento circular: ' + kx('A = \\tfrac{R^2}{2}(\\varphi - \\sin\\varphi)') + ' con ' + kx('R = ' + nl(d.arc.R)) + ' ' + uL + ' y ' + kx('\\varphi = ' + dec(d.segmento.phi*180/Math.PI,'ang') + '^\\circ') + '.</div>';
       }
       h += '<div class="eq-row"><div class="eq-body">' + kx('F_v = b\\sum\\gamma_i A_i = ' + nl(c.b) + '\\,(' + d.areas.filter(a=>a.A>1e-12).map(a=>f(a.g) + '\\cdot' + nl(a.A)).join(' + ') + ') = ' + f(Math.abs(d.FvBloque)) + '\\ \\text{' + uF + '}\\ (\\text{hacia ' + d.sentidoV + '})') + '</div></div>';
-      h += '<div class="eq-row"><div class="eq-body">' + kx(c.nombre + ' = \\sqrt{F_h^2 + F_v^2} = \\sqrt{' + f(Math.abs(d.Fh)) + '^2 + ' + f(Math.abs(d.Fv)) + '^2} = ' + f(d.F) + '\\ \\text{' + uF + '}\\qquad \\theta = ' + d.theta.toFixed(2) + '^\\circ') + '</div></div>';
+      h += '<div class="eq-row"><div class="eq-body">' + kx(c.nombre + ' = \\sqrt{F_h^2 + F_v^2} = \\sqrt{' + f(Math.abs(d.Fh)) + '^2 + ' + f(Math.abs(d.Fv)) + '^2} = ' + f(d.F) + '\\ \\text{' + uF + '}\\qquad \\theta = ' + dec(d.theta,'ang') + '^\\circ') + '</div></div>';
       h += '<div class="eq-row"><div class="eq-body">' + kx('O_c = (' + nl(d.arc.cx) + ';\\ ' + nl(d.arc.cy) + ')\\qquad z_P = ' + nl(d.zP) + '\\ \\text{' + uL + '}') + '</div></div>';
       h += '</div>';
     }

@@ -237,7 +237,7 @@ function dibujarCarga(n){
       const am = a0 + d/2;
       const grados = Math.acos(Math.min(1, Math.abs(ux)))*180/Math.PI;
       ctx.font = '600 10px Inter, sans-serif'; ctx.fillStyle = '#c0392b'; ctx.textAlign = 'center';
-      ctx.fillText(grados.toFixed(1) + '°', sx + Math.cos(am)*(r+14), sy - Math.sin(am)*(r+14) + 3);
+      ctx.fillText(dec(grados,'ang') + '°', sx + Math.cos(am)*(r+14), sy - Math.sin(am)*(r+14) + 3);
       ctx.restore();
     }
   });

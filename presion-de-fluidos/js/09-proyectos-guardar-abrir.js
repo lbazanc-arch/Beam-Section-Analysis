@@ -74,7 +74,7 @@ function cargarProyecto(id){
     // Con fijarUnidades (06-) cambian también el chip de la barra y los rótulos:
     // si no, un ejercicio en cm·N se abría con la barra diciendo m · kN.
     if(e.unidades) fijarUnidades(e.unidades.len||unitLen, e.unidades.fuerza||unitFor);
-    if(e.decimales) DEC=e.decimales;
+    if(e.decimales) DEC=Object.assign({len:2, fuerza:2, ang:2}, e.decimales);
     const eb=document.getElementById('pB'); if(eb && e.ancho) eb.value=e.ancho;
     sincronizarAnchoB();
     // La selección y el resultado eran del ejercicio anterior: con ids que

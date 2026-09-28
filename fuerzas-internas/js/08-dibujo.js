@@ -763,7 +763,7 @@ function _arcoReaccionFI(x0, y0, ex, ey, col){
   _ocDisco(x0, y0, 18.5, 'arco');
   const sx = Math.cos(a1), sy = Math.sin(a1), tx = rx, ty = -ry;
   let qx = -ty, qy = tx; if(qx*sx + qy*sy > 0){ qx = -qx; qy = -qy; }
-  rotulo(dec(ag.grados,'f') + '°', x0 + 26*tx + 14*qx, y0 + 26*ty + 14*qy, col,
+  rotulo(dec(ag.grados,'ang') + '°', x0 + 26*tx + 14*qx, y0 + 26*ty + 14*qy, col,
          qx, qy, '700 10px Inter,sans-serif',
          {prio:4, padX:4, alinear:(sx < 0) ? 'izq' : 'der'});
   return true;

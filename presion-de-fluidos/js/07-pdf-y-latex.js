@@ -781,7 +781,7 @@ function construirLatex(){
     tex += lamina(tkpCroquisCarga(c, d), (d.tipo === 'curvo' ? 'Placa curva: bloque de l\\\'iquido sobre la placa, $F_h$, $F_v$ y $' + c.nombre + '$ en $P$.' : 'Diagrama de presi\\\'on del tramo y $' + c.nombre + '$ en su centro de presi\\\'on $P$.'), 0.95);
     if(d.tipo === 'recto'){
       const origen = d.T.nombre ? 'el nudo ' + escLatex(d.T.nombre) : 'el corte con la superficie libre';
-      tex += '\\noindent Placa ' + (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca-90) < 1e-6 ? 'vertical' : 'inclinada $' + d.angPlaca.toFixed(2) + '^\\circ$')) + ', longitud mojada $L = ' + nl(d.L) + '$' + UL + ', ancho $b = ' + nl(b) + '$' + UL + '. Las distancias $s$ se miden sobre la placa desde ' + origen + '.\n';
+      tex += '\\noindent Placa ' + (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca-90) < 1e-6 ? 'vertical' : 'inclinada $' + dec(d.angPlaca,'ang') + '^\\circ$')) + ', longitud mojada $L = ' + nl(d.L) + '$' + UL + ', ancho $b = ' + nl(b) + '$' + UL + '. Las distancias $s$ se miden sobre la placa desde ' + origen + '.\n';
       const filas = [];
       d.bandas.forEach((bd,i)=>{
         // Con varias capas, el rótulo de la capa va en SU PROPIA fila. Puesto
@@ -831,11 +831,11 @@ function construirLatex(){
         filas.push('A_{\\text{bloque}} &= A_{\\text{trapecio}} ' + (d.segmento.haciaArriba ? '-' : '+') + ' A_{\\text{segmento}} = ' + nl(d.segmento.Atrap) + (d.segmento.haciaArriba ? ' - ' : ' + ') + '\\tfrac{R^2}{2}(\\varphi - \\sen\\varphi) = ' + nl(d.segmento.Atrap) + (d.segmento.haciaArriba ? ' - ' : ' + ') + nl(d.segmento.Aseg) + ' = ' + nl(d.segmento.A) + UL + '^2');
       }
       filas.push('F_v &= b\\sum\\gamma_i A_i = ' + nl(b) + '\\,(' + d.areas.filter(a=>a.A>1e-12).map(a=>f(a.g) + '\\cdot' + nl(a.A)).join(' + ') + ') = ' + f(Math.abs(d.FvBloque)) + UF + '\\ (\\text{hacia ' + d.sentidoV + '})');
-      filas.push(c.nombre + ' &= \\sqrt{F_h^2 + F_v^2} = \\sqrt{' + f(Math.abs(d.Fh)) + '^2 + ' + f(Math.abs(d.Fv)) + '^2} = ' + f(d.F) + UF + ',\\qquad \\tan\\theta = \\frac{F_v}{F_h}\\ \\Rightarrow\\ \\theta = ' + d.theta.toFixed(2) + '^\\circ');
+      filas.push(c.nombre + ' &= \\sqrt{F_h^2 + F_v^2} = \\sqrt{' + f(Math.abs(d.Fh)) + '^2 + ' + f(Math.abs(d.Fv)) + '^2} = ' + f(d.F) + UF + ',\\qquad \\tan\\theta = \\frac{F_v}{F_h}\\ \\Rightarrow\\ \\theta = ' + dec(d.theta,'ang') + '^\\circ');
       tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-      if(d.segmento) tex += '{\\footnotesize El segmento circular es el que queda entre la cuerda mojada ($' + nl(d.cuerda) + '$' + UL + ') y el arco, con $\\varphi = ' + (d.segmento.phi*180/Math.PI).toFixed(2) + '^\\circ$.}\\\\[2pt]\n';
+      if(d.segmento) tex += '{\\footnotesize El segmento circular es el que queda entre la cuerda mojada ($' + nl(d.cuerda) + '$' + UL + ') y el arco, con $\\varphi = ' + dec(d.segmento.phi*180/Math.PI,'ang') + '^\\circ$.}\\\\[2pt]\n';
       if(!d.monoX || !d.monoY) tex += '{\\footnotesize La parte mojada se repliega sobre s\\\'i misma en horizontal o en vertical: las componentes se han integrado directamente sobre el arco.}\\\\[2pt]\n';
-      tex += '\\resultado{$' + c.nombre + ' = ' + f(d.F) + '$' + UF + ' a $' + d.theta.toFixed(2) + '^\\circ$ de la horizontal, por el centro del arco; corta la placa en $P$, a $z_P = ' + nl(d.zP) + '$' + UL + ' bajo la superficie libre.}\n';
+      tex += '\\resultado{$' + c.nombre + ' = ' + f(d.F) + '$' + UF + ' a $' + dec(d.theta,'ang') + '^\\circ$ de la horizontal, por el centro del arco; corta la placa en $P$, a $z_P = ' + nl(d.zP) + '$' + UL + ' bajo la superficie libre.}\n';
     }
   });
   // tabla resumen del paso 2
@@ -855,7 +855,7 @@ function construirLatex(){
     tex += '\\noindent{\\footnotesize Cada tramo pesa $W = q\\,b\\,L$, vertical y hacia abajo, aplicado en el centroide $G$ de su l\\\'inea: el punto medio si es recto; en un arco de semi\\\'angulo $\\alpha$, a $\\bar r = R\\,\\sen\\alpha/\\alpha$ del centro, sobre la bisectriz.}\\\\[2pt]\n';
     const filasW = r.pesos.map(c=> c.nombre + ' &= q\\,b\\,L = ' + f(c.q) + '\\,(' + nl(c.b) + ')(' + nl(c.len) + ') = ' + f(c.F) + UF
       + '\\quad\\text{en } G_{' + c.k.slice(1) + '} = (' + nl(c.G.x) + ';\\ ' + nl(c.G.y) + ')'
-      + (c.G.arc ? ',\\quad \\bar r = ' + nl(c.G.arc.R) + '\\,\\sen ' + (c.G.alfa*180/Math.PI).toFixed(2) + '^\\circ/' + c.G.alfa.toFixed(4) + ' = ' + nl(c.G.rbar) + UL : ''));
+      + (c.G.arc ? ',\\quad \\bar r = ' + nl(c.G.arc.R) + '\\,\\sen ' + dec(c.G.alfa*180/Math.PI,'ang') + '^\\circ/' + c.G.alfa.toFixed(4) + ' = ' + nl(c.G.rbar) + UL : ''));
     tex += '\\begin{align*}\n' + filasW.join(' \\\\\n') + '\n\\end{align*}\n';
   }
 
@@ -864,7 +864,7 @@ function construirLatex(){
   tex += '\\noindent Sobre la compuerta act\\\'uan las resultantes del l\\\'iquido, cada una en su centro de presi\\\'on, ' + (r.pesos && r.pesos.length ? 'el peso propio de cada tramo en su centroide ' : '') + 'y las inc\\\'ognitas de los apoyos'
     + (r.inc.some(u=>u.tipo==='T') ? ' y del tope' : '') + '. Cada fuerza se dibuja en su sentido real y se rotula solo con su nombre; los valores est\\\'an en las tablas.\n';
   const letras = Object.values(_LETRAS_ANG);
-  const listaAng = letras.map(e=>'$' + e.letra + ' = ' + e.grados.toFixed(2) + '^\\circ$');
+  const listaAng = letras.map(e=>'$' + e.letra + ' = ' + dec(e.grados,'ang') + '^\\circ$');
   tex += lamina(tkpDCL(r, null), 'DCL de la compuerta.' + (listaAng.length ? ' ' + listaAng.join(', ') + '.' : ''));
   if(r.topesSueltos.length === 0 && r.inc.some(u=>u.tipo==='T'))
     tex += porque('tope', 'Un tope liso solo puede \\textbf{empujar}: su fuerza es normal a la compuerta y se supone hacia ella. Si del equilibrio saliera negativa, la compuerta se separar\\\'ia del tope (se abrir\\\'ia); con valor cero est\\\'a \\emph{a punto de abrirse}, que es la situaci\\\'on l\\\'imite de muchos problemas.');
@@ -939,7 +939,7 @@ function construirLatex(){
       // agudo que la figura y las ecuaciones (2026-09-14).
       const ag = bsaAnguloAgudoEje(u.dir.x, u.dir.y);
       const dirTx = ((u.tipo === 'R' || u.tipo === 'T') && ag.grados >= 1e-6)
-        ? ' (a ' + f(ag.grados) + '$^\\circ$ de la ' + (ag.desdeV ? 'vertical' : 'horizontal') + ')' : '';
+        ? ' (a ' + dec(ag.grados,'ang') + '$^\\circ$ de la ' + (ag.desdeV ? 'vertical' : 'horizontal') + ')' : '';
       return '$' + simbIncognita(u) + ' = ' + f(Math.abs(v)) + '$' + UF + (nulo ? '' : ' ' + iconoSentidoTex(sr.x, sr.y)) + dirTx;
     }).join(', ') + '. La flecha es el sentido real; el valor, su magnitud.}\n';
   if(r.topesSueltos.length)

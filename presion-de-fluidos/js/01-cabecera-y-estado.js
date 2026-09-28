@@ -61,7 +61,7 @@ let selN = [], selT = [], infoNodo = null, infoTramo = null;
 let apoyoId = null, topeId = null;
 let R = null;
 let unitLen = 'm', unitFor = 'kN';
-let DEC = {len:2, fuerza:2};
+let DEC = {len:2, fuerza:2, ang:2};
 let cv, ctx, W = 0, H = 0, vx = 0, vy = 0, escala = 60;
 let mouseW = null;
 
@@ -74,7 +74,7 @@ const LEN_A_M = {m:1, cm:0.01, ft:0.3048};
 const FOR_A_KN = {kN:1, N:0.001, ton:9.80665, lb:0.00444822};
 
 function dec(v,t){
-  const d = (t==='len') ? DEC.len : DEC.fuerza;
+  const d = (t==='len') ? DEC.len : (t==='ang' ? DEC.ang : DEC.fuerza);
   const n = Number(v);
   if(!isFinite(n)) return '0';
   return (Math.abs(n)<5e-11?0:n).toFixed(d);
@@ -375,7 +375,7 @@ function descIncognita(u){
   // (bsaAnguloOpuesto), que no es la dirección de la reacción (2026-09-14).
   if(u.tipo==='R')  return (u.n.apModo === 'normal') ? 'reacción del apoyo móvil, normal a la compuerta'
                     : 'reacción del apoyo móvil' + (Math.abs((u.n.apAng===undefined?90:u.n.apAng) - 90) > 1e-6
-                        ? ' (apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng),'f') + '°)' : '');
+                        ? ' (apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng),'ang') + '°)' : '');
   return (u.n.tope && u.n.tope.modo === 'angulo') ? 'fuerza del tope' : 'fuerza normal del tope';
 }
 // Sentido real como flecha (R8): la más próxima de las ocho.

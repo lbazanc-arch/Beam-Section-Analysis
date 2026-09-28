@@ -767,7 +767,7 @@ function construirLatex(){
     let dirR = '';
     if(u.ang !== undefined){
       const agT = bsaAnguloAgudoEje(Math.cos(u.ang), Math.sin(u.ang));
-      if(agT.grados >= 4) dirR = ' {\\footnotesize(a ' + dec(agT.grados,'f') + '$^{\\circ}$ de la ' + (agT.desdeV ? 'vertical' : 'horizontal') + ')}';
+      if(agT.grados >= 4) dirR = ' {\\footnotesize(a ' + dec(agT.grados,'ang') + '$^{\\circ}$ de la ' + (agT.desdeV ? 'vertical' : 'horizontal') + ')}';
     }
     tex += '$' + simbReaccion(u) + '$' + dirR + ' & $'
       + dec(v, esMom?'momento':'fuerza') + '$\\,' + escLatex(esMom?unidadMomento():unitFor)
@@ -795,7 +795,7 @@ function construirLatex(){
       if(gg.idx > 0)
         tex += '\\vspace{8pt}\\noindent{\\color{bsaAcc2}\\rule{\\linewidth}{.8pt}}\\vspace{5pt}\n';
       tex += '\\subpaso{Tramo ' + escLatex(gg.recorrido) + '\\quad '
-        + (gg.inclinado ? 'inclinado ' + gg.ang.toFixed(1) + '$^\\circ$' : 'horizontal')
+        + (gg.inclinado ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : 'horizontal')
         + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL + '}\n';
       tex += tablaAreasGrupo(R, gg);
       tex += tablaNudosGrupo(R, gg);
@@ -820,7 +820,7 @@ function construirLatex(){
     if(gg.idx > 0)
       tex += '\\vspace{8pt}\\noindent{\\color{bsaAcc2}\\rule{\\linewidth}{.8pt}}\\vspace{5pt}\n';
     tex += '\\subpaso{Tramo ' + escLatex(gg.recorrido) + '\\quad '
-      + (gg.inclinado ? 'inclinado ' + gg.ang.toFixed(1) + '$^\\circ$' : 'horizontal')
+      + (gg.inclinado ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : 'horizontal')
       + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL
       + '\\quad abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + '}\n';
     tex += fraseCortesGrupo(R, gg);

@@ -430,7 +430,7 @@ function _svgArco(reg, ox, oy, ux, uy, col, gen, radio){
     reg.seg(ox + R*Math.cos(a0), oy + R*Math.sin(a0), ox + R*Math.cos(a1), oy + R*Math.sin(a1), 0.6, 'arco');
   }
   const letra = gen ? gen.para(ag.grados) : null;
-  const r = letra ? {v: SVG_GRIEGA[letra] || '\u03b8'} : {t: dec(ag.grados,'f') + '\u00b0'};
+  const r = letra ? {v: SVG_GRIEGA[letra] || '\u03b8'} : {t: dec(ag.grados,'ang') + '\u00b0'};
   const fs = letra ? 12.5 : 10, m = _svgMedida(r, fs);
   const midDeg = (rayDeg + endDeg)/2, sg = endDeg >= rayDeg ? 1 : -1;
   const enDir = (deg, rr) => {
@@ -473,7 +473,7 @@ function _svgEnvolver(cuerpo, reg, min, pad){
 function _svgLineaAngulos(angulos){
   const vistos = [];
   angulos.forEach(a => { if(a.letra && !vistos.some(v => v.letra === a.letra)) vistos.push(a); });
-  return vistos.map(a => '<i>' + (SVG_GRIEGA[a.letra] || '\u03b8') + '</i>\u00a0=\u00a0' + dec(a.valor,'f') + '\u00b0').join(' \u00b7 ');
+  return vistos.map(a => '<i>' + (SVG_GRIEGA[a.letra] || '\u03b8') + '</i>\u00a0=\u00a0' + dec(a.valor,'ang') + '\u00b0').join(' \u00b7 ');
 }
 
 // ── DCL del nudo en SVG ──

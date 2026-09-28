@@ -54,6 +54,7 @@ function fillDec(id,val){
 }
 function openDecModal(){
   fillDec('selDecLen',DEC.len); fillDec('selDecFor',DEC.fuerza); fillDec('selDecMom',DEC.momento);
+  fillDec('selDecAng',DEC.ang);
   updateDecPreview(); document.getElementById('decModal').classList.add('show');
 }
 function closeDecModal(){ document.getElementById('decModal').classList.remove('show'); }
@@ -62,16 +63,17 @@ function updateDecPreview(){
   const el=document.getElementById('dpPrev');
   if(el) el.textContent='Ejemplo: '+(4.2857).toFixed(g('selDecLen'))+' '+unitLen
     +' · '+(12.3456).toFixed(g('selDecFor'))+' '+unitFor
-    +' · '+(37.8912).toFixed(g('selDecMom'))+' '+uMom();
+    +' · '+(37.8912).toFixed(g('selDecMom'))+' '+uMom()
+    +' \u00b7 '+(33.6901).toFixed(g('selDecAng'))+'\u00b0';
 }
 function textoDecimales(){
-  const v=[DEC.len, DEC.fuerza, DEC.momento];
+  const v=[DEC.len, DEC.fuerza, DEC.momento, DEC.ang];
   return v.every(x=>x===v[0]) ? (v[0]+(v[0]===1?' decimal':' decimales'))
                               : v.join(' / ')+' decimales';
 }
 function applyDecModal(){
   const g=id=>{const e=document.getElementById(id); return e?(parseInt(e.value,10)||0):2;};
-  DEC={len:g('selDecLen'), fuerza:g('selDecFor'), momento:g('selDecMom')};
+  DEC={len:g('selDecLen'), fuerza:g('selDecFor'), momento:g('selDecMom'), ang:g('selDecAng')};
   document.getElementById('chipDec').textContent=textoDecimales();
   closeDecModal();
   if(R && !R.error) calcular(); else refrescar();
@@ -282,7 +284,7 @@ function cargarEstadoDesdeArchivo(e, nombreArchivo, version){
     // Con fijarUnidades el rótulo de la barra cambia también: antes seguía
     // enseñando las unidades del ejercicio anterior.
     if(e.unidades) fijarUnidades(e.unidades.len||unitLen, e.unidades.fuerza||unitFor);
-    if(e.decimales) DEC=e.decimales;
+    if(e.decimales) DEC=Object.assign({len:2, fuerza:2, momento:2, ang:2}, e.decimales);
     reNombrar(); invalidarResultados(); centrar(); refrescar(); cerrarHistorial();
     aviso('Ejercicio abierto desde "'+nombreArchivo+'".');
   }catch(err){
@@ -690,7 +692,7 @@ function _angulosFiguraTex(lista){
   if(!lista || !lista.length) return '';
   const vistas = [];
   lista.forEach(a=>{ if(a.letra && !vistas.some(v=>v.letra === a.letra)) vistas.push(a); });
-  return ' Ángulos: ' + vistas.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '.';
+  return ' Ángulos: ' + vistas.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'ang') + '^{\\circ}$').join(', ') + '.';
 }
 // Arco del ángulo de una reacción inclinada en el PDF, en la cola de su flecha:
 // desde el eje más cercano (trazo punteado), con su letra griega colocada por
@@ -782,7 +784,7 @@ function pasoAPasoReacciones(R){
     if(ag.grados < 4) return;
     const nR = simb(u), nn = escLatex(u.n.nombre);
     const letra = (angsGlobal.find(x => x.letra && Math.abs(x.valor - ag.grados) < 0.15) || {}).letra || '\\theta';
-    const g = dec(ag.grados,'f') + '^{\\circ}';
+    const g = dec(ag.grados,'ang') + '^{\\circ}';
     const fn = comp => (((comp === 'x') !== ag.desdeV) ? '\\cos' : '\\operatorname{sen}');
     const sg = comp => ((comp === 'x' ? ca : sa) < 0 ? '-' : '');
     const f4 = v => (Math.round(v*10000)/10000).toFixed(4);
@@ -852,7 +854,7 @@ function pasoAPasoReacciones(R){
     if(e > 1 || u.ang === undefined) return null;
     const ag = bsaAnguloAgudoEje(Math.cos(u.ang), Math.sin(u.ang));
     if(ag.grados < 4) return null;
-    return (((e === 0) !== ag.desdeV) ? '\\cos ' : '\\operatorname{sen} ') + dec(ag.grados,'f') + '^{\\circ}';
+    return (((e === 0) !== ag.desdeV) ? '\\cos ' : '\\operatorname{sen} ') + dec(ag.grados,'ang') + '^{\\circ}';
   };
   function termInc(u, a, e){
     const tr = _trigInclinada(u, e);
@@ -1167,7 +1169,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
   // en la figura, los senos y cosenos del desarrollo no se sostienen en nada.
   if(gg.inclinado){
     const ox = X(O.x), oy = Y(O.y);
-    const gr = gg.ang.toFixed(1);
+    const gr = dec(gg.ang,'ang');
     const a2 = gg.ang;                       // ángulo del eje con la horizontal
     const rr = 0.95, sgx = (a2 > 90 || a2 < -90) ? -1 : 1;
     // horizontal de referencia, a puntos, hacia el lado del tramo

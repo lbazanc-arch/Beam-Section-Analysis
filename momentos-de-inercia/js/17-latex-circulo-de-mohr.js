@@ -280,7 +280,7 @@ function formulaArea(fig){
       return {sim:'A_i = \\dfrac{\\pi R^{2}}{4}', sus:'A_i = \\dfrac{\\pi ('+D(d.r)+')^{2}}{4}'};
     case 'sector':
       return {sim:'A_i = \\theta R^{2} \\quad (\\theta \\text{ en radianes})',
-              sus:'A_i = \\left('+D(d.alpha)+'^\\circ\\cdot\\dfrac{\\pi}{180}\\right)('+D(d.r)+')^{2}'};
+              sus:'A_i = \\left('+decP(d.alpha,'ang')+'^\\circ\\cdot\\dfrac{\\pi}{180}\\right)('+D(d.r)+')^{2}'};
     case 'parabola':
       return {sim:'A_i = \\dfrac{2\\,b\\,h}{3}', sus:'A_i = \\dfrac{2('+D(d.b)+')('+D(d.h)+')}{3}'};
     case 'semiparabola':
@@ -295,7 +295,7 @@ function formulaArea(fig){
       return {sim:'A_i = \\dfrac{\\pi\\,a\\,b}{2}', sus:'A_i = \\dfrac{\\pi ('+D(d.a)+')('+D(d.b)+')}{2}'};
     case 'segmento':
       return {sim:'A_i = R^{2}\\left(\\theta - \\sen\\theta\\cos\\theta\\right) \\quad (\\theta \\text{ en radianes})',
-              sus:'A_i = ('+D(d.r)+')^{2}\\left('+D(d.alpha)+'^\\circ\\cdot\\tfrac{\\pi}{180} - \\sen '+D(d.alpha)+'^\\circ\\cos '+D(d.alpha)+'^\\circ\\right)'};
+              sus:'A_i = ('+D(d.r)+')^{2}\\left('+decP(d.alpha,'ang')+'^\\circ\\cdot\\tfrac{\\pi}{180} - \\sen '+decP(d.alpha,'ang')+'^\\circ\\cos '+decP(d.alpha,'ang')+'^\\circ\\right)'};
     case 'trapecio':
       return {sim:'A_i = \\dfrac{(a+b)\\,h}{2}',
               sus:'A_i = \\dfrac{('+D(d.a)+'+'+D(d.b)+')('+D(d.h)+')}{2}'};
@@ -337,7 +337,7 @@ function centroideLocalTex(fig){
     case 'sector': {
       const t = d.alpha*Math.PI/180;
       return '\\bar{y}_{loc} = \\dfrac{2R\\sen\\theta}{3\\theta} = '
-           + '\\dfrac{2('+D(d.r)+')\\sen('+D(d.alpha)+'^\\circ)}{3('+D(d.alpha)+'^\\circ)} = '
+           + '\\dfrac{2('+D(d.r)+')\\sen('+decP(d.alpha,'ang')+'^\\circ)}{3('+decP(d.alpha,'ang')+'^\\circ)} = '
            + D(2*d.r*Math.sin(t)/(3*t));
     }
     case 'parabola':
@@ -412,9 +412,9 @@ function formulaInercia(fig){
                '\\left(\\dfrac{1}{8}-\\dfrac{4}{9\\pi}\\right)('+D(d.r)+')^{4}');
     case 'sector':
       return F('\\bar{I}_{x} = \\dfrac{R^{4}}{4}\\left(\\theta-\\sen\\theta\\cos\\theta\\right) - A\\,\\bar{y}_{loc}^{2}',
-               '\\text{con } R='+D(d.r)+',\\ \\theta='+D(d.alpha)+'^\\circ',
+               '\\text{con } R='+D(d.r)+',\\ \\theta='+decP(d.alpha,'ang')+'^\\circ',
                '\\bar{I}_{y} = \\dfrac{R^{4}}{4}\\left(\\theta+\\sen\\theta\\cos\\theta\\right)',
-               '\\text{con } R='+D(d.r)+',\\ \\theta='+D(d.alpha)+'^\\circ',
+               '\\text{con } R='+D(d.r)+',\\ \\theta='+decP(d.alpha,'ang')+'^\\circ',
                '\\bar{P}_{xy} = 0 \\quad (\\text{eje vertical de simetr\\\'ia})', '0');
     case 'parabola':
       return F('\\bar{I}_{x} = \\dfrac{8\\,b\\,h^{3}}{175}', '\\dfrac{8('+D(d.b)+')('+D(d.h)+')^{3}}{175}',
@@ -448,9 +448,9 @@ function formulaInercia(fig){
                '\\bar{P}_{xy} = 0 \\quad (\\text{eje vertical de simetr\\\'ia})', '0');
     case 'segmento':
       return F('\\bar{I}_{x} = \\dfrac{R^{4}}{4}\\left(\\theta-\\sen\\theta\\cos\\theta+2\\sen^{3}\\theta\\cos\\theta\\right) - A\\,\\bar{y}_{loc}^{2}',
-               '\\text{con } R='+D(d.r)+',\\ \\theta='+D(d.alpha)+'^\\circ',
+               '\\text{con } R='+D(d.r)+',\\ \\theta='+decP(d.alpha,'ang')+'^\\circ',
                '\\bar{I}_{y} = \\dfrac{R^{4}}{12}\\left(3\\theta-3\\sen\\theta\\cos\\theta-2\\sen^{3}\\theta\\cos\\theta\\right)',
-               '\\text{con } R='+D(d.r)+',\\ \\theta='+D(d.alpha)+'^\\circ',
+               '\\text{con } R='+D(d.r)+',\\ \\theta='+decP(d.alpha,'ang')+'^\\circ',
                '\\bar{P}_{xy} = 0 \\quad (\\text{eje vertical de simetr\\\'ia})', '0');
     case 'trapecio': {
       // K y J son los dos agrupamientos que se repiten en las tres inercias del

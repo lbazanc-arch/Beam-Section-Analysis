@@ -83,7 +83,7 @@ let subTab = 'nodos';
 let edNodoId = null, edBarraId = null;
 
 let unitLen = 'm', unitFor = 'kN';
-let DEC = {len:2, fuerza:2};
+let DEC = {len:2, fuerza:2, ang:2};
 
 // Vista
 let vx = 0, vy = 0, escala = 45;   // px por unidad de longitud
@@ -94,7 +94,7 @@ const FOR_A_KN = {kN:1, N:0.001, ton:9.80665, kg:0.00980665, lb:0.00444822};
 
 // ── Utilidades numéricas ──
 function dec(v, tipo){
-  const d = tipo === 'len' ? DEC.len : DEC.fuerza;
+  const d = tipo === 'len' ? DEC.len : (tipo === 'ang' ? DEC.ang : DEC.fuerza);
   const n = Number(v);
   if(!isFinite(n)) return '0';
   const r = Math.abs(n) < 5e-11 ? 0 : n;   // evita "-0.00"

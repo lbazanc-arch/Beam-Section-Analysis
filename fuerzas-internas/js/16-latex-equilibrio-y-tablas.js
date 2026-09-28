@@ -392,10 +392,10 @@ function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
     q += tzTexto(Math.cos(am)*1.30, Math.sin(am)*1.30, etiqueta, 'font=\\small, color=bsaCarga', Math.cos(am), Math.sin(am));
     return q;
   };
-  if(ang.modo === 'eje') o += arcoEje(ang.deLlega ? {x:-u1.x, y:-u1.y} : u2, '$\\theta = ' + ang.phi.toFixed(1) + '^\\circ$');
+  if(ang.modo === 'eje') o += arcoEje(ang.deLlega ? {x:-u1.x, y:-u1.y} : u2, '$\\theta = ' + dec(ang.phi,'ang') + '^\\circ$');
   if(ang.modo === 'dos'){
-    o += arcoEje({x:-u1.x, y:-u1.y}, '$\\theta_1 = ' + ang.phi1.toFixed(1) + '^\\circ$');
-    o += arcoEje(u2, '$\\theta_2 = ' + ang.phi2.toFixed(1) + '^\\circ$');
+    o += arcoEje({x:-u1.x, y:-u1.y}, '$\\theta_1 = ' + dec(ang.phi1,'ang') + '^\\circ$');
+    o += arcoEje(u2, '$\\theta_2 = ' + dec(ang.phi2,'ang') + '^\\circ$');
   }
 
   // Una terna de solicitaciones sobre una barra. s = +1 la que sale, s = −1 la
@@ -538,7 +538,7 @@ function bloqueQuiebre(R, grupos, gg, info){
   const {N0, V0, M0} = info.ctes;
   const nn = escLatex(gg.desde.nombre), np = escLatex(prev.recorrido);
   const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
-  const g = (D*180/Math.PI).toFixed(1);
+  const g = dec(D*180/Math.PI,'ang');
   const ang = anguloQuiebre(u1, u2, D);
   const ejeTxt = v => (v ? 'vertical' : 'horizontal');
   const recto90 = ang.modo === 'recto' && Math.abs(ang.grados - 90) < 1;
@@ -563,11 +563,11 @@ function bloqueQuiebre(R, grupos, gg, info){
        + (enNudo.length ? ', en rojo y violeta las cargas del nudo' : '') + '. ' + fraseAng + '}\\end{center}\\vspace{2pt}\n';
   let proy;
   if(ang.modo === 'eje')
-    proy = 'Proyectando con $\\theta = ' + ang.phi.toFixed(1) + '^\\circ$ (ángulo de la barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ' con la ' + ejeTxt(ang.desdeV) + '):';
+    proy = 'Proyectando con $\\theta = ' + dec(ang.phi,'ang') + '^\\circ$ (ángulo de la barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ' con la ' + ejeTxt(ang.desdeV) + '):';
   else if(ang.modo === 'recto')
     proy = 'La barra nueva es ' + (recto90 ? 'perpendicular' : 'paralela') + ' a la anterior ($\\theta = ' + ang.grados.toFixed(0) + '^\\circ$), así que:';
   else
-    proy = 'Con $\\theta_1 = ' + ang.phi1.toFixed(1) + '^\\circ$ (' + ejeTxt(ang.desdeV1) + ') y $\\theta_2 = ' + ang.phi2.toFixed(1) + '^\\circ$ (' + ejeTxt(ang.desdeV2)
+    proy = 'Con $\\theta_1 = ' + dec(ang.phi1,'ang') + '^\\circ$ (' + ejeTxt(ang.desdeV1) + ') y $\\theta_2 = ' + dec(ang.phi2,'ang') + '^\\circ$ (' + ejeTxt(ang.desdeV2)
          + '), el giro entre barras es $\\theta = ' + (D < 0 ? '-' : '') + (ang.rel ? '(' + ang.rel + ') = ' : '') + g + '^\\circ$'
          + (D < 0 ? ' (negativo: horario)' : '') + '. Proyectando:';
   out += '\\noindent{\\footnotesize Al final del tramo ' + np + ': $N^- = ' + dec(Nm,'fuerza')
@@ -652,7 +652,7 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
     });
     if(filasP.length){
       out += '\\noindent{\\footnotesize Cada fuerza se proyecta sobre el eje del tramo y sobre su '
-        + 'normal, con $\\theta = ' + gg.ang.toFixed(1) + '^\\circ$ ($F_{\\perp}$ positiva hacia '
+        + 'normal, con $\\theta = ' + dec(gg.ang,'ang') + '^\\circ$ ($F_{\\perp}$ positiva hacia '
         + 'arriba de la normal, $F_{\\parallel}$ en el sentido de avance):}\n';
       out += _alineada(filasP);
     }

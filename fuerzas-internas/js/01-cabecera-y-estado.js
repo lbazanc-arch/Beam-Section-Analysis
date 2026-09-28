@@ -53,7 +53,7 @@ let gesto = null;   // gesto unificado del botón "Mover / editar" (criterio cap
 const UMBRAL_ARRASTRE = 4, UMBRAL_MANTENER_MS = 450;
 let R = null;
 let unitLen = 'm', unitFor = 'kN';
-let DEC = {len:2, fuerza:2, momento:2};
+let DEC = {len:2, fuerza:2, momento:2, ang:2};
 let cv, ctx, W = 0, H = 0, vx = 0, vy = 0, escala = 60;
 let panDrag = null, mouseW = null;
 
@@ -114,7 +114,10 @@ function anguloApoyo(n){
 const NOMBRE_APOYO = {libre:'Libre', movil:'Móvil', simple:'Simple / articulado', empotrado:'Empotrado'};
 
 function dec(v,t){
-  const d = t==='len' ? DEC.len : (t==='mom' ? DEC.momento : DEC.fuerza);
+  // 'mom' y 'momento' son lo mismo: el PDF escribe 'momento' y aquí solo se
+  // conocía 'mom', así que sus momentos salían con los decimales de FUERZA.
+  const d = t==='len' ? DEC.len : ((t==='mom' || t==='momento') ? DEC.momento
+          : (t==='ang' ? DEC.ang : DEC.fuerza));
   const n = Number(v);
   if(!isFinite(n)) return '0';
   return (Math.abs(n) < 5e-11 ? 0 : n).toFixed(d);

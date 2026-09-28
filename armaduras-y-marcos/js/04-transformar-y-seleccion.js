@@ -95,7 +95,7 @@ function descDirApoyo(a){
   if(Math.abs(v + 90) < 0.01) return 'bajo el techo';
   if(Math.abs(v) < 0.01) return 'contra la pared izquierda';
   if(Math.abs(Math.abs(v) - 180) < 0.01) return 'contra la pared derecha';
-  return 'apoyado a ' + dec(bsaAnguloOpuesto(v),'f') + '°';
+  return 'apoyado a ' + dec(bsaAnguloOpuesto(v),'ang') + '°';
 }
 // Texto largo (modal, caja de información del nudo).
 function descApoyoLargo(n){
@@ -296,7 +296,7 @@ function actualizarPrevTrans(){
       + dec(t.dx,'len') + ' ; ' + dec(t.dy,'len') + ') ' + unitLen
       + ', midiendo desde ' + t.ref.nombre + '.';
   } else {
-    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) giran ' + t.ang
+    p.textContent = 'Los ' + t.destinos.length + ' nudo(s) giran ' + dec(t.ang,'ang')
       + '° alrededor de ' + t.ref.nombre + ' (' + dec(t.ref.x,'len') + ' ; '
       + dec(t.ref.y,'len') + ') ' + unitLen + '.';
   }

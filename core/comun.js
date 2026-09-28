@@ -423,10 +423,11 @@ function bsaAnguloAgudoEje(ux, uy){
 }
 
 // Como se dice esa direccion en pantalla: '45.00° de la vertical'. Usa el
-// `dec(v,'f')` del tema que lo llama (los mismos decimales que las fuerzas).
+// `dec(v,'ang')` del tema que lo llama: los decimales de ANGULOS de su ventana
+// (hasta el 2026-09-27 eran los de las fuerzas).
 function bsaTextoAnguloAgudo(ux, uy){
   const a = bsaAnguloAgudoEje(ux, uy);
-  return dec(a.grados,'f') + '° de la ' + (a.desdeV ? 'vertical' : 'horizontal');
+  return dec(a.grados,'ang') + '° de la ' + (a.desdeV ? 'vertical' : 'horizontal');
 }
 // Arco del angulo de una reaccion inclinada en el LIENZO, en la cola de su
 // flecha (coordenadas de pantalla, y hacia abajo): entre el eje mas cercano
@@ -453,7 +454,7 @@ function bsaArcoReaccion(ctx, x0, y0, ex, ey, col){
   const haciaDerecha = sx < 0;
   ctx.font = '700 10px Inter, sans-serif'; ctx.textBaseline = 'middle';
   ctx.textAlign = haciaDerecha ? 'left' : 'right';
-  ctx.fillText(dec(ag.grados,'f') + '°', x0 + 26*tx + 14*qx, y0 + 26*ty + 14*qy);
+  ctx.fillText(dec(ag.grados,'ang') + '°', x0 + 26*tx + 14*qx, y0 + 26*ty + 14*qy);
   ctx.restore();
   return true;
 }

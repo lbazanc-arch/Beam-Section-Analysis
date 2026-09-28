@@ -386,7 +386,7 @@ function dibujarCroquisTramo(){
     // ángulo
     const r=22, a0=0, a1=Math.atan2(-(by-ay), bx-ax);
     s+='<path d="M '+(ax+r)+' '+ay+' A '+r+' '+r+' 0 0 '+(a1>0?0:1)+' '+(ax+r*Math.cos(a1))+' '+(ay-r*Math.sin(a1))+'" fill="none" stroke="#8b5cf6" stroke-width="1.4"/>';
-    s+='<text x="'+(ax+r+4)+'" y="'+(ay-6)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#8b5cf6">'+g.ang.toFixed(1)+'°</text>';
+    s+='<text x="'+(ax+r+4)+'" y="'+(ay-6)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#8b5cf6">'+dec(g.ang,'ang')+'°</text>';
   }
   // el tramo
   s+='<line x1="'+ax+'" y1="'+ay+'" x2="'+bx+'" y2="'+by+'" stroke="#1e3a8a" stroke-width="5" stroke-linecap="round"/>';

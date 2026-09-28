@@ -186,9 +186,9 @@ function _textoDireccion(u){
   const d = direccionIncognita(u);
   const agudo = bsaAnguloAgudoEje(d.x, d.y).grados < 1e-6 ? '' : ' (a ' + bsaTextoAnguloAgudo(d.x, d.y) + ')';
   if(u.tipo==='T') return (u.n.tope && u.n.tope.modo === 'angulo')
-    ? 'tope desde ' + dec(bsaAnguloOpuesto(u.n.tope.ang, true),'f') + '°' : 'tope ⟂' + agudo;
+    ? 'tope desde ' + dec(bsaAnguloOpuesto(u.n.tope.ang, true),'ang') + '°' : 'tope ⟂' + agudo;
   return (u.n.apModo === 'normal') ? 'móvil ⟂' + agudo
-    : 'móvil apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng===undefined?90:u.n.apAng),'f') + '°';
+    : 'móvil apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng===undefined?90:u.n.apAng),'ang') + '°';
 }
 function pintarListas(){
   const lt=document.getElementById('listaTramos');
@@ -899,7 +899,7 @@ function textoDecimales(){
 }
 
 function openDecModal(){
-  fillDec('selDecLen',DEC.len); fillDec('selDecFor',DEC.fuerza);
+  fillDec('selDecLen',DEC.len); fillDec('selDecFor',DEC.fuerza); fillDec('selDecAng',DEC.ang);
   updateDecPreview(); document.getElementById('decModal').classList.add('show');
 }
 function closeDecModal(){ document.getElementById('decModal').classList.remove('show'); }
@@ -908,10 +908,12 @@ function updateDecPreview(){
   const a = document.getElementById('dpL'), b2 = document.getElementById('dpF');
   if(a) a.textContent = (3.14159).toFixed(g('selDecLen'))+' '+unitLen;
   if(b2) b2.textContent = (58.9231).toFixed(g('selDecFor'))+' '+unitFor;
+  const a3 = document.getElementById('dpA');
+  if(a3) a3.textContent = (33.69007).toFixed(g('selDecAng'))+'\u00b0';
 }
 function applyDecModal(){
   const g = id => { const e = document.getElementById(id); return e?(parseInt(e.value,10)||0):2; };
-  DEC = {len:g('selDecLen'), fuerza:g('selDecFor')};
+  DEC = {len:g('selDecLen'), fuerza:g('selDecFor'), ang:g('selDecAng')};
   document.getElementById('chipDec').textContent = textoDecimales();
   closeDecModal();
   if(R && !R.error) calcular(); else refrescar();

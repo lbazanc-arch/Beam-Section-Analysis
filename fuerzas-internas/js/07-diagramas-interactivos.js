@@ -117,7 +117,7 @@ function _svgArcoReaccion(x0, y0, ex, ey, col){
   let qx = -ty, qy = tx; if(qx*sx + qy*sy > 0){ qx = -qx; qy = -qy; }
   let s = '<line x1="'+F(x0)+'" y1="'+F(y0)+'" x2="'+F(x0+22*tx)+'" y2="'+F(y0+22*ty)+'" stroke="'+col+'" stroke-width="1" stroke-dasharray="3,3"/>';
   s += '<path d="M '+F(x0+r*Math.cos(a0))+' '+F(y0+r*Math.sin(a0))+' A '+r+' '+r+' 0 0 '+(d > 0 ? 1 : 0)+' '+F(x0+r*Math.cos(a1))+' '+F(y0+r*Math.sin(a1))+'" fill="none" stroke="'+col+'" stroke-width="1.2"/>';
-  s += '<text x="'+F(x0+22*tx+12*qx)+'" y="'+F(y0+22*ty+12*qy+3)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'+col+'" text-anchor="'+(sx < 0 ? 'start' : 'end')+'">'+dec(ag.grados,'f')+'°</text>';
+  s += '<text x="'+F(x0+22*tx+12*qx)+'" y="'+F(y0+22*ty+12*qy+3)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'+col+'" text-anchor="'+(sx < 0 ? 'start' : 'end')+'">'+dec(ag.grados,'ang')+'°</text>';
   return s;
 }
 function svgDCLGlobal(r){

@@ -17,7 +17,7 @@ function _angulosArm(angulos){
   if(!angulos || !angulos.length) return '';
   const vistas = [];
   angulos.forEach(a=>{ if(a.letra && !vistas.some(v=>v.letra === a.letra)) vistas.push(a); });
-  return ' \\\'Angulos: ' + vistas.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'f') + '^{\\circ}$').join(', ') + '.';
+  return ' \\\'Angulos: ' + vistas.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'ang') + '^{\\circ}$').join(', ') + '.';
 }
 
 function _primeraVezArm(clave){
@@ -261,7 +261,7 @@ function construirLatex(){
     // que no estaba en ninguna figura. La letra es la que le dio la figura.
     const agR = bsaAnguloAgudoEje(ca, sa);
     const letraR = (_angulosFigura.find(a => a.letra && Math.abs(a.valor - agR.grados) < 0.15) || {}).letra || '\\theta';
-    const gradosR = dec(agR.grados,'f') + '^{\\circ}';
+    const gradosR = dec(agR.grados,'ang') + '^{\\circ}';
     const ejeRefR = agR.desdeV ? 'vertical' : 'horizontal';
     // Desde la horizontal, x lleva cos e y sen; desde la vertical, al revés.
     const fnTrig = comp => (((comp === 'x') !== agR.desdeV) ? '\\cos' : '\\operatorname{sen}');
@@ -358,7 +358,7 @@ function construirLatex(){
       // Su dirección se da como en la figura y en las ecuaciones: el ángulo
       // agudo con el eje más cercano, no el de 0 a 360 del modelo.
       const agT = bsaAnguloAgudoEje(Math.cos(rc.ang*Math.PI/180), Math.sin(rc.ang*Math.PI/180));
-      filasReac += '$R_{' + nomN(n) + '}$ {\\footnotesize(a ' + dec(agT.grados,'f') + '$^{\\circ}$ de la '
+      filasReac += '$R_{' + nomN(n) + '}$ {\\footnotesize(a ' + dec(agT.grados,'ang') + '$^{\\circ}$ de la '
         + (agT.desdeV ? 'vertical' : 'horizontal') + ')} & $'
         + dec(rc.mag,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(rc.rx, rc.ry) + ' \\\\\n';
     }

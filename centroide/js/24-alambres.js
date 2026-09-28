@@ -324,14 +324,14 @@ function renderResultsAlambre(res){
   res.steps.forEach((s,i)=>{
     const nom = s.fig.etiqueta || s.fig.name || FIG_DEFS[s.fig.type].name;
     const fr = formulaLinea(s.fig, false);
-    const eqL = fr.sus ? `${fr.sim.replace(/ \\quad .*$/, '')} = ${fr.sus} = ${kres(ftex(s.l) + '\\,' + U)}`
-                       : `L_i = ${kres(ftex(s.l) + '\\,' + U)}`;
+    const eqL = fr.sus ? `${fr.sim.replace(/ \\quad .*$/, '')} = ${fr.sus} = ${kres(decStr(s.l,'len') + '\\,' + U)}`
+                       : `L_i = ${kres(decStr(s.l,'len') + '\\,' + U)}`;
     html += `<div class="fig-card"><div class="fig-card-datos">
         <div class="fig-card-h"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s.fig.color}"></span><b>${i+1}. ${esc(nom)}</b>${Math.abs(s.fig.rotation||0) >= 0.5 ? ` <span style="color:var(--muted);font-weight:500">· α = ${nL(s.fig.rotation)}°</span>` : ''}</div>
         <div class="eq-row"><div class="eq-body">${kx(eqL)}</div></div>
-        ${fr.c ? `<div class="eq-row"><div class="eq-body">${kx(fr.c + ' = ' + kres(ftex(fr.cVal) + '\\,' + U))}</div></div>` : ''}
+        ${fr.c ? `<div class="eq-row"><div class="eq-body">${kx(fr.c + ' = ' + kres(decStr(fr.cVal,'len') + '\\,' + U))}</div></div>` : ''}
         <table class="fig-tabla"><thead><tr><th>Magnitud</th><th>Símbolo</th><th style="text-align:right">Valor</th><th>Unidad</th></tr></thead><tbody>
-          <tr><td>Longitud</td><td><i>L<sub>i</sub></i></td><td class="v">${f(s.l)}</td><td>${u1}</td></tr>
+          <tr><td>Longitud</td><td><i>L<sub>i</sub></i></td><td class="v">${nL(s.l)}</td><td>${u1}</td></tr>
           <tr><td>Centroide x</td><td><i>x̃<sub>i</sub></i></td><td class="v">${nL(s.xi)}</td><td>${u1}</td></tr>
           <tr><td>Centroide y</td><td><i>ỹ<sub>i</sub></i></td><td class="v">${nL(s.yi)}</td><td>${u1}</td></tr>
         </tbody></table></div>
@@ -346,21 +346,21 @@ function renderResultsAlambre(res){
   res.steps.forEach((s,i)=>{
     const nom = s.fig.etiqueta || s.fig.name || FIG_DEFS[s.fig.type].name;
     html += `<tr><td>${i+1}</td><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.fig.color};margin-right:5px"></span>${esc(nom)}</td>
-      <td class="v">${f(s.l)}</td><td class="v">${nL(s.xi)}</td><td class="v">${nL(s.yi)}</td><td class="v">${f(s.lx)}</td><td class="v">${f(s.ly)}</td></tr>`;
+      <td class="v">${nL(s.l)}</td><td class="v">${nL(s.xi)}</td><td class="v">${nL(s.yi)}</td><td class="v">${f(s.lx)}</td><td class="v">${f(s.ly)}</td></tr>`;
   });
-  html += `<tr class="fila-total"><td colspan="2">Σ (Total)</td><td class="v">${f(res.L)}</td><td>—</td><td>—</td><td class="v">${f(res.Qy)}</td><td class="v">${f(res.Qx)}</td></tr>
+  html += `<tr class="fila-total"><td colspan="2">Σ (Total)</td><td class="v">${nL(res.L)}</td><td>—</td><td>—</td><td class="v">${f(res.Qy)}</td><td class="v">${f(res.Qx)}</td></tr>
     </tbody></table></div></div>`;
 
   html += `<div class="res-section"><div class="res-section-title"><div class="num">3</div>Centroide del alambre</div>
     <div class="proc-block proc-cols">
       <div class="proc-col"><div class="proc-sub">Longitud total</div>
-        <div class="eq-row"><div class="eq-body">${kx(`L = \\sum L_{i} = ${kres(ftex(res.L) + '\\,' + U)}`)}</div></div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`L = \\sum L_{i} = ${kres(decStr(res.L,'len') + '\\,' + U)}`)}</div></div></div>
       <div class="proc-col"><div class="proc-sub">Coordenadas del centroide C</div>
-        <div class="eq-row"><div class="eq-body">${kx(`\\bar{x} = \\dfrac{\\sum L_{i}\\tilde{x}_{i}}{\\sum L_{i}} = \\dfrac{${ftex(res.Qy)}}{${ftex(res.L)}} = ${kres(ftex(res.xbar) + '\\,' + U)}`)}</div></div>
-        <div class="eq-row"><div class="eq-body">${kx(`\\bar{y} = \\dfrac{\\sum L_{i}\\tilde{y}_{i}}{\\sum L_{i}} = \\dfrac{${ftex(res.Qx)}}{${ftex(res.L)}} = ${kres(ftex(res.ybar) + '\\,' + U)}`)}</div></div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`\\bar{x} = \\dfrac{\\sum L_{i}\\tilde{x}_{i}}{\\sum L_{i}} = \\dfrac{${ftex(res.Qy)}}{${decStr(res.L,'len')}} = ${kres(decStr(res.xbar,'len') + '\\,' + U)}`)}</div></div>
+        <div class="eq-row"><div class="eq-body">${kx(`\\bar{y} = \\dfrac{\\sum L_{i}\\tilde{y}_{i}}{\\sum L_{i}} = \\dfrac{${ftex(res.Qx)}}{${decStr(res.L,'len')}} = ${kres(decStr(res.ybar,'len') + '\\,' + U)}`)}</div></div></div>
     </div>
     <div class="summary-grid">
-      <div class="summary-box"><div class="s-lbl">Longitud total L</div><div class="s-val">${f(res.L)}</div><div class="s-unit">${u1}</div></div>
+      <div class="summary-box"><div class="s-lbl">Longitud total L</div><div class="s-val">${nL(res.L)}</div><div class="s-unit">${u1}</div></div>
       <div class="summary-box highlight"><div class="s-lbl">x̄</div><div class="s-val">${nL(res.xbar)}</div><div class="s-unit">${u1}</div></div>
       <div class="summary-box highlight"><div class="s-lbl">ȳ</div><div class="s-val">${nL(res.ybar)}</div><div class="s-unit">${u1}</div></div>
       <div class="summary-box"><div class="s-lbl">Tramos</div><div class="s-val">${res.steps.length}</div><div class="s-unit">—</div></div>
@@ -649,10 +649,10 @@ function construirLatexAlambre(){
   // ══ 4. Paso 3: centroide ══
   tex += '\\seccion{4. Paso 3 --- Centroide del alambre}\n';
   tex += '\\noindent Con las sumas de la Tabla ' + tNumL + ':\n';
-  tex += '\\[ L = \\sum L_i = ' + ftex(results.L) + U1 + ' \\]\n';
-  tex += '\\[ \\bar{x} = \\dfrac{\\sum L_i\\tilde{x}_i}{\\sum L_i} = \\dfrac{' + ftex(results.Qy) + '}{' + ftex(results.L) + '} = '
+  tex += '\\[ L = \\sum L_i = ' + decP(results.L,'len') + U1 + ' \\]\n';
+  tex += '\\[ \\bar{x} = \\dfrac{\\sum L_i\\tilde{x}_i}{\\sum L_i} = \\dfrac{' + ftex(results.Qy) + '}{' + decP(results.L,'len') + '} = '
     + decP(results.xbar,'len') + U1 + ' \\qquad '
-    + '\\bar{y} = \\dfrac{\\sum L_i\\tilde{y}_i}{\\sum L_i} = \\dfrac{' + ftex(results.Qx) + '}{' + ftex(results.L) + '} = '
+    + '\\bar{y} = \\dfrac{\\sum L_i\\tilde{y}_i}{\\sum L_i} = \\dfrac{' + ftex(results.Qx) + '}{' + decP(results.L,'len') + '} = '
     + decP(results.ybar,'len') + U1 + ' \\]\n';
   tex += porque('cociente-l',
     'Dividir el momento de primer orden total entre la longitud total da la posición en la que habría que concentrar '
@@ -718,7 +718,7 @@ function construirLatexAlambre(){
   tex += tablaCaption('Resultados.');
   tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{lcc}\\hline\n'
     + '\\textbf{Magnitud} & \\textbf{Valor} & \\textbf{Unidad} \\\\\\hline\n'
-    + 'Longitud total $L$ & $' + ftex(results.L) + '$ & ' + uTxt + ' \\\\\n'
+    + 'Longitud total $L$ & $' + decP(results.L,'len') + '$ & ' + uTxt + ' \\\\\n'
     + 'Centroide $\\bar{x}$ & $' + decP(results.xbar,'len') + '$ & ' + uTxt + ' \\\\\n'
     + 'Centroide $\\bar{y}$ & $' + decP(results.ybar,'len') + '$ & ' + uTxt + ' \\\\\n'
     + '\\hline\\end{tabular}\\end{tablacentrada}}\n';

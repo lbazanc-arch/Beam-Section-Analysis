@@ -71,7 +71,7 @@ function textoDecimales(){
 }
 
 function openDecModal(){
-  fillDec('selDecLen', DEC.len); fillDec('selDecFor', DEC.fuerza);
+  fillDec('selDecLen', DEC.len); fillDec('selDecFor', DEC.fuerza); fillDec('selDecAng', DEC.ang);
   updateDecPreview();
   document.getElementById('decModal').classList.add('show');
 }
@@ -81,10 +81,12 @@ function updateDecPreview(){
   const eL = document.getElementById('dpL'), eF = document.getElementById('dpF');
   if(eL) eL.textContent = (4.23456).toFixed(g('selDecLen')) + ' ' + unitLen;
   if(eF) eF.textContent = (18.76543).toFixed(g('selDecFor')) + ' ' + unitFor;
+  const eA = document.getElementById('dpA');
+  if(eA) eA.textContent = (33.69007).toFixed(g('selDecAng')) + '\u00b0';
 }
 function applyDecModal(){
   const g = id => { const e = document.getElementById(id); return e ? (parseInt(e.value,10)||0) : 2; };
-  DEC = {len:g('selDecLen'), fuerza:g('selDecFor')};
+  DEC = {len:g('selDecLen'), fuerza:g('selDecFor'), ang:g('selDecAng')};
   document.getElementById('chipDec').textContent = textoDecimales();
   closeDecModal();
   if(resultado) resolver(); else refrescar();

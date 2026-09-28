@@ -416,7 +416,7 @@ function _reservarArcoReaccion(x0, y0, ex, ey){
   const sx = Math.cos(a1), sy = Math.sin(a1), tx = rx, ty = -ry;
   let qx = -ty, qy = tx;
   if(qx*sx + qy*sy > 0){ qx = -qx; qy = -qy; }
-  const txt = dec(ag.grados,'f') + '°';
+  const txt = dec(ag.grados,'ang') + '°';
   ctx.save(); ctx.font = '700 10px Inter, sans-serif';
   const w = ctx.measureText(txt).width;
   ctx.restore();
