@@ -591,7 +591,10 @@ function centrar(){
   const dx=Math.max(x1-x0,0.5), dy=Math.max(y1-y0,0.5);
   // Margen amplio: los diagramas de presión, las resultantes y sus cotas
   // salen de la compuerta por los dos lados.
-  escala=Math.max(2,Math.min(Math.min((W-340)/dx,(H-170)/dy),900));
+  // Bajo la base de una presa van sus cotas, N, F y d: unos 135 px más.
+  const bajo = vp.length ? 135 : 0;
+  escala=Math.max(2,Math.min(Math.min((W-340)/dx,(H-170-bajo)/dy),900));
+  vy -= bajo/2/escala;
   dibujar();
 }
 

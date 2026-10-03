@@ -851,7 +851,7 @@ function dibujar(){
   // Resultante única y cotas, después de todo lo demás: así su sitio se elige
   // viendo ya la compuerta, los diagramas, las reacciones y las cotas z_P.
   if(R && !R.error && VIS.resUnica) dibujarResultanteUnica();
-  if(VIS.cotas) dibujarCotasCompuerta();
+  if(VIS.cotas){ dibujarCotasCompuerta(); dibujarCotasPresas(); }
 
   // Los textos, al final: ya está registrada toda la geometría del repintado.
   _pintarRotulos();
