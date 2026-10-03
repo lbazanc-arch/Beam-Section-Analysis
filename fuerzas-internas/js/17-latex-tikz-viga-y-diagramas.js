@@ -473,63 +473,38 @@ function tikzViga(conReacciones, sel){
     return out + rotulos;
   }
 
-  // ── Figura del modelo: primero las posiciones de las cargas (niveles
-  //    interiores), después la cadena de nudos, y por último la luz total.
-  //    Mismo orden que en el panel, para que el alumno lea igual las dos.
+  // ── Cotas de la figura del modelo (2026-10-03, el criterio del lienzo,
+  //    adoptado por el profesor): cada cadena en el primer carril libre
+  //    (tzCadenaLibre, 15-), con puntas y valores derechos. La de nudos y la luz
+  //    total, DEBAJO; la de las posiciones de las cargas del tramo elegido,
+  //    ENCIMA, por encima de los valores de las cargas, para que no se apilen
+  //    con la de nudos. En vertical, todo a la derecha: cargas, nudos y total,
+  //    de dentro afuera. ──
   const ext = tzExtension();
-  let base = Math.min(minY - 0.75, ext.y0 - 0.40);
-
-  const xsCargas = [...new Set(xsDeCargas().map(v=>+v.toFixed(6)))];
-  const xsNodos  = [...new Set(nodos.map(n=>+n.x.toFixed(6)))];
-  const aporta = xsCargas.some(v => !xsNodos.some(q => Math.abs(Xn(q)-Xn(v)) < 0.10));
-  if(aporta){
-    const todos = [...new Set(xsCargas.concat([Math.min(...xsNodos), Math.max(...xsNodos)])
-                    .map(v=>+v.toFixed(6)))];
-    const cc = tzCadenaCotas(todos, Xn, base, 'bsaDist', {maxNiveles:3});
-    if(cc.nMax >= 0){ out += cc.tikz; base -= 0.40 + (cc.nMax+1)*0.36; }
-  }
-  const cn = tzCadenaCotas(xsNodos, Xn, base, 'bsaMuted', {maxNiveles:4});
-  if(cn.nMax >= 0){
-    out += cn.tikz;
-    base -= 0.44 + (cn.nMax+1)*0.36;
-    // Luz total, solo si hay más de un vano: con uno repetiría la cadena.
-    if(cn.nMax >= 0 && xsNodos.length > 2){
-      const xa = Xn(Math.min(...xsNodos)), xb = Xn(Math.max(...xsNodos));
-      out += '\\draw[bsaAcc, line width=.6pt, {Latex[length=1.4mm]}-{Latex[length=1.4mm]}] ('
-           + xa.toFixed(3) + ',' + base.toFixed(3) + ') -- (' + xb.toFixed(3) + ',' + base.toFixed(3) + ');\n';
-      out += tzTextoFijo((xa+xb)/2, base, dec(Math.max(...xsNodos)-Math.min(...xsNodos),'len')
-           + '\\,' + escLatex(unitLen), 'font=\\scriptsize, color=bsaAcc');
+  const distintos = vs => [...new Set(vs.map(v=>+v.toFixed(6)))];
+  const xsNodos = nodos.map(n=>n.x), ysNodos = nodos.map(n=>n.y);
+  const x0n = Math.min(...xsNodos), x1n = Math.max(...xsNodos);
+  const y0n = Math.min(...ysNodos), y1n = Math.max(...ysNodos);
+  const cn = tzCadenaLibre(xsNodos, 'x', {pos:Xn, lado:-1, borde:ext.y0, desde:Yn(y0n) - 0.10, color:'bsaMuted'});
+  out += cn.tikz;
+  if(distintos(xsNodos).length > 2)
+    out += tzCadenaLibre([x0n, x1n], 'x', {pos:Xn, lado:-1, borde:cn.lejos, color:'bsaAcc'}).tikz;
+  const xsCargas = distintos(xsDeCargas());
+  if(xsCargas.some(v => !xsNodos.some(q => Math.abs(Xn(q)-Xn(v)) < 0.10)))
+    out += tzCadenaLibre(xsCargas.concat([x0n, x1n]), 'x', {pos:Xn, lado:1, borde:ext.y1, color:'bsaDist'}).tikz;
+  if(distintos(ysNodos).length > 1){
+    // a la derecha: primero la de las cargas del tramo elegido (la más cercana),
+    // después la de nudos y por fuera la total
+    let bDer = ext.x1;
+    const ysCargas = distintos(ysDeCargas());
+    if(ysCargas.some(v => !ysNodos.some(q => Math.abs(Yn(q)-Yn(v)) < 0.10))){
+      const cyc = tzCadenaLibre(ysCargas.concat([y0n, y1n]), 'y', {pos:Yn, lado:1, borde:bDer, color:'bsaDist'});
+      out += cyc.tikz; bDer = cyc.lejos;
     }
-  }
-
-  // ── Cotas verticales: solo si la viga tiene desnivel. Se colocan a la
-  //    derecha del dibujo, primero las cargas y después los nudos.
-  const ysNodos = [...new Set(nodos.map(n=>+n.y.toFixed(6)))];
-  if(ysNodos.length > 1){
-    let baseX = Math.max(Math.max(...nodos.map(n=>Xn(n.x))) + 0.55, ext.x1 + 0.45);
-    const ysCargas = [...new Set(ysDeCargas().map(v=>+v.toFixed(6)))];
-    const aportaY = ysCargas.some(v => !ysNodos.some(q => Math.abs(Yn(q)-Yn(v)) < 0.10));
-    if(aportaY){
-      const todosY = [...new Set(ysCargas.concat([Math.min(...ysNodos), Math.max(...ysNodos)])
-                       .map(v=>+v.toFixed(6)))];
-      const cy = tzCadenaCotasY(todosY, Yn, baseX, 'bsaDist', {maxNiveles:3});
-      if(cy.nMax >= 0){ out += cy.tikz; baseX += 0.30 + (cy.nMax+1)*0.38; }
-    }
-    const cyn = tzCadenaCotasY(ysNodos, Yn, baseX, 'bsaMuted', {maxNiveles:4});
-    if(cyn.nMax >= 0){
-      out += cyn.tikz;
-      baseX += 0.38 + (cyn.nMax+1)*0.38;
-      if(ysNodos.length > 2){
-        const ya = Yn(Math.min(...ysNodos)), yb = Yn(Math.max(...ysNodos));
-        out += '\\draw[bsaAcc, line width=.6pt, {Latex[length=1.4mm]}-{Latex[length=1.4mm]}] ('
-             + baseX.toFixed(3) + ',' + ya.toFixed(3) + ') -- ('
-             + baseX.toFixed(3) + ',' + yb.toFixed(3) + ');\n';
-        out += '\\node[rotate=90, font=\\scriptsize, color=bsaAcc, fill=white, inner sep=1pt] at ('
-             + baseX.toFixed(3) + ',' + ((ya+yb)/2).toFixed(3) + ') {'
-             + dec(Math.max(...ysNodos)-Math.min(...ysNodos),'len') + '\\,'
-             + escLatex(unitLen) + '};\n';
-      }
-    }
+    const cyn = tzCadenaLibre(ysNodos, 'y', {pos:Yn, lado:1, borde:bDer, desde:Xn(x1n) + 0.10, color:'bsaMuted'});
+    out += cyn.tikz;
+    if(distintos(ysNodos).length > 2)
+      out += tzCadenaLibre([y0n, y1n], 'y', {pos:Yn, lado:1, borde:cyn.lejos, color:'bsaAcc'}).tikz;
   }
   return out + rotulos;
 }

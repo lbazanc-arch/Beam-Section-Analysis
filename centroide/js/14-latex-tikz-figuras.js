@@ -356,8 +356,13 @@ function tikzMedirTexto(t){ return String(t).length * 0.09; }
 
 // borde: coordenada (en cm de TikZ) donde arranca la línea de referencia,
 // es decir el canto del dibujo. Sin ella la cota no dice de qué punto sale.
+// Desde el 2026-10-03, el aspecto de presión de fluidos (como el lienzo, 18-):
+// punta en los dos extremos de cada tramo y valores verticales DERECHOS, con
+// los niveles de la vertical separados lo que mide su texto más ancho
+// (`saltoY`, que se devuelve para que la cota total se aparte lo justo).
 function tikzCadenaCotas(valores, proy, eje, base, borde){
-  const plan = planCotas(valores, proy, tikzMedirTexto, TIKZ_COTA);
+  const plan = eje === 'y' ? planCotas(valores, proy, () => 0.24, TIKZ_COTA)
+                           : planCotas(valores, proy, tikzMedirTexto, TIKZ_COTA);
   if(!plan) return {tex:'', nMax:0, plan:null};
   const n = v => v.toFixed(3);
   const q = plan.coords.map(v=>proy(v));
@@ -377,13 +382,16 @@ function tikzCadenaCotas(valores, proy, eje, base, borde){
   if(eje==='x') s += '\\draw[black!65, line width=0.35pt] (' + n(ini) + ',' + n(base) + ') -- (' + n(fin) + ',' + n(base) + ');\n';
   else          s += '\\draw[black!65, line width=0.35pt] (' + n(base) + ',' + n(ini) + ') -- (' + n(base) + ',' + n(fin) + ');\n';
 
-  // marcas oblicuas en cada borde conservado
-  const T = 0.09;
-  plan.coords.forEach(v=>{
-    const w = proy(v);
-    if(eje==='x') s += '\\draw[black!65, line width=0.35pt] (' + n(w-T) + ',' + n(base-T) + ') -- (' + n(w+T) + ',' + n(base+T) + ');\n';
-    else          s += '\\draw[black!65, line width=0.35pt] (' + n(base-T) + ',' + n(w-T) + ') -- (' + n(base+T) + ',' + n(w+T) + ');\n';
-  });
+  // punta en los dos extremos de cada tramo (un punto si es demasiado corto)
+  const ord = q.slice().sort((a,b)=>a-b);
+  for(let i=0;i<ord.length-1;i++){
+    const a = ord[i], b = ord[i+1];
+    if(b - a >= 0.28){
+      if(eje==='x') s += '\\draw[black!65, line width=0.35pt, {Stealth[length=1.3mm]}-{Stealth[length=1.3mm]}] (' + n(a) + ',' + n(base) + ') -- (' + n(b) + ',' + n(base) + ');\n';
+      else          s += '\\draw[black!65, line width=0.35pt, {Stealth[length=1.3mm]}-{Stealth[length=1.3mm]}] (' + n(base) + ',' + n(a) + ') -- (' + n(base) + ',' + n(b) + ');\n';
+    } else [a, b].forEach(w=>{ s += '\\fill[black!65] (' + (eje==='x' ? n(w) + ',' + n(base) : n(base) + ',' + n(w)) + ') circle (0.6pt);\n'; });
+  }
+  const saltoY = eje === 'y' ? Math.max(...plan.segs.map(sg=>tikzMedirTexto(sg.txt))) + 0.20 : TIKZ_SALTO;
 
   // etiquetas escalonadas, siempre alejándose del dibujo
   plan.segs.forEach(sg=>{
@@ -394,12 +402,13 @@ function tikzCadenaCotas(valores, proy, eje, base, borde){
       s += '\\draw[black!40, line width=0.2pt] (' + n(sg.centro) + ',' + n(base-0.04) + ') -- (' + n(sg.centro) + ',' + n(y+0.10) + ');\n';
       s += '\\node[font=\\tiny, inner sep=0.6pt, fill=white] at (' + n(sg.centro) + ',' + n(y) + ') {' + sg.txt + '};\n';
     } else {
-      const x = base + d;
-      s += '\\draw[black!40, line width=0.2pt] (' + n(base+0.04) + ',' + n(sg.centro) + ') -- (' + n(x-0.10) + ',' + n(sg.centro) + ');\n';
-      s += '\\node[font=\\tiny, inner sep=0.6pt, fill=white, rotate=90] at (' + n(x) + ',' + n(sg.centro) + ') {' + sg.txt + '};\n';
+      // derecho, junto a la línea; cada nivel se aparta lo que mide el texto
+      const x = base + 0.10 + sg.nivel*saltoY;
+      if(sg.nivel > 0) s += '\\draw[black!40, line width=0.2pt] (' + n(base+0.04) + ',' + n(sg.centro) + ') -- (' + n(x-0.04) + ',' + n(sg.centro) + ');\n';
+      s += '\\node[font=\\tiny, inner sep=0.6pt, fill=white, anchor=west] at (' + n(x) + ',' + n(sg.centro) + ') {' + sg.txt + '};\n';
     }
   });
-  return {tex:s, nMax:plan.nMax, plan};
+  return {tex:s, nMax:plan.nMax, plan, saltoY};
 }
 
 function tikzCotasCompuesta(cajaMundo, tx, ty){
@@ -430,12 +439,12 @@ function tikzCotasCompuesta(cajaMundo, tx, ty){
      + n((px(cajaMundo.left)+px(cajaMundo.right))/2) + ',' + n(yTot) + ') {'
      + decP(cajaMundo.right-cajaMundo.left,'len') + '\\,' + unit + '};\n';
 
-  const xTot = baseY + 0.30 + (cadY.nMax+1)*TIKZ_SALTO;
+  const xTot = baseY + 0.30 + (cadY.nMax+1)*(cadY.saltoY || TIKZ_SALTO);
   s += '\\draw[black!40, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(xBorde) + ',' + n(py(cajaMundo.bottom)) + ') -- (' + n(xTot+0.10) + ',' + n(py(cajaMundo.bottom)) + ');\n';
   s += '\\draw[black!40, line width=0.22pt, dash pattern=on 1.4pt off 1.4pt] (' + n(xBorde) + ',' + n(py(cajaMundo.top)) + ') -- (' + n(xTot+0.10) + ',' + n(py(cajaMundo.top)) + ');\n';
   s += '\\draw[bsaVerde, line width=0.45pt, <->, >=stealth] (' + n(xTot) + ',' + n(py(cajaMundo.bottom)) + ') -- (' + n(xTot) + ',' + n(py(cajaMundo.top)) + ');\n';
-  s += '\\node[font=\\scriptsize\\bfseries, text=bsaVerde, fill=white, inner sep=1pt, rotate=90] at ('
-     + n(xTot) + ',' + n((py(cajaMundo.bottom)+py(cajaMundo.top))/2) + ') {'
+  s += '\\node[font=\\scriptsize\\bfseries, text=bsaVerde, fill=white, inner sep=1pt, anchor=west] at ('
+     + n(xTot + 0.06) + ',' + n((py(cajaMundo.bottom)+py(cajaMundo.top))/2) + ') {'
      + decP(cajaMundo.top-cajaMundo.bottom,'len') + '\\,' + unit + '};\n';
 
   // ── Radios y ángulos de las figuras curvas ──

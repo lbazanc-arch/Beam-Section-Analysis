@@ -170,6 +170,66 @@ function croquisCarga(c, d){
   return s;
 }
 
+// ── Leyenda de los tramos (2026-10-03): el lienzo acota solo las proyecciones
+//    Δx y Δy; la longitud real de cada tramo (y el radio de un arco) va aquí,
+//    al lado, como pidió el profesor para no cargar la figura de cotas. ──
+function datosTramosLeyenda(){
+  return tramos.filter(t=>nodo(t.a) && nodo(t.b)).map(t=>{
+    const arc = arcoDeTramo(t);
+    return {t, nom: nomTramo(t), L: longitudTramo(t), R: arc ? arc.R : null};
+  });
+}
+function leyendaTramosHtml(){
+  const ds = datosTramosLeyenda();
+  if(!ds.length) return '';
+  return '<div class="hint-sm" style="margin:0 0 8px"><b>Leyenda · longitud de los tramos:</b> '
+    + ds.map(d=>kx('L_{' + d.nom + '} = ' + dec(d.L,'len')) + ' ' + unitLen
+      + (d.R !== null ? ' (arco, ' + kx('R = ' + dec(d.R,'len')) + ' ' + unitLen + ')' : '')).join(' · ') + '</div>';
+}
+
+// ── Resultante única del líquido (2026-10-03): ecuación y resultado; el porqué
+//    y la figura acotada van al informe LaTeX. La calcula resultanteUnica (01-). ──
+function resultanteUnicaHtml(r){
+  const ru = r.resultante;
+  if(!ru) return '';
+  const uF = unitFor, uL = unitLen, f = v=>dec(v,'f'), nl = v=>dec(v,'len');
+  const fila = tx => '<div class="eq-row"><div class="eq-body">' + kx(tx) + '</div></div>';
+  const suma = (lista) => lista.length > 1 ? lista.map((v,i)=>(i===0 ? (v<0?'-':'') : (v<0?' - ':' + ')) + f(Math.abs(v))).join('') + ' = ' : '';
+  let h = '<div class="proc-block res-unica" style="padding:9px 12px;margin-top:8px;border-left:3px solid ' + COL_RES + '">'
+    + '<div class="proc-sub" style="color:' + COL_RES + '">Resultante única del líquido</div>';
+  const fx = r.cargas.map(c=>c.Fx).filter(v=>!_casiCero(v)), fy = r.cargas.map(c=>c.Fy).filter(v=>!_casiCero(v));
+  h += fila('R_x = \\sum F_x = ' + suma(fx) + f(ru.Rx) + '\\ \\text{' + uF + '}');
+  h += fila('R_y = \\sum F_y = ' + suma(fy) + f(ru.Ry) + '\\ \\text{' + uF + '}');
+  if(ru.par){
+    h += fila('M = \\sum M_O = ' + f(ru.Mo) + '\\ \\text{' + uF + '}\\cdot\\text{' + uL + '}');
+    h += '<div class="hint-sm">Las fuerzas se anulan: el líquido equivale a un par, sin línea de acción.</div></div>';
+    return h;
+  }
+  const ag = ru.ag;
+  h += fila('R = \\sqrt{R_x^2 + R_y^2} = ' + f(ru.F) + '\\ \\text{' + uF + '}\\qquad \\theta = \\tan^{-1}\\dfrac{|R_' + (ag.desdeV ? 'x' : 'y') + '|}{|R_' + (ag.desdeV ? 'y' : 'x') + '|} = '
+    + _gr(ag.grados) + '\\ \\text{(con la ' + (ag.desdeV ? 'vertical' : 'horizontal') + ')}\\ ' + iconoSentidoTex(ru.dir.x, ru.dir.y).replace(/\$/g,''));
+  if(ru.corta){
+    const N = ru.N.nombre;
+    const ts = ru.terminos.filter(q=>q.brazo > 1e-9).map((q,i)=>(i===0 ? (q.m<0?'-':'') : (q.m<0?' - ':' + ')) + f(q.c.F) + '(' + nl(q.brazo) + ')');
+    h += fila('\\circlearrowleft{+}\\ \\sum M_{' + N + '} = ' + (ts.join('') || '0') + ' = ' + f(ru.MN) + '\\ \\text{' + uF + '}\\cdot\\text{' + uL + '}');
+    if(ru.recto){
+      const otro = ru.otro.nombre;
+      h += fila('R_n = R\\,\\operatorname{sen}\\beta = ' + f(ru.F) + '\\,\\operatorname{sen}' + _gr(ru.beta) + ' = ' + f(Math.abs(ru.Rn)) + '\\ \\text{' + uF + '}');
+      h += fila('s = \\dfrac{|\\sum M_{' + N + '}|}{R_n} = \\dfrac{' + f(Math.abs(ru.MN)) + '}{' + f(Math.abs(ru.Rn)) + '} = ' + nl(ru.s) + '\\ \\text{' + uL + '}');
+      h += '<div class="hint-sm">' + kx('\\beta') + ': ángulo entre ' + kx('R') + ' y el tramo ' + N + otro + '; ' + kx('s') + ' desde ' + N + ' sobre ' + N + otro + '.</div>';
+    } else {
+      h += fila('d = \\dfrac{|\\sum M_{' + N + '}|}{R} = ' + nl(ru.dR) + '\\ \\text{' + uL + '}\\qquad P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')');
+      h += '<div class="hint-sm">' + kx('d') + ': distancia de ' + N + ' a la línea de acción, que corta el arco ' + nomTramo(ru.t) + ' en ' + kx('P_R') + '.</div>';
+    }
+  } else {
+    h += fila('\\sum M_O = ' + f(ru.Mo) + '\\ \\text{' + uF + '}\\cdot\\text{' + uL + '}\\qquad P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')');
+    h += '<div class="hint-sm">Su línea de acción no corta la compuerta; ' + kx('P_R') + ' es su punto más cercano a las fuerzas.</div>';
+  }
+  if(ru.zR !== null) h += fila('z_R = ' + nl(ru.zR) + '\\ \\text{' + uL + '}\\ \\text{bajo la superficie libre}');
+  h += '</div>';
+  return h;
+}
+
 function renderResultados(r){
   const uF = unitFor, uL = unitLen;
   const f = v=>dec(v,'f'), nl = v=>dec(v,'len');
@@ -210,6 +270,7 @@ function renderResultados(r){
   // ═══ 2 · Resultante de cada tramo mojado ═══
   h += '<div class="res-section"><div class="res-title"><div class="num">2</div>'
     + 'Resultante de cada tramo mojado y su centro de presión</div>';
+  h += leyendaTramosHtml();
   cargas.forEach(c=>{
     const d = c.des;
     h += '<div class="fig-card"><div class="fig-card-datos">'
@@ -279,6 +340,7 @@ function renderResultados(r){
     });
     h += '</div>';
   }
+  h += resultanteUnicaHtml(r);
   h += '<div class="hint-sm">Comprobación con la integral numérica del programa'
     + (cargas.every(c=>!c.des || c.des.coincide) ? ' ✓' : ' <b style="color:#c0392b">(discrepancia: revisa la geometría)</b>') + '.</div>';
   h += '</div>';

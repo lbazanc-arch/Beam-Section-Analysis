@@ -15,6 +15,7 @@ function estadoActual(){
     tramos: tramos.map(t=>({id:t.id,a:t.a,b:t.b,tipo:t.tipo,flecha:t.flecha,
                             activo:t.activo,invertir:t.invertir,pesoId:t.pesoId||null})),
     pesos: pesos.map(p=>Object.assign({}, p)),
+    presas: presas.map(copiaPresa),                     // 10-; un archivo anterior no las trae
     zonas: JSON.parse(JSON.stringify(zonas)),
     ancho: num('pB',1),
     unidades:{len:unitLen, fuerza:unitFor},
@@ -70,6 +71,9 @@ function cargarProyecto(id){
     // Peso propio (2026-09-14): los archivos anteriores no lo traen y se abren igual.
     pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
     pesoSeq=maxId(pesos); pesoActivo=null;
+    // Presas (2026-10-03): los archivos anteriores no las traen y se abren igual.
+    presas=(e.presas||[]).map(copiaPresa);
+    presaSeq=maxId(presas);
     if(e.zonas) zonas=e.zonas;
     // Con fijarUnidades (06-) cambian también el chip de la barra y los rótulos:
     // si no, un ejercicio en cm·N se abría con la barra diciendo m · kN.
@@ -141,7 +145,7 @@ function confirmarAnchoPendiente(){
 // ── Jerarquía de Esc (criterio cap9): cierra lo más superficial primero ────
 function manejarEsc(){
   // 1) Un modal abierto: se cierra con su función propia para no dejar estado sucio
-  const cierres = {arcoModal:'cerrarArco', edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal', pesoModal:'cerrarPeso',
+  const cierres = {presaModal:'cerrarPresa', arcoModal:'cerrarArco', edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal', pesoModal:'cerrarPeso',
     ejModal:'cerrarEjemplos',
     unitsModal:'closeUnitsModal', decModal:'closeDecModal',
     guardarModal:'cerrarGuardar', histModal:'cerrarHistorial',
@@ -160,9 +164,11 @@ function manejarEsc(){
   if(panDrag || gesto || pinchDist!==null){ cancelarGestoEnCurso(); dibujar(); return; }
   // 4) Un tramo a medio dibujar: se corta la cadena (o se suelta el inicio del arco)
   if(puntoPendiente || selNodo!==null){ puntoPendiente=null; selNodo=null; dibujar(); return; }
+  // 4b) Un polígono de presa a medio tocar (10-)
+  if(presaPend){ presaPend=null; setTool('sel'); return; }
   // 5) La selección actual
-  if(selN.length || selT.length || infoNodo!==null || infoTramo!==null){
-    selN=[]; selT=[]; infoNodo=null; infoTramo=null; refrescar(); return;
+  if(selN.length || selT.length || selP.length || infoNodo!==null || infoTramo!==null){
+    selN=[]; selT=[]; selP=[]; infoNodo=null; infoTramo=null; refrescar(); return;
   }
   // 6) La herramienta de borrado, para no dejarla armada sin darse cuenta
   if(tool==='borrar'){ setTool('sel'); }

@@ -51,15 +51,14 @@ function dibujar(){
     }
   }
   // ejes
+  // Desde el 2026-10-03 son los comunes de los cinco temas (`bsaEjesXY`,
+  // core/comun.js): flecha, letra y el valor de cada línea de la rejilla. Al
+  // registro van los dos ejes y las cajas de las letras y las puntas.
   if(VIS.ejes){
-    const [ox,oy]=aPantalla(0,0);
-    ctx.strokeStyle='rgba(80,92,108,.5)'; ctx.lineWidth=1.4;
-    ctx.beginPath(); ctx.moveTo(0,oy); ctx.lineTo(W,oy); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox,H); ctx.stroke();
-    _ocSeg(0, oy, W, oy, 1.4, 'eje');
-    _ocSeg(ox, 0, ox, H, 1.4, 'eje');
-    rotulo('X', W-16, oy-11, '#66727e', 0, -1, '600 10px Inter,sans-serif', {prio:9, padX:3});
-    rotulo('Y', ox+12, 14, '#66727e', 1, 0, '600 10px Inter,sans-serif', {prio:9, padX:3});
+    const e = bsaEjesXY(ctx, {W, H, aPantalla, aMundo, paso: pasoRejilla(), cv});
+    if(e.verX) _ocSeg(e.izq, e.oy, W, e.oy, 1.4, 'eje');
+    if(e.verY) _ocSeg(e.ox, 0, e.ox, H, 1.4, 'eje');
+    e.cajas.forEach(c=>_ocCaja((c[0]+c[2])/2, (c[1]+c[3])/2, c[2]-c[0], c[3]-c[1], 'eje'));
   }
 
   // tramos
@@ -109,7 +108,6 @@ function dibujar(){
            '800 11px Inter,sans-serif', {prio:2, ang:a, alto:14, padX:8, eje:[ax,ay,bx,by]});
   });
 
-  if(VIS.cotas) dibujarCotas();
   if(VIS.cargas){
     // Las repartidas van SIEMPRE debajo: su bloque relleno tapaba las flechas
     // y los arcos de momento que caían dentro de su tramo.
@@ -198,6 +196,54 @@ function dibujar(){
   // Segunda pasada: con la geometría completa en el registro, cada texto busca
   // su hueco. Tiene que ser LO ÚLTIMO de dibujar().
   pintarRotulos();
+  // Cotas: después de todo, porque eligen su carril mirando lo ya pintado.
+  if(VIS.cotas) dibujarCotas();
+}
+
+// ── Cotas (2026-10-03, el acotamiento de presión de fluidos, adoptado) ──
+// Las cadenas de siempre —la de los nudos, la total y, con un tramo elegido, la de
+// las posiciones de sus cargas—, con puntas, valores derechos y cada una en el
+// primer carril libre (bsaCotasLienzo, core/comun.js), mirando lo ya pintado:
+//   · nudos y total, en x, SIEMPRE DEBAJO, bajando lo necesario para no pisar
+//     las reacciones, sus valores ni el eje x; en y, a la derecha;
+//   · las cargas del tramo elegido (en mostaza), en x ARRIBA, por encima de los
+//     valores de las cargas (decisión del profesor), y en y a la derecha, junto a
+//     la de nudos; solo si allí no cabe, a la izquierda, fuera de todo lo dibujado.
+function dibujarCotas(){
+  if(nodos.length < 2) return;
+  const P = (x, y) => { const [sx, sy] = aPantalla(x, y); return {sx, sy}; };
+  const pn = nodos.map(n=>Object.assign(P(n.x, n.y), {x:n.x, y:n.y}));
+  const sxs = pn.map(p=>p.sx), sys = pn.map(p=>p.sy);
+  const caja = [Math.min(...sxs), Math.min(...sys), Math.max(...sxs), Math.max(...sys)];
+  const distintos = (vs) => [...new Set(vs.map(v=>+v.toFixed(6)))];
+  const cadenas = [];
+  const ext = (lista, eje) => {
+    const vs = lista.map(p=>p[eje]);
+    const lo = Math.min(...vs), hi = Math.max(...vs);
+    return lista.filter(p=>p[eje] === lo || p[eje] === hi);
+  };
+  const pts = (lista, eje) => lista.map(p=>({v:p[eje], sx:p.sx, sy:p.sy}));
+  ['x','y'].forEach(eje=>{
+    if(distintos(pn.map(p=>p[eje])).length < 2) return;
+    const lados = eje === 'x' ? [1] : [1,-1];
+    cadenas.push({eje, lados, soloCarril: eje === 'x', puntos: pts(pn, eje)});
+    if(distintos(pn.map(p=>p[eje])).length > 2)
+      cadenas.push({eje, lados, soloCarril: eje === 'x', col:'#1d4ed8', puntos: pts(ext(pn, eje), eje)});
+    // cargas del tramo elegido, solo si acotan algo que la de nudos no acota
+    if(VIS.cargas){
+      const ids = tramosSeleccionadosParaCotas();
+      const pc = ids.length ? puntosDeCargas(ids).map(q=>Object.assign(P(q.x, q.y), {x:q.x, y:q.y})) : [];
+      const pos = p => eje === 'x' ? p.sx : p.sy;
+      const aporta = pc.some(q => !pn.some(n => Math.abs(pos(n) - pos(q)) < COTA_FUSION_PX));
+      // la vertical va la PRIMERA de su lado (la más cercana al dibujo), como en el PDF
+      const cc = {eje, lados: eje === 'x' ? [-1] : [1, -1], soloCarril: true, col:'#b07d1a',
+        puntos: pts(pc.concat(ext(pn, eje)), eje)};
+      if(aporta){ if(eje === 'y') cadenas.splice(cadenas.findIndex(c=>c.eje === 'y'), 0, cc); else cadenas.push(cc); }
+    }
+  });
+  const [ox, oy] = aPantalla(0, 0);
+  bsaCotasLienzo(ctx, {W, H, caja, cadenas, ejes: VIS.ejes ? {ox, oy} : null,
+    texto: v => dec(v,'len') + ' ' + unitLen});
 }
 
 // ── Leyenda: qué es cada color del lienzo ──
@@ -311,90 +357,6 @@ function planCotas(valores, pos, medir, opts){
 // Pinta una cadena ya planificada: una línea con marcas oblicuas en cada
 // borde conservado y las etiquetas escalonadas, siempre alejándose del
 // dibujo (hacia dentro se meterían encima de la viga).
-function pintarCadenaCotas(plan, eje, base, cfg, color){
-  const COL = color || '#1b1f24';
-  if(!plan) return 0;
-  const TICK = 5, SALTO = COTA_SALTO_PX;
-  const q0 = plan.coords.map(v=>cfg.pos(v));
-  const ini = Math.min(...q0), fin = Math.max(...q0);
-
-  // Las líneas de referencia NO se pintan aquí ni ocupan sitio: se difieren y,
-  // al final, se trazan CORTADAS por donde haya quedado un texto. Es el criterio
-  // del PDF de armaduras (_trazoInterrumpido): una guía a trazos no puede echar
-  // de su sitio al rótulo de una reacción, pero tampoco puede cruzarlo.
-  q0.forEach(q=>{
-    if(eje==='x') _guias.push({x1:q, y1:cfg.borde+3, x2:q, y2:base+5});
-    else          _guias.push({x1:cfg.borde+3, y1:q, x2:base+5, y2:q});
-  });
-
-  ctx.save();
-  ctx.strokeStyle=COL; ctx.fillStyle=COL; ctx.lineWidth=1.15;
-  ctx.font='600 10.5px Inter,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-
-  ctx.beginPath();
-  if(eje==='x'){ ctx.moveTo(ini, base); ctx.lineTo(fin, base); _ocSeg(ini, base, fin, base, 1.4, 'cota'); }
-  else         { ctx.moveTo(base, ini); ctx.lineTo(base, fin); _ocSeg(base, ini, base, fin, 1.4, 'cota'); }
-  ctx.stroke();
-
-  q0.forEach(q=>{
-    ctx.beginPath();
-    if(eje==='x'){ ctx.moveTo(q-TICK, base+TICK); ctx.lineTo(q+TICK, base-TICK); _ocSeg(q-TICK, base+TICK, q+TICK, base-TICK, 1.2, 'cota'); }
-    else         { ctx.moveTo(base-TICK, q+TICK); ctx.lineTo(base+TICK, q-TICK); _ocSeg(base-TICK, q+TICK, base+TICK, q-TICK, 1.2, 'cota'); }
-    ctx.stroke();
-  });
-
-  // Las etiquetas se ENCOLAN, con su línea de referencia: la dibuja el
-  // colocador hasta el borde de la caja, dondequiera que acabe el texto.
-  plan.segs.forEach(sg=>{
-    if(!sg.visible) return;
-    const d = 12 + sg.nivel*SALTO;
-    if(eje==='x')
-      rotulo(sg.txt+' '+unitLen, sg.centro, base+d, COL, 0, 1, '600 10.5px Inter,sans-serif',
-             {prio:6, paso:13, eje:[ini, base+d, fin, base+d], guia:{x:sg.centro, y:base+2}});
-    else
-      rotulo(sg.txt+' '+unitLen, base+d, sg.centro, COL, 1, 0, '600 10.5px Inter,sans-serif',
-             {prio:6, paso:13, ang:-Math.PI/2, eje:[base+d, ini, base+d, fin],
-              guia:{x:base+2, y:sg.centro}});
-  });
-  ctx.restore();
-  return plan.nMax;
-}
-
-// Cota total, por fuera de la cadena. Su etiqueta va SOBRE la propia línea, con
-// hueco blanco, que es la convención de plano; por eso la línea y sus marcas
-// oblicuas se difieren como las demás líneas de referencia y se trazan CORTADAS
-// por los textos: la etiqueta se queda en su sitio y no hay trazo bajo ella.
-// Las marcas son oblicuas, no flechas: no compiten con las flechas de las
-// cargas, que sí son fuerzas.
-function pintarCotaTotal(c0, c1, eje, base, pos){
-  const a = pos(c0), b = pos(c1);
-  if(Math.abs(b-a) < 34) return;
-  const COL = '#2563eb';
-  const gu = (x1,y1,x2,y2)=>_guias.push({x1, y1, x2, y2, col:COL, solida:true, ancho:1.3});
-  const txt = dec(Math.abs(c1-c0),'len') + ' ' + unitLen;
-  // Si otro texto la echa de su sitio, la etiqueta se queda atada a SU línea:
-  // `guia` la une a ella y `jMax:3` le impide girar más de 90°, es decir, solo
-  // puede apartarse a lo largo de su propia línea o hacia afuera. Sin eso se
-  // colocaba 84 px más adentro, al otro lado de la cadena de nudos, y se leía
-  // como si fuera de esa cadena.
-  if(eje==='x'){
-    gu(a, base, b, base);
-    gu(a-5, base+5, a+5, base-5); gu(b-5, base+5, b+5, base-5);
-    rotulo(txt, (a+b)/2, base, COL, 0, 1, '700 10.5px Inter,sans-serif',
-           {prio:6, paso:14, padX:8, alto:16, jMax:3, kMax:4,
-            eje:[Math.min(a,b), base, Math.max(a,b), base], guia:{x:(a+b)/2, y:base, color:COL}});
-  } else {
-    gu(base, a, base, b);
-    gu(base-5, a+5, base+5, a-5); gu(base-5, b+5, base+5, b-5);
-    rotulo(txt, base, (a+b)/2, COL, 1, 0, '700 10.5px Inter,sans-serif',
-           {prio:6, paso:14, padX:8, alto:16, ang:-Math.PI/2, jMax:3, kMax:4,
-            eje:[base, Math.min(a,b), base, Math.max(a,b)], guia:{x:base, y:(a+b)/2, color:COL}});
-  }
-}
-
-// Puntos notables de las cargas. Devuelve las dos coordenadas: en una viga
-// quebrada la cadena vertical es tan necesaria como la horizontal, porque
-// una carga sobre un tramo inclinado no queda situada solo por su x.
 function puntosDeCargas(soloTramos){
   const pts = [];
   cargas.forEach(c=>{
@@ -423,88 +385,14 @@ function puntosDeCargas(soloTramos){
 // La cadena de subtramos (posiciones de las cargas) solo se acota para el
 // tramo seleccionado: con todos a la vez, en un pórtico se montaba sobre las
 // cargas (propuesta 2, 2026-09-08). Las cadenas por tramo y la total, siempre.
+// Las usa el informe (17-) para su cadena de posiciones de las cargas.
+function xsDeCargas(){ const ids = tramosSeleccionadosParaCotas(); return ids.length ? puntosDeCargas(ids).map(p=>p.x) : []; }
+function ysDeCargas(){ const ids = tramosSeleccionadosParaCotas(); return ids.length ? puntosDeCargas(ids).map(p=>p.y) : []; }
 function tramosSeleccionadosParaCotas(){
   const ids = selTramos.slice();
   if(selTramo !== null && ids.indexOf(selTramo) < 0) ids.push(selTramo);
   return ids;
 }
-function xsDeCargas(){ const ids = tramosSeleccionadosParaCotas(); return ids.length ? puntosDeCargas(ids).map(p=>p.x) : []; }
-function ysDeCargas(){ const ids = tramosSeleccionadosParaCotas(); return ids.length ? puntosDeCargas(ids).map(p=>p.y) : []; }
-
-function dibujarCotas(){
-  if(nodos.length < 2) return;
-  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
-  const minY = Math.min(...ys), maxX = Math.max(...xs);
-  const medir = t => _anchoTexto(t+' '+unitLen, '600 10.5px Inter,sans-serif');
-  const posX = v => aPantalla(v,0)[0];
-  const posY = v => aPantalla(0,v)[1];
-
-  const borde = aPantalla(0, minY)[1];
-  let base = borde + 26;
-
-  // Nivel 1: posiciones de las cargas (inicio, fin y puntos de aplicación).
-  // Se dibuja pegada a la viga porque es la información más ligada al dibujo.
-  if(VIS.cargas){
-    const xc = xsDeCargas();
-    // Solo tiene sentido dibujar esta cadena si acota puntos que la cadena
-    // de nudos NO cubre ya. Si cada carga cae sobre un nudo, repetir las
-    // mismas medidas en dos filas solo ensucia el dibujo.
-    const aporta = xc.some(v => !xs.some(q => Math.abs(posX(q) - posX(v)) < COTA_FUSION_PX));
-    const todos = aporta
-      ? [...new Set(xc.concat([Math.min(...xs), Math.max(...xs)]).map(v=>+v.toFixed(6)))]
-      : [];
-    if(todos.length > 2){
-      const planC = planCotas(todos, posX, medir, {maxNiveles:2});
-      if(planC){
-        pintarCadenaCotas(planC, 'x', base, {pos:posX, borde}, '#b07d1a');
-        base += 16 + (planC.nMax+1)*COTA_SALTO_PX;
-      }
-    }
-  }
-
-  // Nivel 2: cadena de nudos.
-  const planX = planCotas(xs, posX, medir);
-  if(planX){
-    base += 20;
-    pintarCadenaCotas(planX, 'x', base, {pos:posX, borde});
-    // La cota total solo aporta si hay más de un vano; con uno solo repetía
-    // exactamente la misma medida que la cadena, que es lo que se veía
-    // duplicado en pantalla.
-    if(planX.segs.length > 1)
-      pintarCotaTotal(planX.coords[0], planX.coords[planX.coords.length-1], 'x',
-                      base + 12 + (planX.nMax+1)*COTA_SALTO_PX, posX);
-  }
-  // La cadena vertical solo tiene sentido si la viga no es recta
-  const hayY = [...new Set(ys.map(v=>+v.toFixed(6)))].length > 1;
-  if(hayY){
-    let baseC = aPantalla(maxX, 0)[0] + 26;
-    if(VIS.cargas){
-      const yc = ysDeCargas();
-      const aportaY = yc.some(v => !ys.some(q => Math.abs(posY(q) - posY(v)) < COTA_FUSION_PX));
-      const todosY = aportaY
-        ? [...new Set(yc.concat([Math.min(...ys), Math.max(...ys)]).map(v=>+v.toFixed(6)))]
-        : [];
-      if(todosY.length > 2){
-        const planCY = planCotas(todosY, posY, medir, {maxNiveles:2});
-        if(planCY){
-          pintarCadenaCotas(planCY, 'y', baseC,
-            {pos:posY, borde:aPantalla(maxX,0)[0]}, '#b07d1a');
-        }
-      }
-    }
-    const planY = planCotas(ys, posY, medir);
-    if(planY){
-      const bordeY = aPantalla(maxX, 0)[0];
-      const baseY = bordeY + 78;
-      pintarCadenaCotas(planY, 'y', baseY, {pos:posY, borde:bordeY});
-      if(planY.segs.length > 1)
-        pintarCotaTotal(planY.coords[0], planY.coords[planY.coords.length-1], 'y',
-                        baseY + 12 + (planY.nMax+1)*COTA_SALTO_PX, posY);
-    }
-  }
-  ctx.textAlign='start'; ctx.textBaseline='alphabetic';
-}
-
 
 function dibujarApoyo(n){
   // Mientras el diálogo de apoyo está abierto, el nudo en cuestión se

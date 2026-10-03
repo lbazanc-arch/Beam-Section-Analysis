@@ -76,6 +76,7 @@ function onDown(e){
     puntoPendiente = {id:nb.id, x:nb.x, y:nb.y};
     invalidarResultados(); refrescar();
   }
+  else if(tool==='presaPoli'){ tocarPresaPoligono(wx, wy, mx, my); }   // vértices de una presa (10-)
   else if(tool==='apoyo'){ if(n) abrirApoyoModal(n.id); }
   else if(tool==='tope'){ if(n) abrirTopeModal(n.id); }
   else if(tool==='peso'){
@@ -94,6 +95,7 @@ function onDown(e){
     let hit = null;
     if(n) hit = {tipo:'nodo', id:n.id};
     else { const t=tramoEn(mx,my); if(t) hit = {tipo:'tramo', id:t.id}; }
+    if(!hit){ const pr = presaEn(mx,my); if(pr) hit = {tipo:'presa', id:pr.id}; }   // 10-
     gesto = { modo:tool, hit, x0:mx, y0:my, wx0:wx, wy0:wy, moved:false, mantenido:false };
     if(!hit) armarEsperaDeRecuadro(gesto);
   }
@@ -108,6 +110,7 @@ function onMove(e){
   mouseW=aMundo(mx, my);
   // Tramo en curso: la línea a trazos sigue al puntero (03-).
   if(!gesto && puntoPendiente && (tool==='recto' || tool==='arco')){ dibujar(); return; }
+  if(!gesto && presaPend && tool==='presaPoli'){ dibujar(); return; }
 
   // ── Botón unificado "Mover / editar" (criterio cap9) ──
   if(gesto){
@@ -128,6 +131,12 @@ function onMove(e){
         } else if(esVacio && gesto.mantenido){
           gesto.tipo='rubber';
           mostrarRecuadroSeleccion();
+        } else if(gesto.hit.tipo==='presa'){
+          // Una presa se mueve entera (y con ella las demás presas marcadas).
+          const grupoP = selP.indexOf(gesto.hit.id)>=0 ? selP.slice() : [gesto.hit.id];
+          if(selP.indexOf(gesto.hit.id)<0) selP = grupoP;
+          gesto.tipo='moverPresa';
+          gesto.presasOrig = grupoP.map(id=>({id, copia:copiaPresa(presa(id))}));
         } else if(gesto.hit.tipo==='nodo'){
           // El paso de deshacer y el panel oculto esperan a que un nudo cambie
           // de verdad (abajo): un toque con temblor no mueve nada.
@@ -147,7 +156,15 @@ function onMove(e){
         }
       }
     }
-    if(gesto.tipo==='mover'){
+    if(gesto.tipo==='moverPresa'){
+      const wdx = snap(mouseW[0]-gesto.wx0), wdy = snap(mouseW[1]-gesto.wy0);
+      if(!gesto.registrado && (wdx || wdy)){ registrarCambio(); invalidarResultados(); gesto.registrado = true; }
+      gesto.presasOrig.forEach(o=>{
+        const i = presas.findIndex(p=>p.id===o.id); if(i < 0) return;
+        presas[i] = copiaPresa(o.copia); trasladarPresa(presas[i], wdx, wdy);
+      });
+      dibujar();
+    } else if(gesto.tipo==='mover'){
       const wdx = mouseW[0]-gesto.wx0, wdy = mouseW[1]-gesto.wy0;
       const destinos = gesto.origenes.map(o=>({nn:nodos.find(z=>z.id===o.id), x:snap(o.x+wdx), y:snap(o.y+wdy)}))
                                      .filter(d=>d.nn);
@@ -175,19 +192,21 @@ function onUp(){
       // Un toque sin arrastre borra el elemento tocado; un arrastre borra
       // todo lo que el recuadro haya abarcado. Se permanece en modo borrar
       // para seguir eliminando sin tener que volver a pulsar el botón.
-      let bN=[], bT=[];
+      let bN=[], bT=[], bP=[];
       if(!gesto.moved){
         if(gesto.hit){
           if(gesto.hit.tipo==='nodo') bN=[gesto.hit.id];
+          else if(gesto.hit.tipo==='presa') bP=[gesto.hit.id];
           else bT=[gesto.hit.id];
         }
       } else if(gesto.tipo==='rubber-borrar'){
         const r = elementosEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
-        bN = r.ns; bT = r.ts;
+        bN = r.ns; bT = r.ts; bP = r.ps;
       }
       ocultarRecuadroSeleccion();
-      if(bN.length || bT.length){
+      if(bN.length || bT.length || bP.length){
         registrarCambio();
+        borrarPresas(bP);
         tramos = tramos.filter(t=>!marcado(bT,t.id) && !marcado(bN,t.a) && !marcado(bN,t.b));
         nodos  = nodos.filter(n=>!marcado(bN,n.id));
         // Fuera de la selección todo id que ya no existe, también el de un tramo
@@ -202,17 +221,18 @@ function onUp(){
     if(!gesto.moved){
       if(gesto.hit){
         if(gesto.hit.tipo==='nodo'){ const i=selN.indexOf(gesto.hit.id); i>=0?selN.splice(i,1):selN.push(gesto.hit.id); infoNodo=gesto.hit.id; }
+        else if(gesto.hit.tipo==='presa'){ const i=selP.indexOf(gesto.hit.id); i>=0?selP.splice(i,1):selP.push(gesto.hit.id); }
         else { const i=selT.indexOf(gesto.hit.id); i>=0?selT.splice(i,1):selT.push(gesto.hit.id); infoTramo=gesto.hit.id; }
       } else {
-        selN=[]; selT=[]; infoNodo=null; infoTramo=null;
+        selN=[]; selT=[]; selP=[]; infoNodo=null; infoTramo=null;
       }
     } else if(gesto.tipo==='mover' && gesto.registrado
               && gesto.origenes.every(o=>{ const nn=nodos.find(z=>z.id===o.id); return !nn || (nn.x===o.x && nn.y===o.y); })){
       // Arrastrado y devuelto a su sitio: el paso de deshacer quedaría vacío.
       pilaDeshacer.pop(); actualizarBotonesHistorial();
     } else if(gesto.tipo==='rubber'){
-      const {ns, ts} = elementosEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
-      selN = ns; selT = ts;
+      const {ns, ts, ps} = elementosEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
+      selN = ns; selT = ts; selP = ps;
       infoNodo = ns.length ? ns[ns.length-1] : null;
       infoTramo = ts.length ? ts[ts.length-1] : null;
       ocultarRecuadroSeleccion();
@@ -264,7 +284,9 @@ function elementosEnRecuadro(x0,y0,x1,y1){
     const [ax,ay]=aPantalla(na.x,na.y), [bx,by]=aPantalla(nb.x,nb.y);
     return dentro(ax,ay) && dentro(bx,by);
   }).map(t=>t.id);
-  return {ns, ts};
+  // Una presa cuenta si TODOS sus vértices quedan dentro, como un tramo (10-).
+  const ps = presas.filter(p=>{ const g = geomPresa(p); return !g.error && g.verts.every(q=>{ const [px,py]=aPantalla(q.x,q.y); return dentro(px,py); }); }).map(p=>p.id);
+  return {ns, ts, ps};
 }
 
 // ── Estado del puente táctil (criterio cap6/cap9) ──────────────────────────
@@ -275,24 +297,27 @@ function cancelarGestoEnCurso(){
   ocultarRecuadroSeleccion();
 }
 function activarEliminar(){
-  if(selN.length || selT.length){ eliminarSeleccion(); return; }
+  if(selN.length || selT.length || selP.length){ eliminarSeleccion(); return; }
   setTool('borrar');
 }
 
 function onDbl(e){
   // Dibujando, dos toques seguidos son dos puntos del tramo, no una edición.
-  if(tool==='recto' || tool==='arco') return;
+  if(tool==='recto' || tool==='arco' || tool==='presaPoli') return;
   const r=cv.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
   const n=nodoEn(mx,my);
   if(n){ abrirEdNodo(n.id); return; }
   const t=tramoEn(mx,my);
   if(t && t.tipo === 'arco'){ abrirArcoEdicion(t.id); return; }   // su radio y su lado
-  if(t){ infoTramo=t.id; if(selT.indexOf(t.id)<0) selT.push(t.id); refrescar(); }
+  if(t){ infoTramo=t.id; if(selT.indexOf(t.id)<0) selT.push(t.id); refrescar(); return; }
+  const pr=presaEn(mx,my);
+  if(pr) abrirPresaEdicion(pr.id);                                // 10-
 }
 
 function setTool(t){
   tool=t; selNodo=null; puntoPendiente=null;
+  if(t !== 'presaPoli') presaPend = null;
   ['recto','arco','apoyo','tope','peso','sel','pan'].forEach(k=>{
     const el=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active',k===t);
@@ -300,6 +325,8 @@ function setTool(t){
   // El botón Eliminar no sigue el patrón de id 't'+Nombre, se marca aparte.
   const bd = document.getElementById('btnDel');
   if(bd) bd.classList.toggle('active', t==='borrar');
+  const bp = document.getElementById('tPresa');      // la presa también mientras se tocan sus vértices
+  if(bp) bp.classList.toggle('active', t==='presa' || t==='presaPoli');
   const hints={
     recto:'Toca para colocar nudos: cada uno se une al anterior con un tramo recto. Esc corta la cadena.',
     arco:'Toca el inicio y el fin del arco (un nudo o un punto nuevo); la ventana pide el radio.',
@@ -307,6 +334,8 @@ function setTool(t){
     tope:'Haz clic en un nudo para colocar un tope liso: una fuerza incógnita, normal a la compuerta (o con la dirección que indiques).',
     peso:'Toca los tramos a los que quieras asignar el peso elegido; tócalos de nuevo para quitárselo.',
     pan:'Arrastra el lienzo para desplazar la vista.',
+    presa:'Elige en la ventana cómo dibujar la presa.',
+    presaPoli:'Toca los vértices de la presa; ciérrala tocando el primero. Esc cancela.',
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
     borrar:'Toca un nudo o un tramo para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'};
   const ch=document.getElementById('canvasHint'); if(ch) ch.textContent=hints[t]||'';
@@ -328,6 +357,7 @@ function instantanea(){
     zonas:  {1: zonas[1].map(l=>Object.assign({}, l)),
              2: zonas[2].map(l=>Object.assign({}, l))},
     pesos:  pesos.map(p=>Object.assign({}, p)),
+    presas: presas.map(copiaPresa), presaSeq,          // 10-
     // Las unidades van con el modelo: sus números solo valen en ellas, y
     // deshacer un cambio de unidades tiene que devolver las dos cosas juntas.
     unidades: {len:unitLen, fuerza:unitFor},
@@ -355,6 +385,8 @@ function restaurarInstantanea(txt){
   nodoSeq = e.nodoSeq; tramoSeq = e.tramoSeq;
   pesos = (e.pesos || []).map(p=>Object.assign({}, p)); pesoSeq = e.pesoSeq || 0;
   if(!pesos.some(p=>p.id === pesoActivo)) pesoActivo = null;
+  presas = (e.presas || []).map(copiaPresa); presaSeq = e.presaSeq || 0;
+  selP = selP.filter(id=>presas.some(p=>p.id===id)); presaPend = null;
   // El ancho b vuelve tal cual: está en las unidades de la instantánea, que son
   // las que se devuelven aquí abajo.
   const eb = document.getElementById('pB');
@@ -405,8 +437,9 @@ function actualizarBotonesHistorial(){
 }
 
 function eliminarSeleccion(){
-  if(!selN.length && !selT.length){ aviso('Selecciona algo con la herramienta Mover / editar.', 'error'); return; }
+  if(!selN.length && !selT.length && !selP.length){ aviso('Selecciona algo con la herramienta Mover / editar.', 'error'); return; }
   registrarCambio();
+  borrarPresas(selP.slice());
   tramos = tramos.filter(t=>selT.indexOf(t.id)<0 && selN.indexOf(t.a)<0 && selN.indexOf(t.b)<0);
   nodos = nodos.filter(n=>selN.indexOf(n.id)<0);
   // Lo borrado era la selección: se vacía entera (infoNodo e infoTramo incluidos)

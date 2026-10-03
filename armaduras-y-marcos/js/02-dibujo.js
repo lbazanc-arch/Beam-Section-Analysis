@@ -44,13 +44,12 @@ function dibujarRejilla(){
   }
 }
 
-// Los ejes X/Y se dibujan aparte de la rejilla: son dos capas distintas y
-// cada una tiene su propio interruptor en Configuración.
+// Los ejes x–y se dibujan aparte de la rejilla: son dos capas distintas y
+// cada una tiene su propio interruptor en Configuración. Desde el 2026-10-03
+// son los comunes de los cinco temas (`bsaEjesXY`, core/comun.js): flecha,
+// letra y el valor de cada línea de la rejilla.
 function dibujarEjes(){
-  const [ox,oy] = aPantalla(0,0);
-  ctx.strokeStyle = 'rgba(80,92,108,.5)'; ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.moveTo(0,oy); ctx.lineTo(W,oy); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox,H); ctx.stroke();
+  bsaEjesXY(ctx, {W, H, aPantalla, aMundo, paso: pasoRejilla(), cv});
 }
 
 // Sin colores de tracción/compresión: la barra se ve igual antes y después de
@@ -413,100 +412,25 @@ function dibujarOrdenNudos(){
 }
 
 // ── Cotas encadenadas de la armadura ──
-// Mismo criterio que el Cap. 9 y el Cap. 7: cadenas fuera del dibujo
-// (horizontales abajo, verticales a la derecha) tomadas de las coordenadas
-// distintas de los nudos, con reparto en niveles para que las etiquetas no
-// se solapen cuando dos nudos quedan muy juntos.
+// El acotamiento de presión de fluidos (2026-10-03, adoptado por el profesor):
+// las coordenadas distintas de los nudos, encadenadas, con puntas y valores
+// derechos (bsaCotasLienzo, core/comun.js). La cadena horizontal va SIEMPRE
+// ABAJO y baja lo que haga falta para no pisar las reacciones, sus valores ni
+// el eje x con sus números; la vertical, a la derecha o, sin hueco, a la
+// izquierda. Se dibuja al final de dibujar(): elige su carril mirando lo pintado.
 function dibujarCotasArmadura(){
   if(nodos.length < 2) return;
-  const unicos = (vals)=>{
-    const out = [];
-    vals.slice().sort((a,b)=>a-b).forEach(v=>{
-      if(!out.length || Math.abs(v-out[out.length-1]) > 1e-9) out.push(v);
-    });
-    return out;
-  };
-  const xs = unicos(nodos.map(n=>n.x));
-  const ys = unicos(nodos.map(n=>n.y));
-  if(xs.length < 2 && ys.length < 2) return;
-
-  const NIVEL = 15, HOLGURA = 4;
-  ctx.save();
-  ctx.strokeStyle = '#1b1f24'; ctx.fillStyle = '#1b1f24'; ctx.lineWidth = 1;
-  ctx.font = '600 9px Inter, sans-serif';
-  const marca = (x,y)=>{ ctx.beginPath(); ctx.moveTo(x-4,y+4); ctx.lineTo(x+4,y-4); ctx.stroke(); };
-
-  function repartirNiveles(tramos){
-    const ocupado = [];
-    return tramos.map(t=>{
-      const semi = Math.max(t.ancho, 14)/2 + HOLGURA;
-      const a = t.centro - semi, b = t.centro + semi;
-      let n = 0;
-      while(true){
-        const lista = ocupado[n] || (ocupado[n] = []);
-        if(!lista.some(iv => a < iv[1] && b > iv[0])){ lista.push([a,b]); break; }
-        n++; if(n > 6) break;
-      }
-      return Object.assign({}, t, {nivel:n});
-    });
-  }
-
-  // cadena horizontal, debajo del punto más bajo
-  if(xs.length > 1){
-    const yMin = Math.min(...nodos.map(n=>n.y));
-    const yb = aPantalla(0, yMin)[1];
-    const tramos = [];
-    for(let i=0;i<xs.length-1;i++){
-      const x1 = aPantalla(xs[i],0)[0], x2 = aPantalla(xs[i+1],0)[0];
-      if(Math.abs(x2-x1) < 3) continue;
-      const txt = dec(xs[i+1]-xs[i],'len')+' '+unitLen;
-      tramos.push({x1,x2,txt,centro:(x1+x2)/2,ancho:ctx.measureText(txt).width});
-    }
-    const conNivel = repartirNiveles(tramos);
-    const nMax = conNivel.reduce((m,t)=>Math.max(m,t.nivel),0);
-    const base = Math.min(yb + 34, H - 12 - nMax*NIVEL);
-    conNivel.forEach(t=>{
-      const y = base + t.nivel*NIVEL;
-      ctx.beginPath(); ctx.moveTo(t.x1,y); ctx.lineTo(t.x2,y); ctx.stroke();
-      marca(t.x1,y); marca(t.x2,y);
-      ctx.textAlign='center'; ctx.fillText(t.txt, t.centro, y-4);
-    });
-    ctx.save(); ctx.setLineDash([3,3]); ctx.strokeStyle='rgba(27,31,36,.30)';
-    const hasta = base + nMax*NIVEL + 4;
-    xs.forEach(x=>{ const px = aPantalla(x,0)[0];
-      ctx.beginPath(); ctx.moveTo(px, yb+6); ctx.lineTo(px, hasta); ctx.stroke(); });
-    ctx.restore();
-  }
-
-  // cadena vertical, a la derecha del punto más a la derecha
-  if(ys.length > 1){
-    const xMax = Math.max(...nodos.map(n=>n.x));
-    const xr = aPantalla(xMax,0)[0];
-    const tramos = [];
-    for(let i=0;i<ys.length-1;i++){
-      const y1 = aPantalla(0,ys[i])[1], y2 = aPantalla(0,ys[i+1])[1];
-      if(Math.abs(y2-y1) < 3) continue;
-      const txt = dec(ys[i+1]-ys[i],'len')+' '+unitLen;
-      tramos.push({x1:y1,x2:y2,txt,centro:(y1+y2)/2,ancho:ctx.measureText(txt).width});
-    }
-    const conNivel = repartirNiveles(tramos);
-    const nMax = conNivel.reduce((m,t)=>Math.max(m,t.nivel),0);
-    const base = Math.min(xr + 38, W - 14 - nMax*NIVEL);
-    conNivel.forEach(t=>{
-      const x = base + t.nivel*NIVEL;
-      ctx.beginPath(); ctx.moveTo(x,t.x1); ctx.lineTo(x,t.x2); ctx.stroke();
-      marca(x,t.x1); marca(x,t.x2);
-      ctx.save(); ctx.translate(x+10, t.centro); ctx.rotate(-Math.PI/2);
-      ctx.textAlign='center'; ctx.fillText(t.txt, 0, 0); ctx.restore();
-    });
-    ctx.save(); ctx.setLineDash([3,3]); ctx.strokeStyle='rgba(27,31,36,.30)';
-    const hasta = base + nMax*NIVEL + 4;
-    ys.forEach(y=>{ const py = aPantalla(0,y)[1];
-      ctx.beginPath(); ctx.moveTo(xr+6, py); ctx.lineTo(hasta, py); ctx.stroke(); });
-    ctx.restore();
-  }
-  ctx.textAlign='start';
-  ctx.restore();
+  const ps = nodos.map(n=>{ const [sx, sy] = aPantalla(n.x, n.y); return {n, sx, sy}; });
+  const xs = ps.map(p=>p.sx), ys = ps.map(p=>p.sy);
+  const [ox, oy] = aPantalla(0, 0);
+  bsaCotasLienzo(ctx, {W, H,
+    caja:[Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+    texto: v => dec(v,'len') + ' ' + unitLen,
+    ejes: VIS.ejes ? {ox, oy} : null,
+    cadenas:[
+      {eje:'x', lados:[1], soloCarril:true, puntos: ps.map(p=>({v:p.n.x, sx:p.sx, sy:p.sy}))},
+      {eje:'y', lados:[1,-1], puntos: ps.map(p=>({v:p.n.y, sx:p.sx, sy:p.sy}))}
+    ]});
 }
 
 function dibujar(){
@@ -548,7 +472,6 @@ function dibujar(){
 
   if(VIS.apoyos) nodos.forEach(n=>{ if(n.apoyo) dibujarApoyo(n); });
   if(VIS.cargas) nodos.forEach(n=>dibujarCarga(n));
-  if(VIS.cotas) dibujarCotasArmadura();
   if(resultado && VIS.fuerzas) dibujarFuerzasBarras();
 
   // nudos
@@ -574,6 +497,9 @@ function dibujar(){
   // reacciones resueltas: flecha en su sentido real, arco del ángulo en el
   // rodillo inclinado y valores en columna (dibujarReaccion)
   if(resultado) nodos.forEach(n=>{ const R = resultado.reacciones[n.id]; if(R) dibujarReaccion(n, R); });
+
+  // Cotas, al final: eligen su carril mirando lo que ya está pintado.
+  if(VIS.cotas) dibujarCotasArmadura();
 
   // Recuadro de selección múltiple o de borrado en curso (según herramienta)
   if(gesto && (gesto.tipo === 'rubber' || gesto.tipo === 'rubber-borrar')){

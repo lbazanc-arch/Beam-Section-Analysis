@@ -181,32 +181,35 @@ function centroideLocalTex(fig){
 }
 
 // ── Croquis acotado de UNA figura, en TikZ ──
-// Va al costado de su desarrollo, a la misma altura. Se dibuja en coordenadas
-// locales (centroide en el origen) y con la figura sin girar: el giro se indica
-// aparte con su ángulo, que es más legible que dibujarla inclinada y minúscula.
+// Va al costado de su desarrollo, a la misma altura. Desde el 2026-10-03
+// (decisión del profesor) la figura se dibuja YA GIRADA, como está en la
+// sección, y su giro se dice en el centroide: la línea de +x a trazos, el eje
+// propio de la figura a trazos y el arco entre los dos con β (el valor, en el
+// pie del croquis: «girado β = …°»). Las cotas
+// son las medidas propias de la figura (su ancho y su alto sin girar),
+// alineadas con ella, con los valores DERECHOS (el aspecto de presión).
 function tikzCroquisFigura(fig, anchoCm){
   const def = FIG_DEFS[fig.type];
   const b = def.bounds(fig.dims);
   const bw = Math.max(b.right-b.left, 1e-9), bh = Math.max(b.top-b.bottom, 1e-9);
   const W = anchoCm || 3.6, H = 3.0;
-  const esc = Math.min((W-1.1)/bw, (H-1.0)/bh);
-  // Centro de la caja envolvente, en coordenadas locales. TODO el croquis se
-  // dibuja respecto a él.
-  const cxm = (b.left+b.right)/2, cym = (b.bottom+b.top)/2;
-  const tx = x => (x-cxm)*esc;
-  const ty = y => (y-cym)*esc;
+  const g = fig.rotation || 0, gira = Math.abs(g) >= 0.5;
+  const ca = Math.cos(g*Math.PI/180), sa = Math.sin(g*Math.PI/180);
+  const rot = (x, y) => ({x: x*ca - y*sa, y: x*sa + y*ca});      // local (centroide en el origen) → girado
+  // escala: la caja de la figura girada, con aire para las cotas y el ángulo
+  const esq = [[b.left,b.bottom],[b.right,b.bottom],[b.right,b.top],[b.left,b.top]].map(p=>rot(p[0],p[1]));
+  const rx0 = Math.min(...esq.map(p=>p.x)), rx1 = Math.max(...esq.map(p=>p.x));
+  const ry0 = Math.min(...esq.map(p=>p.y)), ry1 = Math.max(...esq.map(p=>p.y));
+  const esc = Math.min((W-1.3)/Math.max(rx1-rx0, 1e-9), (H-1.1)/Math.max(ry1-ry0, 1e-9));
+  const cxm = (rx0+rx1)/2, cym = (ry0+ry1)/2;
+  // punto local de la figura → cm del croquis (girado y centrado)
+  const P = (x, y) => { const r = rot(x, y); return {X:(r.x-cxm)*esc, Y:(r.y-cym)*esc}; };
   const n = v => v.toFixed(3);
   const col = hexRgbSpec(fig.color);
   const neg = fig.sign < 0;
-
-  // El origen local de la figura es su CENTROIDE, que en general no coincide
-  // con el centro de la caja (el triángulo es el caso claro). Antes el trazado
-  // se pintaba en (0,0) mientras las cotas se calculaban respecto al centro de
-  // la caja: por eso figura y cotas salían desfasadas.
-  const ox = tx(0), oy = ty(0);
-
+  const O = P(0, 0);                                // el centroide de la figura
   let s = '\\begin{tikzpicture}[scale=1]\n';
-  s += '\\begin{scope}[shift={(' + n(ox) + ',' + n(oy) + ')}, scale=' + esc.toFixed(4) + ']\n';
+  s += '\\begin{scope}[shift={(' + n(O.X) + ',' + n(O.Y) + ')}, rotate=' + g.toFixed(3) + ', scale=' + esc.toFixed(4) + ']\n';
   s += def.esLinea
     ? '\\draw[draw={'+col+'}, line width=1.2pt, line cap=round] '      // tramo de alambre: solo trazo
     : '\\path[' + (neg
@@ -214,60 +217,37 @@ function tikzCroquisFigura(fig, anchoCm){
         : 'fill={'+col+'}, fill opacity=0.28, draw={'+col+'}, line width=0.8pt') + '] ';
   s += figuraPathLocal(fig.type, fig.dims) + ';\n';
   s += '\\end{scope}\n';
+  s += '\\fill[bsaAlerta] (' + n(O.X) + ',' + n(O.Y) + ') circle (1.4pt);\n';
+  s += '\\node[font=\\tiny, ' + (gira ? 'below left' : 'above right') + ', inner sep=1pt] at (' + n(O.X) + ',' + n(O.Y) + ') {$C_i$};\n';
 
-  // Centroide de la figura, en su sitio real dentro de la caja
-  s += '\\fill[bsaAlerta] (' + n(ox) + ',' + n(oy) + ') circle (1.4pt);\n';
-  s += '\\node[font=\\tiny, above right, inner sep=1pt] at (' + n(ox) + ',' + n(oy) + ') {$C_i$};\n';
+  // ── Cotas propias, alineadas con la figura: el ancho debajo y el alto a la
+  //    derecha de su caja sin girar, en el sistema de la figura ──
+  const d = 0.34/esc, e = 0.08/esc;                 // separación y sobrepaso, en unidades de la figura
+  const L = (a, bb, estilo) => '\\draw[' + estilo + '] (' + n(a.X) + ',' + n(a.Y) + ') -- (' + n(bb.X) + ',' + n(bb.Y) + ');\n';
+  const ref = 'black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt';
+  const cota = 'black!65, line width=0.3pt, <->, >=stealth';
+  const yc = b.bottom - d, xc = b.right + d;
+  s += L(P(b.left, b.bottom), P(b.left, yc - e), ref) + L(P(b.right, b.bottom), P(b.right, yc - e), ref);
+  s += L(P(b.left, yc), P(b.right, yc), cota);
+  const mA = P((b.left+b.right)/2, yc - 0.20/esc);
+  s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt] at (' + n(mA.X) + ',' + n(mA.Y) + ') {' + decP(bw,'len') + '};\n';
+  s += L(P(b.right, b.bottom), P(xc + e, b.bottom), ref) + L(P(b.right, b.top), P(xc + e, b.top), ref);
+  s += L(P(xc, b.bottom), P(xc, b.top), cota);
+  const mH = P(xc + 0.10/esc, (b.bottom+b.top)/2);
+  s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt, anchor=' + (ca >= -0.2 ? 'west' : 'east') + '] at (' + n(mH.X) + ',' + n(mH.Y) + ') {' + decP(bh,'len') + '};\n';
 
-  // ── Cotas de ancho y alto ──
-  const x0 = tx(b.left), x1 = tx(b.right);
-  const y0 = ty(b.bottom), y1 = ty(b.top);
-  const yc = y0 - 0.34, xc = x1 + 0.34;
-  const T = v => n(v);
-  s += '\\draw[black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt] ('+T(x0)+','+T(y0)+') -- ('+T(x0)+','+T(yc-0.08)+');\n';
-  s += '\\draw[black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt] ('+T(x1)+','+T(y0)+') -- ('+T(x1)+','+T(yc-0.08)+');\n';
-  s += '\\draw[black!65, line width=0.3pt, <->, >=stealth] ('+T(x0)+','+T(yc)+') -- ('+T(x1)+','+T(yc)+');\n';
-  s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt] at ('+T((x0+x1)/2)+','+T(yc)+') {'+decP(bw,'len')+'};\n';
-  s += '\\draw[black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt] ('+T(x1)+','+T(y0)+') -- ('+T(xc+0.08)+','+T(y0)+');\n';
-  s += '\\draw[black!35, line width=0.2pt, dash pattern=on 1.2pt off 1.2pt] ('+T(x1)+','+T(y1)+') -- ('+T(xc+0.08)+','+T(y1)+');\n';
-  s += '\\draw[black!65, line width=0.3pt, <->, >=stealth] ('+T(xc)+','+T(y0)+') -- ('+T(xc)+','+T(y1)+');\n';
-  s += '\\node[font=\\tiny, fill=white, inner sep=0.8pt, rotate=90] at ('+T(xc)+','+T((y0+y1)/2)+') {'+decP(bh,'len')+'};\n';
-
-  // ── Ángulo de giro ──
-  const g = fig.rotation || 0;
-  if(Math.abs(g) >= 0.5){
-    const R = Math.min(0.55, Math.abs(x1-x0)/2.4);
-    s += '\\draw[black!65, line width=0.3pt, ->, >=stealth] ('+n(ox)+','+n(oy)+') -- ('+n(ox+R+0.30)+','+n(oy)+');\n';
-    s += '\\draw[black!65, line width=0.3pt] ('+n(ox)+','+n(oy)+') -- ('
-       + n(ox+(R+0.30)*Math.cos(g*Math.PI/180)) + ',' + n(oy+(R+0.30)*Math.sin(g*Math.PI/180)) + ');\n';
-    s += '\\draw[black!65, line width=0.3pt, ->, >=stealth] ('+n(ox+R)+','+n(oy)+') arc (0:'+g.toFixed(2)+':'+n(R)+');\n';
-
-    // La variable se coloca en un hueco libre: en el croquis del rectángulo
-    // caía justo encima de la cota de altura. Se reutiliza el colocador, con
-    // las etiquetas de las dos cotas como obstáculos.
-    const anclaX = ox + (R+0.14)*Math.cos(g*Math.PI/360);
-    const anclaY = oy + (R+0.14)*Math.sin(g*Math.PI/360);
-    const obst = [
-      {x:(x0+x1)/2 - 0.42, y:yc - 0.13, w:0.84, h:0.26},         // rótulo del ancho
-      {x:xc - 0.13, y:(y0+y1)/2 - 0.42, w:0.26, h:0.84},         // rótulo del alto
-      {x:xc - 0.10, y:y0, w:0.20, h:y1-y0},                      // línea de cota vertical
-      {x:x0, y:yc - 0.10, w:x1-x0, h:0.20}                       // línea de cota horizontal
-    ];
-    const puesto = planCallouts(
-      [{txt:'\\beta', ancla:{x:anclaX, y:anclaY}, w:0.30, h:0.26}],
-      obst, null, [0.16, 0.28, 0.42, 0.58, 0.76])[0];
-    // Si tuvo que apartarse bastante, se le pone una guía fina hasta el arco.
-    const d = Math.hypot(puesto.cx-anclaX, puesto.cy-anclaY);
-    if(d > 0.30){
-      // La guía se para un poco antes del borde de la caja de β (0.30 × 0.26, la
-      // que se le dio al colocador): la letra no lleva fondo y, si la guía llegase
-      // a su centro, la tacharía.
-      const ux = (puesto.cx-anclaX)/d, uy = (puesto.cy-anclaY)/d;
-      const sB = Math.min(Math.abs(ux) < 1e-6 ? Infinity : 0.15/Math.abs(ux),
-                          Math.abs(uy) < 1e-6 ? Infinity : 0.13/Math.abs(uy)) + 0.05;
-      s += '\\draw[black!45, line width=0.22pt] ('+n(puesto.cx-ux*sB)+','+n(puesto.cy-uy*sB)+') -- ('+n(anclaX)+','+n(anclaY)+');\n';
-    }
-    s += '\\node[font=\\small, inner sep=1pt] at ('+n(puesto.cx)+','+n(puesto.cy)+') {$\\beta$};\n';
+  // ── Ángulo de giro, en el centroide, desde +x ──
+  if(gira){
+    const Rl = 0.85;                                 // largo de las dos líneas, en cm
+    const Ra = 0.52;                                 // radio del arco
+    s += '\\draw[black!55, line width=0.3pt, dash pattern=on 1.6pt off 1.2pt, ->, >=stealth] (' + n(O.X) + ',' + n(O.Y) + ') -- (' + n(O.X + Rl) + ',' + n(O.Y) + ');\n';
+    s += '\\node[font=\\tiny, text=black!60, anchor=west, inner sep=0.6pt] at (' + n(O.X + Rl) + ',' + n(O.Y) + ') {$+x$};\n';
+    s += '\\draw[bsaAlerta!80!black, line width=0.35pt, dash pattern=on 1.6pt off 1.2pt] (' + n(O.X) + ',' + n(O.Y) + ') -- (' + n(O.X + Rl*ca) + ',' + n(O.Y + Rl*sa) + ');\n';
+    s += '\\draw[bsaAlerta!80!black, line width=0.4pt, ->, >=stealth] (' + n(O.X + Ra) + ',' + n(O.Y) + ') arc (0:' + g.toFixed(2) + ':' + n(Ra) + ');\n';
+    // sobre el arco, solo la letra: el valor lo dice el pie («girado β = …°»)
+    const am = g/2*Math.PI/180;
+    s += '\\node[font=\\scriptsize, text=bsaAlerta!80!black, fill=white, fill opacity=0.85, text opacity=1, inner sep=0.6pt] at ('
+       + n(O.X + (Ra + 0.17)*Math.cos(am)) + ',' + n(O.Y + (Ra + 0.17)*Math.sin(am)) + ') {$\\beta$};\n';
   }
   s += '\\end{tikzpicture}';
   return s;

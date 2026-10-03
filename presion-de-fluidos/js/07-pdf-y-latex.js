@@ -330,9 +330,191 @@ function tkpCompuerta(opts){
         out += '\\draw[bsaMuted, line width=.5pt] (' + F(xq-0.07) + ',' + F(Y(n.y)-0.07) + ') -- (' + F(xq+0.07) + ',' + F(Y(n.y)+0.07) + ');\n';
         out += '\\draw[bsaMuted, dashed, line width=.4pt] (' + F(X(n.x)) + ',' + F(Y(n.y)) + ') -- (' + F(xq) + ',' + F(Y(n.y)) + ');\n';
         out += tkpTexto(xq + (z===1 ? -0.1 : 0.1), (Y(niv)+Y(n.y))/2, '$' + dec(niv - n.y,'len') + '$', 'font=\\tiny, rotate=90', z===1 ? -1 : 1, 0);
+        tkpOcuparTrazo(xq, Y(niv), xq, Y(n.y), 0.06);
       });
     });
   }
+  if(opts.cotas !== false) out += tkpCotasCompuerta(X, Y);
+  return out;
+}
+
+// ── Cotas de la compuerta en la lámina (2026-10-03): las mismas que el lienzo
+//    (03-, dibujarCotasCompuerta). Proyecciones Δx y Δy de cada tramo en
+//    carriles de cotas corridas, del lado seco y donde el registro las deja
+//    libres; el radio de cada arco desde su centro O. Los valores van derechos y
+//    sin unidad (la dice el pie); la longitud real de cada tramo va en la
+//    leyenda, al lado de la figura. ──
+function tkpCotasCompuerta(X, Y){
+  const F = v => v.toFixed(3);
+  const trs = tramos.filter(t=>nodo(t.a) && nodo(t.b));
+  if(!trs.length) return '';
+  let out = '';
+  let gx0 = Infinity, gx1 = -Infinity, gy0 = Infinity, gy1 = -Infinity;
+  trs.forEach(t=>puntosTramo(t, 24).forEach(P=>{
+    gx0 = Math.min(gx0, X(P.x)); gx1 = Math.max(gx1, X(P.x)); gy0 = Math.min(gy0, Y(P.y)); gy1 = Math.max(gy1, Y(P.y));
+  }));
+  const hay1 = capasOrdenadas(1).length > 0, hay2 = capasOrdenadas(2).length > 0;
+  const tam = Math.max(1e-9, ...trs.map(t=>Math.hypot(nodo(t.b).x-nodo(t.a).x, nodo(t.b).y-nodo(t.a).y)));
+  const items = eje => trs.map(t=>{
+    const a = nodo(t.a), b = nodo(t.b);
+    const va = eje === 'y' ? a.y : a.x, vb = eje === 'y' ? b.y : b.x;
+    if(Math.abs(vb - va) < 1e-6*tam) return null;
+    return va <= vb ? {t, lo:va, hi:vb, nLo:a, nHi:b} : {t, lo:vb, hi:va, nLo:b, nHi:a};
+  }).filter(Boolean);
+  const OFF = [0.5, 0.75, 1.0, 1.3, 1.65, 2.05];
+  const flecha = '{Latex[length=1.5mm,width=1.1mm]}-{Latex[length=1.5mm,width=1.1mm]}';
+  // línea de extensión: deja un hueco junto al punto y pasa 0.1 de la línea de cota
+  const ext = (x1, y1, x2, y2) => {
+    const L = Math.hypot(x2-x1, y2-y1); if(L < 0.12) return '';
+    const ux = (x2-x1)/L, uy = (y2-y1)/L;
+    return '\\draw[bsaMuted, line width=.35pt] (' + F(x1+ux*0.08) + ',' + F(y1+uy*0.08) + ') -- (' + F(x2+ux*0.1) + ',' + F(y2+uy*0.1) + ');\n';
+  };
+  const txt = it => '$' + dec(it.hi - it.lo, 'len') + '$';
+  const carriles = (lista, vertical) => {
+    const lados = vertical ? ((hay1 && !hay2) ? [1, -1] : [-1, 1]) : [1, -1];   // en horizontal, +1 es encima
+    const usado = {'-1':0, '1':0};
+    const sitio = (lado, o) => vertical ? (lado < 0 ? gx0 - o : gx1 + o) : (lado > 0 ? gy1 + o : gy0 - o);
+    _carrilesCota(lista).forEach(lane=>{
+      let el = null;
+      for(const lado of lados){
+        for(const off of OFF){
+          const o = off + usado[lado], c = sitio(lado, o);
+          const libre = lane.every(it=>{
+            const a = vertical ? Y(it.lo) : X(it.lo), b = vertical ? Y(it.hi) : X(it.hi);
+            const w = tkpAncho(txt(it), 'font=\\tiny'), h = tkpAlto('tiny'), m = (a + b)/2;
+            const linea = vertical ? {x0:c-0.05, y0:Math.min(a,b), x1:c+0.05, y1:Math.max(a,b)}
+                                   : {x0:Math.min(a,b), y0:c-0.05, x1:Math.max(a,b), y1:c+0.05};
+            const tx = vertical ? {x0: lado < 0 ? c-0.1-w : c+0.1, y0:m-h/2, x1: lado < 0 ? c-0.1 : c+0.1+w, y1:m+h/2}
+                                : {x0:m-w/2, y0: lado > 0 ? c+0.06 : c-0.06-h, x1:m+w/2, y1: lado > 0 ? c+0.06+h : c-0.06};
+            return !tkpChoca(linea) && !tkpChoca(tx);
+          });
+          if(libre){ el = {lado, o, c}; break; }
+        }
+        if(el) break;
+      }
+      if(!el){ const lado = lados[0], o = OFF[0] + usado[lado]; el = {lado, o, c: sitio(lado, o)}; }
+      usado[el.lado] = el.o;
+      lane.forEach(it=>{
+        const xl = X(it.nLo.x), yl = Y(it.nLo.y), xh = X(it.nHi.x), yh = Y(it.nHi.y);
+        if(vertical){
+          out += ext(xl, yl, el.c, yl) + ext(xh, yh, el.c, yh);
+          out += '\\draw[' + flecha + ', bsaMuted, line width=.4pt] (' + F(el.c) + ',' + F(yl) + ') -- (' + F(el.c) + ',' + F(yh) + ');\n';
+          tkpOcuparTrazo(el.c, yl, el.c, yh, 0.05);
+          const w = tkpAncho(txt(it), 'font=\\tiny');
+          out += tkpTexto(el.c + el.lado*(0.1 + w/2), (yl + yh)/2, txt(it), 'font=\\tiny', el.lado, 0);
+        } else {
+          out += ext(xl, yl, xl, el.c) + ext(xh, yh, xh, el.c);
+          out += '\\draw[' + flecha + ', bsaMuted, line width=.4pt] (' + F(xl) + ',' + F(el.c) + ') -- (' + F(xh) + ',' + F(el.c) + ');\n';
+          tkpOcuparTrazo(xl, el.c, xh, el.c, 0.05);
+          out += tkpTexto((xl + xh)/2, el.c + el.lado*(0.06 + tkpAlto('tiny')/2), txt(it), 'font=\\tiny', 0, el.lado);
+        }
+      });
+    });
+  };
+  carriles(items('y'), true);
+  carriles(items('x'), false);
+  const arcos = trs.filter(t=>arcoDeTramo(t));
+  arcos.forEach((t, i)=>{
+    const arc = arcoDeTramo(t);
+    const ox = X(arc.cx), oy = Y(arc.cy);
+    const th = arc.t1 + arc.d/2;
+    const mx = X(arc.cx + arc.R*Math.cos(th)), my = Y(arc.cy + arc.R*Math.sin(th));
+    out += '\\draw[-{Latex[length=1.5mm,width=1.1mm]}, bsaMuted, line width=.4pt] (' + F(ox) + ',' + F(oy) + ') -- (' + F(mx) + ',' + F(my) + ');\n';
+    out += '\\draw[bsaMuted, line width=.4pt] (' + F(ox-0.1) + ',' + F(oy) + ') -- (' + F(ox+0.1) + ',' + F(oy) + ') (' + F(ox) + ',' + F(oy-0.1) + ') -- (' + F(ox) + ',' + F(oy+0.1) + ');\n';
+    tkpOcuparTrazo(ox, oy, mx, my, 0.05);
+    out += tkpTexto(ox - 0.18, oy - 0.18, '$O' + (arcos.length > 1 ? '_{' + (i+1) + '}' : '') + '$', 'font=\\tiny, color=bsaMuted', -1, -1);
+    const L = Math.hypot(mx-ox, my-oy) || 1, nx = -(my-oy)/L, ny = (mx-ox)/L;
+    out += tkpTexto((ox+mx)/2 + nx*0.18, (oy+my)/2 + ny*0.18, '$R = ' + dec(arc.R,'len') + '$', 'font=\\tiny', nx, ny);
+  });
+  return out;
+}
+// Leyenda de la lámina de planteamiento: la longitud real de cada tramo.
+function leyendaTramosTex(){
+  const ds = datosTramosLeyenda();
+  if(!ds.length) return '';
+  const uL = escLatex(unitLen);
+  return '\\fcolorbox{bsaMuted!45}{white}{\\footnotesize\\begin{tabular}{@{}l@{}}\\textbf{Leyenda}\\\\[1pt]'
+    + ds.map(d=>'$L_{' + escLatex(d.nom) + '} = ' + dec(d.L,'len') + '$\\,' + uL
+      + (d.R !== null ? ' (arco, $R = ' + dec(d.R,'len') + '$\\,' + uL + ')' : '')).join('\\\\')
+    + '\\end{tabular}}';
+}
+
+// ── Resultante única del líquido (2026-10-03): la compuerta, cada F_k en su P,
+//    y R en violeta llegando a P_R, con su línea de acción, su ángulo y las
+//    cotas s (sobre el tramo, desde N) y z_R (desde la superficie libre) ──
+function tkpResultanteUnica(r, letraR){
+  const ru = r.resultante;
+  tkpReiniciar();
+  const caja = _cajaModelo([ru.P]);
+  const {X, Y, minx, maxx} = caja;
+  const F = v => v.toFixed(3);
+  let out = '';
+  const Px = X(ru.P.x), Py = Y(ru.P.y), Lr = 1.9, d = ru.dir;
+  const x1 = Px - d.x*Lr, y1 = Py - d.y*Lr;
+  const lado = x1 >= Px ? 1 : -1;                  // lado de la cola, donde va la cota z_R
+  const xc = lado*Math.max(X(maxx)*lado, X(minx)*lado, Px*lado, x1*lado) + lado*0.55;
+  if(ru.niv !== null && isFinite(ru.niv)){
+    // la superficie libre llega hasta la cota z_R, que se mide desde ella
+    const xa = Math.min(X(minx) - 0.8, xc - 0.3), xb = Math.max(X(maxx) + 0.8, xc + 0.3);
+    out += '\\draw[bsaAgua, line width=1pt] (' + F(xa) + ',' + F(Y(ru.niv)) + ') -- (' + F(xb) + ',' + F(Y(ru.niv)) + ');\n';
+    out += '\\node[' + (ru.z===1 ? 'above right' : 'above left') + ', font=\\tiny, color=bsaAgua!80!black, inner sep=1.5pt] at (' + F(ru.z===1 ? xa : xb) + ',' + F(Y(ru.niv)) + ') {superficie libre};\n';
+    tkpOcupar(xa, Y(ru.niv), xb, Y(ru.niv) + 0.3);
+  }
+  tramos.forEach(t=>{
+    const pts = puntosTramo(t, 40);
+    if(pts.length < 2) return;
+    out += '\\draw[bsaAcc2, line width=1.8pt] ' + pts.map(p=>'(' + F(X(p.x)) + ',' + F(Y(p.y)) + ')').join(' -- ') + ';\n';
+    for(let i=1;i<pts.length;i++) tkpOcuparTrazo(X(pts[i-1].x), Y(pts[i-1].y), X(pts[i].x), Y(pts[i].y), 0.04);
+  });
+  nodos.forEach(n=>{ out += '\\filldraw[color=bsaAcc2] (' + F(X(n.x)) + ',' + F(Y(n.y)) + ') circle (0.05);\n'; });
+  // las fuerzas de cada tramo, finas, para ver de dónde sale R
+  r.cargas.forEach(c=>{
+    const Px = X(c.P.x), Py = Y(c.P.y), Lf = 1.1;
+    out += '\\draw[-{Latex[length=1.8mm]}, bsaPres, line width=.9pt] (' + F(Px - c.dir.x*Lf) + ',' + F(Py - c.dir.y*Lf) + ') -- (' + F(Px - c.dir.x*0.05) + ',' + F(Py - c.dir.y*0.05) + ');\n';
+    tkpOcuparTrazo(Px - c.dir.x*Lf, Py - c.dir.y*Lf, Px, Py, 0.07);
+  });
+  // R en P_R, con su línea de acción a trazos
+  out += '\\draw[bsaRes!70, dashed, line width=.5pt] (' + F(x1 - d.x*0.5) + ',' + F(y1 - d.y*0.5) + ') -- (' + F(Px + d.x*0.8) + ',' + F(Py + d.y*0.8) + ');\n';
+  out += '\\draw[-{Latex[length=2.6mm]}, bsaRes, line width=1.6pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(Px - d.x*0.07) + ',' + F(Py - d.y*0.07) + ');\n';
+  tkpOcuparTrazo(x1, y1, Px, Py, 0.1);
+  out += '\\filldraw[fill=white, draw=bsaRes, line width=.8pt] (' + F(Px) + ',' + F(Py) + ') circle (0.07);\n';
+  tkpOcupar(Px-0.09, Py-0.09, Px+0.09, Py+0.09);
+  // cota z_R, del lado de la cola y por fuera de todo lo dibujado
+  if(ru.zR !== null && ru.zR > 1e-9){
+    const yn = Y(ru.niv);
+    out += '\\draw[bsaRes, line width=.5pt] (' + F(xc) + ',' + F(yn) + ') -- (' + F(xc) + ',' + F(Py) + ');\n';
+    out += '\\draw[bsaRes, line width=.5pt] (' + F(xc-0.07) + ',' + F(yn-0.07) + ') -- (' + F(xc+0.07) + ',' + F(yn+0.07) + ') (' + F(xc-0.07) + ',' + F(Py-0.07) + ') -- (' + F(xc+0.07) + ',' + F(Py+0.07) + ');\n';
+    out += '\\draw[bsaRes!70, dashed, line width=.4pt] (' + F(Px) + ',' + F(Py) + ') -- (' + F(xc) + ',' + F(Py) + ');\n';
+    tkpOcuparTrazo(xc, yn, xc, Py, 0.05);
+    out += tkpTexto(xc + lado*0.22, (yn + Py)/2, '$z_R = ' + dec(ru.zR,'len') + '$', 'font=\\tiny, color=bsaRes, rotate=90', lado, 0);
+  }
+  // cota s sobre el tramo, de N a P_R, del lado contrario a la cola
+  if(ru.corta && ru.recto && ru.s > 1e-9){
+    const Nx = X(ru.N.x), Ny = Y(ru.N.y);
+    const L = Math.hypot(Px-Nx, Py-Ny) || 1;
+    let nx = -(Py-Ny)/L, ny = (Px-Nx)/L;
+    if(nx*d.x + ny*d.y < 0){ nx = -nx; ny = -ny; }
+    const o = 0.45;
+    const a = [Nx + nx*o, Ny + ny*o], b = [Px + nx*o, Py + ny*o];
+    out += '\\draw[bsaRes!80, line width=.35pt] (' + F(Nx + nx*0.08) + ',' + F(Ny + ny*0.08) + ') -- (' + F(a[0] + nx*0.1) + ',' + F(a[1] + ny*0.1) + ');\n';
+    out += '\\draw[bsaRes!80, line width=.35pt] (' + F(Px + nx*0.1) + ',' + F(Py + ny*0.1) + ') -- (' + F(b[0] + nx*0.1) + ',' + F(b[1] + ny*0.1) + ');\n';
+    out += '\\draw[{Latex[length=1.5mm,width=1.1mm]}-{Latex[length=1.5mm,width=1.1mm]}, bsaRes, line width=.45pt] (' + F(a[0]) + ',' + F(a[1]) + ') -- (' + F(b[0]) + ',' + F(b[1]) + ');\n';
+    // el valor, antes de reservar la línea de cota: reservada a trozos rectos, una
+    // cota inclinada ocupa cajas anchas y echaba el rótulo lejos de su línea
+    // apartado lo que pide su caja en la dirección normal, para no tachar la línea
+    const ts = '$s = ' + dec(ru.s,'len') + '$', tw = tkpAncho(ts, 'font=\\tiny'), th = tkpAlto('tiny');
+    const sep = 0.08 + Math.abs(nx)*tw/2 + Math.abs(ny)*th/2;
+    out += tkpTexto((a[0]+b[0])/2 + nx*sep, (a[1]+b[1])/2 + ny*sep, ts, 'font=\\tiny, color=bsaRes', nx, ny);
+    tkpOcuparTrazo(a[0], a[1], b[0], b[1], 0.06);
+  }
+  // rótulos al final: nudos, F_k, R, P_R y el ángulo de R
+  nodos.forEach(n=>{ out += tkpTexto(X(n.x) + 0.22, Y(n.y) + 0.22, '\\textbf{' + escLatex(n.nombre) + '}', 'font=\\scriptsize, color=bsaAcc2', 1, 1); });
+  r.cargas.forEach(c=>{
+    out += tkpTexto(X(c.P.x) - c.dir.x*1.35, Y(c.P.y) - c.dir.y*1.35, '$' + c.nombre + '$', 'font=\\scriptsize, color=bsaPres', -c.dir.x, -c.dir.y);
+  });
+  out += tkpTexto(x1 - d.x*0.35, y1 - d.y*0.35, '$R$', 'font=\\small, color=bsaRes', -d.x, -d.y);
+  out += tkpTexto(Px - lado*0.32, Py - 0.25, '$P_R$', 'font=\\scriptsize, color=bsaRes', -lado, -1);
+  out += tkpArcoAngulo(x1, y1, d, letraR);
   return out;
 }
 
@@ -444,7 +626,7 @@ function tkpCroquisCarga(c, d){
 // desde el eje más cercano (trazo punteado, bsaAnguloAgudoEje), con la letra
 // que reparte asignarLetrasAngulos. Vale para las cargas del líquido y para
 // las reacciones y topes; antes cada bloque medía siempre desde la horizontal.
-function tkpArcoAngulo(x1, y1, d){
+function tkpArcoAngulo(x1, y1, d, letra){
   const ag = bsaAnguloAgudoEje(d.x, d.y);
   if(ag.grados < 1e-6) return '';
   const F = v => v.toFixed(3);
@@ -456,7 +638,7 @@ function tkpArcoAngulo(x1, y1, d){
   let q = '\\draw[bsaMuted, dashed, line width=.4pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(x1 + 0.8*cr) + ',' + F(y1 + 0.8*sr) + ');\n';
   q += '\\draw[bsaMuted, line width=.5pt] (' + F(x1 + 0.45*cr) + ',' + F(y1 + 0.45*sr) + ') arc (' + F(rayDeg) + ':' + F(a1) + ':0.45);\n';
   const am = (rayDeg + a1)/2*Math.PI/180;
-  q += tkpTexto(x1 + 0.68*Math.cos(am), y1 + 0.68*Math.sin(am), '$' + letraAngulo(d) + '$', 'font=\\scriptsize, color=bsaMuted', Math.cos(am), Math.sin(am));
+  q += tkpTexto(x1 + 0.68*Math.cos(am), y1 + 0.68*Math.sin(am), '$' + (letra || letraAngulo(d)) + '$', 'font=\\scriptsize, color=bsaMuted', Math.cos(am), Math.sin(am));
   return q;
 }
 function tkpDCL(r, sel){
@@ -631,14 +813,18 @@ function _filaPres(izq, terms, cola, porFila){
 }
 
 function construirLatex(){
-  if(!R || R.error){
+  // Solo presas (10-), sin compuerta: el informe se reduce a sus secciones.
+  const soloPresa = (!R || R.error === 'sin-tramos') && !!RP && RP.length > 0;
+  if(!soloPresa && (!R || R.error)){
     aviso('Primero pulsa Resolver (o revisa el equilibrio de la compuerta).');
     return null;
   }
-  const r = R;
+  const r = soloPresa ? {cargas:[], inc:[], pesos:[]} : R;
   _yaDichoPres = {};
-  asignarLetrasAngulos(r);
-  r.cargas.forEach(c=>{ if(!c.des) c.des = desarrolloCarga(c); });
+  if(!soloPresa){
+    asignarLetrasAngulos(r);
+    r.cargas.forEach(c=>{ if(!c.des) c.des = desarrolloCarga(c); });
+  }
   const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
   const uL = escLatex(unitLen), uF = escLatex(unitFor);
   const UL = '\\,\\text{' + uL + '}', UF = '\\,\\text{' + uF + '}';
@@ -650,10 +836,14 @@ function construirLatex(){
   const dosLados = r.cargas.some(c=>c.z===1) && r.cargas.some(c=>c.z===2);
 
   // ── Autocomprobación: la tabla del paso 2 debe reproducir la resultante del motor ──
-  {
+  if(!soloPresa){
     let ok = true;
     r.cargas.forEach(c=>{ if(!c.des || !c.des.coincide) ok = false; });
     if(!ok) console.warn('Informe LaTeX: la tabla no reproduce la resultante');
+    // La resultante única: s por momentos (R_n s = ΣM_N) debe caer en el corte geométrico.
+    const ru = r.resultante;
+    if(ru && ru.corta && ru.recto && Math.abs(ru.sMomento - ru.s) > 1e-6*Math.max(1, ru.s))
+      console.warn('Informe LaTeX: la resultante única no reproduce su momento');
     r.plan.pasos.forEach(p=>{
       if(p.tipo !== 'despeje') return;
       const q = ecuacionDelPaso(r, p);
@@ -679,6 +869,9 @@ function construirLatex(){
     + '\\definecolor{bsaTope}{HTML}{B45309}\n'
     + '\\definecolor{bsaPeso}{HTML}{7A5C1E}\n'
     + '\\definecolor{bsaReac}{HTML}{15803D}\n'
+    + '\\definecolor{bsaRes}{HTML}{6D28D9}\n'
+    + '\\definecolor{bsaPresa}{HTML}{6B6457}\n'
+    + '\\definecolor{bsaTierra}{HTML}{6B5A3E}\n'
     + '\\definecolor{bsaVerde}{HTML}{15803D}\n'
     + '\\definecolor{bsaLogoB}{HTML}{CDA953}\n'
     + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
@@ -706,6 +899,17 @@ function construirLatex(){
     + '\\makeatletter\n'
     + '\\newenvironment{tablacentrada}{\\par\\nopagebreak\\begingroup\\@beginparpenalty=10000\\relax\\begin{center}}{\\end{center}\\endgroup}\n'
     + '\\makeatother\n'
+    // Figura con su leyenda AL COSTADO (2026-10-03): si las dos no caben juntas en
+    // el ancho del texto, la leyenda pasa debajo y la figura se reduce solo si ella
+    // sola se sale (si ya cabe, no se toca: cambiarían las letras).
+    + '\\newsavebox{\\bsaFigBox}\\newsavebox{\\bsaLeyBox}\n'
+    + '\\newcommand{\\bsaFiguraLeyenda}[2]{%\n'
+    + '  \\sbox{\\bsaFigBox}{#1}\\sbox{\\bsaLeyBox}{#2}%\n'
+    + '  \\ifdim\\dimexpr\\wd\\bsaFigBox+\\wd\\bsaLeyBox+0.7cm\\relax>\\linewidth\n'
+    + '    \\ifdim\\wd\\bsaFigBox>\\linewidth\\resizebox{\\linewidth}{!}{\\usebox{\\bsaFigBox}}\\else\\usebox{\\bsaFigBox}\\fi\\par\\vspace{4pt}\\usebox{\\bsaLeyBox}%\n'
+    + '  \\else\n'
+    + '    \\begin{minipage}[c]{\\wd\\bsaFigBox}\\usebox{\\bsaFigBox}\\end{minipage}\\hspace{0.7cm}\\begin{minipage}[c]{\\wd\\bsaLeyBox}\\usebox{\\bsaLeyBox}\\end{minipage}%\n'
+    + '  \\fi}\n'
     + '\\raggedbottom\n\n'
     + '\\begin{document}\n\n';
 
@@ -721,13 +925,26 @@ function construirLatex(){
 
   let tex = preambulo;
   tex += '\\begin{center}\n'
-    + '  {\\LARGE\\bfseries\\color{bsaAcc} Presi\\\'on de un fluido sobre una compuerta}\\\\[3pt]\n'
+    + '  {\\LARGE\\bfseries\\color{bsaAcc} Presi\\\'on de un fluido sobre una ' + (soloPresa ? 'presa' : 'compuerta') + '}\\\\[3pt]\n'
     + '  {\\small\\color{bsaMuted} Generado: ' + escLatex(dt) + '}\n'
     + '\\end{center}\n\\vspace{6pt}\n\n';
+  if(soloPresa){
+    tex += latexPresas({lamina, tablaCaption, porque}, 1);
+    tex += bsaReferenciasLatex();
+    tex += colofonLatexBSA();
+    tex += '\n\\end{document}\n';
+    return tex;
+  }
 
   // ═══ 1. Planteamiento ═══
   tex += '\\seccion{1. Planteamiento}\n';
-  tex += lamina(tkpCompuerta(), 'Compuerta, l\\\'iquido de cada zona con su superficie libre, apoyos y topes. Ancho $b = ' + nl(b) + '$' + UL + '.');
+  {
+    // La lámina de planteamiento lleva las cotas de la compuerta y, al costado,
+    // la leyenda con la longitud real de cada tramo (2026-10-03).
+    figN++;
+    tex += '\\begin{center}\n\\bsaFiguraLeyenda{\\begin{tikzpicture}\n' + tkpCompuerta() + '\\end{tikzpicture}}{' + leyendaTramosTex() + '}\\par\\nopagebreak\\vspace{4pt}\n'
+      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} Compuerta, l\\\'iquido de cada zona con su superficie libre, apoyos y topes. Ancho $b = ' + nl(b) + '$' + UL + '; cotas en ' + uL + '.}\n\\end{center}\n\\vspace{4pt}\n';
+  }
   const apoyosTxt = r.inc.map(u=>'$' + simbIncognita(u) + '$ (' + descIncognita(u) + ' en ' + escLatex(u.n.nombre) + ')');
   tex += '\\noindent\\textbf{Objetivo.} Hallar la resultante del l\\\'iquido sobre cada tramo mojado de la compuerta, '
     + 'su punto de aplicaci\\\'on (el centro de presi\\\'on) y, con ellas, las inc\\\'ognitas del equilibrio: '
@@ -737,7 +954,7 @@ function construirLatex(){
     + 'Por eso una compuerta inclinada o curva recibe la misma $p$ que una vertical a igual profundidad: lo que cambia es la direcci\\\'on. '
     + (dosLados ? 'Con l\\\'iquido a los dos lados, cada zona empuja sobre su cara; son dos fuerzas distintas y se tratan por separado. ' : '')
     + (hayCapas ? 'Con varias capas, la presi\\\'on se acumula capa a capa, $p = \\sum \\gamma_i h_i$: cada capa apoya su peso sobre la de abajo.' : ''));
-  tex += '\\noindent\\textbf{Procedimiento.} (1) Presi\\\'on en los puntos clave de cada tramo mojado; (2) resultante de cada tramo y su centro de presi\\\'on; '
+  tex += '\\noindent\\textbf{Procedimiento.} (1) Presi\\\'on en los puntos clave de cada tramo mojado; (2) resultante de cada tramo y su centro de presi\\\'on' + (r.resultante ? ', y la resultante \\\'unica de todo el l\\\'iquido' : '') + '; '
     + '(3) diagrama de cuerpo libre de la compuerta; (4) ecuaciones de equilibrio en el orden en que se despejan; (5) comprobaciones.\\\\[4pt]\n';
   tex += '\\noindent\\textbf{Convenio.} $x$ hacia la derecha, $y$ hacia arriba, momentos positivos en sentido antihorario. Las profundidades $h$ se miden desde la superficie libre de la zona correspondiente.\n';
 
@@ -858,6 +1075,71 @@ function construirLatex(){
       + (c.G.arc ? ',\\quad \\bar r = ' + nl(c.G.arc.R) + '\\,\\sen ' + dec(c.G.alfa*180/Math.PI,'ang') + '^\\circ/' + c.G.alfa.toFixed(4) + ' = ' + nl(c.G.rbar) + UL : ''));
     tex += '\\begin{align*}\n' + filasW.join(' \\\\\n') + '\n\\end{align*}\n';
   }
+  // Resultante única del líquido (2026-10-03): todo el bloque de presiones como
+  // UNA fuerza, con su procedimiento y su figura acotada.
+  const ru = r.resultante;
+  if(ru){
+    tex += '\\subpaso{Resultante \\\'unica del l\\\'iquido}\n';
+    tex += porque('resultante-unica', 'Todo el bloque de presiones puede sustituirse por \\textbf{una sola fuerza} con el mismo efecto sobre la compuerta: '
+      + 'la misma suma, $R = \\sum F_k$, y el mismo momento respecto de cualquier punto (teorema de Varignon; Hibbeler, 2027). '
+      + 'Su magnitud es el \\\'area total del bloque de presiones por el ancho $b$, y su l\\\'inea de acci\\\'on pasa por el centroide de ese bloque. '
+      + ((ru.corta && ru.recto) ? 'Para situarla se toman momentos respecto del nudo menos profundo del tramo que corta: la componente de $R$ a lo largo del tramo pasa por ese nudo y no da momento, '
+        + 'as\\\'i que solo cuenta la normal, $R_n = R\\sen\\beta$, y $R_n\\,s = \\sum M$.' : 'Para situarla se toman momentos respecto de un punto: la distancia de ese punto a la l\\\'inea de acci\\\'on es $d = |\\sum M|/R$.'));
+    const UM = '\\,\\text{' + uF + '}\\cdot\\text{' + uL + '}';
+    // la suma término a término solo si hay más de uno: «−245.00 = −245.00» no dice nada
+    const suma = vs => vs.length > 1 ? vs.map((v,i)=>(i===0 ? (v<0?'-':'') : (v<0?' - ':' + ')) + f(Math.abs(v))).join('') + ' = ' : '';
+    const filas = [];
+    filas.push('R_x &= \\sum F_x = ' + suma(r.cargas.map(c=>c.Fx).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Rx) + UF);
+    filas.push('R_y &= \\sum F_y = ' + suma(r.cargas.map(c=>c.Fy).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Ry) + UF);
+    if(ru.par){
+      filas.push('M &= \\sum M_O = ' + f(ru.Mo) + UM);
+      tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
+      tex += '\\resultado{Las fuerzas del l\\\'iquido se anulan entre s\\\'i: su efecto es un \\textbf{par} $M = ' + f(Math.abs(ru.Mo)) + '$' + UM + ', que no tiene l\\\'inea de acci\\\'on.}\n';
+    } else {
+      let letraR = '\\theta_R';
+      const eL = _LETRAS_ANG[ru.ag.grados.toFixed(2) + (ru.ag.desdeV ? 'V' : 'H')];
+      if(eL) letraR = eL.letra;
+      const ejeAng = ru.ag.desdeV ? 'vertical' : 'horizontal';
+      const inclinada = ru.ag.grados >= 1e-6;
+      filas.push('R &= \\sqrt{R_x^2 + R_y^2} = \\sqrt{' + f(Math.abs(ru.Rx)) + '^2 + ' + f(Math.abs(ru.Ry)) + '^2} = ' + f(ru.F) + UF);
+      if(inclinada)
+        filas.push('\\tan ' + letraR + ' &= \\frac{|R_' + (ru.ag.desdeV ? 'x' : 'y') + '|}{|R_' + (ru.ag.desdeV ? 'y' : 'x') + '|} = \\frac{' + f(Math.abs(ru.ag.desdeV ? ru.Rx : ru.Ry)) + '}{' + f(Math.abs(ru.ag.desdeV ? ru.Ry : ru.Rx)) + '}\\ \\Rightarrow\\ ' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ\\ \\text{(con la ' + ejeAng + ')}');
+      if(ru.corta){
+        const N = escLatex(ru.N.nombre);
+        const ts = ru.terminos.filter(q=>q.brazo > 1e-9);
+        let fm = '\\circlearrowleft{+}\\ \\sum M_{' + N + '} &= ';
+        ts.forEach((q,i)=>{
+          if(i > 0 && i % 3 === 0) fm += ' \\\\\n &\\qquad ';
+          fm += (i===0 ? (q.m<0?'-':'') : (q.m<0?' - ':' + ')) + f(q.c.F) + '(' + nl(q.brazo) + ')';
+        });
+        filas.push(fm + (ts.length ? '' : '0'));
+        filas.push('&= ' + f(ru.MN) + UM);
+        if(ru.recto){
+          const tr = N + escLatex(ru.otro.nombre);
+          filas.push('R_n &= R\\sen\\beta = ' + f(ru.F) + '\\sen ' + dec(ru.beta,'ang') + '^\\circ = ' + f(Math.abs(ru.Rn)) + UF);
+          filas.push('s &= \\frac{|\\sum M_{' + N + '}|}{R_n} = \\frac{' + f(Math.abs(ru.MN)) + '}{' + f(Math.abs(ru.Rn)) + '} = ' + nl(ru.s) + UL);
+          tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ del l\\\'iquido en su punto de corte $P_R$ con la compuerta, junto a las fuerzas de cada tramo. Cotas en ' + uL + '.' + (inclinada ? ' $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$.' : ''));
+          tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
+          tex += '{\\footnotesize $\\beta$ es el \\\'angulo agudo entre $R$ y el tramo ' + tr + '; los brazos se miden desde ' + N + ', perpendiculares a cada fuerza.}\\\\[2pt]\n';
+          tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$ de la ' + ejeAng : '')
+            + '. Su l\\\'inea de acci\\\'on corta el tramo ' + tr + ' en $P_R$, a $s = ' + nl(ru.s) + '$' + UL + ' de ' + N
+            + (ru.zR !== null ? ' y a $z_R = ' + nl(ru.zR) + '$' + UL + ' bajo la superficie libre' : '') + '.}\n';
+        } else {
+          filas.push('d &= \\frac{|\\sum M_{' + N + '}|}{R} = \\frac{' + f(Math.abs(ru.MN)) + '}{' + f(ru.F) + '} = ' + nl(ru.dR) + UL);
+          tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ del l\\\'iquido en su punto de corte $P_R$ con la compuerta. Cotas en ' + uL + '.' + (inclinada ? ' $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$.' : ''));
+          tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
+          tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$ de la ' + ejeAng : '')
+            + '. Su l\\\'inea de acci\\\'on pasa a $d = ' + nl(ru.dR) + '$' + UL + ' de ' + N + ' y corta el arco ' + escLatex(nomTramo(ru.t)) + ' en $P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')$'
+            + (ru.zR !== null ? ', a $z_R = ' + nl(ru.zR) + '$' + UL + ' bajo la superficie libre' : '') + '.}\n';
+        }
+      } else {
+        filas.push('\\sum M_O &= ' + f(ru.Mo) + UM);
+        tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ del l\\\'iquido; su l\\\'inea de acci\\\'on no corta la compuerta. Cotas en ' + uL + '.');
+        tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
+        tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + '. Su l\\\'inea de acci\\\'on no corta la compuerta; su punto m\\\'as cercano a las fuerzas es $P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')$.}\n';
+      }
+    }
+  }
 
   // ═══ 4. Paso 3: DCL ═══
   tex += '\\seccion{4. Paso 3 --- Diagrama de cuerpo libre de la compuerta}\n';
@@ -969,6 +1251,9 @@ function construirLatex(){
     + (r.cierra ? 'Las tres sumas son nulas: la compuerta queda en equilibrio con estas reacciones.'
                 : 'El equilibrio no cierra; revisa los apoyos y las caras mojadas.')
     + '}\\end{center}\n';
+
+  // ═══ 7. Presas, si las hay (10-) ═══
+  tex += latexPresas({lamina, tablaCaption, porque}, 7);
 
   // ═══ Referencias y colofón ═══
   tex += bsaReferenciasLatex();
@@ -1241,7 +1526,7 @@ function downloadPDF(){
   const temporales = [];
   return bsaInformeRapido({
     panel: 'resultsPanel',
-    hayResultados: !!(R && !R.error),
+    hayResultados: !!(R && !R.error) || !!(RP && RP.length),
     sinResultados: (R && R.error)
       ? 'El análisis no se completó: corrige lo que indica el panel de resultados y vuelve a pulsar Resolver.'
       : 'Primero pulsa Resolver.',
@@ -1251,12 +1536,12 @@ function downloadPDF(){
       // Primero se guarda todo lo que se va a tocar: despues() lo necesita
       // aunque algo falle a medias.
       guardado = {cv:cv, ctx:ctx, W:W, H:H, vx:vx, vy:vy, escala:escala,
-        grilla:VIS.grilla, liquidos:VIS.liquidos, selN:selN, selT:selT, gesto:gesto};
-      VIS.grilla = false; selN = []; selT = []; gesto = null;
+        grilla:VIS.grilla, ejes:VIS.ejes, liquidos:VIS.liquidos, selN:selN, selT:selT, gesto:gesto};
+      VIS.grilla = false; VIS.ejes = false; selN = []; selT = []; gesto = null;
       lienzo = _figuraInformePF(guardado.liquidos, temporales);
     },
     // Se evalúa después de antes(), que es quien dibuja la figura.
-    figuras: ()=> lienzo ? [{titulo: 'Compuerta analizada', lienzo: lienzo}] : [],
+    figuras: ()=> lienzo ? [{titulo: tramos.length ? 'Compuerta analizada' : 'Presa analizada', lienzo: lienzo}] : [],
     despues: ()=>{
       temporales.splice(0).forEach(c => c.remove());
       lienzo = null;
@@ -1265,7 +1550,7 @@ function downloadPDF(){
       guardado = null;
       cv = g.cv; ctx = g.ctx; W = g.W; H = g.H;
       vx = g.vx; vy = g.vy; escala = g.escala;
-      VIS.grilla = g.grilla; VIS.liquidos = g.liquidos;
+      VIS.grilla = g.grilla; VIS.ejes = g.ejes; VIS.liquidos = g.liquidos;
       selN = g.selN; selT = g.selT; gesto = g.gesto;
       dibujar();
     },

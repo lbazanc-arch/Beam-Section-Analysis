@@ -8,13 +8,14 @@ function depurarSeleccionPF(){
   selT = selT.filter(id=>tramos.some(t=>t.id===id));
   if(infoNodo !== null && !nodos.some(n=>n.id===infoNodo)) infoNodo = null;
   if(infoTramo !== null && !tramos.some(t=>t.id===infoTramo)) infoTramo = null;
+  selP = selP.filter(id=>presas.some(p=>p.id===id));
 }
 // Vacía la selección entera: limpiar, cargar un ejemplo y abrir un ejercicio.
-function vaciarSeleccionPF(){ selN = []; selT = []; infoNodo = null; infoTramo = null; selNodo = null; puntoPendiente = null; }
+function vaciarSeleccionPF(){ selN = []; selT = []; selP = []; infoNodo = null; infoTramo = null; selNodo = null; puntoPendiente = null; presaPend = null; }
 // El panel de resultados no puede seguir enseñando la solución de un modelo que
 // ya cambió: se oculta como al limpiar.
 function invalidarResultados(){
-  R = null;
+  R = null; RP = null;
   const ra = document.getElementById('resultsArea'); if(ra) ra.style.display = 'none';
   const rp = document.getElementById('resultsPanel'); if(rp){ rp.innerHTML = ''; rp.style.display = 'none'; }
   const hh = document.getElementById('noResultsHint'); if(hh) hh.style.display = '';
@@ -160,6 +161,7 @@ function limpiarTodo(){
   registrarCambio();
   nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; vaciarSeleccionPF();
   pesos=[]; pesoSeq=0; pesoActivo=null;
+  presas=[]; presaSeq=0;
   invalidarResultados();
   refrescar();
 }
@@ -217,9 +219,12 @@ function pintarListas(){
         + '<div class="nm">'+n.nombre+' · '+et.join(', ')+'</div></div>';
     }).join('') : '<div class="list-empty">Sin apoyos.</div>';
   }
+  const lp=document.getElementById('listaPresas');
+  if(lp) lp.innerHTML = listaPresasHtml();             // 10-
   const si=document.getElementById('tbSelInfo');
-  if(si) si.textContent = (!selN.length&&!selT.length) ? 'Nada seleccionado'
-    : 'Seleccionado: '+[selN.length?selN.length+' nudo(s)':null, selT.length?selT.length+' tramo(s)':null]
+  if(si) si.textContent = (!selN.length&&!selT.length&&!selP.length) ? 'Nada seleccionado'
+    : 'Seleccionado: '+[selN.length?selN.length+' nudo(s)':null, selT.length?selT.length+' tramo(s)':null,
+                        selP.length?selP.length+' presa(s)':null]
       .filter(Boolean).join(' y ');
 }
 function borrarTramo(id){
@@ -575,9 +580,12 @@ function cerrarSeccion(){
 function zoomIn(){ escala=Math.min(escala*1.25,4000); dibujar(); }
 function zoomOut(){ escala=Math.max(escala/1.25,0.02); dibujar(); }
 function centrar(){
-  if(!nodos.length){ vx=0; vy=0; escala=60; dibujar(); return; }
+  // Los vértices de las presas (10-) cuentan como los nudos.
+  const vp = [];
+  presas.forEach(p=>{ const g = geomPresa(p); if(!g.error) g.verts.forEach(q=>vp.push(q)); });
+  if(!nodos.length && !vp.length){ vx=0; vy=0; escala=60; dibujar(); return; }
   const nv = Math.max(nivelZona(1), nivelZona(2));
-  const xs=nodos.map(n=>n.x), ys=nodos.map(n=>n.y).concat(isFinite(nv)?[nv]:[]);
+  const xs=nodos.map(n=>n.x).concat(vp.map(q=>q.x)), ys=nodos.map(n=>n.y).concat(vp.map(q=>q.y)).concat(isFinite(nv)?[nv]:[]);
   const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
   vx=(x0+x1)/2; vy=(y0+y1)/2;
   const dx=Math.max(x1-x0,0.5), dy=Math.max(y1-y0,0.5);
@@ -639,6 +647,36 @@ const EJEMPLOS = [
       pesos = [{id:1, nom:'Chapa de la compuerta', val:2}]; pesoSeq = 1;
       tramos[tramos.length-1].pesoId = 1;
       return 2;
+    }
+  },
+  // Presas (2026-10-03, 10-): casos calculados a mano, sin compuerta.
+  {
+    id:'presa',
+    nom:'Presa de gravedad: rectángulo y triángulo',
+    desc:'Presa por figuras: un rectángulo de 1.5 × 6 m y un triángulo ◣ de 3 × 6 m, γ = 24 kN/m³, por metro de ancho. '
+        +'Agua a la izquierda hasta 5 m sobre la base.',
+    esperado:'ΣW = 216 + 216 = 432 kN · E₁ = ½γh²b = 122.62 kN a 5/3 m · N = 432.00 kN ↑ · F = 122.62 kN ← · '
+        +'ΣM_O: 432 d − 216(0.75) − 216(2.5) − 122.63(1.667) = 0 ⇒ d = 2.10 m (B = 4.5 m: dentro)',
+    verificaPresa:{N:432, W:432, F:{v:122.62, s:'←'}, d:2.10},
+    armar(){
+      presas = [{id:1, modo:'figuras', gamma:24, x0:0, y0:0, partes:[{tipo:'rect', b:1.5, h:6}, {tipo:'triBaja', b:3, h:6}]}];
+      presaSeq = 1;
+      zonas = {1:[{g:9.81, niv:5}], 2:[]};
+      return 1;
+    }
+  },
+  {
+    id:'presaTrapecio',
+    nom:'Presa trapecial con el paramento inclinado',
+    desc:'Plantilla: H = 8, corona 2, taludes 2 (izquierda, aguas arriba) y 4 m, γ = 24, b = 1. Agua a la izquierda hasta 7 m.',
+    esperado:'ΣW = 192 + 384 + 384 = 960 kN · E_x = ½γ·7²·b = 240.35 kN → · E_y = γ·(½·1.75·7)·b = 60.09 kN ↓ · '
+        +'N = 960 + 60.09 = 1020.09 kN ↑ · F = 240.35 kN ← · d = (3456 + 560.81 + 35.05)/1020.09 = 3.97 m',
+    verificaPresa:{N:1020.09, W:960, F:{v:240.35, s:'←'}, d:3.97},
+    armar(){
+      presas = [{id:1, modo:'plantilla', gamma:24, x0:0, y0:0, H:8, c:2, m1:2, m2:4}];
+      presaSeq = 1;
+      zonas = {1:[{g:9.81, niv:7}], 2:[]};
+      return 1;
     }
   },
   {
@@ -756,6 +794,7 @@ function _familiaEjemplo(k){
 // Contrasta el resultado del motor con los valores de referencia del ejemplo
 // y devuelve cuántas magnitudes se desvían (0 si todo cuadra).
 function comprobarEjemploPF(ej){
+  if(ej && ej.verificaPresa) return comprobarPresaEjemplo(ej);
   if(!ej || !ej.verifica) return 0;
   // Un ejemplo que tiene valores de referencia y NO llega a resolverse es un
   // fallo, no un caso sin comprobar. Callarse aqui era indistinguible de «todo
@@ -800,6 +839,20 @@ function comprobarEjemploPF(ej){
   });
   return desvios;
 }
+// La presa se comprueba con sus propias magnitudes: N, F (con su sentido) y d.
+function comprobarPresaEjemplo(ej){
+  const r = RP && RP[0];
+  if(!r || r.error){ console.warn('Ejemplo ' + ej.id + ': la presa no se ha resuelto', {error: r ? r.error : 'sin resultado'}); return 1; }
+  const m = {N:{v:r.N}, F:{v:Math.abs(r.Fr), s: r.Fr >= 0 ? '→' : '←'}, d:{v:r.d}, W:{v:r.SW}};
+  let desvios = 0;
+  Object.keys(ej.verificaPresa).forEach(k=>{
+    const e = ej.verificaPresa[k], ref = typeof e === 'number' ? {v:e} : e, t = 0.005 + 1e-3*Math.abs(ref.v);
+    if(!(Math.abs(m[k].v - ref.v) <= t)){ console.warn('Ejemplo ' + ej.id + ': ' + k + ' se desvía de la referencia', {motor:m[k].v, referencia:ref.v}); desvios++; }
+    else if(ref.s && m[k].s !== ref.s){ console.warn('Ejemplo ' + ej.id + ': ' + k + ' se desvía de la referencia (sentido)', {motor:m[k].s, referencia:ref.s}); desvios++; }
+  });
+  if(!r.dentro){ console.warn('Ejemplo ' + ej.id + ': N cae fuera de la base'); desvios++; }
+  return desvios;
+}
 function abrirEjemplos(){
   const el = document.getElementById('ejLista');
   // Un solo ejemplo a la vista; los demás siguen en el código como casos de
@@ -820,6 +873,7 @@ function cargarEjemplo(id){
   registrarCambio();
   nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; vaciarSeleccionPF(); R=null;
   pesos=[]; pesoSeq=0; pesoActivo=null;
+  presas=[]; presaSeq=0;
   // Nudo en coordenada EXACTA: addNodo engancha a la rejilla, cuyo paso
   // depende del zoom.
   const N = (x,y)=>{
@@ -873,6 +927,8 @@ function applyUnits(){
   // Peso propio: fuerza por unidad de superficie de placa (W = q·b·L, 01-).
   // Antes no se convertía, y en cm·N la compuerta pesaba 10 veces más.
   pesos.forEach(p=>{ const v=Number(p.val); if(isFinite(v)) p.val = v*kF/(kL*kL); });
+  // Presas (10-): su geometría es longitud y γ, fuerza/longitud³.
+  presas.forEach(p=>{ escalarPresa(p, kL); p.gamma = p.gamma*kF/(kL*kL*kL); });
   fijarUnidades(nL, nF);
   invalidarResultados(); closeUnitsModal(); centrar(); refrescar();
 }
@@ -912,5 +968,5 @@ function applyDecModal(){
   DEC = {len:g('selDecLen'), fuerza:g('selDecFor'), ang:g('selDecAng')};
   document.getElementById('chipDec').textContent = textoDecimales();
   closeDecModal();
-  if(R && !R.error) calcular(); else refrescar();
+  if((R && !R.error) || (RP && RP.length)) calcular(); else refrescar();
 }

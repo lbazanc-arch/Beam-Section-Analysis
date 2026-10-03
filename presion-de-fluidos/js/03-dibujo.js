@@ -459,6 +459,8 @@ function _presionMaxima(){
     if(t.activo === false) return;
     puntosTramo(t, 40).forEach(P=>{ pM = Math.max(pM, presionZona(1,P.y), presionZona(2,P.y)); });
   });
+  // y las caras de las presas (10-), con la misma escala
+  presas.forEach(p=>{ const g = geomPresa(p); if(!g.error) g.verts.forEach(P=>{ pM = Math.max(pM, presionZona(1,P.y), presionZona(2,P.y)); }); });
   return pM;
 }
 
@@ -520,6 +522,15 @@ function dibujarDiagramaPresion(t, pts, z, e){
   ctx.restore();
 }
 
+// Ejes coordenados x–y por el origen (2026-10-03, petición del profesor: sin
+// ellos no había referencia para situar los tramos). El dibujo es el común de
+// los cinco temas, `bsaEjesXY` de core/comun.js; aquí solo se reservan en el
+// registro las letras y las puntas, para que ningún rótulo se escriba encima.
+function dibujarEjesXY(){
+  const r = bsaEjesXY(ctx, {W, H, aPantalla, aMundo, paso: pasoRejilla(), cv});
+  r.cajas.forEach(c=>_reservar(c[0], c[1], c[2], c[3], 'texto'));
+}
+
 function dibujar(){
   if(!ctx) return;
   ctx.clearRect(0,0,W,H);
@@ -543,6 +554,7 @@ function dibujar(){
     }
   }
   // La rejilla NO se registra: es un fondo grisáceo y un rótulo encima se lee.
+  if(VIS.ejes) dibujarEjesXY();
   // ── Zonas y capas de líquido: la COMPUERTA es la que divide los líquidos.
   //    La frontera sube en vertical desde el primer nudo, recorre la compuerta
   //    (incluidas sus curvas) y desde el ÚLTIMO NUDO baja en VERTICAL.
@@ -551,7 +563,10 @@ function dibujar(){
   if(VIS.liquidos){
   const frPantalla = cadC
     ? cadC.pts.map(P=>aPantalla(P.x,P.y))
-    : [[W/2,-10],[W/2,H+10]];               // sin compuerta: división provisional al centro
+    : (()=>{                                // sin compuerta: la cresta de la presa (10-) o el centro
+        const xf = fronteraPresaX(), x = xf !== null ? xf : W/2;
+        return [[x,-10],[x,H+10]];
+      })();
   const [ixF,iyF] = frPantalla[0];
   const [uxF,uyF] = frPantalla[frPantalla.length-1];
   const trazarFrontera = ()=>{
@@ -571,6 +586,7 @@ function dibujar(){
     else     { ctx.lineTo(W+10,H+10); ctx.lineTo(W+10,-10); }
     ctx.closePath();
     ctx.clip();
+    recortarPresasLiquido();               // ni dentro de una presa ni bajo su base (10-)
     capas.forEach((c,i)=>{
       const abajo = (i+1<capas.length) ? capas[i+1].niv : -1e6;
       const [,ya] = aPantalla(0, c.niv);
@@ -591,7 +607,8 @@ function dibujar(){
   });
   // frontera visible: la compuerta ya se dibuja sólida, así que se puntea
   // solo la bajada vertical desde el último nudo (y la subida sobre el primero)
-  if(hayCapas){
+  // Sin compuerta, la frontera de una presa es su propio contorno: no se puntea.
+  if(hayCapas && (cadC || !presas.length)){
     ctx.strokeStyle='rgba(27,31,36,.45)'; ctx.lineWidth=1.6; ctx.setLineDash([8,6]);
     ctx.beginPath(); ctx.moveTo(uxF, Math.max(uyF,-10)); ctx.lineTo(uxF, H); ctx.stroke();
     _reservarTrazo(uxF, Math.max(uyF,-10), uxF, H, 1.4, 'frontera');
@@ -618,6 +635,9 @@ function dibujar(){
       [1,2].forEach(z=>dibujarDiagramaPresion(t, pts, z, e));
     });
   }
+
+  // ── Presas (10-): cuerpo, terreno, diagramas de sus caras y pesos ──
+  dibujarCuerposPresas();
 
   // ── Tramos ──
   tramos.forEach(t=>{
@@ -658,6 +678,7 @@ function dibujar(){
     _rotulo(nomTramo(t), md[0]+6, md[1]-9, '#0b3f3a', 0, -1, '700 10px Inter,sans-serif', 'left', _ROT_NOMBRE);
   });
 
+  dibujarPresaPendiente();                // polígono de presa a medio tocar (10-)
   // ── Tramo en curso (04-): el punto de partida y, hasta el puntero, a trazos ──
   if(puntoPendiente && (tool === 'recto' || tool === 'arco')){
     const P0 = (puntoPendiente.id !== null && nodo(puntoPendiente.id)) || puntoPendiente;
@@ -826,8 +847,270 @@ function dibujar(){
     });
   }
 
+  dibujarResultadosPresas();              // empujes, N, F y la cota d (10-)
+  // Resultante única y cotas, después de todo lo demás: así su sitio se elige
+  // viendo ya la compuerta, los diagramas, las reacciones y las cotas z_P.
+  if(R && !R.error && VIS.resUnica) dibujarResultanteUnica();
+  if(VIS.cotas) dibujarCotasCompuerta();
+
   // Los textos, al final: ya está registrada toda la geometría del repintado.
   _pintarRotulos();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  COTAS DE LA COMPUERTA (2026-10-03, petición del profesor)
+//  Como en las fichas de centroide: líneas de extensión, línea de cota con
+//  punta en los dos extremos y el valor derecho. De cada tramo se acotan sus
+//  proyecciones Δx y Δy (las del enunciado); la longitud real va en la leyenda
+//  de la resolución y del informe, no aquí. Las cotas se encadenan en
+//  CARRILES: las que no se solapan comparten una misma línea (cotas corridas),
+//  y cada carril se pone donde el registro de ocupación lo deja libre,
+//  primero del lado seco. Un tramo curvo se acota además por su radio, desde
+//  el centro O del arco.
+// ═══════════════════════════════════════════════════════════
+const COL_COTA = '#374151';
+function _puntaCota(x, y, ux, uy){
+  const c = 7, w = 2.6;
+  ctx.beginPath(); ctx.moveTo(x, y);
+  ctx.lineTo(x - ux*c - uy*w, y - uy*c + ux*w);
+  ctx.lineTo(x - ux*c + uy*w, y - uy*c - ux*w);
+  ctx.closePath(); ctx.fill();
+}
+// Cota de p1 a p2 (pantalla) con su línea de cota de D1 a D2; las líneas de
+// extensión van de cada punto a su extremo de la línea de cota.
+function _cotaPx(p1, p2, D1, D2, col, ancho){
+  ctx.save();
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = ancho || 1;
+  [[p1, D1], [p2, D2]].forEach(par=>{
+    const p = par[0], D = par[1];
+    const dx = D[0]-p[0], dy = D[1]-p[1], L = Math.sqrt(dx*dx + dy*dy);
+    if(L < 7) return;
+    const ux = dx/L, uy = dy/L;
+    const a = [p[0] + ux*4, p[1] + uy*4], b = [D[0] + ux*5, D[1] + uy*5];
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    _reservarTrazo(a[0], a[1], b[0], b[1], 0.8, 'cota');
+  });
+  const dx = D2[0]-D1[0], dy = D2[1]-D1[1], L = Math.sqrt(dx*dx + dy*dy) || 1;
+  const ux = dx/L, uy = dy/L;
+  ctx.beginPath(); ctx.moveTo(D1[0], D1[1]); ctx.lineTo(D2[0], D2[1]); ctx.stroke();
+  _puntaCota(D1[0], D1[1], -ux, -uy);
+  _puntaCota(D2[0], D2[1], ux, uy);
+  ctx.restore();
+  _reservarTrazo(D1[0], D1[1], D2[0], D2[1], 3.2, 'cota');
+}
+// Reparte intervalos [lo, hi] en carriles sin solape (se tocan, sí).
+function _carrilesCota(items){
+  const eps = 1e-9;
+  items.sort((p, q)=>p.lo - q.lo);
+  const lanes = [];
+  items.forEach(it=>{
+    let L = lanes.find(l=>l.every(o=>it.lo >= o.hi - eps || it.hi <= o.lo + eps));
+    if(!L){ L = []; lanes.push(L); }
+    L.push(it);
+  });
+  return lanes;
+}
+function dibujarCotasCompuerta(){
+  const trs = tramos.filter(t=>nodo(t.a) && nodo(t.b));
+  if(!trs.length) return;
+  // envolvente de la compuerta en pantalla
+  let gx0 = Infinity, gx1 = -Infinity, gy0 = Infinity, gy1 = -Infinity;
+  trs.forEach(t=>puntosTramo(t, 24).forEach(P=>{
+    const [sx, sy] = aPantalla(P.x, P.y);
+    gx0 = Math.min(gx0, sx); gx1 = Math.max(gx1, sx); gy0 = Math.min(gy0, sy); gy1 = Math.max(gy1, sy);
+  }));
+  const hay1 = capasOrdenadas(1).length > 0, hay2 = capasOrdenadas(2).length > 0;
+  const fuente = '600 10px Inter,sans-serif';
+  const ignora = it => it.tipo !== 'nivel' && it.tipo !== 'frontera';
+  const OFF = [26, 40, 56, 76, 100, 128, 160];
+  const tam = Math.max(1e-9, ...trs.map(t=>Math.hypot(nodo(t.b).x-nodo(t.a).x, nodo(t.b).y-nodo(t.a).y)));
+  const minimo = 1e-6*tam;
+  const items = eje => trs.map(t=>{
+    const a = nodo(t.a), b = nodo(t.b);
+    const va = eje === 'y' ? a.y : a.x, vb = eje === 'y' ? b.y : b.x;
+    if(Math.abs(vb - va) < minimo) return null;
+    return va <= vb ? {t, lo:va, hi:vb, nLo:a, nHi:b} : {t, lo:vb, hi:va, nLo:b, nHi:a};
+  }).filter(Boolean);
+  const txtDe = it => dec(it.hi - it.lo, 'len') + ' ' + unitLen;
+
+  // ── Δy: carriles verticales, primero del lado seco ──
+  {
+    const lados = (hay1 && !hay2) ? [1, -1] : [-1, 1];
+    const usado = {'-1':0, '1':0};
+    _carrilesCota(items('y')).forEach(lane=>{
+      let el = null;
+      for(const lado of lados){
+        for(const off of OFF){
+          const o = off + usado[lado];
+          const x = lado < 0 ? gx0 - o : gx1 + o;
+          if(x < _margenIzq() + 50 || x > W - 50) continue;
+          let libre = true;
+          for(const it of lane){
+            const ya = aPantalla(0, it.hi)[1], yb = aPantalla(0, it.lo)[1];
+            const w = _anchoTextoPF(txtDe(it), fuente) + 8, ym = (ya + yb)/2;
+            const linea = [[x-4, ya], [x+4, ya], [x+4, yb], [x-4, yb]];
+            const tx0 = lado < 0 ? x - 6 - w : x + 6, tx1 = tx0 + w;
+            const texto = [[tx0, ym-8], [tx1, ym-8], [tx1, ym+8], [tx0, ym+8]];
+            if(_regChoca(linea, 2, ignora) || _regChoca(texto, 2, ignora)){ libre = false; break; }
+          }
+          if(libre){ el = {lado, o, x}; break; }
+        }
+        if(el) break;
+      }
+      if(!el){ const lado = lados[0], o = OFF[0] + usado[lado]; el = {lado, o, x: lado < 0 ? gx0 - o : gx1 + o}; }
+      usado[el.lado] = el.o;
+      lane.forEach(it=>{
+        const pLo = aPantalla(it.nLo.x, it.nLo.y), pHi = aPantalla(it.nHi.x, it.nHi.y);
+        _cotaPx(pHi, pLo, [el.x, pHi[1]], [el.x, pLo[1]], COL_COTA);
+        _rotulo(txtDe(it), el.x + el.lado*6, (pHi[1] + pLo[1])/2, '#1b1f24', el.lado, 0, fuente,
+                el.lado < 0 ? 'right' : 'left', _ROT_VALOR);
+      });
+    });
+  }
+  // ── Δx: carriles horizontales, primero por encima ──
+  {
+    const lados = [-1, 1];                       // −1: encima (y de pantalla menor)
+    const usado = {'-1':0, '1':0};
+    _carrilesCota(items('x')).forEach(lane=>{
+      let el = null;
+      for(const lado of lados){
+        for(const off of OFF){
+          const o = off + usado[lado];
+          const y = lado < 0 ? gy0 - o : gy1 + o;
+          if(y < 30 || y > H - 30) continue;
+          let libre = true;
+          for(const it of lane){
+            const xa = aPantalla(it.lo, 0)[0], xb = aPantalla(it.hi, 0)[0];
+            const w = _anchoTextoPF(txtDe(it), fuente) + 8, xm = (xa + xb)/2;
+            const linea = [[xa, y-4], [xb, y-4], [xb, y+4], [xa, y+4]];
+            const ty0 = lado < 0 ? y - 20 : y + 4;
+            const texto = [[xm - w/2, ty0], [xm + w/2, ty0], [xm + w/2, ty0 + 16], [xm - w/2, ty0 + 16]];
+            if(_regChoca(linea, 2, ignora) || _regChoca(texto, 2, ignora)){ libre = false; break; }
+          }
+          if(libre){ el = {lado, o, y}; break; }
+        }
+        if(el) break;
+      }
+      if(!el){ const lado = lados[0], o = OFF[0] + usado[lado]; el = {lado, o, y: lado < 0 ? gy0 - o : gy1 + o}; }
+      usado[el.lado] = el.o;
+      lane.forEach(it=>{
+        const pLo = aPantalla(it.nLo.x, it.nLo.y), pHi = aPantalla(it.nHi.x, it.nHi.y);
+        _cotaPx(pLo, pHi, [pLo[0], el.y], [pHi[0], el.y], COL_COTA);
+        _rotulo(txtDe(it), (pLo[0] + pHi[0])/2, el.y + el.lado*11, '#1b1f24', 0, el.lado, fuente, 'center', _ROT_VALOR);
+      });
+    });
+  }
+  // ── Tramos curvos: el radio, desde el centro O del arco ──
+  const arcos = trs.filter(t=>arcoDeTramo(t));
+  arcos.forEach((t, i)=>{
+    const arc = arcoDeTramo(t);
+    const [ox, oy] = aPantalla(arc.cx, arc.cy);
+    // la dirección radial más despejada entre el centro del arco y sus cuartos
+    let mejor = null;
+    [0.5, 0.3, 0.7, 0.15, 0.85].forEach(f=>{
+      if(mejor) return;
+      const th = arc.t1 + arc.d*f;
+      const [mx, my] = aPantalla(arc.cx + arc.R*Math.cos(th), arc.cy + arc.R*Math.sin(th));
+      const L = Math.hypot(mx-ox, my-oy) || 1;
+      const ux = (mx-ox)/L, uy = (my-oy)/L;
+      const pm = [ox + ux*L*0.5, oy + uy*L*0.5];
+      if(!_regChoca([[pm[0]-18, pm[1]-8], [pm[0]+18, pm[1]-8], [pm[0]+18, pm[1]+8], [pm[0]-18, pm[1]+8]], 1, ignora) || f === 0.85)
+        mejor = {mx, my, ux, uy, L};
+    });
+    if(!mejor) return;
+    ctx.save();
+    ctx.strokeStyle = COL_COTA; ctx.fillStyle = COL_COTA; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(mejor.mx, mejor.my); ctx.stroke();
+    _puntaCota(mejor.mx, mejor.my, mejor.ux, mejor.uy);
+    // centro: una cruz pequeña
+    ctx.beginPath(); ctx.moveTo(ox-5, oy); ctx.lineTo(ox+5, oy); ctx.moveTo(ox, oy-5); ctx.lineTo(ox, oy+5); ctx.stroke();
+    ctx.restore();
+    _reservarTrazo(ox, oy, mejor.mx, mejor.my, 1.5, 'cota');
+    _reservar(ox-6, oy-6, ox+6, oy+6, 'cota');
+    _rotulo('O' + (arcos.length > 1 ? (i+1) : ''), ox - 8, oy + 10, COL_COTA, -1, 1, '700 10px Inter,sans-serif', 'right', _ROT_NOMBRE);
+    const nx = -mejor.uy, ny = mejor.ux;
+    _rotulo('R = ' + dec(arc.R, 'len') + ' ' + unitLen, ox + mejor.ux*mejor.L*0.5 + nx*10, oy + mejor.uy*mejor.L*0.5 + ny*10,
+            '#1b1f24', nx, ny, fuente, 'center', _ROT_VALOR);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RESULTANTE ÚNICA DEL LÍQUIDO EN EL LIENZO (2026-10-03)
+//  En violeta, para no confundirla con las F_k (rojo): la flecha llega al
+//  punto de corte P_R con la compuerta, su línea de acción a trazos, el arco
+//  de su ángulo agudo en la cola y dos cotas: z_R desde la superficie libre y
+//  s sobre el tramo desde su nudo menos profundo. Interruptor propio.
+// ═══════════════════════════════════════════════════════════
+const COL_RES = '#6d28d9';
+function dibujarResultanteUnica(){
+  const ru = R.resultante;
+  if(!ru || ru.par) return;
+  const [px, py] = aPantalla(ru.P.x, ru.P.y);
+  const dx = ru.dir.x, dy = -ru.dir.y;           // en pantalla
+  const L = 76;
+  const x0 = px - dx*L, y0 = py - dy*L;
+  const ignora = it => it.tipo !== 'nivel' && it.tipo !== 'frontera';
+  // línea de acción a trazos, prolongada a los dos lados
+  ctx.save();
+  ctx.strokeStyle = 'rgba(109,40,217,.55)'; ctx.lineWidth = 1.2; ctx.setLineDash([7,4]);
+  ctx.beginPath(); ctx.moveTo(x0 - dx*24, y0 - dy*24); ctx.lineTo(px + dx*34, py + dy*34); ctx.stroke();
+  ctx.restore();
+  _reservarTrazo(x0 - dx*24, y0 - dy*24, px + dx*34, py + dy*34, 1.2, 'linea');
+  _flecha(x0, y0, px, py, COL_RES, 3.4, 13);
+  ctx.beginPath(); ctx.arc(px, py, 4.2, 0, Math.PI*2);
+  ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = COL_RES; ctx.lineWidth = 2; ctx.stroke();
+  _reservar(px-5, py-5, px+5, py+5, 'punto');
+  bsaArcoReaccion(ctx, x0, y0, ru.dir.x, ru.dir.y, COL_RES);
+  _reservarArcoReaccion(x0, y0, ru.dir.x, ru.dir.y);
+  _rotulo('R = ' + dec(ru.F, 'f') + ' ' + unitFor, x0 - dx*10, y0 - dy*10, COL_RES, -dx, -dy, '800 11px Inter,sans-serif', 'center', _ROT_VALOR);
+  // P_R del lado al que apunta la flecha, que es el que no ocupa la cola
+  _rotulo('PR', px + dx*10, py + dy*10 + 9, COL_RES, dx, dy + 0.6, '700 10px Inter,sans-serif', dx < 0 ? 'right' : 'left', _ROT_NOMBRE);
+  // cota z_R: de la superficie libre a P_R, del lado de la cola
+  if(ru.zR !== null && ru.zR > 1e-9){
+    const [, ys] = aPantalla(0, ru.niv);
+    const lados = [x0 >= px ? 1 : -1, x0 >= px ? -1 : 1];
+    let xc = null, ladoC = lados[0];
+    for(const lado of lados){
+      for(const off of [96, 120, 146, 176, 210]){
+        const x = px + lado*off;
+        if(x < _margenIzq() + 60 || x > W - 70) continue;
+        const pol = [[x-4, Math.min(ys, py)], [x+4, Math.min(ys, py)], [x+4, Math.max(ys, py)], [x-4, Math.max(ys, py)]];
+        if(!_regChoca(pol, 2, ignora)){ xc = x; ladoC = lado; break; }
+      }
+      if(xc !== null) break;
+    }
+    if(xc === null) xc = px + lados[0]*96;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(109,40,217,.6)'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(xc + ladoC*4, py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = COL_RES; ctx.lineWidth = 1.15;
+    ctx.beginPath(); ctx.moveTo(xc, ys); ctx.lineTo(xc, py); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(xc-5, ys+5); ctx.lineTo(xc+5, ys-5); ctx.moveTo(xc-5, py+5); ctx.lineTo(xc+5, py-5); ctx.stroke();
+    ctx.restore();
+    _reservarTrazo(px, py, xc + ladoC*4, py, 1, 'cota');
+    _reservarTrazo(xc, ys, xc, py, 1.2, 'cota');
+    _rotulo('zR = ' + dec(ru.zR, 'len') + ' ' + unitLen, xc + ladoC*5, (ys + py)/2, COL_RES, ladoC, 0,
+            '700 10px Inter,sans-serif', ladoC > 0 ? 'left' : 'right', _ROT_VALOR);
+  }
+  // cota s: sobre el tramo, de N a P_R, del lado contrario a la cola
+  if(ru.corta && ru.recto && ru.s > 1e-9){
+    const pN = aPantalla(ru.N.x, ru.N.y);
+    const tx = px - pN[0], ty = py - pN[1], tl = Math.hypot(tx, ty) || 1;
+    let nx = -ty/tl, ny = tx/tl;
+    if(nx*dx + ny*dy < 0){ nx = -nx; ny = -ny; }   // hacia donde va la flecha: el lado sin cola
+    let off = null;
+    for(const o of [24, 38, 54, 72]){
+      const a = [pN[0] + nx*o, pN[1] + ny*o], b = [px + nx*o, py + ny*o];
+      const pol = [[a[0]-nx*4, a[1]-ny*4], [b[0]-nx*4, b[1]-ny*4], [b[0]+nx*4, b[1]+ny*4], [a[0]+nx*4, a[1]+ny*4]];
+      if(!_regChoca(pol, 2, ignora)){ off = o; break; }
+    }
+    if(off === null) off = 24;
+    const D1 = [pN[0] + nx*off, pN[1] + ny*off], D2 = [px + nx*off, py + ny*off];
+    _cotaPx(pN, [px, py], D1, D2, COL_RES);
+    _rotulo('s = ' + dec(ru.s, 'len') + ' ' + unitLen, (D1[0] + D2[0])/2 + nx*12, (D1[1] + D2[1])/2 + ny*12, COL_RES, nx, ny,
+            '700 10px Inter,sans-serif', 'center', _ROT_VALOR);
+  }
 }
 function valorTope(n){
   if(!R || R.error) return null;

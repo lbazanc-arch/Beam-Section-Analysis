@@ -216,6 +216,8 @@ function dibujarCotasGenerales(){
     py: y => worldToScreen(0,y).y,
     fuente: '600 10.5px Inter, sans-serif',
     fuenteTotal: '700 11px Inter, sans-serif',
-    tick: 4.5, salto: 15, sepX: 44, sepY: 50, angulos: true
+    tick: 4.5, salto: 15, sepX: 44, sepY: 50, angulos: true,
+    // estilo de presión (2026-10-03, adoptado): puntas y valores verticales derechos
+    flechas: true, derecho: true
   });
 }

@@ -73,7 +73,7 @@ let mouseW = null;
 
 // ── Visibilidad de capas del dibujo (criterio cap6/cap7) ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, apoyos:true, liquidos:true, presion:true, resultantes:true, peso:true, cotas:true};
+const VIS = {grilla:true, ejes:true, apoyos:true, liquidos:true, presion:true, resultantes:true, resUnica:true, peso:true, cotas:true};
 function setVis(cual, valor){ VIS[cual] = !!valor; dibujar(); }
 
 const LEN_A_M = {m:1, cm:0.01, ft:0.3048};
@@ -452,10 +452,20 @@ function fuerzaTramoZona(t, z){
     const dx = B.x-A.x, dy = B.y-A.y, ds = Math.hypot(dx,dy);
     if(ds < 1e-14) continue;
     const my = (A.y+B.y)/2, mx = (A.x+B.x)/2;
+    // Longitud mojada y presión máxima con los EXTREMOS del segmento, no con su
+    // punto medio: con el punto medio la tabla decía p máx = 34.97 donde la
+    // presión en el nudo es 35.00, y la longitud perdía el trozo que cruza la
+    // superficie (2026-10-03).
+    const pA = presionZona(z, A.y), pB = presionZona(z, B.y);
+    if(pA > pMax) pMax = pA;
+    if(pB > pMax) pMax = pB;
+    if(pA > 0 && pB > 0) lenMoj += ds;
+    else if((pA > 0 || pB > 0) && Math.abs(dy) > 1e-14){
+      const yMoj = pA > 0 ? A.y : B.y;
+      lenMoj += ds*Math.min(1, Math.abs(niv - yMoj)/Math.abs(dy));
+    }
     const p = presionZona(z, my);
     if(p <= 0) continue;
-    lenMoj += ds;
-    if(p > pMax) pMax = p;
     // la fuerza del líquido va CONTRA la compuerta: −(normal hacia la zona)
     const nx = -dy/ds*sN, ny = dx/ds*sN;
     const dF = p*b*ds;
@@ -803,6 +813,7 @@ function analizar(){
   inc.forEach((u,j)=>{ val[j] = x[j]; });
   const out = {cargas, pesos:pesosF, fuerzas:todas, inc, val, diag, rotulas, lados, A, b};
   out.plan = planEquilibrio(out);
+  out.resultante = resultanteUnica(cargas);
   // Comprobación numérica del equilibrio con los valores hallados.
   let cx=0, cy=0, cm=0;
   todas.forEach(c=>{ cx+=c.Fx; cy+=c.Fy; cm+=c.Mo; });
@@ -811,6 +822,87 @@ function analizar(){
   out.cierra = Math.abs(cx) < 1e-7*out.residuo.ref && Math.abs(cy) < 1e-7*out.residuo.ref && Math.abs(cm) < 1e-7*out.residuo.ref;
   // Topes que se separan: el tope solo empuja.
   out.topesSueltos = inc.filter((u,j)=>u.tipo==='T' && val[j] < -1e-9*out.residuo.ref);
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RESULTANTE ÚNICA DEL LÍQUIDO (2026-10-03, petición del profesor)
+//  Todo el bloque de presiones sustituido por UNA fuerza equivalente: la suma
+//  de las fuerzas de los tramos y, para que dé el mismo momento (Varignon),
+//  su línea de acción. Se sitúa donde esa línea corta la compuerta: el punto
+//  P_R, con su profundidad bajo la superficie libre y su distancia s sobre el
+//  tramo desde el nudo menos profundo N. En un tramo recto s sale de
+//  R_n · s = ΣM_N, porque la componente de R a lo largo del tramo pasa por N.
+//  Solo el líquido: el peso propio es otra acción y no entra.
+// ═══════════════════════════════════════════════════════════
+function resultanteUnica(cargas){
+  if(!cargas || cargas.length < 2) return null;
+  let Rx = 0, Ry = 0, Mo = 0, suma = 0, gx = 0, gy = 0;
+  cargas.forEach(c=>{
+    Rx += c.Fx; Ry += c.Fy; Mo += c.P.x*c.Fy - c.P.y*c.Fx; suma += c.F;
+    gx += c.P.x*c.F; gy += c.P.y*c.F;
+  });
+  gx /= suma; gy /= suma;
+  const zs = cargas.map(c=>c.z).filter((z,i,a)=>a.indexOf(z) === i);
+  const z = zs.length === 1 ? zs[0] : null;
+  const niv = z ? nivelZona(z) : null;
+  const F = Math.hypot(Rx, Ry);
+  // Fuerzas que se anulan: queda un par, sin línea de acción.
+  if(F < 1e-9*Math.max(1, suma)) return {par:true, Rx, Ry, F:0, Mo, z, niv, cargas};
+  const dir = {x:Rx/F, y:Ry/F};
+  const Q = {x: Ry*Mo/(F*F), y: -Rx*Mo/(F*F)};   // punto de la recta más próximo al origen
+  const nx = -dir.y, ny = dir.x;
+  const fd = P => (P.x-Q.x)*nx + (P.y-Q.y)*ny;     // distancia con signo a la recta
+  // Corte con la compuerta; si hay varios, el más próximo al centro de las fuerzas.
+  let mejor = null;
+  tramos.forEach(t=>{
+    if(t.activo === false) return;
+    const pts = puntosTramo(t, arcoDeTramo(t) ? 720 : 1);
+    for(let i=0;i<pts.length-1;i++){
+      const fa = fd(pts[i]), fb = fd(pts[i+1]);
+      if(!((fa <= 0 && fb >= 0) || (fa >= 0 && fb <= 0))) continue;
+      if(Math.abs(fb-fa) < 1e-15) continue;            // tramo sobre la propia recta
+      const s = fa/(fa-fb);
+      const P = {x:pts[i].x + (pts[i+1].x-pts[i].x)*s, y:pts[i].y + (pts[i+1].y-pts[i].y)*s};
+      const dg = Math.hypot(P.x-gx, P.y-gy);
+      if(!mejor || dg < mejor.dg - 1e-12) mejor = {P, t, dg};
+    }
+  });
+  const out = {par:false, Rx, Ry, F, dir, Mo, z, niv, cargas, ag: bsaAnguloAgudoEje(dir.x, dir.y)};
+  if(!mejor){
+    // No corta la compuerta: se da el pie de la perpendicular desde el centro
+    // de las fuerzas, que es el punto de la recta más cercano a ellas.
+    const k = (gx-Q.x)*dir.x + (gy-Q.y)*dir.y;
+    out.corta = false;
+    out.P = {x:Q.x + dir.x*k, y:Q.y + dir.y*k};
+    out.zR = (niv !== null && isFinite(niv)) ? niv - out.P.y : null;
+    return out;
+  }
+  out.corta = true;
+  out.P = mejor.P;
+  out.t = mejor.t;
+  out.zR = (niv !== null && isFinite(niv)) ? niv - out.P.y : null;
+  const a = nodo(mejor.t.a), b = nodo(mejor.t.b);
+  const N = (b.y > a.y + 1e-12) ? b : a, O = (N === a) ? b : a;  // N: el nudo menos profundo
+  out.N = N; out.otro = O;
+  // Momento de cada fuerza respecto de N, con su brazo (antihorario +).
+  out.terminos = cargas.map(c=>{
+    const m = (c.P.x-N.x)*c.Fy - (c.P.y-N.y)*c.Fx;
+    return {c, m, brazo: Math.abs(m)/c.F};
+  });
+  out.MN = out.terminos.reduce((s,q)=>s + q.m, 0);
+  if(!arcoDeTramo(mejor.t)){
+    const L = Math.hypot(O.x-N.x, O.y-N.y);
+    const ux = (O.x-N.x)/L, uy = (O.y-N.y)/L;
+    out.recto = true;
+    out.Rn = ux*Ry - uy*Rx;                         // componente de R normal al tramo (con signo)
+    out.beta = Math.acos(Math.min(1, Math.abs(ux*dir.x + uy*dir.y)))*180/Math.PI;
+    out.s = Math.hypot(out.P.x-N.x, out.P.y-N.y);
+    out.sMomento = out.MN/out.Rn;                   // la misma s por momentos (autocomprobación)
+  } else {
+    out.recto = false;
+    out.dR = Math.abs(out.MN)/F;                    // distancia de N a la línea de acción
+  }
   return out;
 }
 
@@ -940,6 +1032,7 @@ function planEquilibrio(r){
 
 function calcular(){
   R = analizar();
+  RP = presas.length ? analizarPresas() : null;    // las presas son otro cuerpo libre (10-)
   const rp = document.getElementById('resultsPanel');
   const ra = document.getElementById('resultsArea');
   const hint = document.getElementById('noResultsHint');
@@ -947,7 +1040,10 @@ function calcular(){
   if(hint) hint.style.display='none';
   if(rp){
     rp.style.display='block';
-    rp.innerHTML = R.error ? renderError(R) : renderResultados(R);
+    // Sin compuerta pero con presa, solo la presa; con las dos, la presa va después.
+    const soloPresa = R.error === 'sin-tramos' && RP && RP.length;
+    rp.innerHTML = (soloPresa ? '' : (R.error ? renderError(R) : renderResultados(R)))
+                 + (RP && RP.length ? presasHtml(soloPresa || R.error ? 1 : 6) : '');
     try{ renderKatex(rp); }catch(e){}
   }
   dibujar();

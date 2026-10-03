@@ -1243,3 +1243,282 @@ async function bsaInformeRapido(opts){
   _bsaQuitarAvisoInforme();
   return true;
 }
+
+// ═══════════════════════════════════════════════════════════
+//  EJES x-y DEL LIENZO (2026-10-03, peticion del profesor)
+//  Los mismos en los cinco temas: por el origen, con flecha en el extremo
+//  positivo, la letra junto a ella y el valor de cada linea de la rejilla a lo
+//  largo de cada eje, para situar lo dibujado sin contar cuadros. Es fondo,
+//  como la rejilla: quien lo llama decide si reserva en su registro las cajas
+//  que devuelve (las dos letras y las dos puntas). Si el origen queda fuera de
+//  la vista, ese eje no se dibuja.
+//  o = {W, H, aPantalla(x,y) -> [sx,sy], aMundo(sx,sy) -> [x,y],
+//       paso (el de la rejilla, en unidades del mundo), cv (el lienzo, para
+//       medir la columna de control que lo tapa por la izquierda), col}
+// ═══════════════════════════════════════════════════════════
+function bsaEjesXY(ctx, o){
+  const W = o.W, H = o.H, pasoRej = o.paso, col = o.col || 'rgba(55,65,81,.75)';
+  let izq = 0;
+  try{
+    const lp = document.getElementById('leftPanel') || document.querySelector('.left-panel');
+    if(lp && o.cv){
+      const r = lp.getBoundingClientRect(), c = o.cv.getBoundingClientRect();
+      const x1 = r.right - c.left;
+      if(r.width > 0 && x1 > 0 && x1 < W/2 && r.bottom > c.top && r.top < c.bottom) izq = x1 + 8;
+    }
+  }catch(e){}
+  const p0 = o.aPantalla(0, 0), ox = p0[0], oy = p0[1];
+  const fmt = v => String(+v.toPrecision(6));
+  const punta = (x, y, ux, uy) => {
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x - ux*9 - uy*4, y - uy*9 + ux*4); ctx.lineTo(x - ux*9 + uy*4, y - uy*9 - ux*4);
+    ctx.closePath(); ctx.fill();
+  };
+  const cajas = [];
+  ctx.save();
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.3; ctx.setLineDash([]);
+  const verX = oy > 4 && oy < H-4, verY = ox > izq+4 && ox < W-4;
+  // Un valor por linea de la rejilla si caben holgados; si no, uno cada cinco
+  // (las lineas mayores) o cada diez. Siempre sobre una linea de la rejilla.
+  let paso = pasoRej;
+  if(paso > 0){
+    ctx.font = '600 9px Inter, sans-serif';
+    const ancho = v => ctx.measureText(fmt(v)).width;
+    const px1 = Math.abs(o.aPantalla(pasoRej, 0)[0] - ox);
+    const muestra = Math.max(ancho(o.aMundo(0, 0)[0]), ancho(o.aMundo(W, 0)[0]), ancho(o.aMundo(0, H)[1]), ancho(pasoRej*7)) + 16;
+    for(const k of [1, 5, 10, 50]){ paso = pasoRej*k; if(px1*k >= Math.max(30, muestra)) break; }
+  }
+  if(verX && paso > 0){
+    ctx.beginPath(); ctx.moveTo(izq, oy); ctx.lineTo(W-10, oy); ctx.stroke();
+    punta(W-8, oy, 1, 0); cajas.push([W-18, oy-5, W-8, oy+5]);
+    ctx.font = '600 9px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const x0 = o.aMundo(izq, 0)[0], x1 = o.aMundo(W-40, 0)[0];
+    for(let i=Math.ceil(x0/paso); i<=Math.floor(x1/paso); i++){
+      if(i === 0) continue;
+      const px = o.aPantalla(i*paso, 0)[0];
+      ctx.beginPath(); ctx.moveTo(px, oy-3); ctx.lineTo(px, oy+3); ctx.stroke();
+      ctx.fillText(fmt(i*paso), px, oy+5);
+    }
+    ctx.font = '700 12px Inter, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillText('x', W-10, oy-6); cajas.push([W-20, oy-20, W-8, oy-6]);
+  }
+  if(verY && paso > 0){
+    ctx.beginPath(); ctx.moveTo(ox, H); ctx.lineTo(ox, 10); ctx.stroke();
+    punta(ox, 8, 0, -1); cajas.push([ox-5, 8, ox+5, 18]);
+    ctx.font = '600 9px Inter, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const y0 = o.aMundo(0, H)[1], y1 = o.aMundo(0, 40)[1];
+    for(let j=Math.ceil(y0/paso); j<=Math.floor(y1/paso); j++){
+      if(j === 0) continue;
+      const py = o.aPantalla(0, j*paso)[1];
+      ctx.beginPath(); ctx.moveTo(ox-3, py); ctx.lineTo(ox+3, py); ctx.stroke();
+      ctx.fillText(fmt(j*paso), ox-5, py);
+    }
+    ctx.font = '700 12px Inter, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('y', ox+7, 8); cajas.push([ox+6, 6, ox+16, 22]);
+  }
+  if(verX && verY){
+    ctx.font = '600 9px Inter, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillText('0', ox-4, oy+4);
+  }
+  ctx.restore();
+  return {cajas, ox, oy, verX, verY, izq};
+}
+
+// ═══════════════════════════════════════════════════════════
+//  COTAS ENCADENADAS DEL LIENZO, CON HUECO LIBRE (2026-10-03)
+//  El acotamiento de presion de fluidos llevado a los demas temas: lineas de
+//  extension, linea de cota con punta en los dos extremos y el valor derecho.
+//  Cada cadena va en un carril (una recta paralela al eje) que se coloca en el
+//  primer desplazamiento LIBRE: se miran los pixeles ya pintados del lienzo en
+//  la franja que ocuparia (linea y textos), asi que hay que llamarla al final
+//  del dibujo. Si un valor no cabe en su tramo, sube a una segunda fila.
+//  o = {W, H, cadenas: [{eje:'x'|'y', puntos:[{v, sx, sy}], lados:[1,-1]}],
+//       caja:[x0,y0,x1,y1] (lo dibujado, en pantalla), texto: v => '2.00 m',
+//       col, izq, ejes:{ox, oy} (si se ven los ejes: un carril no se monta
+//       sobre el eje paralelo a el ni sobre sus valores)}
+//  Una cadena con `soloCarril: true` mira solo su linea y sus valores, no sus
+//  lineas de extension (que pueden tener que bajar junto a una reaccion).
+//  En una cadena 'x' el carril es horizontal: lado +1 debajo, -1 encima. En una
+//  'y' es vertical: +1 a la derecha, -1 a la izquierda. Cada punto es una
+//  coordenada v del eje y el sitio (sx, sy) del que sale su linea de extension;
+//  de varios puntos con la misma v se toma el mas cercano al carril.
+// ═══════════════════════════════════════════════════════════
+function bsaCotasLienzo(ctx, o){
+  const W = o.W, H = o.H, col = o.col || '#374151';
+  const FUENTE = '600 10px Inter, sans-serif';
+  // La columna de control tapa el lienzo por la izquierda: ningun carril ni
+  // valor debajo de ella (la misma medida que bsaEjesXY).
+  let izq = o.izq || 0;
+  try{
+    const lp = document.getElementById('leftPanel') || document.querySelector('.left-panel');
+    const cvEl = ctx.canvas;
+    if(lp && cvEl && cvEl.isConnected){
+      const r = lp.getBoundingClientRect(), c = cvEl.getBoundingClientRect();
+      const x1 = r.right - c.left;
+      if(r.width > 0 && x1 > 0 && x1 < W/2 && r.bottom > c.top && r.top < c.bottom) izq = Math.max(izq, x1 + 8);
+    }
+  }catch(e){}
+  ctx.save();
+  ctx.font = FUENTE;
+  const ancho = t => ctx.measureText(t).width;
+  // Tinta en una franja: algun pixel oscuro o de color (la rejilla es clarisima).
+  const cuentaTinta = (x0, y0, x1, y1) => {
+    x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0));
+    x1 = Math.min(W, Math.ceil(x1)); y1 = Math.min(H, Math.ceil(y1));
+    if(x1 - x0 < 1 || y1 - y0 < 1) return 0;
+    const dpr = ctx.canvas.width / W;
+    let d;
+    try{ d = ctx.getImageData(x0*dpr, y0*dpr, Math.max(1,(x1-x0)*dpr), Math.max(1,(y1-y0)*dpr)).data; }catch(e){ return 0; }
+    let n = 0;
+    for(let i=0;i<d.length;i+=8){
+      const r = d[i], g = d[i+1], b = d[i+2];
+      const lum = 0.299*r + 0.587*g + 0.114*b, cro = Math.max(r,g,b) - Math.min(r,g,b);
+      // los ejes de bsaEjesXY (y sus valores) son fondo, como la rejilla
+      if(Math.abs(r-105) < 14 && Math.abs(g-113) < 14 && Math.abs(b-125) < 14) continue;
+      if(lum < 205 || cro > 48) n++;
+    }
+    return n;
+  };
+  const punta = (x, y, ux, uy) => {
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x - ux*7 - uy*2.6, y - uy*7 + ux*2.6); ctx.lineTo(x - ux*7 + uy*2.6, y - uy*7 - ux*2.6);
+    ctx.closePath(); ctx.fill();
+  };
+  const cajaGeneral = o.caja;
+  const OFF = [26, 40, 56, 76, 100, 130, 165];
+  const usado = {x:{'1':0,'-1':0}, y:{'1':0,'-1':0}};
+  const ultimo = {x:{}, y:{}};      // linea de la ultima cadena colocada en cada lado
+  (o.cadenas || []).forEach(cad=>{
+    // una cadena puede medirse desde su propia caja (la de un tramo, por ejemplo)
+    const caja = cad.caja || cajaGeneral;
+    // coordenadas distintas, de menor a mayor
+    const vs = [];
+    cad.puntos.slice().sort((a,b)=>a.v-b.v).forEach(p=>{
+      const u = vs[vs.length-1];
+      if(u && Math.abs(p.v - u.v) < 1e-9*Math.max(1, Math.abs(p.v))) u.ps.push(p); else vs.push({v:p.v, ps:[p]});
+    });
+    if(vs.length < 2) return;
+    const horiz = cad.eje === 'x';
+    // posicion en pantalla de cada coordenada a lo largo del carril
+    const pos = vs.map(q=>horiz ? q.ps[0].sx : q.ps[0].sy);
+    const tramos = [];
+    for(let i=0;i<vs.length-1;i++){
+      if(Math.abs(pos[i+1]-pos[i]) < 2) continue;
+      const t = (cad.texto || o.texto)(Math.abs(vs[i+1].v - vs[i].v));   // una cadena puede llevar su formato
+      tramos.push({a:pos[i], b:pos[i+1], t, w:ancho(t)});
+    }
+    if(!tramos.length) return;
+    // filas de texto: un valor que no cabe junto al anterior sube de fila
+    let filas = 1;
+    const asignar = () => {
+      let fin = [-Infinity, -Infinity];
+      filas = 1;
+      tramos.forEach(q=>{
+        const m = (q.a + q.b)/2, ext = horiz ? q.w/2 + 4 : 7;
+        let f = 0;
+        if(m - ext < fin[0]) f = 1;
+        if(f === 1 && m - ext < fin[1]) f = 0;
+        q.fila = f; fin[f] = m + ext; filas = Math.max(filas, f + 1);
+      });
+    };
+    asignar();
+    const lo = Math.min(...pos), hi = Math.max(...pos);
+    // La linea de extension de la coordenada q hacia el carril c: desde su punto
+    // mas cercano al carril y nunca a traves del dibujo (un punto del interior la
+    // empieza en el borde de la caja). {t: su abscisa (o ordenada), a, b: tramo}.
+    const extension = (q, lado, c) => {
+      const p = q.ps.reduce((m,p)=>{ const dm = horiz ? Math.abs(m.sy - c) : Math.abs(m.sx - c), dp = horiz ? Math.abs(p.sy - c) : Math.abs(p.sx - c); return dp < dm ? p : m; }, q.ps[0]);
+      const borde = horiz ? (lado > 0 ? caja[3] : caja[1]) : (lado > 0 ? caja[2] : caja[0]);
+      const pd = horiz ? p.sy : p.sx;
+      const desde = Math.abs(pd - borde) < 3 ? pd : borde + (lado > 0 ? 6 : -6), s = c > desde ? 1 : -1;
+      if(Math.abs(c - desde) < 8) return null;
+      return {t: horiz ? p.sx : p.sy, a: desde + s*(Math.abs(pd - borde) < 3 ? 10 : 4), b: c + s*5, s, ini: desde + s*4};
+    };
+    const anchoTxt = horiz ? 14*filas : Math.max(...tramos.map(q=>q.w)) + 8 + (filas > 1 ? 40 : 0);
+    // Se prueba cada carril posible dentro del lienzo: gana el primero sin tinta
+    // y, si ninguno esta limpio, el que menos tinta pise (linea, valores y
+    // lineas de extension).
+    let el = null, mejor = null;
+    for(const lado of (cad.lados || [1,-1])){
+      for(const off of OFF){
+        const d = off + usado[cad.eje][lado];
+        const c = horiz ? (lado > 0 ? caja[3] + d : caja[1] - d) : (lado > 0 ? caja[2] + d : caja[0] - d);
+        // el carril y sus valores, enteros dentro del lienzo visible
+        if(horiz ? (c - (lado < 0 ? anchoTxt : 0) < 10 || c + (lado > 0 ? anchoTxt : 0) > H - 10)
+                 : (c - (lado < 0 ? anchoTxt : 0) < izq + 4 || c + (lado > 0 ? anchoTxt : 0) > W - 10)) continue;
+        const r = horiz ? [lo - 8, c - (lado > 0 ? 5 : anchoTxt + 2), hi + 8, c + (lado > 0 ? anchoTxt + 2 : 5)]
+                        : [c - (lado > 0 ? 5 : anchoTxt + 2), lo - 8, c + (lado > 0 ? anchoTxt + 2 : 5), hi + 8];
+        let tinta = cuentaTinta(r[0], r[1], r[2], r[3]);
+        // el eje paralelo al carril y sus valores
+        if(o.ejes){
+          const b0 = horiz ? r[1] : r[0], b1 = horiz ? r[3] : r[2];
+          const e0 = horiz ? o.ejes.oy - 4 : o.ejes.ox - 40, e1 = horiz ? o.ejes.oy + 17 : o.ejes.ox + 4;
+          if(b0 < e1 && b1 > e0) tinta += 1000;
+        }
+        if(!cad.soloCarril) vs.forEach(q=>{
+          const e = extension(q, lado, c);
+          if(!e) return;
+          tinta += 4*(horiz ? cuentaTinta(e.t - 1.5, Math.min(e.a, e.b), e.t + 1.5, Math.max(e.a, e.b))
+                            : cuentaTinta(Math.min(e.a, e.b), e.t - 1.5, Math.max(e.a, e.b), e.t + 1.5));
+        });
+        if(tinta === 0){ el = {lado, d, c}; break; }
+        if(!mejor || tinta < mejor.tinta) mejor = {lado, d, c, tinta};
+      }
+      if(el) break;
+    }
+    if(!el && mejor) el = mejor;
+    if(!el){
+      // Ningun carril cabe en el lienzo: el lado con mas sitio, en su primer desplazamiento.
+      const sitio = horiz ? {'1': H - caja[3], '-1': caja[1]} : {'1': W - caja[2], '-1': caja[0] - izq};
+      const lado = sitio['1'] >= sitio['-1'] ? 1 : -1, d = OFF[0] + usado[cad.eje][lado];
+      let c = horiz ? (lado > 0 ? caja[3] + d : caja[1] - d) : (lado > 0 ? caja[2] + d : caja[0] - d);
+      // ...pero dentro del lienzo: mejor encima de algo que invisible. Si ya se
+      // forzó otra cadena contra ese borde, esta va por dentro de ella.
+      let lim = horiz ? (lado > 0 ? H - anchoTxt - 10 : anchoTxt + 10) : (lado > 0 ? W - anchoTxt - 10 : izq + anchoTxt + 4);
+      const u = ultimo[cad.eje][lado];
+      if(u) lim = lado > 0 ? Math.min(lim, u - anchoTxt - 16) : Math.max(lim, u + anchoTxt + 16);
+      if(lado > 0 ? c > lim : c < lim) c = lim;
+      el = {lado, d, c};
+    }
+    usado[cad.eje][el.lado] = el.d + (horiz ? 14*filas : anchoTxt) - 10;
+    // la mas interior de las colocadas: una cadena forzada contra el borde va por dentro de ella
+    const ul = ultimo[cad.eje][el.lado];
+    ultimo[cad.eje][el.lado] = ul === undefined ? el.c : (el.lado > 0 ? Math.min(ul, el.c) : Math.max(ul, el.c));
+    const colC = cad.col || col;          // una cadena puede llevar su color
+    ctx.strokeStyle = colC; ctx.fillStyle = colC; ctx.lineWidth = 1;
+    // lineas de extension
+    vs.forEach(q=>{
+      const e = extension(q, el.lado, el.c);
+      if(!e) return;
+      ctx.beginPath();
+      if(horiz){ ctx.moveTo(e.t, e.ini); ctx.lineTo(e.t, e.b); }
+      else { ctx.moveTo(e.ini, e.t); ctx.lineTo(e.b, e.t); }
+      ctx.stroke();
+    });
+    // lineas de cota, puntas y valores
+    tramos.forEach(q=>{
+      const largo = Math.abs(q.b - q.a), sg = q.b > q.a ? 1 : -1;
+      ctx.beginPath();
+      if(horiz){ ctx.moveTo(q.a, el.c); ctx.lineTo(q.b, el.c); } else { ctx.moveTo(el.c, q.a); ctx.lineTo(el.c, q.b); }
+      ctx.stroke();
+      if(largo >= 16){
+        if(horiz){ punta(q.a, el.c, -sg, 0); punta(q.b, el.c, sg, 0); }
+        else { punta(el.c, q.a, 0, -sg); punta(el.c, q.b, 0, sg); }
+      } else {
+        [q.a, q.b].forEach(v=>{ ctx.beginPath(); horiz ? ctx.arc(v, el.c, 1.8, 0, Math.PI*2) : ctx.arc(el.c, v, 1.8, 0, Math.PI*2); ctx.fill(); });
+      }
+      const m = (q.a + q.b)/2;
+      ctx.fillStyle = '#1b1f24';
+      if(horiz){
+        ctx.textAlign = 'center'; ctx.textBaseline = el.lado > 0 ? 'top' : 'bottom';
+        const y = el.c + el.lado*(4 + q.fila*13);
+        ctx.fillText(q.t, m, y);
+      } else {
+        ctx.textAlign = el.lado > 0 ? 'left' : 'right'; ctx.textBaseline = 'middle';
+        ctx.fillText(q.t, el.c + el.lado*(6 + q.fila*(Math.max(...tramos.map(z=>z.w)) + 10)), m);
+      }
+      ctx.fillStyle = colC;
+    });
+  });
+  ctx.restore();
+}

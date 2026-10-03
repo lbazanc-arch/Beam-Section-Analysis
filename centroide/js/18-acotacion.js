@@ -1,6 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 //  ACOTACIÓN
 // ═══════════════════════════════════════════════════════════
+// Desde el 2026-10-03 (decisión del profesor) con el aspecto de presión de
+// fluidos: punta en los dos extremos de cada tramo en vez de marca oblicua y los
+// valores de la cadena vertical DERECHOS (`cfg.flechas`, `cfg.derecho`); la
+// colocación es la de siempre, que ya cabe en el margen que deja fitView.
 // Criterio: una sola cadena por eje sobre los BORDES reales de las figuras
 // (no sus centros), más una cota total por fuera y el ángulo propio de cada
 // figura girada dibujado junto a ella. Lo que evita la saturación del dibujo
@@ -126,7 +130,19 @@ function pintarCadenaCotas(c, plan, eje, base, cfg){
   else         { c.moveTo(base, ini); c.lineTo(base, fin); }
   c.stroke();
 
-  q0.forEach(q=>{
+  if(cfg.flechas){
+    // estilo de presión (2026-10-03): punta en los dos extremos de cada tramo; un
+    // tramo demasiado corto para dos puntas lleva un punto en cada extremo
+    const punta = (x, y, ux, uy) => { c.beginPath(); c.moveTo(x, y); c.lineTo(x - ux*7 - uy*2.6, y - uy*7 + ux*2.6); c.lineTo(x - ux*7 + uy*2.6, y - uy*7 - ux*2.6); c.closePath(); c.fill(); };
+    const ord = q0.slice().sort((a,b)=>a-b);
+    for(let i=0;i<ord.length-1;i++){
+      const a = ord[i], b = ord[i+1];
+      if(b - a >= 16){
+        if(eje==='x'){ punta(a, base, -1, 0); punta(b, base, 1, 0); }
+        else         { punta(base, a, 0, -1); punta(base, b, 0, 1); }
+      } else [a, b].forEach(q=>{ c.beginPath(); eje==='x' ? c.arc(q, base, 1.8, 0, Math.PI*2) : c.arc(base, q, 1.8, 0, Math.PI*2); c.fill(); });
+    }
+  } else q0.forEach(q=>{
     c.beginPath();
     if(eje==='x'){ c.moveTo(q-TICK, base+TICK); c.lineTo(q+TICK, base-TICK); }
     else         { c.moveTo(base-TICK, q+TICK); c.lineTo(base+TICK, q-TICK); }
@@ -143,6 +159,12 @@ function pintarCadenaCotas(c, plan, eje, base, cfg){
       const y = base + d;
       c.beginPath(); c.moveTo(sg.centro, base+2); c.lineTo(sg.centro, y-5); c.stroke(); c.restore();
       c.fillText(sg.txt, sg.centro, y);
+    } else if(cfg.derecho){
+      // valor derecho (2026-10-03): los niveles se separan lo que mide el texto
+      const x = base + 8 + sg.nivel*cfg.saltoY;
+      if(sg.nivel > 0){ c.beginPath(); c.moveTo(base+2, sg.centro); c.lineTo(x-3, sg.centro); c.stroke(); }
+      c.restore();
+      c.textAlign = 'left'; c.fillText(sg.txt, x, sg.centro); c.textAlign = 'center';
     } else {
       const x = base + d;
       c.beginPath(); c.moveTo(base+2, sg.centro); c.lineTo(x-5, sg.centro); c.stroke(); c.restore();
@@ -176,6 +198,10 @@ function pintarCotaTotal(c, c0, c1, eje, base, cfg){
   if(eje==='x'){
     c.save(); c.fillStyle = CANVAS_BG; c.fillRect(m-w/2-4, base-8, w+8, 16); c.restore();
     c.fillText(txt, m, base);
+  } else if(cfg.derecho){
+    c.textAlign = 'left';
+    c.save(); c.fillStyle = CANVAS_BG; c.fillRect(base+5, m-8, w+8, 16); c.restore();
+    c.fillText(txt, base+9, m);
   } else {
     c.save(); c.translate(base, m); c.rotate(-Math.PI/2);
     c.fillStyle = CANVAS_BG; c.fillRect(-w/2-4, -8, w+8, 16);
@@ -212,10 +238,13 @@ function planificarCotas(c, cfg){
   if(!figures.length) return null;
   const {xs, ys} = bordesFiguras();
   const medir = t => { c.save(); c.font = cfg.fuente; const w = c.measureText(t).width; c.restore(); return w; };
+  const planY = cfg.derecho ? planCotas(ys, cfg.py, () => 13) : planCotas(ys, cfg.py, medir);
+  // con valores derechos, cada nivel de la vertical se aparta lo que mide el texto más ancho
+  if(planY && cfg.derecho) cfg.saltoY = Math.max(...planY.segs.map(sg=>medir(sg.txt))) + 12;
   return {
     xs, ys,
     planX: planCotas(xs, cfg.px, medir),
-    planY: planCotas(ys, cfg.py, medir)
+    planY
   };
 }
 
@@ -224,7 +253,7 @@ function planificarCotas(c, cfg){
 function espacioCotas(c, cfg){
   const pl = planificarCotas(c, cfg);
   const abajo   = pl && pl.planX ? cfg.sepX + 12 + (pl.planX.nMax+1)*cfg.salto + 22 : 12;
-  const derecha = pl && pl.planY ? cfg.sepY + 12 + (pl.planY.nMax+1)*cfg.salto + 24 : 12;
+  const derecha = pl && pl.planY ? cfg.sepY + 12 + (pl.planY.nMax+1)*(cfg.derecho ? cfg.saltoY : cfg.salto) + 24 : 12;
   return {abajo, derecha};
 }
 
@@ -257,18 +286,19 @@ function dibujarCotasSobre(c, cfg){
     const base = _baseCotaDentro(borde + cfg.sepX, borde,
                                  12 + (planX.nMax+1)*cfg.salto + 22, altoLienzo);
     pintarCadenaCotas(c, planX, 'x', base,
-      {pos:cfg.px, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente});
+      {pos:cfg.px, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente, flechas:cfg.flechas});
     pintarCotaTotal(c, planX.coords[0], planX.coords[planX.coords.length-1], 'x',
       base + 12 + (planX.nMax+1)*cfg.salto, {pos:cfg.px, fuenteTotal:cfg.fuenteTotal});
   }
   if(planY){
     const borde = cfg.px(Math.max(...xs));
+    const saltoY = cfg.derecho ? cfg.saltoY : cfg.salto;
     const base = _baseCotaDentro(borde + cfg.sepY, borde,
-                                 12 + (planY.nMax+1)*cfg.salto + 24, anchoLienzo);
+                                 12 + (planY.nMax+1)*saltoY + 24 + (cfg.derecho ? 50 : 0), anchoLienzo);
     pintarCadenaCotas(c, planY, 'y', base,
-      {pos:cfg.py, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente});
+      {pos:cfg.py, borde, tick:cfg.tick, salto:cfg.salto, fuente:cfg.fuente, flechas:cfg.flechas, derecho:cfg.derecho, saltoY});
     pintarCotaTotal(c, planY.coords[0], planY.coords[planY.coords.length-1], 'y',
-      base + 12 + (planY.nMax+1)*cfg.salto, {pos:cfg.py, fuenteTotal:cfg.fuenteTotal});
+      base + 12 + (planY.nMax+1)*saltoY, {pos:cfg.py, fuenteTotal:cfg.fuenteTotal, derecho:cfg.derecho});
   }
   if(cfg.angulos !== false) dibujarAngulosFiguras(c, (x,y)=>({x:cfg.px(x), y:cfg.py(y)}));
 }
@@ -388,7 +418,9 @@ function dibujarCotasGenerales(ctx2, W2, H2){
     py: y => worldToScreen(0,y).y,
     fuente: '600 10.5px Inter, sans-serif',
     fuenteTotal: '700 11px Inter, sans-serif',
-    tick: 4.5, salto: 15, sepX: 44, sepY: 50, angulos: true
+    tick: 4.5, salto: 15, sepX: 44, sepY: 50, angulos: true,
+    // estilo de presión (2026-10-03, adoptado): puntas y valores verticales derechos
+    flechas: true, derecho: true
   });
 }
 

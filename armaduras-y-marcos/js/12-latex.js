@@ -649,57 +649,85 @@ function _largoBloqueado(reg, xa, ya, xb, yb, tipos){
 }
 
 // ── Cotas (cadena de dimensiones) de un grupo de nudos ──
-// Acota cada tramo horizontal entre coordenadas x consecutivas y, si hay
-// altura, la altura total. Las dos cadenas van FUERA de lo ya dibujado (del
-// registro), junto a la figura. La horizontal va abajo y la vertical a la
-// izquierda, salvo que por ese lado sus líneas de referencia vayan a correr
-// encima de flechas y rótulos (en una porción, a lo largo de una barra cortada)
-// y por el otro no. Las líneas arrancan en el nivel extremo de los nudos de ese
-// lado, como siempre, y se interrumpen donde pisarían una flecha o un rótulo.
+// El criterio de presión de fluidos (2026-10-03, adoptado por el profesor): las
+// coordenadas distintas de los nudos, encadenadas, con punta en los dos extremos
+// y el valor DERECHO junto a la línea de cota, nunca girado ni encima de ella.
+// La cadena horizontal va SIEMPRE ABAJO (así se acota una armadura) y baja lo
+// que haga falta hasta que su línea y sus valores no pisan nada del registro
+// (reacciones, sus valores, cargas, rótulos). La vertical encadena los niveles
+// de los nudos a la derecha o, si allí no hay hueco, a la izquierda. Las líneas
+// de extensión arrancan en el nivel extremo de los nudos de ese lado y se
+// interrumpen donde pisarían una flecha o un rótulo.
 function tikzCotas(reg, tx, ty, nodosSubconjunto){
   const lista = nodosSubconjunto || nodos, e = reg.esc, F = v => v.toFixed(3), uL = escLatex(unitLen);
   const B = reg.limites(it => it.tipo !== 'guia');
   if(!B || !lista.length) return '';
   const X = x => parseFloat(tx(x)), Y = y => parseFloat(ty(y));
   const ref = 'black!55, line width=0.35pt', evitar = ['flecha', 'apoyo', 'rotulo', 'nombre', 'arco'];
+  const unicos = vals => [...new Set(vals.map(v=>Math.round(v*1000)/1000))].sort((a,b)=>a-b);
+  const xs = unicos(lista.map(n=>n.x)), ys = unicos(lista.map(n=>n.y));
+  const minY = Math.min(...lista.map(n=>n.y)), maxX = Math.max(...lista.map(n=>n.x)), minX = Math.min(...lista.map(n=>n.x));
+  const PASOS = [0.40, 0.65, 0.90, 1.20, 1.55, 1.95];
+  const marg = 0.03/e;
+  const choca = pol => reg.choca(pol, marg, it => it.tipo !== 'guia' && it.tipo !== 'barra');
   let s = '';
-  const xs = [...new Set(lista.map(n=>Math.round(n.x*1000)/1000))].sort((a,b)=>a-b);
-  const minY = Math.min(...lista.map(n=>n.y)), maxY = Math.max(...lista.map(n=>n.y));
-  const minX = Math.min(...lista.map(n=>n.x)), maxX = Math.max(...lista.map(n=>n.x));
-  const elegir = (a, b) => (b.coste < a.coste*0.6 - 1e-9) ? b : a;   // a igualdad, el lado de siempre
-  const coste = refs => refs.reduce((c, r) => c + _largoBloqueado(reg, r[0], r[1], r[2], r[3], evitar), 0);
   if(xs.length > 1){
-    const fila = sg => {
-      const yDim = sg < 0 ? B.y0 - 0.40/e : B.y1 + 0.40/e, y0 = Y(sg < 0 ? minY : maxY) + sg*0.10/e;
-      const refs = xs.map(x => [X(x), y0, X(x), yDim + sg*0.12/e]);
-      return {yDim, refs, coste: coste(refs)};
-    };
-    const fl = elegir(fila(-1), fila(1)), yDim = fl.yDim;
-    fl.refs.forEach(r => { s += _trazoEvitando(reg, r[0], r[1], r[2], r[3], ref, evitar); });
+    const tramos = [];
     for(let i=0;i<xs.length-1;i++){
       const x1 = X(xs[i]), x2 = X(xs[i+1]), dist = xs[i+1]-xs[i];
       if(dist < 1e-6) continue;
-      s += '\\draw[black!55, line width=0.4pt, <->, >=stealth] (' + F(x1) + ',' + F(yDim) + ') -- (' + F(x2) + ',' + F(yDim) + ');\n';
-      const txt = dec(dist,'len') + '\\,' + uL, c = _cajaRotuloArm(txt, 'scriptsize', e);
-      s += '\\node[bsaCota] at (' + F((x1+x2)/2) + ',' + F(yDim) + ') {' + txt + '};\n';
-      reg.seg(x1, yDim, x2, yDim, 0.02/e, 'cota');
-      reg.caja((x1+x2)/2, yDim, c.w, c.h, 'rotulo');
+      const txt = dec(dist,'len') + '\\,' + uL;
+      tramos.push({x1, x2, txt, c:_cajaRotuloArm(txt, 'scriptsize', e)});
     }
+    // la primera altura libre por debajo: la línea y los valores, que van encima de ella
+    let yDim = null;
+    for(const d of PASOS){
+      const y = B.y0 - d/e;
+      const libre = !choca(_polCaja((X(xs[0]) + X(xs[xs.length-1]))/2, y, Math.abs(X(xs[xs.length-1]) - X(xs[0])), 0.06/e))
+                 && tramos.every(t => !choca(_polCaja((t.x1+t.x2)/2, y + t.c.h/2 + 0.04/e, t.c.w, t.c.h)));
+      if(libre){ yDim = y; break; }
+    }
+    if(yDim === null) yDim = B.y0 - PASOS[PASOS.length-1]/e;
+    const y0 = Y(minY) - 0.10/e;
+    xs.forEach(x => { s += _trazoEvitando(reg, X(x), y0, X(x), yDim - 0.12/e, ref, evitar); });
+    tramos.forEach(t=>{
+      s += '\\draw[black!55, line width=0.4pt, <->, >=stealth] (' + F(t.x1) + ',' + F(yDim) + ') -- (' + F(t.x2) + ',' + F(yDim) + ');\n';
+      const cy = yDim + t.c.h/2 + 0.04/e;
+      s += '\\node[bsaCota] at (' + F((t.x1+t.x2)/2) + ',' + F(cy) + ') {' + t.txt + '};\n';
+      reg.seg(t.x1, yDim, t.x2, yDim, 0.02/e, 'cota');
+      reg.caja((t.x1+t.x2)/2, cy, t.c.w, t.c.h, 'rotulo');
+    });
   }
-  if(maxY - minY > 1e-6){
-    const y1 = Y(minY), y2 = Y(maxY);
-    const col = sg => {
-      const xDim = sg < 0 ? B.x0 - 0.40/e : B.x1 + 0.40/e, x0 = X(sg < 0 ? minX : maxX) + sg*0.10/e;
-      const refs = [y1, y2].map(y => [x0, y, xDim + sg*0.12/e, y]);
-      return {xDim, refs, coste: coste(refs)};
-    };
-    const cl = elegir(col(-1), col(1)), xDim = cl.xDim;
-    cl.refs.forEach(r => { s += _trazoEvitando(reg, r[0], r[1], r[2], r[3], ref, evitar); });
-    s += '\\draw[black!55, line width=0.4pt, <->, >=stealth] (' + F(xDim) + ',' + F(y1) + ') -- (' + F(xDim) + ',' + F(y2) + ');\n';
-    const txt = dec(maxY-minY,'len') + '\\,' + uL, c = _cajaRotuloArm(txt, 'scriptsize', e);
-    s += '\\node[bsaCota, rotate=90] at (' + F(xDim) + ',' + F((y1+y2)/2) + ') {' + txt + '};\n';
-    reg.seg(xDim, y1, xDim, y2, 0.02/e, 'cota');
-    reg.caja(xDim, (y1+y2)/2, c.h, c.w, 'rotulo');
+  if(ys.length > 1){
+    const tramos = [];
+    for(let i=0;i<ys.length-1;i++){
+      const y1 = Y(ys[i]), y2 = Y(ys[i+1]), dist = ys[i+1]-ys[i];
+      if(dist < 1e-6) continue;
+      const txt = dec(dist,'len') + '\\,' + uL;
+      tramos.push({y1, y2, txt, c:_cajaRotuloArm(txt, 'scriptsize', e)});
+    }
+    const wMax = Math.max(...tramos.map(t=>t.c.w));
+    let el = null;
+    for(const sg of [1, -1]){
+      for(const d of PASOS){
+        const x = sg > 0 ? B.x1 + d/e : B.x0 - d/e;
+        const tx0 = x + sg*(0.06/e + wMax/2);
+        const libre = !choca(_polCaja(x, (Y(ys[0]) + Y(ys[ys.length-1]))/2, 0.06/e, Math.abs(Y(ys[ys.length-1]) - Y(ys[0]))))
+                   && tramos.every(t => !choca(_polCaja(tx0, (t.y1+t.y2)/2, t.c.w, t.c.h)));
+        if(libre){ el = {sg, x}; break; }
+      }
+      if(el) break;
+    }
+    if(!el) el = {sg:1, x: B.x1 + PASOS[0]/e};
+    const x0 = X(el.sg > 0 ? maxX : minX) + el.sg*0.10/e;
+    ys.forEach(y => { s += _trazoEvitando(reg, x0, Y(y), el.x + el.sg*0.12/e, Y(y), ref, evitar); });
+    tramos.forEach(t=>{
+      s += '\\draw[black!55, line width=0.4pt, <->, >=stealth] (' + F(el.x) + ',' + F(t.y1) + ') -- (' + F(el.x) + ',' + F(t.y2) + ');\n';
+      const cx = el.x + el.sg*(0.06/e + t.c.w/2);
+      s += '\\node[bsaCota] at (' + F(cx) + ',' + F((t.y1+t.y2)/2) + ') {' + t.txt + '};\n';
+      reg.seg(el.x, t.y1, el.x, t.y2, 0.02/e, 'cota');
+      reg.caja(cx, (t.y1+t.y2)/2, t.c.w, t.c.h, 'rotulo');
+    });
   }
   return s;
 }

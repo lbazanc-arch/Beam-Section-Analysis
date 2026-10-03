@@ -87,33 +87,15 @@ function drawGrid(W,H){
 }
 
 function drawAxes(W,H){
-  const ox = worldToScreen(0,0);
-  ctx.strokeStyle = 'rgba(30,33,38,.18)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([]);
-  // X axis
-  if(ox.y >= 0 && ox.y <= H){
-    ctx.beginPath(); ctx.moveTo(0,ox.y); ctx.lineTo(W,ox.y); ctx.stroke();
-    // Arrow
-    ctx.fillStyle = 'rgba(30,33,38,.18)';
-    ctx.beginPath(); ctx.moveTo(W-8,ox.y-4); ctx.lineTo(W,ox.y); ctx.lineTo(W-8,ox.y+4); ctx.fill();
-    ctx.fillStyle = 'rgba(30,33,38,.35)';
-    ctx.font = 'bold 12px Inter'; ctx.fillText('X',W-16,ox.y-6);
-  }
-  // Y axis
-  if(ox.x >= 0 && ox.x <= W){
-    ctx.strokeStyle = 'rgba(30,33,38,.18)';
-    ctx.beginPath(); ctx.moveTo(ox.x,H); ctx.lineTo(ox.x,0); ctx.stroke();
-    ctx.fillStyle = 'rgba(30,33,38,.18)';
-    ctx.beginPath(); ctx.moveTo(ox.x-4,8); ctx.lineTo(ox.x,0); ctx.lineTo(ox.x+4,8); ctx.fill();
-    ctx.fillStyle = 'rgba(30,33,38,.35)';
-    ctx.font = 'bold 12px Inter'; ctx.fillText('Y',ox.x+6,16);
-  }
-  // Origin label
-  ctx.fillStyle = 'rgba(30,33,38,.3)'; ctx.font = '10px Inter';
-  if(ox.x>=0&&ox.x<=W&&ox.y>=0&&ox.y<=H) ctx.fillText('O',ox.x+3,ox.y-3);
+  // Los ejes comunes de los cinco temas (2026-10-03, `bsaEjesXY` de
+  // core/comun.js): flecha, letra y el valor de cada línea de la rejilla, con
+  // el mismo paso que drawGrid.
+  const rawStep = 50 / viewScale, exp = Math.floor(Math.log10(rawStep)), base = Math.pow(10, exp);
+  const paso = rawStep/base < 2 ? base : rawStep/base < 5 ? 2*base : 5*base;
+  bsaEjesXY(ctx, {W, H, paso, cv: canvas,
+    aPantalla: (x, y) => { const p = worldToScreen(x, y); return [p.x, p.y]; },
+    aMundo: (sx, sy) => { const p = screenToWorld(sx, sy); return [p.x, p.y]; }});
 }
-
 function drawFigure(fig, selected){
   const def = FIG_DEFS[fig.type];
   if(!def) return;

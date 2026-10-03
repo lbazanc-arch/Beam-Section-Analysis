@@ -283,7 +283,8 @@ function cotasCompuestaGenerales(c, toSx, toSy){
     px: x => toSx(x), py: y => toSy(y),
     fuente: '600 9px Inter, sans-serif',
     fuenteTotal: '700 9.5px Inter, sans-serif',
-    tick: 3.8, salto: 13, sepX: 26, sepY: 30, angulos: false
+    tick: 3.8, salto: 13, sepX: 26, sepY: 30, angulos: false,
+    flechas: true, derecho: true          // el aspecto del lienzo (2026-10-03)
   });
 }
 

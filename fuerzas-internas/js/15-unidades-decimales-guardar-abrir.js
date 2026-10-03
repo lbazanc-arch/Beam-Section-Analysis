@@ -585,6 +585,75 @@ function tzCadenaCotasY(valores, Yn, xBase, color, opts){
   return {tikz:out, nMax:plan.nMax};
 }
 
+// ── Cadena de cotas en el primer carril libre (2026-10-03, el criterio del lienzo) ──
+// Las coordenadas `valores` encadenadas con punta en los dos extremos, líneas de
+// extensión desde `borde` (el contorno de lo dibujado por ese lado) y el valor
+// DERECHO junto a la línea. eje 'x': carril horizontal, lado −1 debajo y +1
+// encima; eje 'y': carril vertical, +1 a la derecha y −1 a la izquierda. Se
+// prueba cada distancia de PASOS y gana la primera en que la línea y los valores
+// no chocan con nada reservado. Un valor que no cabe junto al anterior sube de
+// fila. Devuelve {tikz, c (el carril), lejos (hasta dónde llega con sus valores)}.
+function tzCadenaLibre(valores, eje, o){
+  const vs = [...new Set(valores.map(v=>+v.toFixed(6)))].sort((a,b)=>a-b);
+  if(vs.length < 2) return {tikz:'', c:null, lejos:o.borde};
+  const horiz = eje === 'x', lado = o.lado, pos = o.pos, col = o.color || 'bsaMuted', F = v => v.toFixed(3);
+  const FT = 'font=\\scriptsize, color=' + col;
+  const segs = [];
+  for(let i=0;i<vs.length-1;i++){
+    const a = pos(vs[i]), b = pos(vs[i+1]);
+    if(Math.abs(b-a) < 0.05) continue;
+    const txt = dec(vs[i+1]-vs[i],'len') + '\\,' + escLatex(unitLen);
+    segs.push({a, b, txt, w:tzAncho(txt, FT), h:tzAlto(txt, FT)});
+  }
+  if(!segs.length) return {tikz:'', c:null, lejos:o.borde};
+  // filas: un valor que no cabe junto al anterior sube a la segunda
+  let fin = [-Infinity, -Infinity];
+  segs.forEach(sg=>{
+    const m = (sg.a+sg.b)/2, ext = horiz ? sg.w/2 + 0.06 : sg.h/2 + 0.04;
+    let f = (m - ext < fin[0]) ? 1 : 0;
+    if(f === 1 && m - ext < fin[1]) f = 0;
+    sg.fila = f; fin[f] = m + ext;
+  });
+  const wMax = Math.max(...segs.map(s=>s.w)), hMax = Math.max(...segs.map(s=>s.h));
+  const caja = (sg, c) => {
+    const m = (sg.a+sg.b)/2;
+    if(horiz){ const cy = c + lado*(0.08 + sg.h/2 + sg.fila*(sg.h+0.04)); return {x0:m-sg.w/2, y0:cy-sg.h/2, x1:m+sg.w/2, y1:cy+sg.h/2, cx:m, cy}; }
+    const cx = c + lado*(0.08 + sg.w/2 + sg.fila*(wMax+0.08)); return {x0:cx-sg.w/2, y0:m-sg.h/2, x1:cx+sg.w/2, y1:m+sg.h/2, cx, cy:m};
+  };
+  const lo = Math.min(...segs.map(s=>Math.min(s.a,s.b))), hi = Math.max(...segs.map(s=>Math.max(s.a,s.b)));
+  const PASOS = [0.35, 0.55, 0.80, 1.05, 1.35, 1.70, 2.10, 2.60];
+  let c = o.borde + lado*PASOS[PASOS.length-1];
+  for(const d of PASOS){
+    const cc = o.borde + lado*d;
+    const linea = horiz ? {x0:lo, y0:cc-0.05, x1:hi, y1:cc+0.05} : {x0:cc-0.05, y0:lo, x1:cc+0.05, y1:hi};
+    if(!tzChoca(linea) && segs.every(sg=>!tzChoca(caja(sg, cc)))){ c = cc; break; }
+  }
+  let out = '';
+  // líneas de extensión: desde `desde` (junto a los nudos) si por el camino no
+  // atraviesan ningún rótulo; si no, desde el borde de lo dibujado
+  vs.forEach(v=>{
+    const p = pos(v), e1 = c + lado*0.10;
+    let e0 = o.borde + lado*0.06;
+    if(o.desde !== undefined){
+      const d0 = o.desde;
+      const cruza = horiz ? tzGuiaCruza(p, d0, p, e1) : tzGuiaCruza(d0, p, e1, p);
+      if(!cruza) e0 = d0;
+    }
+    out += horiz ? '\\draw[' + col + '!55, line width=.3pt] (' + F(p) + ',' + F(e0) + ') -- (' + F(p) + ',' + F(e1) + ');\n'
+                 : '\\draw[' + col + '!55, line width=.3pt] (' + F(e0) + ',' + F(p) + ') -- (' + F(e1) + ',' + F(p) + ');\n';
+  });
+  let lejos = c;
+  segs.forEach(sg=>{
+    out += horiz ? '\\draw[' + col + ', line width=.45pt, {Latex[length=1.3mm,width=1mm]}-{Latex[length=1.3mm,width=1mm]}] (' + F(sg.a) + ',' + F(c) + ') -- (' + F(sg.b) + ',' + F(c) + ');\n'
+                 : '\\draw[' + col + ', line width=.45pt, {Latex[length=1.3mm,width=1mm]}-{Latex[length=1.3mm,width=1mm]}] (' + F(c) + ',' + F(sg.a) + ') -- (' + F(c) + ',' + F(sg.b) + ');\n';
+    if(horiz) tzOcuparTrazo(sg.a, c, sg.b, c, 0.05); else tzOcuparTrazo(c, sg.a, c, sg.b, 0.05);
+    const q = caja(sg, c);
+    out += tzTextoFijo(q.cx, q.cy, sg.txt, FT);
+    lejos = lado > 0 ? Math.max(lejos, horiz ? q.y1 : q.x1) : Math.min(lejos, horiz ? q.y0 : q.x0);
+  });
+  return {tikz:out, c, lejos};
+}
+
 // Cadena de cotas horizontal con niveles, al estilo del panel de dibujo.
 // Devuelve {tikz, nMax} para que quien la use sepa cuánto bajó.
 function tzCadenaCotas(valores, Xn, yBase, color, opts){
