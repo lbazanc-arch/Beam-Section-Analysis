@@ -367,7 +367,7 @@ function tkpCotasCompuerta(X, Y){
   const ext = (x1, y1, x2, y2) => {
     const L = Math.hypot(x2-x1, y2-y1); if(L < 0.12) return '';
     const ux = (x2-x1)/L, uy = (y2-y1)/L;
-    return '\\draw[bsaMuted, line width=.35pt] (' + F(x1+ux*0.08) + ',' + F(y1+uy*0.08) + ') -- (' + F(x2+ux*0.1) + ',' + F(y2+uy*0.1) + ');\n';
+    return '\\draw[bsaMuted!75, line width=.3pt, dash pattern=on 1.2pt off 1.2pt] (' + F(x1+ux*0.08) + ',' + F(y1+uy*0.08) + ') -- (' + F(x2+ux*0.1) + ',' + F(y2+uy*0.1) + ');\n';
   };
   const txt = it => '$' + dec(it.hi - it.lo, 'len') + '$';
   const carriles = (lista, vertical) => {

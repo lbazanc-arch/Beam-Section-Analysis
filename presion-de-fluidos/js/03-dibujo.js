@@ -877,10 +877,12 @@ function _puntaCota(x, y, ux, uy){
   ctx.closePath(); ctx.fill();
 }
 // Cota de p1 a p2 (pantalla) con su línea de cota de D1 a D2; las líneas de
-// extensión van de cada punto a su extremo de la línea de cota.
+// extensión van de cada punto a su extremo de la línea de cota, a trazos y
+// tenues (2026-10-03, decisión del profesor: continuas cruzaban el dibujo).
 function _cotaPx(p1, p2, D1, D2, col, ancho){
   ctx.save();
-  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = ancho || 1;
+  ctx.strokeStyle = col; ctx.fillStyle = col;
+  ctx.lineWidth = 0.8; ctx.setLineDash([3, 3]); ctx.globalAlpha = 0.55;
   [[p1, D1], [p2, D2]].forEach(par=>{
     const p = par[0], D = par[1];
     const dx = D[0]-p[0], dy = D[1]-p[1], L = Math.sqrt(dx*dx + dy*dy);
@@ -890,6 +892,7 @@ function _cotaPx(p1, p2, D1, D2, col, ancho){
     ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     _reservarTrazo(a[0], a[1], b[0], b[1], 0.8, 'cota');
   });
+  ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.lineWidth = ancho || 1;
   const dx = D2[0]-D1[0], dy = D2[1]-D1[1], L = Math.sqrt(dx*dx + dy*dy) || 1;
   const ux = dx/L, uy = dy/L;
   ctx.beginPath(); ctx.moveTo(D1[0], D1[1]); ctx.lineTo(D2[0], D2[1]); ctx.stroke();

@@ -771,7 +771,7 @@ function _svgCotaPresa(p1, p2, D1, D2, txt, tx, ty, ancla, col, negrita){
     const p = par[0], D = par[1], dx = D[0]-p[0], dy = D[1]-p[1], L = Math.hypot(dx, dy);
     if(L < 5) return;
     const ux = dx/L, uy = dy/L;
-    s += '<line x1="' + F(p[0]+ux*3) + '" y1="' + F(p[1]+uy*3) + '" x2="' + F(D[0]+ux*4) + '" y2="' + F(D[1]+uy*4) + '" stroke="' + col + '" stroke-width=".7" opacity=".75"/>';
+    s += '<line x1="' + F(p[0]+ux*3) + '" y1="' + F(p[1]+uy*3) + '" x2="' + F(D[0]+ux*4) + '" y2="' + F(D[1]+uy*4) + '" stroke="' + col + '" stroke-width=".7" stroke-dasharray="3,2.5" opacity=".55"/>';
   });
   const dx = D2[0]-D1[0], dy = D2[1]-D1[1], L = Math.hypot(dx, dy) || 1, ux = dx/L, uy = dy/L;
   s += '<line x1="' + F(D1[0]) + '" y1="' + F(D1[1]) + '" x2="' + F(D2[0]) + '" y2="' + F(D2[1]) + '" stroke="' + col + '" stroke-width="' + (negrita ? 1.6 : 0.9) + '"/>';
@@ -1042,7 +1042,7 @@ function tkpCotasPresa(g, X, Y){
   const ext = (x1, y1, x2, y2) => {
     const L = Math.hypot(x2-x1, y2-y1); if(L < 0.12) return '';
     const ux = (x2-x1)/L, uy = (y2-y1)/L;
-    return '\\draw[bsaMuted, line width=.35pt] (' + F(x1+ux*0.08) + ',' + F(y1+uy*0.08) + ') -- (' + F(x2+ux*0.1) + ',' + F(y2+uy*0.1) + ');\n';
+    return '\\draw[bsaMuted!75, line width=.3pt, dash pattern=on 1.2pt off 1.2pt] (' + F(x1+ux*0.08) + ',' + F(y1+uy*0.08) + ') -- (' + F(x2+ux*0.1) + ',' + F(y2+uy*0.1) + ');\n';
   };
   const cota = (x1, y1, x2, y2) => '\\draw[' + flecha + ', bsaMuted, line width=.4pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(x2) + ',' + F(y2) + ');\n';
   let out = '';
@@ -1154,7 +1154,7 @@ function tkpPresa(r){
     out += tkpTexto(nx, -2.2, '$N$', 'font=\\scriptsize, color=bsaReac', 0, -1);
     if(r.d > 1e-9){
       out += '\\draw[{Latex[length=1.5mm,width=1.1mm]}-{Latex[length=1.5mm,width=1.1mm]}, bsaReac, line width=.45pt] (' + F(ox) + ',-1.42) -- (' + F(nx) + ',-1.42);\n';
-      out += '\\draw[bsaReac!80, line width=.35pt] (' + F(ox) + ',-1.02) -- (' + F(ox) + ',-1.52);\n';
+      out += '\\draw[bsaReac!70, line width=.3pt, dash pattern=on 1.2pt off 1.2pt] (' + F(ox) + ',-1.02) -- (' + F(ox) + ',-1.52);\n';
       tkpOcuparTrazo(ox, -1.42, nx, -1.42, 0.05);
       out += tkpTexto((ox + nx)/2, -1.62, '$d = ' + dec(r.d,'len') + '$', 'font=\\tiny, color=bsaReac', 0, -1);
     }
