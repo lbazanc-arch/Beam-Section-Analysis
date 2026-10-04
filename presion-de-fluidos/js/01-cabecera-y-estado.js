@@ -546,6 +546,13 @@ function _desarrolloRecto(c){
     T = {x:T.x + (D.x-T.x)*s, y:niv, nombre:null};
     cortaSuperficie = true;
   }
+  return _desarrolloEntre(T, D, z, niv, b, cortaSuperficie);
+}
+// El desarrollo de una placa recta mojada de T (el extremo menos profundo, ya
+// recortado a la superficie) a D: rectángulo + triángulo por capa y el centro de
+// presión por momentos desde T. Lo usan los tramos rectos y las caras de las
+// presas (10-), para que las dos se resuelvan con los mismos pasos.
+function _desarrolloEntre(T, D, z, niv, b, cortaSuperficie){
   const L = Math.hypot(D.x-T.x, D.y-T.y);
   if(L < 1e-12) return null;
   const u = {x:(D.x-T.x)/L, y:(D.y-T.y)/L};        // de T hacia D, a lo largo de la placa

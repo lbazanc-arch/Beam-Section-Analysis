@@ -276,6 +276,24 @@ function cargasAguaPresa(g){
   out.forEach((c,i)=>{ c.k = i+1; });
   return out;
 }
+// El desarrollo de una cara mojada, con los mismos pasos que un tramo recto de la
+// compuerta (_desarrolloEntre, 01-): T es su extremo menos profundo, recortado a
+// la superficie libre si la cara asoma; D, el más profundo. Se contrasta con la
+// integral de cargasAguaPresa, como desarrolloCarga con la del motor.
+function desarrolloCaraPresa(c, b){
+  let T = c.A.y >= c.B.y ? c.A : c.B, D = T === c.A ? c.B : c.A, corta = false;
+  T = {x:T.x, y:T.y}; D = {x:D.x, y:D.y};
+  if(T.y > c.niv + 1e-12){
+    if(D.y >= c.niv - 1e-12) return null;
+    const s = (T.y - c.niv)/(T.y - D.y);
+    T = {x:T.x + (D.x-T.x)*s, y:c.niv}; corta = true;
+  }
+  const d = _desarrolloEntre(T, D, c.z, c.niv, b, corta);
+  if(!d) return null;
+  d.coincide = Math.abs(d.F - c.F) < 2e-3*Math.max(1, c.F)
+            && Math.hypot(d.P.x - c.P.x, d.P.y - c.P.y) < 5e-3*Math.max(1, c.len);
+  return d;
+}
 function analizarPresa(p){
   const g = geomPresa(p);
   if(g.error) return {p, error:g.error};
@@ -283,6 +301,7 @@ function analizarPresa(p){
   const b = anchoB();
   const pesosP = g.partes.map((q,i)=>Object.assign({}, q, {k:i+1, W:p.gamma*b*q.A}));
   const agua = cargasAguaPresa(g);
+  agua.forEach(c=>{ c.des = desarrolloCaraPresa(c, b); });
   const O = {x:g.base.x0, y:g.base.y};
   const Bw = g.base.x1 - g.base.x0;
   let SW = 0, SFx = 0, SFy = 0, M = 0;
@@ -292,8 +311,55 @@ function analizarPresa(p){
   const Fr = -SFx;                    // ΣFx: F + ΣE_x = 0
   const d = N > 1e-12 ? -M/N : NaN;   // ΣM_O: N·d + ΣM = 0
   const tol = 1e-9*Math.max(1, Bw);
-  return {p, g, b, pesos:pesosP, agua, O, B:Bw, SW, SFx, SFy, M, N, Fr, d,
-          levanta: !(N > 1e-12), dentro: isFinite(d) && d >= -tol && d <= Bw + tol};
+  const r = {p, g, b, pesos:pesosP, agua, O, B:Bw, SW, SFx, SFy, M, N, Fr, d,
+             levanta: !(N > 1e-12), dentro: isFinite(d) && d >= -tol && d <= Bw + tol};
+  r.res = resultantePresa(r);
+  return r;
+}
+// ── Resultante única del líquido sobre la presa (2026-10-04, petición del profesor) ──
+// La misma idea que la de la compuerta (resultanteUnica, 01-): todo el bloque de
+// presiones como UNA fuerza, la suma de los empujes, con su línea de acción por
+// Varignon. Los momentos se toman respecto de O, el punto de la cota d, así que
+// la línea es x·R_y − y·R_x = ΣM_O (x, y desde O). Se sitúa donde corta la parte
+// MOJADA del contorno, el punto P_R, con su profundidad z_R si todos los empujes
+// son de la misma zona. Con menos de dos empujes no hace falta; si se anulan, es
+// un par. Sin el peso: es solo el líquido.
+function resultantePresa(r){
+  const es = r.agua;
+  if(!es || es.length < 2) return null;
+  let Rx = 0, Ry = 0, MO = 0, suma = 0, gx = 0, gy = 0;
+  es.forEach(c=>{ Rx += c.Fx; Ry += c.Fy; MO += c.m; suma += c.F; gx += c.P.x*c.F; gy += c.P.y*c.F; });
+  gx /= suma; gy /= suma;
+  const zs = es.map(c=>c.z).filter((z,i,a)=>a.indexOf(z) === i);
+  const z = zs.length === 1 ? zs[0] : null, niv = z ? nivelZona(z) : null;
+  const F = Math.hypot(Rx, Ry);
+  if(F < 1e-9*Math.max(1, suma)) return {par:true, Rx, Ry, F:0, Mo:MO, z, niv, O:r.O};
+  const dir = {x:Rx/F, y:Ry/F}, O = r.O;
+  const fd = P => (P.x-O.x)*Ry - (P.y-O.y)*Rx - MO;     // cero sobre la línea de acción
+  let mejor = null;
+  es.forEach(c=>{
+    // solo la parte mojada de la cara: hasta la superficie de su zona
+    let A = c.A, B = c.B;
+    if(A.y > c.niv && B.y > c.niv) return;
+    const corte = (P, Q) => { const t = (c.niv - P.y)/(Q.y - P.y); return {x:P.x + (Q.x-P.x)*t, y:c.niv}; };
+    if(A.y > c.niv) A = corte(A, B); else if(B.y > c.niv) B = corte(B, A);
+    const fa = fd(A), fb = fd(B);
+    if(fa*fb > 0 || Math.abs(fa - fb) < 1e-15) return;
+    const s = fa/(fa - fb);
+    const P = {x:A.x + (B.x-A.x)*s, y:A.y + (B.y-A.y)*s};
+    const dg = Math.hypot(P.x-gx, P.y-gy);
+    if(!mejor || dg < mejor.dg - 1e-12) mejor = {P, c, dg};
+  });
+  const out = {par:false, Rx, Ry, F, dir, Mo:MO, z, niv, O, recto:false, ag:bsaAnguloAgudoEje(dir.x, dir.y)};
+  if(mejor){ out.corta = true; out.P = mejor.P; out.cara = mejor.c; }
+  else {
+    // no corta la parte mojada: el pie de la perpendicular desde el centro de los empujes
+    const P0 = {x:O.x + Ry*MO/(F*F), y:O.y - Rx*MO/(F*F)};
+    const k = (gx-P0.x)*dir.x + (gy-P0.y)*dir.y;
+    out.corta = false; out.P = {x:P0.x + dir.x*k, y:P0.y + dir.y*k};
+  }
+  out.zR = (niv !== null && isFinite(niv)) ? niv - out.P.y : null;
+  return out;
 }
 function analizarPresas(){ return presas.map(analizarPresa); }
 
@@ -343,6 +409,7 @@ function _diagramaCaraPresa(c, e){
   ctx.strokeStyle = 'rgba(192,57,43,.75)'; ctx.lineWidth = 1.3; ctx.stroke();
   ctx.restore();
   _reservarPolilinea(moj.map(q=>[q.ox,q.oy]), 1.3, 'presion', 10);
+  _reservarAreaDiagrama(moj);
   const paso = Math.max(2, Math.floor(moj.length/6));
   for(let i=paso;i<moj.length-1;i+=paso){
     const q = moj[i];
@@ -441,6 +508,8 @@ function dibujarResultadosPresas(){
       _rotulo('E' + c.k + ' = ' + dec(c.F,'f') + ' ' + unitFor, x0 - c.dir.x*8, y0 + c.dir.y*8, '#c0392b', -c.dir.x, c.dir.y,
               '700 10.5px Inter,sans-serif', 'center', _ROT_VALOR);
     });
+    // la resultante única del líquido, con el mismo dibujo que la de la compuerta (03-)
+    if(VIS.resUnica && r.res && !r.res.par) dibujarResultanteUnica(r.res);
     if(r.levanta || !isFinite(r.d)) return;
     const col = '#15803d';
     const [ox, oy] = aPantalla(r.O.x, r.O.y), [nx] = aPantalla(r.O.x + r.d, r.O.y);
@@ -528,7 +597,8 @@ function dibujarCotasPresas(){
         const libre = filas.every(f=>{
           const ya = aPantalla(0, f.hi)[1], yb = aPantalla(0, f.lo)[1], ym = (ya + yb)/2;
           const tx0 = lado > 0 ? x + 6 : x - 6 - wMax;
-          return !_regChoca([[x-4, ya], [x+4, ya], [x+4, yb], [x-4, yb]], 2, ignora)
+          // la línea se mira sin sus extremos: abajo llega a la raya del terreno
+          return !_regChoca([[x-4, ya+6], [x+4, ya+6], [x+4, yb-6], [x-4, yb-6]], 2, ignora)
               && !_regChoca([[tx0, ym-8], [tx0+wMax, ym-8], [tx0+wMax, ym+8], [tx0, ym+8]], 2, ignora);
         });
         if(libre){ el = {lado, x}; break; }
@@ -993,33 +1063,111 @@ function listaPresasHtml(){
 }
 
 // ── Resultados en pantalla (ecuación y resultado; el porqué va al PDF) ──
+// Los mismos pasos que la compuerta (2026-10-04, petición del profesor): peso
+// por partes, presión en los puntos clave de cada cara mojada, empuje de cada
+// cara (rectángulo + triángulo por capa) con su centro de presión y sus
+// componentes, la resultante única, los momentos respecto de O con sus brazos
+// y, por último, el equilibrio.
 function presasHtml(numInicial){
   if(!RP || !RP.length) return '';
   const f = v=>dec(v,'f'), nl = v=>dec(v,'len'), uF = unitFor, uL = unitLen;
   const fila = tx => '<div class="eq-row"><div class="eq-body">' + kx(tx) + '</div></div>';
-  const sg = (v,i) => (i===0 ? (v<0?'-':'') : (v<0?' - ':' + '));
+  const paso = (n, t) => '<div class="proc-sub" style="margin:12px 0 6px;font-size:12.5px">Paso ' + n + ' · ' + t + '</div>';
+  const pto = (P, O) => '(' + nl(P.x - O.x) + '; ' + nl(P.y - O.y) + ')';
   let h = '';
   RP.forEach((r, ir)=>{
     h += '<div class="res-section"><div class="res-title"><div class="num">' + (numInicial + ir) + '</div>' + nombrePresa(r.p) + ' — reacciones en la base</div>';
     if(r.error){ h += '<div class="hint-sm" style="color:#c0392b">' + escaparTexto(r.error) + '</div></div>'; return; }
-    // peso por partes
-    h += '<table class="tabla"><thead><tr><th>Parte</th><th>Figura</th><th class="r">A (' + uL + '²)</th><th class="r">x̄ (' + uL + ')</th><th class="r">ȳ (' + uL + ')</th><th class="r">W = γ b A (' + uF + ')</th></tr></thead><tbody>';
-    r.pesos.forEach(q=>{ h += '<tr><td><b>' + kx('W_{' + q.k + '}') + '</b></td><td>' + NOMBRE_PARTE[q.tipo] + '</td><td class="r">' + nl(q.A) + '</td><td class="r">' + nl(q.cx) + '</td><td class="r">' + nl(q.cy) + '</td><td class="r"><b>' + f(q.W) + '</b></td></tr>'; });
-    h += '<tr class="fila-total"><td colspan="5">Σ W (γ = ' + f(r.p.gamma) + ' ' + uGamma() + ', b = ' + nl(r.b) + ' ' + uL + ')</td><td class="r">' + f(r.SW) + '</td></tr></tbody></table>';
-    // empujes
-    if(r.agua.length){
-      h += '<table class="tabla" style="margin-top:6px"><thead><tr><th>Empuje</th><th>Zona</th><th class="r">L mojada (' + uL + ')</th><th class="r">p máx (' + uPres() + ')</th><th class="r">E (' + uF + ')</th><th class="r">z<sub>P</sub> (' + uL + ')</th><th class="r">E<sub>x</sub> (' + uF + ')</th><th class="r">E<sub>y</sub> (' + uF + ')</th><th>Sentido</th></tr></thead><tbody>';
-      r.agua.forEach(c=>{ h += '<tr><td><b>' + kx('E_{' + c.k + '}') + '</b></td><td>' + c.z + '</td><td class="r">' + nl(c.len) + '</td><td class="r">' + f(c.pMax) + '</td><td class="r"><b>' + f(c.F) + '</b></td><td class="r">' + nl(c.zP) + '</td><td class="r">' + f(c.Fx) + '</td><td class="r">' + f(c.Fy) + '</td><td>' + iconoSentidoHtml(c.dir.x, c.dir.y) + '</td></tr>'; });
+    const O = r.O;
+    h += '<div class="hint-sm" style="margin:0 0 4px">Coordenadas desde O, el extremo izquierdo de la base.</div>';
+    // ── Paso 1 · peso por partes ──
+    h += paso(1, 'Peso de cada parte');
+    h += '<div class="proc-block" style="padding:8px 12px;margin-bottom:6px"><div class="eq-row"><div class="eq-body">' + kx('W = \\gamma\\,b\\,A')
+      + ' &nbsp; con ' + kx('\\gamma = ' + f(r.p.gamma)) + ' ' + uGamma() + ' y ' + kx('b = ' + nl(r.b)) + ' ' + uL + '</div></div></div>';
+    h += '<table class="tabla"><thead><tr><th>Parte</th><th>Figura</th><th class="r">A (' + uL + '²)</th><th class="r">x̄ (' + uL + ')</th><th class="r">ȳ (' + uL + ')</th><th class="r">W (' + uF + ')</th></tr></thead><tbody>';
+    r.pesos.forEach(q=>{ h += '<tr><td><b>' + kx('W_{' + q.k + '}') + '</b></td><td>' + NOMBRE_PARTE[q.tipo] + '</td><td class="r">' + nl(q.A) + '</td><td class="r">' + nl(q.cx - O.x) + '</td><td class="r">' + nl(q.cy - O.y) + '</td><td class="r"><b>' + f(q.W) + '</b></td></tr>'; });
+    h += '<tr class="fila-total"><td colspan="5">Σ W</td><td class="r">' + f(r.SW) + '</td></tr></tbody></table>';
+    if(!r.agua.length){
+      h += '<div class="hint-sm">Ninguna cara de la presa está mojada.</div>';
+    } else {
+      // ── Paso 2 · presión en los puntos clave ──
+      h += paso(2, 'Presión en los puntos clave');
+      h += '<div class="proc-block" style="padding:8px 12px;margin-bottom:6px">' + fila('p = \\gamma\\,h') + '</div>';
+      h += '<table class="tabla"><thead><tr><th>Empuje</th><th>Zona</th><th>Punto</th><th class="r">(x; y) (' + uL + ')</th><th class="r">h (' + uL + ')</th><th class="r">p (' + uPres() + ')</th></tr></thead><tbody>';
+      r.agua.forEach(c=>{
+        const d = c.des;
+        const filas = [];
+        if(d){
+          filas.push({nom: d.cortaSuperficie ? 'corte con la superficie' : 'extremo superior', P:d.T, hh:d.bandas[0].h0, p:d.bandas[0].p0});
+          d.bandas.forEach((bd,i)=>{ if(i > 0) filas.push({nom:'cambio de capa', P:{x:d.T.x + d.u.x*bd.s0, y:bd.y0}, hh:bd.h0, p:bd.p0}); });
+          const u = d.bandas[d.bandas.length-1];
+          filas.push({nom:'extremo inferior', P:d.D, hh:u.h1, p:u.p1});
+        }
+        filas.forEach((fl,i)=>{
+          h += '<tr>' + (i === 0 ? '<td rowspan="' + filas.length + '"><b>' + kx('E_{' + c.k + '}') + '</b></td><td rowspan="' + filas.length + '">' + c.z + '</td>' : '')
+            + '<td>' + fl.nom + '</td><td class="r">' + pto(fl.P, O) + '</td><td class="r">' + nl(fl.hh) + '</td><td class="r">' + f(fl.p) + '</td></tr>';
+        });
+      });
       h += '</tbody></table>';
-    } else h += '<div class="hint-sm">Ninguna cara de la presa está mojada.</div>';
-    // equilibrio
-    h += '<div class="proc-block" style="padding:9px 12px;margin-top:8px">';
+      // ── Paso 3 · empuje de cada cara y su centro de presión ──
+      h += paso(3, 'Empuje de cada cara mojada y su centro de presión');
+      r.agua.forEach(c=>{
+        const d = c.des;
+        h += '<div class="proc-block" style="padding:9px 12px;margin-bottom:6px"><div class="proc-sub">' + kx('E_{' + c.k + '}') + ' · cara '
+          + (d ? (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca - 90) < 1e-6 ? 'vertical' : 'inclinada ' + dec(d.angPlaca,'ang') + '° con la horizontal')) : '') + ' · zona ' + c.z + '</div>';
+        if(!d){ h += fila('E_{' + c.k + '} = ' + f(c.F) + '\\ \\text{' + uF + '}') + '</div>'; return; }
+        h += fila('L = ' + nl(d.L) + '\\ \\text{' + uL + '}\\ \\text{(parte mojada)}');
+        const terms = [];
+        d.bandas.forEach((bd,i)=>{
+          if(d.bandas.length > 1) h += '<div class="hint-sm" style="margin:4px 0 0">Capa ' + (i+1) + ' (γ = ' + f(bd.g) + ')</div>';
+          if(bd.Fr > 1e-12){
+            h += fila('F_{\\square} = b\\,L\\,p_{\\min} = ' + nl(r.b) + '\\,(' + nl(bd.l) + ')(' + f(Math.min(bd.p0,bd.p1)) + ') = ' + f(bd.Fr) + '\\ \\text{' + uF + '}\\quad\\text{a}\\ ' + nl(bd.s0 + bd.sR));
+            terms.push(f(bd.Fr) + '(' + nl(bd.s0 + bd.sR) + ')');
+          }
+          if(bd.Ft > 1e-12){
+            h += fila('F_{\\triangle} = \\tfrac12\\,b\\,L\\,(p_{\\max}-p_{\\min}) = \\tfrac12\\,' + nl(r.b) + '\\,(' + nl(bd.l) + ')(' + f(Math.abs(bd.p1-bd.p0)) + ') = ' + f(bd.Ft) + '\\ \\text{' + uF + '}\\quad\\text{a}\\ ' + nl(bd.s0 + bd.sT));
+            terms.push(f(bd.Ft) + '(' + nl(bd.s0 + bd.sT) + ')');
+          }
+        });
+        const partes = [];
+        d.bandas.forEach(bd=>{ if(bd.Fr > 1e-12) partes.push(f(bd.Fr)); if(bd.Ft > 1e-12) partes.push(f(bd.Ft)); });
+        h += fila('E_{' + c.k + '} = ' + (partes.length > 1 ? partes.join(' + ') + ' = ' : '') + f(d.F) + '\\ \\text{' + uF + '}');
+        h += fila('s_P = \\dfrac{\\sum F_i s_i}{E_{' + c.k + '}} = ' + (terms.length > 1 ? '\\dfrac{' + terms.join(' + ') + '}{' + f(d.F) + '} = ' : '') + nl(d.sP) + '\\ \\text{' + uL + '}');
+        if(d.gzA) h += fila('\\gamma\\,\\bar z\\,A = ' + f(d.gzA.g) + '\\,(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F) + '\\ \\text{' + uF + '}\\quad\\checkmark');
+        // componentes: la fuerza es normal a la cara
+        if(!d.horizontal && Math.abs(d.angPlaca - 90) > 1e-6){
+          const a = dec(d.angPlaca,'ang');
+          h += fila('E_x = E\\,\\operatorname{sen}' + a + '^\\circ = ' + f(Math.abs(c.Fx)) + '\\ \\text{' + uF + '}\\ ' + (c.Fx < 0 ? '\\leftarrow' : '\\rightarrow')
+            + '\\qquad E_y = E\\cos' + a + '^\\circ = ' + f(Math.abs(c.Fy)) + '\\ \\text{' + uF + '}\\ ' + (c.Fy < 0 ? '\\downarrow' : '\\uparrow'));
+        }
+        h += fila('P_{' + c.k + '} = ' + pto(c.P, O).replace(';', ';\\ ') + '\\ \\text{' + uL + '}\\qquad z_P = ' + nl(c.zP) + '\\ \\text{' + uL + '}');
+        h += '<div class="hint-sm">' + kx('s') + ' a lo largo de la cara, desde ' + (d.cortaSuperficie ? 'la superficie libre' : 'su extremo superior') + '.</div></div>';
+      });
+      // resumen
+      h += '<table class="tabla" style="margin-top:6px"><thead><tr><th>Empuje</th><th>Zona</th><th class="r">E (' + uF + ')</th><th class="r">z<sub>P</sub> (' + uL + ')</th><th class="r">E<sub>x</sub> (' + uF + ')</th><th class="r">E<sub>y</sub> (' + uF + ')</th><th>Sentido</th></tr></thead><tbody>';
+      r.agua.forEach(c=>{ h += '<tr><td><b>' + kx('E_{' + c.k + '}') + '</b></td><td>' + c.z + '</td><td class="r"><b>' + f(c.F) + '</b></td><td class="r">' + nl(c.zP) + '</td><td class="r">' + f(c.Fx) + '</td><td class="r">' + f(c.Fy) + '</td><td>' + iconoSentidoHtml(c.dir.x, c.dir.y) + '</td></tr>'; });
+      h += '<tr class="fila-total"><td colspan="4">Σ del líquido</td><td class="r">' + f(r.SFx) + '</td><td class="r">' + f(r.SFy) + '</td><td></td></tr></tbody></table>';
+      h += '<div class="hint-sm">Comprobación con la integral numérica del programa'
+        + (r.agua.every(c=>!c.des || c.des.coincide) ? ' ✓' : ' <b style="color:#c0392b">(discrepancia: revisa la geometría)</b>') + '.</div>';
+      // ── Paso 4 · resultante única ──
+      if(r.res){ h += paso(4, 'Resultante única del líquido'); h += resultantePresaHtml(r); }
+    }
+    // ── Momentos respecto de O, con sus brazos ──
+    const nM = r.agua.length ? (r.res ? 5 : 4) : 2;
+    h += paso(nM, 'Momentos respecto de O');
+    h += '<table class="tabla"><thead><tr><th>Fuerza</th><th class="r">Valor (' + uF + ')</th><th class="r">Brazo d (' + uL + ')</th><th class="r">M<sub>O</sub> = ±F·d (' + uF + '·' + uL + ')</th><th>Giro</th></tr></thead><tbody>';
+    const giro = m => Math.abs(m) < 1e-9 ? '—' : (m > 0 ? '↺ antihorario' : '↻ horario');
+    r.pesos.forEach(q=>{ h += '<tr><td><b>' + kx('W_{' + q.k + '}') + '</b></td><td class="r">' + f(q.W) + '</td><td class="r">' + nl(Math.abs(q.brazo)) + '</td><td class="r">' + f(q.m) + '</td><td>' + giro(q.m) + '</td></tr>'; });
+    r.agua.forEach(c=>{ h += '<tr><td><b>' + kx('E_{' + c.k + '}') + '</b></td><td class="r">' + f(c.F) + '</td><td class="r">' + nl(c.brazo) + '</td><td class="r">' + f(c.m) + '</td><td>' + giro(c.m) + '</td></tr>'; });
+    h += '<tr class="fila-total"><td colspan="3">Σ M<sub>O</sub> de las cargas</td><td class="r">' + f(r.M) + '</td><td>' + giro(r.M) + '</td></tr></tbody></table>';
+    h += '<div class="hint-sm">' + kx('d') + ': distancia perpendicular de O a la línea de acción de cada fuerza; antihorario positivo. F no da momento: actúa a lo largo de la base.</div>';
+    // ── Equilibrio ──
+    h += paso(nM + 1, 'Equilibrio: reacciones en la base');
+    h += '<div class="proc-block" style="padding:9px 12px">';
     const ex = r.agua.filter(c=>Math.abs(c.Fx) > 1e-9), ey = r.agua.filter(c=>Math.abs(c.Fy) > 1e-9);
     h += fila('\\xrightarrow{+}\\ \\sum F_x:\\ F' + ex.map(c=>(c.Fx<0?' - ':' + ') + f(Math.abs(c.Fx))).join('') + ' = 0\\ \\Rightarrow\\ F = ' + f(r.Fr) + '\\ \\text{' + uF + '}');
     h += fila('+\\!\\uparrow\\ \\sum F_y:\\ N' + r.pesos.map(q=>' - ' + f(q.W)).join('') + ey.map(c=>(c.Fy<0?' - ':' + ') + f(Math.abs(c.Fy))).join('') + ' = 0\\ \\Rightarrow\\ N = ' + f(r.N) + '\\ \\text{' + uF + '}');
-    const tm = r.pesos.filter(q=>Math.abs(q.m) > 1e-9).map(q=>({v:q.m, t:f(q.W) + '(' + nl(Math.abs(q.brazo)) + ')'}))
-      .concat(r.agua.filter(c=>Math.abs(c.m) > 1e-9).map(c=>({v:c.m, t:f(c.F) + '(' + nl(c.brazo) + ')'})));
-    h += fila('\\circlearrowleft{+}\\ \\sum M_O:\\ N\\,d' + tm.map(q=>(q.v<0?' - ':' + ') + q.t).join('') + ' = 0\\ \\Rightarrow\\ d = ' + (isFinite(r.d) ? nl(r.d) : '—') + '\\ \\text{' + uL + '}');
+    h += fila('\\circlearrowleft{+}\\ \\sum M_O:\\ N\\,d ' + (r.M < 0 ? '- ' : '+ ') + f(Math.abs(r.M)) + ' = 0\\ \\Rightarrow\\ d = ' + (isFinite(r.d) ? '\\dfrac{' + f(-r.M) + '}{' + f(r.N) + '} = ' + nl(r.d) : '—') + '\\ \\text{' + uL + '}');
     h += '</div>';
     let ver;
     if(r.levanta) ver = '<b style="color:#c0392b">N ≤ 0: el empuje levanta la presa; no se apoya en su base.</b>';
@@ -1031,7 +1179,139 @@ function presasHtml(numInicial){
   return h;
 }
 
+// Resultante única en pantalla: ecuación y resultado (el porqué, en el PDF).
+function resultantePresaHtml(r){
+  const ru = r.res;
+  if(!ru) return '';
+  const f = v=>dec(v,'f'), nl = v=>dec(v,'len'), uF = unitFor, uL = unitLen;
+  const fila = tx => '<div class="eq-row"><div class="eq-body">' + kx(tx) + '</div></div>';
+  const suma = vs => vs.length > 1 ? vs.map((v,i)=>(i===0 ? (v<0?'-':'') : (v<0?' - ':' + ')) + f(Math.abs(v))).join('') + ' = ' : '';
+  let h = '<div class="proc-block res-unica" style="padding:9px 12px;margin-top:4px;border-left:3px solid ' + COL_RES + '">';
+  h += fila('R_x = \\sum E_x = ' + suma(r.agua.map(c=>c.Fx).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Rx) + '\\ \\text{' + uF + '}');
+  h += fila('R_y = \\sum E_y = ' + suma(r.agua.map(c=>c.Fy).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Ry) + '\\ \\text{' + uF + '}');
+  const tm = r.agua.filter(c=>Math.abs(c.m) > 1e-9);
+  const sumM = '\\sum M_O = ' + (tm.length > 1 ? tm.map((c,i)=>(i===0 ? (c.m<0?'-':'') : (c.m<0?' - ':' + ')) + f(c.F) + '(' + nl(c.brazo) + ')').join('') + ' = ' : '') + f(ru.Mo) + '\\ \\text{' + uF + '}\\cdot\\text{' + uL + '}';
+  if(ru.par){
+    h += fila(sumM);
+    return h + '<div class="hint-sm">Los empujes se anulan: el líquido equivale a un par, sin línea de acción.</div></div>';
+  }
+  const ag = ru.ag;
+  h += fila('R = \\sqrt{R_x^2 + R_y^2} = ' + f(ru.F) + '\\ \\text{' + uF + '}' + (ag.grados >= 1e-6 ? '\\qquad \\theta_R = \\tan^{-1}\\dfrac{|R_' + (ag.desdeV ? 'x' : 'y') + '|}{|R_' + (ag.desdeV ? 'y' : 'x') + '|} = '
+    + dec(ag.grados,'ang') + '^\\circ\\ \\text{(con la ' + (ag.desdeV ? 'vertical' : 'horizontal') + ')}' : '') + '\\ ' + iconoSentidoTex(ru.dir.x, ru.dir.y).replace(/\$/g,''));
+  h += fila('\\circlearrowleft{+}\\ ' + sumM);
+  const x = ru.P.x - ru.O.x, y = ru.P.y - ru.O.y;
+  h += fila('x\\,R_y - y\\,R_x = \\sum M_O:\\quad x(' + f(ru.Ry) + ') - y(' + f(ru.Rx) + ') = ' + f(ru.Mo));
+  h += fila('P_R = (' + nl(x) + ';\\ ' + nl(y) + ')\\ \\text{' + uL + '}' + (ru.zR !== null ? '\\qquad z_R = ' + nl(ru.zR) + '\\ \\text{' + uL + '}\\ \\text{bajo la superficie libre}' : ''));
+  h += '<div class="hint-sm">' + kx('x, y') + ' desde O; ' + (ru.corta
+    ? kx('P_R') + ' es donde la línea de acción corta la cara mojada de ' + kx('E_{' + ru.cara.k + '}') + '.'
+    : 'la línea de acción no corta ninguna cara mojada; ' + kx('P_R') + ' es su punto más cercano a los empujes.') + '</div></div>';
+  return h;
+}
+
 // ── Informe LaTeX ──
+
+// La resultante única de la presa en el informe: el porqué (una sola vez en todo
+// el informe, la misma clave que la de la compuerta), la figura y el desarrollo.
+function latexResultantePresa(r, h){
+  const ru = r.res;
+  if(!ru) return '';
+  const f = v=>dec(v,'f'), nl = v=>dec(v,'len');
+  const uL = escLatex(unitLen), uF = escLatex(unitFor);
+  const UL = '\\,\\text{' + uL + '}', UF = '\\,\\text{' + uF + '}', UM = UF + '\\cdot\\text{' + uL + '}';
+  const suma = vs => vs.length > 1 ? vs.map((v,i)=>(i===0 ? (v<0?'-':'') : (v<0?' - ':' + ')) + f(Math.abs(v))).join('') + ' = ' : '';
+  let tex = '\\subpaso{Resultante \\\'unica del l\\\'iquido}\n';
+  tex += h.porque('resultante-unica', 'Todo el bloque de presiones puede sustituirse por \\textbf{una sola fuerza} con el mismo efecto: '
+    + 'la misma suma, $R = \\sum E_k$, y el mismo momento respecto de cualquier punto (teorema de Varignon; Hibbeler, 2027). '
+    + 'Su magnitud es el \\\'area total del bloque de presiones por el ancho $b$, y su l\\\'inea de acci\\\'on pasa por el centroide de ese bloque. '
+    + 'Para situarla se toman momentos respecto de $O$: un punto $(x, y)$ de la l\\\'inea cumple $x\\,R_y - y\\,R_x = \\sum M_O$, y $P_R$ es donde esa l\\\'inea corta la cara mojada.');
+  const filas = [];
+  filas.push('R_x &= \\sum E_x = ' + suma(r.agua.map(c=>c.Fx).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Rx) + UF);
+  filas.push('R_y &= \\sum E_y = ' + suma(r.agua.map(c=>c.Fy).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Ry) + UF);
+  const tm = r.agua.filter(c=>Math.abs(c.m) > 1e-9);
+  let fm = '\\circlearrowleft{+}\\ \\sum M_O &= ';
+  tm.forEach((c,i)=>{ if(i > 0 && i % 3 === 0) fm += ' \\\\\n &\\qquad '; fm += (i===0 ? (c.m<0?'-':'') : (c.m<0?' - ':' + ')) + f(c.F) + '(' + nl(c.brazo) + ')'; });
+  filas.push(fm + (tm.length ? '' : '0'));
+  if(tm.length > 1) filas.push('&= ' + f(ru.Mo) + UM);
+  if(ru.par){
+    tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
+    return tex + '\\resultado{Los empujes se anulan entre s\\\'i: su efecto es un \\textbf{par} $M = ' + f(Math.abs(ru.Mo)) + '$' + UM + ', sin l\\\'inea de acci\\\'on.}\n';
+  }
+  const ag = ru.ag, inclinada = ag.grados >= 1e-6, eje = ag.desdeV ? 'vertical' : 'horizontal';
+  filas.splice(2, 0, 'R &= \\sqrt{R_x^2 + R_y^2} = \\sqrt{' + f(Math.abs(ru.Rx)) + '^2 + ' + f(Math.abs(ru.Ry)) + '^2} = ' + f(ru.F) + UF);
+  if(inclinada) filas.splice(3, 0, '\\tan\\theta_R &= \\frac{|R_' + (ag.desdeV ? 'x' : 'y') + '|}{|R_' + (ag.desdeV ? 'y' : 'x') + '|} = \\frac{' + f(Math.abs(ag.desdeV ? ru.Rx : ru.Ry)) + '}{' + f(Math.abs(ag.desdeV ? ru.Ry : ru.Rx)) + '}\\ \\Rightarrow\\ \\theta_R = ' + dec(ag.grados,'ang') + '^\\circ\\ \\text{(con la ' + eje + ')}');
+  const x = ru.P.x - ru.O.x, y = ru.P.y - ru.O.y;
+  filas.push('x\\,R_y - y\\,R_x &= \\sum M_O:\\quad x(' + f(ru.Ry) + ') - y(' + f(ru.Rx) + ') = ' + f(ru.Mo));
+  filas.push('P_R &= (' + nl(x) + ';\\ ' + nl(y) + ')' + UL + (ru.zR !== null ? ',\\qquad z_R = ' + nl(ru.zR) + UL : ''));
+  tex += h.lamina(tkpResultantePresa(r), 'Resultante \\\'unica $R$ del l\\\'iquido sobre ' + escLatex(nombrePresa(r.p)) + ', junto a los empujes de cada cara. Cotas en ' + uL + '.' + (inclinada ? ' $\\theta_R = ' + dec(ag.grados,'ang') + '^\\circ$.' : ''));
+  tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
+  tex += '{\\footnotesize $x$, $y$ desde $O$; los brazos, perpendiculares a cada empuje.}\\\\[2pt]\n';
+  tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $\\theta_R = ' + dec(ag.grados,'ang') + '^\\circ$ de la ' + eje : '')
+    + (ru.corta ? '. Su l\\\'inea de acci\\\'on corta la cara mojada de $E_{' + ru.cara.k + '}$ en $P_R = (' + nl(x) + ';\\ ' + nl(y) + ')$' : '. Su l\\\'inea de acci\\\'on no corta ninguna cara mojada; su punto m\\\'as cercano a los empujes es $P_R = (' + nl(x) + ';\\ ' + nl(y) + ')$')
+    + (ru.zR !== null ? ', a $z_R = ' + nl(ru.zR) + '$' + UL + ' bajo la superficie libre' : '') + '.}\n';
+  // autocomprobación: P_R está sobre la línea de acción
+  if(Math.abs(x*ru.Ry - y*ru.Rx - ru.Mo) > 1e-6*Math.max(1, Math.abs(ru.Mo)))
+    console.warn('Informe LaTeX: la resultante de la presa no reproduce su momento');
+  return tex;
+}
+// Figura de la resultante: la presa, el líquido, los empujes finos y R en violeta
+// llegando a P_R, con su línea de acción, su ángulo y la cota z_R.
+function tkpResultantePresa(r){
+  tkpReiniciar();
+  const ru = r.res, g = r.g, F = v => v.toFixed(3);
+  const xs = g.verts.map(q=>q.x), ys = g.verts.map(q=>q.y);
+  const Bw = g.base.x1 - g.base.x0;
+  const xa = Math.min(...xs) - 0.45*Bw, xb = Math.max(...xs) + 0.45*Bw;
+  const ya = g.base.y, yb = Math.max(...ys, ...[1,2].map(z=>nivelZona(z)).filter(isFinite));
+  const k = Math.min(9.5/Math.max(xb-xa,1e-9), 6.5/Math.max(yb-ya,1e-9), 2.4);
+  const X = x => (x-xa)*k, Y = y => (y-ya)*k;
+  const cr = crestaPresa(g);
+  let out = '';
+  [1,2].forEach(z=>{
+    const nv = nivelZona(z); if(!isFinite(nv) || nv <= g.base.y) return;
+    const x0 = z === 1 ? X(xa) : X(cr.x), x1 = z === 1 ? X(cr.x) : X(xb);
+    out += '\\fill[bsaAgua!15] (' + F(x0) + ',0) rectangle (' + F(x1) + ',' + F(Y(nv)) + ');\n';
+    out += '\\draw[bsaAgua, line width=1pt] (' + F(x0) + ',' + F(Y(nv)) + ') -- (' + F(x1) + ',' + F(Y(nv)) + ');\n';
+    tkpOcupar(x0, Y(nv), x1, Y(nv) + 0.05);
+  });
+  out += '\\fill[fill=gray!28, draw=bsaPresa, line width=1.2pt] ' + g.verts.map(q=>'(' + F(X(q.x)) + ',' + F(Y(q.y)) + ')').join(' -- ') + ' -- cycle;\n';
+  for(let i=0;i<g.verts.length;i++){ const a = g.verts[i], b = g.verts[(i+1)%g.verts.length]; tkpOcuparTrazo(X(a.x), Y(a.y), X(b.x), Y(b.y), 0.05); }
+  out += '\\draw[bsaTierra, line width=1pt] (' + F(X(xa)) + ',0) -- (' + F(X(xb)) + ',0);\n';
+  for(let x = X(xa) + 0.15; x < X(xb); x += 0.25) out += '\\draw[bsaTierra!70, line width=.35pt] (' + F(x) + ',0) -- (' + F(x-0.15) + ',-0.15);\n';
+  tkpOcupar(X(xa), -0.2, X(xb), 0);
+  // empujes, finos
+  r.agua.forEach(c=>{
+    const px = X(c.P.x), py = Y(c.P.y), L = 1.1;
+    out += '\\draw[-{Latex[length=1.8mm]}, bsaPres, line width=.9pt] (' + F(px - c.dir.x*L) + ',' + F(py - c.dir.y*L) + ') -- (' + F(px - c.dir.x*0.05) + ',' + F(py - c.dir.y*0.05) + ');\n';
+    tkpOcuparTrazo(px - c.dir.x*L, py - c.dir.y*L, px, py, 0.07);
+  });
+  // R en P_R con su línea de acción
+  const d = ru.dir, Px = X(ru.P.x), Py = Y(ru.P.y), Lr = 1.9;
+  const x1 = Px - d.x*Lr, y1 = Py - d.y*Lr;
+  out += '\\draw[bsaRes!70, dashed, line width=.5pt] (' + F(x1 - d.x*0.5) + ',' + F(y1 - d.y*0.5) + ') -- (' + F(Px + d.x*0.8) + ',' + F(Py + d.y*0.8) + ');\n';
+  out += '\\draw[-{Latex[length=2.6mm]}, bsaRes, line width=1.6pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(Px - d.x*0.07) + ',' + F(Py - d.y*0.07) + ');\n';
+  tkpOcuparTrazo(x1, y1, Px, Py, 0.1);
+  out += '\\filldraw[fill=white, draw=bsaRes, line width=.8pt] (' + F(Px) + ',' + F(Py) + ') circle (0.07);\n';
+  tkpOcupar(Px-0.09, Py-0.09, Px+0.09, Py+0.09);
+  // cota z_R, del lado de la cola y por fuera de lo dibujado
+  const lado = x1 >= Px ? 1 : -1;
+  if(ru.zR !== null && ru.zR > 1e-9){
+    const xc = lado > 0 ? Math.max(X(Math.max(...xs)), Px, x1) + 0.55 : Math.min(X(Math.min(...xs)), Px, x1) - 0.55;
+    const yn = Y(ru.niv);
+    out += '\\draw[bsaRes, line width=.5pt] (' + F(xc) + ',' + F(yn) + ') -- (' + F(xc) + ',' + F(Py) + ');\n';
+    out += '\\draw[bsaRes, line width=.5pt] (' + F(xc-0.07) + ',' + F(yn-0.07) + ') -- (' + F(xc+0.07) + ',' + F(yn+0.07) + ') (' + F(xc-0.07) + ',' + F(Py-0.07) + ') -- (' + F(xc+0.07) + ',' + F(Py+0.07) + ');\n';
+    out += '\\draw[bsaRes!70, line width=.35pt, dash pattern=on 1.2pt off 1.2pt] (' + F(Px) + ',' + F(Py) + ') -- (' + F(xc) + ',' + F(Py) + ');\n';
+    tkpOcuparTrazo(xc, yn, xc, Py, 0.05);
+    out += tkpTexto(xc + lado*0.22, (yn + Py)/2, '$z_R = ' + dec(ru.zR,'len') + '$', 'font=\\tiny, color=bsaRes, rotate=90', lado, 0);
+  }
+  // O y los rótulos al final
+  out += '\\filldraw[bsaAcc2] (' + F(X(r.O.x)) + ',' + F(Y(r.O.y)) + ') circle (0.05);\n';
+  out += tkpTexto(X(r.O.x) - 0.2, Y(r.O.y) + 0.2, '$O$', 'font=\\scriptsize, color=bsaAcc2', -1, 1);
+  r.agua.forEach(c=>{ out += tkpTexto(X(c.P.x) - c.dir.x*1.35, Y(c.P.y) - c.dir.y*1.35, '$E_{' + c.k + '}$', 'font=\\scriptsize, color=bsaPres', -c.dir.x, -c.dir.y); });
+  out += tkpTexto(x1 - d.x*0.35, y1 - d.y*0.35, '$R$', 'font=\\small, color=bsaRes', -d.x, -d.y);
+  out += tkpTexto(Px - lado*0.32, Py - 0.25, '$P_R$', 'font=\\scriptsize, color=bsaRes', -lado, -1);
+  if(ru.ag.grados >= 1e-6) out += tkpArcoAngulo(x1, y1, d, '\\theta_R');
+  return out;
+}
 // Cotas de la presa en la figura del informe (las mismas del lienzo): las x de
 // sus vértices bajo el terreno con la base B como total y, a un lado, sus
 // niveles con la altura H como total.
@@ -1185,31 +1465,86 @@ function latexPresas(h, numInicial){
     tex += h.lamina(tkpPresa(r), nom + ': peso de cada parte en su centroide, empuje del l\\\'iquido en cada cara mojada y reacciones $N$ y $F$ en la base. Cotas en ' + uL + '.');
     tex += '\\subpaso{Peso de la presa}\n';
     tex += '\\noindent{\\footnotesize Cada parte pesa $W = \\gamma\\,b\\,A$, con $\\gamma = ' + f(r.p.gamma) + '$\\,' + uF + '/' + uL + '$^3$ y $b = ' + nl(r.b) + '$' + UL + ', aplicado en su centroide' + (r.pesos.some(q=>q.tipo !== 'poli' && q.tipo !== 'rect') ? ' (un tri\\\'angulo rect\\\'angulo, a un tercio de su lado vertical y de su base)' : '') + '.}\\\\[2pt]\n';
-    tex += h.tablaCaption('Peso por partes. \\\'Areas en ' + uL + '$^2$, coordenadas en ' + uL + ', pesos en ' + uF + '.');
+    tex += h.tablaCaption('Peso por partes. \\\'Areas en ' + uL + '$^2$, coordenadas desde $O$ en ' + uL + ', pesos en ' + uF + '.');
     tex += '\\begin{tablacentrada}\\begin{tabular}{llrrrr}\n\\hline\nParte & Figura & $A$ & $\\bar x$ & $\\bar y$ & $W$ \\\\\n\\hline\n';
-    r.pesos.forEach(q=>{ tex += '$W_{' + q.k + '}$ & ' + ({rect:'rect\\\'angulo', triSube:'tri\\\'angulo', triBaja:'tri\\\'angulo', poli:'pol\\\'igono'})[q.tipo] + ' & ' + nl(q.A) + ' & ' + nl(q.cx) + ' & ' + nl(q.cy) + ' & ' + f(q.W) + ' \\\\\n'; });
+    r.pesos.forEach(q=>{ tex += '$W_{' + q.k + '}$ & ' + ({rect:'rect\\\'angulo', triSube:'tri\\\'angulo', triBaja:'tri\\\'angulo', poli:'pol\\\'igono'})[q.tipo] + ' & ' + nl(q.A) + ' & ' + nl(q.cx - r.O.x) + ' & ' + nl(q.cy - r.O.y) + ' & ' + f(q.W) + ' \\\\\n'; });
     tex += '\\hline\n\\multicolumn{5}{l}{$\\Sigma W$} & ' + f(r.SW) + ' \\\\\n\\hline\n\\end{tabular}\\end{tablacentrada}\n';
-    tex += '\\subpaso{Empuje del l\\\'iquido}\n';
     if(r.agua.length){
-      tex += '\\noindent{\\footnotesize Cada cara mojada recibe la presi\\\'on $p = \\gamma h$; su resultante $E$ es el \\\'area del diagrama por el ancho $b$ y pasa por su centroide, igual que en una compuerta plana.}\\\\[2pt]\n';
-      tex += h.tablaCaption('Empuje en cada cara mojada. $L$ y $z_P$ en ' + uL + '; fuerzas en ' + uF + '.');
-      tex += '\\begin{tablacentrada}\\begin{tabular}{lrrrrrrc}\n\\hline\nEmpuje & Zona & $L$ & $E$ & $z_P$ & $E_x$ & $E_y$ & Sentido \\\\\n\\hline\n';
-      r.agua.forEach(c=>{ tex += '$E_{' + c.k + '}$ & ' + c.z + ' & ' + nl(c.len) + ' & ' + f(c.F) + ' & ' + nl(c.zP) + ' & $' + f(c.Fx) + '$ & $' + f(c.Fy) + '$ & ' + iconoSentidoTex(c.dir.x, c.dir.y) + ' \\\\\n'; });
+      const pto = P => '(' + nl(P.x - r.O.x) + ';\\ ' + nl(P.y - r.O.y) + ')';
+      // presión en los puntos clave de cada cara mojada
+      tex += '\\subpaso{Presi\\\'on en los puntos clave}\n';
+      tex += '\\noindent{\\footnotesize En cada extremo de la parte mojada de cada cara, $p = \\gamma h$, con $h$ medida desde la superficie libre de su zona.}\\\\[2pt]\n';
+      tex += h.tablaCaption('Presi\\\'on en los extremos de cada cara mojada. Coordenadas desde $O$ y $h$ en ' + uL + '; $p$ en ' + escLatex(uPres()) + '.');
+      tex += '\\begin{tablacentrada}\\begin{tabular}{llllrr}\n\\hline\nEmpuje & Zona & Punto & $(x;\\,y)$ & $h$ & $p$ \\\\\n\\hline\n';
+      r.agua.forEach(c=>{
+        const d = c.des; if(!d) return;
+        const filas = [{nom: d.cortaSuperficie ? 'corte con la superficie' : 'extremo superior', P:d.T, hh:d.bandas[0].h0, p:d.bandas[0].p0}];
+        d.bandas.forEach((bd,i)=>{ if(i > 0) filas.push({nom:'cambio de capa', P:{x:d.T.x + d.u.x*bd.s0, y:bd.y0}, hh:bd.h0, p:bd.p0}); });
+        const u = d.bandas[d.bandas.length-1];
+        filas.push({nom:'extremo inferior', P:d.D, hh:u.h1, p:u.p1});
+        filas.forEach((fl,i)=>{ tex += (i === 0 ? '$E_{' + c.k + '}$ & ' + c.z : ' & ') + ' & ' + fl.nom + ' & $' + pto(fl.P) + '$ & ' + nl(fl.hh) + ' & ' + f(fl.p) + ' \\\\\n'; });
+      });
       tex += '\\hline\n\\end{tabular}\\end{tablacentrada}\n';
-    } else tex += '\\noindent Ninguna cara de la presa est\\\'a mojada.\n';
+      // empuje de cada cara y su centro de presión
+      tex += '\\subpaso{Empuje de cada cara mojada y su centro de presi\\\'on}\n';
+      tex += h.porque('presa-empuje', 'Sobre una cara plana la presi\\\'on crece linealmente con la profundidad, as\\\'i que su diagrama es un trapecio: se parte en un \\textbf{rect\\\'angulo} (la presi\\\'on m\\\'inima) y un \\textbf{tri\\\'angulo} (lo que crece). '
+        + 'Cada parte da una fuerza igual a su \\\'area por el ancho $b$, aplicada en su centroide ($L/2$ el rect\\\'angulo, $2L/3$ desde arriba el tri\\\'angulo), y el empuje $E$ pasa por el centro de presi\\\'on $s_P$, que sale de sumar momentos. '
+        + 'Como la presi\\\'on es normal a la cara, $E$ tambi\\\'en lo es: en una cara inclinada un \\\'angulo $\\alpha$ con la horizontal, $E_x = E\\sen\\alpha$ y $E_y = E\\cos\\alpha$.');
+      r.agua.forEach(c=>{
+        const d = c.des;
+        const tipoCara = !d ? '' : (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca - 90) < 1e-6 ? 'vertical' : 'inclinada $' + dec(d.angPlaca,'ang') + '^\\circ$ con la horizontal'));
+        tex += '\\noindent\\textbf{Empuje $E_{' + c.k + '}$} (cara ' + tipoCara + ', zona ' + c.z + (d ? ', $L = ' + nl(d.L) + '$' + UL + ' mojada' : '') + ')\n';
+        if(!d){ tex += '\\[ E_{' + c.k + '} = ' + f(c.F) + UF + ' \\]\n'; return; }
+        const filas = [], terms = [], partes = [];
+        d.bandas.forEach((bd,i)=>{
+          const capa = d.bandas.length > 1 ? '\\text{capa ' + (i+1) + ':}\\ ' : '';
+          if(bd.Fr > 1e-12){
+            filas.push(capa + 'F_{\\square} &= b\\,L\\,p_{\\min} = ' + nl(r.b) + '(' + nl(bd.l) + ')(' + f(Math.min(bd.p0,bd.p1)) + ') = ' + f(bd.Fr) + UF + ',\\quad s = ' + nl(bd.s0 + bd.sR) + UL);
+            terms.push(f(bd.Fr) + '(' + nl(bd.s0 + bd.sR) + ')'); partes.push(f(bd.Fr));
+          }
+          if(bd.Ft > 1e-12){
+            filas.push((bd.Fr > 1e-12 ? '' : capa) + 'F_{\\triangle} &= \\tfrac12\\,b\\,L\\,(p_{\\max}-p_{\\min}) = \\tfrac12\\,' + nl(r.b) + '(' + nl(bd.l) + ')(' + f(Math.abs(bd.p1-bd.p0)) + ') = ' + f(bd.Ft) + UF + ',\\quad s = ' + nl(bd.s0 + bd.sT) + UL);
+            terms.push(f(bd.Ft) + '(' + nl(bd.s0 + bd.sT) + ')'); partes.push(f(bd.Ft));
+          }
+        });
+        filas.push('E_{' + c.k + '} &= ' + (partes.length > 1 ? partes.join(' + ') + ' = ' : '') + f(d.F) + UF);
+        if(terms.length > 1){
+          filas.push('s_P &= \\frac{\\sum F_i\\,s_i}{E_{' + c.k + '}}');
+          filas.push('&= \\frac{' + terms.join(' + ') + '}{' + f(d.F) + '} = ' + nl(d.sP) + UL);
+        } else filas.push('s_P &= ' + nl(d.sP) + UL);
+        if(d.gzA) filas.push('\\text{comprobaci\\\'on: } \\gamma\\,\\bar z\\,A &= ' + f(d.gzA.g) + '(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F) + UF + '\\ \\checkmark');
+        if(!d.horizontal && Math.abs(d.angPlaca - 90) > 1e-6){
+          const a = dec(d.angPlaca,'ang');
+          filas.push('E_x &= E\\sen ' + a + '^\\circ = ' + f(Math.abs(c.Fx)) + UF + '\\ ' + (c.Fx < 0 ? '\\leftarrow' : '\\rightarrow') + ',\\qquad E_y = E\\cos ' + a + '^\\circ = ' + f(Math.abs(c.Fy)) + UF + '\\ ' + (c.Fy < 0 ? '\\downarrow' : '\\uparrow'));
+        }
+        filas.push('P_{' + c.k + '} &= ' + pto(c.P) + UL + ',\\qquad z_P = ' + nl(c.zP) + UL);
+        tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
+        tex += '{\\footnotesize $s$ a lo largo de la cara, desde ' + (d.cortaSuperficie ? 'la superficie libre' : 'su extremo superior') + '.}\\\\[2pt]\n';
+        if(!d.coincide) console.warn('Informe LaTeX: el desarrollo del empuje E' + c.k + ' de la presa no reproduce la integral');
+      });
+      tex += h.tablaCaption('Empuje en cada cara mojada. $z_P$ en ' + uL + '; fuerzas en ' + uF + '.');
+      tex += '\\begin{tablacentrada}\\begin{tabular}{lrrrrrc}\n\\hline\nEmpuje & Zona & $E$ & $z_P$ & $E_x$ & $E_y$ & Sentido \\\\\n\\hline\n';
+      r.agua.forEach(c=>{ tex += '$E_{' + c.k + '}$ & ' + c.z + ' & ' + f(c.F) + ' & ' + nl(c.zP) + ' & $' + f(c.Fx) + '$ & $' + f(c.Fy) + '$ & ' + iconoSentidoTex(c.dir.x, c.dir.y) + ' \\\\\n'; });
+      tex += '\\hline\n\\multicolumn{4}{l}{$\\Sigma$ del l\\\'iquido} & $' + f(r.SFx) + '$ & $' + f(r.SFy) + '$ & \\\\\n\\hline\n\\end{tabular}\\end{tablacentrada}\n';
+    } else tex += '\\subpaso{Empuje del l\\\'iquido}\n\\noindent Ninguna cara de la presa est\\\'a mojada.\n';
+    tex += latexResultantePresa(r, h);
+    tex += '\\subpaso{Momentos respecto de $O$}\n';
+    tex += '\\noindent{\\footnotesize Cada fuerza por su brazo $d$, la distancia perpendicular de $O$ a su l\\\'inea de acci\\\'on; antihorario positivo.}\\\\[2pt]\n';
+    tex += h.tablaCaption('Momentos de las cargas respecto de $O$. Fuerzas en ' + uF + ', brazos en ' + uL + ', momentos en ' + uF + '$\\cdot$' + uL + '.');
+    tex += '\\begin{tablacentrada}\\begin{tabular}{lrrrl}\n\\hline\nFuerza & Valor & Brazo $d$ & $M_O$ & Giro \\\\\n\\hline\n';
+    const giro = m => Math.abs(m) < 1e-9 ? '---' : (m > 0 ? 'antihorario' : 'horario');
+    r.pesos.forEach(q=>{ tex += '$W_{' + q.k + '}$ & ' + f(q.W) + ' & ' + nl(Math.abs(q.brazo)) + ' & $' + f(q.m) + '$ & ' + giro(q.m) + ' \\\\\n'; });
+    r.agua.forEach(c=>{ tex += '$E_{' + c.k + '}$ & ' + f(c.F) + ' & ' + nl(c.brazo) + ' & $' + f(c.m) + '$ & ' + giro(c.m) + ' \\\\\n'; });
+    tex += '\\hline\n\\multicolumn{3}{l}{$\\Sigma M_O$ de las cargas} & $' + f(r.M) + '$ & ' + giro(r.M) + ' \\\\\n\\hline\n\\end{tabular}\\end{tablacentrada}\n';
     tex += '\\subpaso{Equilibrio}\n';
     const ex = r.agua.filter(c=>Math.abs(c.Fx) > 1e-9), ey = r.agua.filter(c=>Math.abs(c.Fy) > 1e-9);
     const filas = [];
     filas.push('\\xrightarrow{+}\\ \\sum F_x:\\ & F' + ex.map(c=>(c.Fx<0?' - ':' + ') + f(Math.abs(c.Fx))).join('') + ' = 0 \\ \\Rightarrow\\ \\boxed{F = ' + f(r.Fr) + UF + '}');
     filas.push('+\\!\\uparrow\\ \\sum F_y:\\ & N' + r.pesos.map(q=>' - ' + f(q.W)).join('') + ey.map(c=>(c.Fy<0?' - ':' + ') + f(Math.abs(c.Fy))).join('') + ' = 0 \\ \\Rightarrow\\ \\boxed{N = ' + f(r.N) + UF + '}');
-    const tm = r.pesos.filter(q=>Math.abs(q.m) > 1e-9).map(q=>({v:q.m, t:f(q.W) + '(' + nl(Math.abs(q.brazo)) + ')'}))
-      .concat(r.agua.filter(c=>Math.abs(c.m) > 1e-9).map(c=>({v:c.m, t:f(c.F) + '(' + nl(c.brazo) + ')'})));
-    let fm = '\\circlearrowleft{+}\\ \\sum M_O:\\ & N\\,d';
-    tm.forEach((q,i)=>{ if(i > 0 && i % 4 === 0) fm += ' \\\\\n & \\qquad '; fm += (q.v<0?' - ':' + ') + q.t; });
-    filas.push(fm + ' = 0');
+    filas.push('\\circlearrowleft{+}\\ \\sum M_O:\\ & N\\,d ' + (r.M < 0 ? '- ' : '+ ') + f(Math.abs(r.M)) + ' = 0');
     if(!r.levanta && isFinite(r.d)) filas.push(' & ' + f(r.N) + '\\,d = ' + f(-r.M) + '\\ \\Rightarrow\\ \\boxed{d = ' + nl(r.d) + UL + '}');
     tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-    tex += '{\\footnotesize Los brazos de los momentos se miden desde $O$, perpendiculares a cada fuerza; $F$ no aparece porque act\\\'ua a lo largo de la base.}\\\\[2pt]\n';
+    tex += '{\\footnotesize $\\Sigma M_O$ de las cargas sale de la tabla de momentos; $F$ no aparece porque act\\\'ua a lo largo de la base.}\\\\[2pt]\n';
     if(r.levanta) tex += '\\veredicto{$N \\le 0$: el empuje del l\\\'iquido levanta la presa, que no se apoya en su base.}\n';
     else tex += '\\resultado{$N = ' + f(r.N) + '$' + UF + ' $\\uparrow$, $F = ' + f(Math.abs(r.Fr)) + '$' + UF + ' ' + iconoSentidoTex(r.Fr >= 0 ? 1 : -1, 0)
       + ' y $N$ act\\\'ua a $d = ' + nl(r.d) + '$' + UL + ' de $O$, con una base de $B = ' + nl(r.B) + '$' + UL + ': '

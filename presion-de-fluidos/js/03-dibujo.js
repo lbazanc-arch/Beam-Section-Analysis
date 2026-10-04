@@ -203,6 +203,19 @@ function _reservarPolilinea(ps, semi, tipo, maxSeg){
     _reservarTrazo(ps[i][0], ps[i][1], ps[j][0], ps[j][1], semi, tipo);
   }
 }
+// El INTERIOR de un diagrama de presión (`seg`: puntos {sx,sy} sobre la cara y
+// {ox,oy} en la tapa), en franjas de cuatro lados, que son convexas aunque el
+// diagrama no lo sea. Tipo propio, 'areaPresion': los rótulos lo ignoran (se
+// leen bien sobre la trama clara) y las cotas lo esquivan (2026-10-04: una cota
+// vertical de la presa atravesaba el diagrama del talud).
+function _reservarAreaDiagrama(seg){
+  if(!seg || seg.length < 2) return;
+  const k = Math.max(1, Math.ceil((seg.length - 1)/8));
+  for(let i=0;i<seg.length-1;i+=k){
+    const a = seg[i], b = seg[Math.min(i+k, seg.length-1)];
+    _regPoner([[a.sx,a.sy],[b.sx,b.sy],[b.ox,b.oy],[a.ox,a.oy]], 'areaPresion');
+  }
+}
 // La columna de control, su desplegable, los botones del lienzo y la pista se
 // superponen al canvas: lo que caiga debajo no se lee (CLAUDE.md §7). Se
 // registran como un elemento más, así que el colocador los esquiva sin reglas
@@ -355,7 +368,7 @@ function _colocarRotulo(r){
     }
     return null;
   };
-  let p = prueba(null, _ROT_PASOS);
+  let p = prueba(it => it.tipo !== 'areaPresion', _ROT_PASOS);
   if(p) return _rotPintar(r, p[0], p[1], p[2], false);
   p = prueba(esUIoTexto, _ROT_PASOS_LEJOS);
   if(p) return _rotPintar(r, p[0], p[1], p[2], false);
@@ -506,6 +519,7 @@ function dibujarDiagramaPresion(t, pts, z, e){
     _reservarPolilinea(seg.map(q=>[q.ox,q.oy]), 1.3, 'presion', 10);
     _reservarTrazo(seg[0].sx, seg[0].sy, seg[0].ox, seg[0].oy, 1.3, 'presion');
     _reservarTrazo(seg[pr].sx, seg[pr].sy, seg[pr].ox, seg[pr].oy, 1.3, 'presion');
+    _reservarAreaDiagrama(seg);
     // flechas hacia la compuerta, cada cierto trecho (se registran solas)
     const paso = Math.max(2, Math.floor(seg.length/7));
     for(let i=paso;i<seg.length-1;i+=paso){
@@ -1017,7 +1031,7 @@ function dibujarCotasCompuerta(){
       const L = Math.hypot(mx-ox, my-oy) || 1;
       const ux = (mx-ox)/L, uy = (my-oy)/L;
       const pm = [ox + ux*L*0.5, oy + uy*L*0.5];
-      if(!_regChoca([[pm[0]-18, pm[1]-8], [pm[0]+18, pm[1]-8], [pm[0]+18, pm[1]+8], [pm[0]-18, pm[1]+8]], 1, ignora) || f === 0.85)
+      if(!_regChoca([[pm[0]-18, pm[1]-8], [pm[0]+18, pm[1]-8], [pm[0]+18, pm[1]+8], [pm[0]-18, pm[1]+8]], 1, it => ignora(it) && it.tipo !== 'areaPresion') || f === 0.85)
         mejor = {mx, my, ux, uy, L};
     });
     if(!mejor) return;
@@ -1045,8 +1059,9 @@ function dibujarCotasCompuerta(){
 //  s sobre el tramo desde su nudo menos profundo. Interruptor propio.
 // ═══════════════════════════════════════════════════════════
 const COL_RES = '#6d28d9';
-function dibujarResultanteUnica(){
-  const ru = R.resultante;
+// `ru`: la de la compuerta (R.resultante) o la de una presa (resultantePresa, 10-).
+function dibujarResultanteUnica(ru){
+  ru = ru || R.resultante;
   if(!ru || ru.par) return;
   const [px, py] = aPantalla(ru.P.x, ru.P.y);
   const dx = ru.dir.x, dy = -ru.dir.y;           // en pantalla
