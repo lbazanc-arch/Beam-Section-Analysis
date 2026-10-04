@@ -943,7 +943,7 @@ function construirLatex(){
     // la leyenda con la longitud real de cada tramo (2026-10-03).
     figN++;
     tex += '\\begin{center}\n\\bsaFiguraLeyenda{\\begin{tikzpicture}\n' + tkpCompuerta() + '\\end{tikzpicture}}{' + leyendaTramosTex() + '}\\par\\nopagebreak\\vspace{4pt}\n'
-      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} Compuerta, l\\\'iquido de cada zona con su superficie libre, apoyos y topes. Ancho $b = ' + nl(b) + '$' + UL + '; cotas en ' + uL + '.}\n\\end{center}\n\\vspace{4pt}\n';
+      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} Compuerta y l\\\'iquido. $b = ' + nl(b) + '$' + UL + '; cotas en ' + uL + '.}\n\\end{center}\n\\vspace{4pt}\n';
   }
   const apoyosTxt = r.inc.map(u=>'$' + simbIncognita(u) + '$ (' + descIncognita(u) + ' en ' + escLatex(u.n.nombre) + ')');
   tex += '\\noindent\\textbf{Objetivo.} Hallar la resultante del l\\\'iquido sobre cada tramo mojado de la compuerta, '
@@ -995,7 +995,7 @@ function construirLatex(){
       tex += '\\noindent Resultante por integraci\\\'on num\\\'erica: $' + c.nombre + ' = ' + f(c.F) + '$' + UF + '.\\\\\n';
       return;
     }
-    tex += lamina(tkpCroquisCarga(c, d), (d.tipo === 'curvo' ? 'Placa curva: bloque de l\\\'iquido sobre la placa, $F_h$, $F_v$ y $' + c.nombre + '$ en $P$.' : 'Diagrama de presi\\\'on del tramo y $' + c.nombre + '$ en su centro de presi\\\'on $P$.'), 0.95);
+    tex += lamina(tkpCroquisCarga(c, d), (d.tipo === 'curvo' ? 'Placa curva: $F_h$, $F_v$ y $' + c.nombre + '$ en $P$.' : 'Diagrama de presi\\\'on y $' + c.nombre + '$ en $P$.'), 0.95);
     if(d.tipo === 'recto'){
       const origen = d.T.nombre ? 'el nudo ' + escLatex(d.T.nombre) : 'el corte con la superficie libre';
       tex += '\\noindent Placa ' + (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca-90) < 1e-6 ? 'vertical' : 'inclinada $' + dec(d.angPlaca,'ang') + '^\\circ$')) + ', longitud mojada $L = ' + nl(d.L) + '$' + UL + ', ancho $b = ' + nl(b) + '$' + UL + '. Las distancias $s$ se miden sobre la placa desde ' + origen + '.\n';
@@ -1118,7 +1118,7 @@ function construirLatex(){
           const tr = N + escLatex(ru.otro.nombre);
           filas.push('R_n &= R\\sen\\beta = ' + f(ru.F) + '\\sen ' + dec(ru.beta,'ang') + '^\\circ = ' + f(Math.abs(ru.Rn)) + UF);
           filas.push('s &= \\frac{|\\sum M_{' + N + '}|}{R_n} = \\frac{' + f(Math.abs(ru.MN)) + '}{' + f(Math.abs(ru.Rn)) + '} = ' + nl(ru.s) + UL);
-          tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ del l\\\'iquido en su punto de corte $P_R$ con la compuerta, junto a las fuerzas de cada tramo. Cotas en ' + uL + '.' + (inclinada ? ' $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$.' : ''));
+          tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ en $P_R$. Cotas en ' + uL + '.' + (inclinada ? ' $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$.' : ''));
           tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
           tex += '{\\footnotesize $\\beta$ es el \\\'angulo agudo entre $R$ y el tramo ' + tr + '; los brazos se miden desde ' + N + ', perpendiculares a cada fuerza.}\\\\[2pt]\n';
           tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$ de la ' + ejeAng : '')
@@ -1126,7 +1126,7 @@ function construirLatex(){
             + (ru.zR !== null ? ' y a $z_R = ' + nl(ru.zR) + '$' + UL + ' bajo la superficie libre' : '') + '.}\n';
         } else {
           filas.push('d &= \\frac{|\\sum M_{' + N + '}|}{R} = \\frac{' + f(Math.abs(ru.MN)) + '}{' + f(ru.F) + '} = ' + nl(ru.dR) + UL);
-          tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ del l\\\'iquido en su punto de corte $P_R$ con la compuerta. Cotas en ' + uL + '.' + (inclinada ? ' $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$.' : ''));
+          tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ en $P_R$. Cotas en ' + uL + '.' + (inclinada ? ' $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$.' : ''));
           tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
           tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$ de la ' + ejeAng : '')
             + '. Su l\\\'inea de acci\\\'on pasa a $d = ' + nl(ru.dR) + '$' + UL + ' de ' + N + ' y corta el arco ' + escLatex(nomTramo(ru.t)) + ' en $P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')$'
@@ -1134,7 +1134,7 @@ function construirLatex(){
         }
       } else {
         filas.push('\\sum M_O &= ' + f(ru.Mo) + UM);
-        tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ del l\\\'iquido; su l\\\'inea de acci\\\'on no corta la compuerta. Cotas en ' + uL + '.');
+        tex += lamina(tkpResultanteUnica(r, letraR), 'Resultante \\\'unica $R$ (no corta la compuerta). Cotas en ' + uL + '.');
         tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
         tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + '. Su l\\\'inea de acci\\\'on no corta la compuerta; su punto m\\\'as cercano a las fuerzas es $P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')$.}\n';
       }
@@ -1184,10 +1184,10 @@ function construirLatex(){
       const ec = q.ec;
       if(ec.tipo === 'Mrot'){
         const sel = {tramos: ec.lado.tramos, nodos: ec.lado.nodos, rotula: ec.centro};
-        tex += lamina(tkpDCL(r, sel), 'DCL de la parte de la compuerta a un lado de la r\\\'otula ' + escLatex(ec.centro.nombre) + '; las fuerzas del pasador, a trazos, no dan momento en ' + escLatex(ec.centro.nombre) + '.');
+        tex += lamina(tkpDCL(r, sel), 'DCL a un lado de la r\\\'otula ' + escLatex(ec.centro.nombre) + '.');
       }
       if(ec.tipo === 'M' || ec.tipo === 'Mrot'){
-        tex += lamina(tkpBrazos(r, ec, ec.tipo === 'Mrot' ? {tramos: ec.lado.tramos} : null), 'Brazos de $\\sum M_{' + escLatex(ec.centro.nombre) + '}$, medidos desde ' + escLatex(ec.centro.nombre) + '.', 0.9);
+        tex += lamina(tkpBrazos(r, ec, ec.tipo === 'Mrot' ? {tramos: ec.lado.tramos} : null), 'Brazos de $\\sum M_{' + escLatex(ec.centro.nombre) + '}$.', 0.9);
       }
       if(paso.tipo === 'comprobacion'){ deQuien['comp' + paso.num] = paso; return; }
       const previas = paso.previas.map(j=>deQuien[j]).filter(Boolean);

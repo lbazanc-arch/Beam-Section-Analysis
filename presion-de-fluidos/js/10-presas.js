@@ -1460,7 +1460,7 @@ function latexResultantePresa(r, h){
   const x = ru.P.x - ru.O.x, y = ru.P.y - ru.O.y;
   filas.push('x\\,R_y - y\\,R_x &= \\sum M_O:\\quad x(' + f(ru.Ry) + ') - y(' + f(ru.Rx) + ') = ' + f(ru.Mo));
   filas.push('P_R &= (' + nl(x) + ';\\ ' + nl(y) + ')' + UL + (ru.zR !== null ? ',\\qquad z_R = ' + nl(ru.zR) + UL : ''));
-  tex += h.lamina(tkpResultantePresa(r), 'Resultante \\\'unica $R$ del l\\\'iquido sobre ' + escLatex(nombrePresa(r.p)) + ', junto a los empujes de cada cara. Cotas en ' + uL + '.' + (inclinada ? ' $\\theta_R = ' + dec(ag.grados,'ang') + '^\\circ$.' : ''));
+  tex += h.lamina(tkpResultantePresa(r), 'Resultante \\\'unica $R$ en $P_R$. Cotas en ' + uL + '.' + (inclinada ? ' $\\theta_R = ' + dec(ag.grados,'ang') + '^\\circ$.' : ''));
   tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
   tex += '{\\footnotesize $x$, $y$ desde $O$; los brazos, perpendiculares a cada empuje.}\\\\[2pt]\n';
   tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $\\theta_R = ' + dec(ag.grados,'ang') + '^\\circ$ de la ' + eje : '')
@@ -1680,7 +1680,7 @@ function latexPresas(h, numInicial){
       + 'Esa reacci\\\'on est\\\'a repartida por toda la base, pero equivale a una \\textbf{normal} $N$ y una \\textbf{fuerza horizontal} $F$ (el rozamiento que impide el deslizamiento) aplicadas en un punto a la distancia $d$ de $O$. '
       + 'Son tres inc\\\'ognitas y salen de las tres ecuaciones del equilibrio; $d$, de los momentos respecto de $O$, donde $F$ no da momento porque act\\\'ua a lo largo de la base. '
       + 'Si $d$ cae fuera de la base, ninguna reacci\\\'on del terreno puede equilibrar la presa: \\textbf{vuelca}.');
-    tex += h.lamina(tkpPresa(r), nom + ': peso de cada parte en su centroide, empuje del l\\\'iquido en cada cara mojada y reacciones $N$ y $F$ en la base. Cotas en ' + uL + '.');
+    tex += h.lamina(tkpPresa(r), nom + ': pesos, empujes y reacciones $N$, $F$. Cotas en ' + uL + '.');
     tex += '\\subpaso{Peso de la presa}\n';
     tex += '\\noindent{\\footnotesize Cada parte pesa $W = \\gamma\\,b\\,A$, con $\\gamma = ' + f(r.p.gamma) + '$\\,' + uF + '/' + uL + '$^3$ y $b = ' + nl(r.b) + '$' + UL + ', aplicado en su centroide' + (r.pesos.some(q=>q.tipo !== 'poli' && q.tipo !== 'rect') ? ' (un tri\\\'angulo rect\\\'angulo, a un tercio de su lado vertical y de su base)' : '') + '.}\\\\[2pt]\n';
     tex += h.tablaCaption('Peso por partes. \\\'Areas en ' + uL + '$^2$, coordenadas desde $O$ en ' + uL + ', pesos en ' + uF + '.');
@@ -1714,10 +1714,8 @@ function latexPresas(h, numInicial){
         tex += '\\noindent\\textbf{Empuje $E_{' + c.k + '}$} (cara ' + tipoCara + ', zona ' + c.z + (d ? ', $L = ' + nl(d.L) + '$' + UL + ' mojada' : '') + ')\n';
         if(!d){ tex += '\\[ E_{' + c.k + '} = ' + f(c.F) + UF + ' \\]\n'; return; }
         const hayR = d.bandas.some(bd=>bd.Fr > 1e-12), hayT = d.bandas.some(bd=>bd.Ft > 1e-12);
-        const queParte = (hayR && hayT) ? 'partido en rect\\\'angulo ($\\square$) y tri\\\'angulo ($\\triangle$)' + (d.bandas.length > 1 ? ' por capa' : '')
-          : (hayT ? 'un tri\\\'angulo ($\\triangle$), porque la presi\\\'on empieza en cero' : 'un rect\\\'angulo ($\\square$), porque la presi\\\'on no cambia');
-        tex += h.lamina(tkpBloquePresion(c, d), 'Bloque de presiones de $E_{' + c.k + '}$: ' + queParte + '; la fuerza de cada parte en su centroide y el centro de presi\\\'on $P$. '
-          + 'Las distancias $s$ se miden sobre la cara desde ' + (d.cortaSuperficie ? 'la superficie libre' : 'su extremo superior') + '. Cotas en ' + uL + '; presiones en ' + escLatex(uPres()) + '.');
+        const queParte = (hayR && hayT) ? '$\\square$ + $\\triangle$' : (hayT ? '$\\triangle$' : '$\\square$');
+        tex += h.lamina(tkpBloquePresion(c, d), 'Bloque de presiones de $E_{' + c.k + '}$ (' + queParte + '). Cotas en ' + uL + '; $p$ en ' + escLatex(uPres()) + '.');
         const filas = [], terms = [], partes = [];
         d.bandas.forEach((bd,i)=>{
           const capa = d.bandas.length > 1 ? '\\text{capa ' + (i+1) + ':}\\ ' : '';
