@@ -1063,222 +1063,6 @@ function listaPresasHtml(){
 }
 
 
-// ── Esquema acotado del bloque de presiones de una cara (2026-10-04, petición
-// del profesor) ──
-// La cara mojada en su posición real, el cuerpo de la presa a un lado y, del
-// lado del líquido, el diagrama de presiones partido en rectángulo (la presión
-// mínima) y triángulo (lo que crece), capa por capa. Cada parte lleva su fuerza
-// en su centroide; P es el centro de presión. Se acotan L, las presiones de los
-// extremos y las distancias s de cada fuerza y de P desde el extremo superior.
-// Una sola geometría en coordenadas del mundo (bloquePresionGeometria) y una
-// sola disposición (_disposicionBloque), con dos dibujantes: SVG para la
-// pantalla y TikZ para el informe; así no pueden decir cosas distintas.
-function bloquePresionGeometria(c, d){
-  const L = d.L, u = d.u, w = c.nOut;            // u: de T hacia D; w: hacia el líquido
-  const P = (s, n) => ({x:d.T.x + u.x*s + w.x*n, y:d.T.y + u.y*s + w.y*n});
-  let pMax = 0; d.bandas.forEach(bd=>{ pMax = Math.max(pMax, bd.p0, bd.p1); });
-  const K = pMax > 1e-12 ? 0.5*L/pMax : 0;       // el diagrama más alto mide L/2
-  const e = 0.07*L;
-  const g = {polys:[], lineas:[], flechas:[], textos:[], cotas:[], e, w};
-  g.polys.push({pts:[P(0,0), P(L,0), P(L,-e), P(0,-e)], tipo:'cuerpo'});
-  const varias = d.bandas.length > 1;
-  const comps = [];
-  let hTop = 0;
-  d.bandas.forEach((bd, i)=>{
-    const s0 = bd.s0, s1 = bd.s1, l = s1 - s0, h0 = bd.p0*K, h1 = bd.p1*K, hm = Math.min(h0, h1), dh = Math.abs(h1-h0);
-    const crece = h1 >= h0;
-    hTop = Math.max(hTop, h0, h1);
-    const sub = varias ? String(i + 1) : '';
-    // las marcas □ y △ van lejos de la línea de su fuerza, que pasa por su centroide
-    if(bd.Fr > 1e-12){
-      g.polys.push({pts:[P(s0,0), P(s1,0), P(s1,hm), P(s0,hm)], tipo:'rect'});
-      g.textos.push({p:P(s0 + (crece ? 0.2 : 0.8)*l, hm/2), txt:'□' + sub, tipo:'region', tam:[0.3*l, hm]});
-      comps.push({s:s0 + bd.sR, F:bd.Fr, nom:'F□' + sub, tex:'F_{\\square' + (sub ? ',' + sub : '') + '}'});
-    }
-    if(bd.Ft > 1e-12){
-      const tri = crece ? [P(s0,hm), P(s1,hm), P(s1,h1)] : [P(s0,h0), P(s0,hm), P(s1,hm)];
-      g.polys.push({pts:tri, tipo:'tri'});
-      const t = crece ? 0.88 : 0.12, alto = dh*(crece ? t : 1 - t);
-      g.textos.push({p:P(s0 + t*l, hm + 0.4*alto), txt:'△' + sub, tipo:'region', tam:[0.2*l, 0.8*alto]});
-      comps.push({s:s0 + bd.sT, F:bd.Ft, nom:'F△' + sub, tex:'F_{\\triangle' + (sub ? ',' + sub : '') + '}'});
-    }
-    if(bd.Fr > 1e-12 && bd.Ft > 1e-12) g.lineas.push({a:P(s0,hm), b:P(s1,hm), tipo:'division'});
-    // la presión de cada extremo, acotada más allá de la cara
-    if(i === 0 && bd.p0 > 1e-12) g.cotas.push({a:P(s0,0), b:P(s0,h0), w:{x:-u.x, y:-u.y}, dist:0.12*L, txt:'p = ' + dec(bd.p0,'f'), tex:'p = ' + dec(bd.p0,'f')});
-    if(i === d.bandas.length - 1) g.cotas.push({a:P(s1,0), b:P(s1,h1), w:{x:u.x, y:u.y}, dist:0.12*L, txt:'p = ' + dec(bd.p1,'f'), tex:'p = ' + dec(bd.p1,'f')});
-    else g.textos.push({p:P(s1, h1 + 0.08*L), txt:'p = ' + dec(bd.p1,'f'), tipo:'valor'});
-  });
-  g.lineas.push({a:P(0,0), b:P(L,0), tipo:'cara'});
-  // la fuerza de cada parte, llegando a la cara en su centroide
-  const nCola = hTop + 0.32*L;
-  comps.forEach(q=>{
-    g.flechas.push({cola:P(q.s, nCola), punta:P(q.s, 0)});
-    g.textos.push({p:P(q.s, nCola), txt:q.nom + ' = ' + dec(q.F,'f'), tex:q.tex + ' = ' + dec(q.F,'f'), tipo:'fuerza', dir:w});
-  });
-  g.puntoP = P(d.sP, 0);
-  // del lado del cuerpo, en carriles: L y la posición s de cada fuerza y de P, desde T
-  const lado = {x:-w.x, y:-w.y};
-  let nivel = 0;
-  const cota = (s, txt, tex) => g.cotas.push({a:P(0,0), b:P(s,0), w:lado, nivel:nivel++, txt, tex});
-  cota(L, 'L = ' + dec(L,'len'), 'L = ' + dec(L,'len'));
-  comps.forEach(q=>cota(q.s, 's = ' + dec(q.s,'len'), 's = ' + dec(q.s,'len')));
-  if(comps.length > 1) cota(d.sP, 'sP = ' + dec(d.sP,'len'), 's_P = ' + dec(d.sP,'len'));
-  return g;
-}
-// La disposición en unidades de salida (px o cm): la escala k, la distancia de
-// cada cota a su línea, dónde va su valor y lo que ocupan los textos, que entran
-// en el encuadre. Los carriles del lado del cuerpo van juntos (`carril`) y el
-// valor de cada uno se escribe SOBRE su línea, derecho y con fondo blanco, en el
-// primer punto de ella donde no pisa los valores ya escritos: separarlos lo que
-// mide el texto alejaba tanto los carriles en una cara empinada que el dibujo
-// quedaba diminuto.
-// `o`: {ancho, alto, margen, medir(txt, tex) → [w, h], gap, sep, carril}
-function _disposicionBloque(g, o){
-  const nucleo = [];
-  g.polys.forEach(q=>q.pts.forEach(p=>nucleo.push(p)));
-  g.flechas.forEach(f=>{ nucleo.push(f.cola, f.punta); });
-  const caja = pts => ({x0:Math.min(...pts.map(p=>p.x)), x1:Math.max(...pts.map(p=>p.x)), y0:Math.min(...pts.map(p=>p.y)), y1:Math.max(...pts.map(p=>p.y))});
-  const escala = b => Math.min((o.ancho - 2*o.margen)/Math.max(b.x1-b.x0,1e-9), (o.alto - 2*o.margen)/Math.max(b.y1-b.y0,1e-9));
-  let k = escala(caja(nucleo)), dist = [], frac = [], b;
-  for(let it=0; it<3; it++){
-    // los carriles empiezan pasado el cuerpo y medio texto: el valor va centrado en su línea
-    const medio = Math.max(0, ...g.cotas.filter(q=>q.nivel !== undefined).map(q=>{ const m = o.medir(q.txt, q.tex); return Math.abs(q.w.x)*m[0]/2 + Math.abs(q.w.y)*m[1]/2; }));
-    dist = g.cotas.map(q=>q.nivel === undefined ? q.dist*k : g.e*k + o.gap + medio + q.nivel*o.carril);
-    frac = g.cotas.map(()=>null);
-    const pts = nucleo.slice(), puestas = [];
-    const pisa = c => puestas.some(q=>c.x0 < q.x1 && c.x1 > q.x0 && c.y0 < q.y1 && c.y1 > q.y0);
-    g.cotas.forEach((q,i)=>{
-      const dw = dist[i]/k, m = o.medir(q.txt, q.tex), hw = m[0]/2/k, hh = m[1]/2/k;
-      const A = {x:q.a.x + q.w.x*dw, y:q.a.y + q.w.y*dw}, B = {x:q.b.x + q.w.x*dw, y:q.b.y + q.w.y*dw};
-      pts.push(A, B);
-      let c;
-      if(q.nivel === undefined){
-        const sep = (o.sep + Math.abs(q.w.x)*m[0]/2 + Math.abs(q.w.y)*m[1]/2)/k;
-        const cx = (A.x + B.x)/2 + q.w.x*sep, cy = (A.y + B.y)/2 + q.w.y*sep;
-        c = {x0:cx-hw, x1:cx+hw, y0:cy-hh, y1:cy+hh};
-      } else {
-        for(const f of [0.5, 0.3, 0.7, 0.18, 0.82, 0.4, 0.6]){
-          const cx = A.x + (B.x-A.x)*f, cy = A.y + (B.y-A.y)*f;
-          c = {x0:cx-hw, x1:cx+hw, y0:cy-hh, y1:cy+hh};
-          frac[i] = f;
-          if(!pisa(c)) break;
-        }
-      }
-      puestas.push(c);
-      pts.push({x:c.x0, y:c.y0}, {x:c.x1, y:c.y1});
-    });
-    g.textos.forEach(t=>{
-      const m = o.medir(t.txt, t.tex);
-      let cx = t.p.x, cy = t.p.y;
-      if(t.tipo === 'fuerza'){ cx += t.dir.x*(m[0]/2 + o.sep)/k; cy += t.dir.y*(m[1]/2 + o.sep)/k; }
-      pts.push({x:cx - m[0]/2/k, y:cy - m[1]/2/k}, {x:cx + m[0]/2/k, y:cy + m[1]/2/k});
-    });
-    b = caja(pts);
-    k = escala(b);
-  }
-  return {k, dist, frac, b};
-}
-function bloquePresionSVG(c, d){
-  const g = bloquePresionGeometria(c, d);
-  const Wv = 300, Hv = 230, m = 8;
-  const medir = txt => [txt.length*5.9 + 4, 12];
-  const lay = _disposicionBloque(g, {ancho:Wv, alto:Hv, margen:m, medir, gap:16, sep:4, carril:15});
-  const k = lay.k, bb = lay.b;
-  const X = x => m + (x-bb.x0)*k + ((Wv-2*m) - (bb.x1-bb.x0)*k)/2, Y = y => Hv - m - (y-bb.y0)*k - ((Hv-2*m) - (bb.y1-bb.y0)*k)/2;
-  const F = v => v.toFixed(1);
-  const id = 'bp' + (c.k || 0) + '_' + Math.round(Math.random()*1e6);
-  let s = '<svg class="croq-svg" viewBox="0 0 ' + Wv + ' ' + Hv + '" xmlns="http://www.w3.org/2000/svg">'
-    + '<defs><marker id="' + id + '" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#8f1d12"/></marker></defs>';
-  const estilo = {cuerpo:'fill="rgba(150,142,128,.45)" stroke="none"', rect:'fill="rgba(192,57,43,.12)" stroke="#c0392b" stroke-width="1"', tri:'fill="rgba(192,57,43,.30)" stroke="#c0392b" stroke-width="1"'};
-  g.polys.forEach(q=>{ s += '<polygon points="' + q.pts.map(p=>F(X(p.x)) + ',' + F(Y(p.y))).join(' ') + '" ' + estilo[q.tipo] + '/>'; });
-  g.lineas.forEach(l=>{
-    if(l.tipo === 'cara') s += '<line x1="' + F(X(l.a.x)) + '" y1="' + F(Y(l.a.y)) + '" x2="' + F(X(l.b.x)) + '" y2="' + F(Y(l.b.y)) + '" stroke="' + COL_PRESA + '" stroke-width="3.2" stroke-linecap="round"/>';
-    else s += '<line x1="' + F(X(l.a.x)) + '" y1="' + F(Y(l.a.y)) + '" x2="' + F(X(l.b.x)) + '" y2="' + F(Y(l.b.y)) + '" stroke="#c0392b" stroke-width=".9" stroke-dasharray="4,3"/>';
-  });
-  g.flechas.forEach(f=>{ s += '<line x1="' + F(X(f.cola.x)) + '" y1="' + F(Y(f.cola.y)) + '" x2="' + F(X(f.punta.x)) + '" y2="' + F(Y(f.punta.y)) + '" stroke="#8f1d12" stroke-width="1.6" marker-end="url(#' + id + ')"/>'; });
-  // cotas: extensión punteada y tenue, línea con punta en los dos extremos y el valor derecho
-  const punta = (x, y, vx, vy) => '<polygon points="' + F(x) + ',' + F(y) + ' ' + F(x - vx*6 - vy*2.2) + ',' + F(y - vy*6 + vx*2.2) + ' ' + F(x - vx*6 + vy*2.2) + ',' + F(y - vy*6 - vx*2.2) + '" fill="#374151"/>';
-  g.cotas.forEach((q,i)=>{
-    const A = [X(q.a.x), Y(q.a.y)], B = [X(q.b.x), Y(q.b.y)];
-    const wx = q.w.x, wy = -q.w.y, dp = lay.dist[i];
-    const D1 = [A[0] + wx*dp, A[1] + wy*dp], D2 = [B[0] + wx*dp, B[1] + wy*dp];
-    [[A, D1], [B, D2]].forEach(par=>{ s += '<line x1="' + F(par[0][0]) + '" y1="' + F(par[0][1]) + '" x2="' + F(par[1][0] + wx*4) + '" y2="' + F(par[1][1] + wy*4) + '" stroke="#374151" stroke-width=".7" stroke-dasharray="3,2.5" opacity=".55"/>'; });
-    const Ld = Math.hypot(D2[0]-D1[0], D2[1]-D1[1]);
-    if(Ld < 2) return;
-    const ux = (D2[0]-D1[0])/Ld, uy = (D2[1]-D1[1])/Ld;
-    s += '<line x1="' + F(D1[0]) + '" y1="' + F(D1[1]) + '" x2="' + F(D2[0]) + '" y2="' + F(D2[1]) + '" stroke="#374151" stroke-width=".9"/>';
-    if(Ld >= 14) s += punta(D1[0], D1[1], -ux, -uy) + punta(D2[0], D2[1], ux, uy);
-    const mm = medir(q.txt);
-    let tx, ty;
-    if(lay.frac[i] !== null){ tx = D1[0] + (D2[0]-D1[0])*lay.frac[i]; ty = D1[1] + (D2[1]-D1[1])*lay.frac[i]; }
-    else { const sep = 4 + Math.abs(wx)*mm[0]/2 + Math.abs(wy)*mm[1]/2; tx = (D1[0]+D2[0])/2 + wx*sep; ty = (D1[1]+D2[1])/2 + wy*sep; }
-    s += '<text x="' + F(tx) + '" y="' + F(ty) + '" font-size="9.5" font-weight="600" text-anchor="middle" dominant-baseline="middle" fill="#1b1f24" stroke="#fff" stroke-width="4" paint-order="stroke">' + q.txt + '</text>';
-  });
-  g.textos.forEach(t=>{
-    if(t.tipo === 'region'){
-      if(Math.min(t.tam[0], t.tam[1])*k < 10) return;          // demasiado pequeña para su marca
-      s += '<text x="' + F(X(t.p.x)) + '" y="' + F(Y(t.p.y)) + '" font-size="11" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#8f1d12">' + t.txt + '</text>';
-    } else if(t.tipo === 'fuerza'){
-      const ax = t.dir.x, ay = -t.dir.y, mm = medir(t.txt);
-      const cx = X(t.p.x) + ax*(mm[0]/2 + 4), cy = Y(t.p.y) + ay*(mm[1]/2 + 4);
-      s += '<text x="' + F(cx) + '" y="' + F(cy) + '" font-size="9.5" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#8f1d12" stroke="#fff" stroke-width="3" paint-order="stroke">' + t.txt + '</text>';
-    } else {
-      s += '<text x="' + F(X(t.p.x)) + '" y="' + F(Y(t.p.y)) + '" font-size="9" text-anchor="middle" dominant-baseline="middle" fill="#c0392b" stroke="#fff" stroke-width="3" paint-order="stroke">' + t.txt + '</text>';
-    }
-  });
-  const Px = X(g.puntoP.x), Py = Y(g.puntoP.y);
-  s += '<circle cx="' + F(Px) + '" cy="' + F(Py) + '" r="3.4" fill="#fff" stroke="#8f1d12" stroke-width="1.6"/>';
-  s += '<text x="' + F(Px - c.nOut.x*9) + '" y="' + F(Py + c.nOut.y*9 - 7) + '" font-size="9.5" font-style="italic" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#8f1d12" stroke="#fff" stroke-width="3" paint-order="stroke">P</text>';
-  s += '</svg>';
-  return s;
-}
-function tkpBloquePresion(c, d){
-  const g = bloquePresionGeometria(c, d);
-  const medir = (txt, tex) => [tkpAncho('$' + (tex || txt) + '$', 'font=\\tiny'), tkpAlto('tiny')];
-  const lay = _disposicionBloque(g, {ancho:8.6, alto:6.4, margen:0.1, medir, gap:0.42, sep:0.08, carril:0.34});
-  const k = lay.k, bb = lay.b;
-  const X = x => (x-bb.x0)*k, Y = y => (y-bb.y0)*k;
-  const F = v => v.toFixed(3);
-  const P = p => '(' + F(X(p.x)) + ',' + F(Y(p.y)) + ')';
-  let out = '';
-  const estilo = {cuerpo:'fill=gray!30, draw=none', rect:'fill=bsaPres!10, draw=bsaPres, line width=.5pt', tri:'fill=bsaPres!28, draw=bsaPres, line width=.5pt'};
-  g.polys.forEach(q=>{ out += '\\path[' + estilo[q.tipo] + '] ' + q.pts.map(P).join(' -- ') + ' -- cycle;\n'; });
-  g.lineas.forEach(l=>{
-    out += l.tipo === 'cara' ? '\\draw[bsaPresa, line width=1.8pt] ' + P(l.a) + ' -- ' + P(l.b) + ';\n'
-                             : '\\draw[bsaPres, dashed, line width=.45pt] ' + P(l.a) + ' -- ' + P(l.b) + ';\n';
-  });
-  g.flechas.forEach(f=>{ out += '\\draw[-{Latex[length=2mm]}, bsaPres!80!black, line width=1pt] ' + P(f.cola) + ' -- ' + P(f.punta) + ';\n'; });
-  const flecha = '{Latex[length=1.4mm,width=1mm]}-{Latex[length=1.4mm,width=1mm]}';
-  g.cotas.forEach((q,i)=>{
-    const wx = q.w.x, wy = q.w.y, dd = lay.dist[i];
-    const A = [X(q.a.x), Y(q.a.y)], B = [X(q.b.x), Y(q.b.y)];
-    const D1 = [A[0] + wx*dd, A[1] + wy*dd], D2 = [B[0] + wx*dd, B[1] + wy*dd];
-    [[A, D1], [B, D2]].forEach(par=>{ out += '\\draw[bsaMuted!75, line width=.3pt, dash pattern=on 1.2pt off 1.2pt] (' + F(par[0][0]) + ',' + F(par[0][1]) + ') -- (' + F(par[1][0] + wx*0.08) + ',' + F(par[1][1] + wy*0.08) + ');\n'; });
-    if(Math.hypot(D2[0]-D1[0], D2[1]-D1[1]) < 0.05) return;
-    out += '\\draw[' + flecha + ', bsaMuted, line width=.4pt] (' + F(D1[0]) + ',' + F(D1[1]) + ') -- (' + F(D2[0]) + ',' + F(D2[1]) + ');\n';
-    const mm = medir(q.txt, q.tex);
-    let tx, ty;
-    if(lay.frac[i] !== null){ tx = D1[0] + (D2[0]-D1[0])*lay.frac[i]; ty = D1[1] + (D2[1]-D1[1])*lay.frac[i]; }
-    else { const sep = 0.08 + Math.abs(wx)*mm[0]/2 + Math.abs(wy)*mm[1]/2; tx = (D1[0]+D2[0])/2 + wx*sep; ty = (D1[1]+D2[1])/2 + wy*sep; }
-    out += '\\node[font=\\tiny, fill=white, inner sep=.8pt] at (' + F(tx) + ',' + F(ty) + ') {$' + q.tex + '$};\n';
-  });
-  g.textos.forEach(t=>{
-    if(t.tipo === 'region'){
-      if(Math.min(t.tam[0], t.tam[1])*k < 0.28) return;
-      out += '\\node[font=\\scriptsize, text=bsaPres!80!black] at ' + P(t.p) + ' {$' + (t.txt[0] === '□' ? '\\square' : '\\triangle') + (t.txt.length > 1 ? '_{' + t.txt.slice(1) + '}' : '') + '$};\n';
-    } else if(t.tipo === 'fuerza'){
-      const mm = medir(t.txt, t.tex);
-      const cx = X(t.p.x) + t.dir.x*(mm[0]/2 + 0.08), cy = Y(t.p.y) + t.dir.y*(mm[1]/2 + 0.08);
-      out += '\\node[font=\\tiny, text=bsaPres!80!black, fill=white, inner sep=.8pt] at (' + F(cx) + ',' + F(cy) + ') {$' + t.tex + '$};\n';
-    } else {
-      out += '\\node[font=\\tiny, text=bsaPres, fill=white, inner sep=.8pt] at ' + P(t.p) + ' {$' + t.txt + '$};\n';
-    }
-  });
-  out += '\\filldraw[fill=white, draw=bsaPres!80!black, line width=.7pt] ' + P(g.puntoP) + ' circle (0.06);\n';
-  out += '\\node[font=\\scriptsize\\itshape, text=bsaPres!80!black, fill=white, inner sep=.6pt] at (' + F(X(g.puntoP.x) - c.nOut.x*0.22) + ',' + F(Y(g.puntoP.y) - c.nOut.y*0.22 + 0.16) + ') {$P$};\n';
-  return out;
-}
-
 // ── Resultados en pantalla (ecuación y resultado; el porqué va al PDF) ──
 // Los mismos pasos que la compuerta (2026-10-04, petición del profesor): peso
 // por partes, presión en los puntos clave de cada cara mojada, empuje de cada
@@ -1333,33 +1117,18 @@ function presasHtml(numInicial){
         h += '<div class="fig-card"><div class="fig-card-datos"><div class="proc-block" style="padding:9px 12px;margin:0"><div class="proc-sub">' + kx('E_{' + c.k + '}') + ' · cara '
           + (d ? (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca - 90) < 1e-6 ? 'vertical' : 'inclinada ' + dec(d.angPlaca,'ang') + '° con la horizontal')) : '') + ' · zona ' + c.z + '</div>';
         if(!d){ h += fila('E_{' + c.k + '} = ' + f(c.F) + '\\ \\text{' + uF + '}') + '</div></div></div>'; return; }
-        h += fila('L = ' + nl(d.L) + '\\ \\text{' + uL + '}\\ \\text{(parte mojada)}');
-        const terms = [];
+        // fórmula y resultado (2026-10-04); la sustitución, en el informe
         d.bandas.forEach((bd,i)=>{
           if(d.bandas.length > 1) h += '<div class="hint-sm" style="margin:4px 0 0">Capa ' + (i+1) + ' (γ = ' + f(bd.g) + ')</div>';
-          if(bd.Fr > 1e-12){
-            h += fila('F_{\\square} = b\\,L\\,p_{\\min} = ' + nl(r.b) + '\\,(' + nl(bd.l) + ')(' + f(Math.min(bd.p0,bd.p1)) + ') = ' + f(bd.Fr) + '\\ \\text{' + uF + '}\\quad\\text{a}\\ ' + nl(bd.s0 + bd.sR));
-            terms.push(f(bd.Fr) + '(' + nl(bd.s0 + bd.sR) + ')');
-          }
-          if(bd.Ft > 1e-12){
-            h += fila('F_{\\triangle} = \\tfrac12\\,b\\,L\\,(p_{\\max}-p_{\\min}) = \\tfrac12\\,' + nl(r.b) + '\\,(' + nl(bd.l) + ')(' + f(Math.abs(bd.p1-bd.p0)) + ') = ' + f(bd.Ft) + '\\ \\text{' + uF + '}\\quad\\text{a}\\ ' + nl(bd.s0 + bd.sT));
-            terms.push(f(bd.Ft) + '(' + nl(bd.s0 + bd.sT) + ')');
-          }
+          if(bd.Fr > 1e-12) h += fila('F_{\\square} = b\\,L\\,p_{\\min} = ' + f(bd.Fr) + '\\ \\text{' + uF + '}\\qquad s = ' + nl(bd.s0 + bd.sR) + '\\ \\text{' + uL + '}');
+          if(bd.Ft > 1e-12) h += fila('F_{\\triangle} = \\tfrac12\\,b\\,L\\,(p_{\\max}-p_{\\min}) = ' + f(bd.Ft) + '\\ \\text{' + uF + '}\\qquad s = ' + nl(bd.s0 + bd.sT) + '\\ \\text{' + uL + '}');
         });
-        const partes = [];
-        d.bandas.forEach(bd=>{ if(bd.Fr > 1e-12) partes.push(f(bd.Fr)); if(bd.Ft > 1e-12) partes.push(f(bd.Ft)); });
-        h += fila('E_{' + c.k + '} = ' + (partes.length > 1 ? partes.join(' + ') + ' = ' : '') + f(d.F) + '\\ \\text{' + uF + '}');
-        h += fila('s_P = \\dfrac{\\sum F_i s_i}{E_{' + c.k + '}} = ' + (terms.length > 1 ? '\\dfrac{' + terms.join(' + ') + '}{' + f(d.F) + '} = ' : '') + nl(d.sP) + '\\ \\text{' + uL + '}');
-        if(d.gzA) h += fila('\\gamma\\,\\bar z\\,A = ' + f(d.gzA.g) + '\\,(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F) + '\\ \\text{' + uF + '}\\quad\\checkmark');
-        // componentes: la fuerza es normal a la cara
-        if(!d.horizontal && Math.abs(d.angPlaca - 90) > 1e-6){
-          const a = dec(d.angPlaca,'ang');
-          h += fila('E_x = E\\,\\operatorname{sen}' + a + '^\\circ = ' + f(Math.abs(c.Fx)) + '\\ \\text{' + uF + '}\\ ' + (c.Fx < 0 ? '\\leftarrow' : '\\rightarrow')
-            + '\\qquad E_y = E\\cos' + a + '^\\circ = ' + f(Math.abs(c.Fy)) + '\\ \\text{' + uF + '}\\ ' + (c.Fy < 0 ? '\\downarrow' : '\\uparrow'));
-        }
-        h += fila('P_{' + c.k + '} = ' + pto(c.P, O).replace(';', ';\\ ') + '\\ \\text{' + uL + '}\\qquad z_P = ' + nl(c.zP) + '\\ \\text{' + uL + '}');
-        h += '<div class="hint-sm">' + kx('s') + ' a lo largo de la cara, desde ' + (d.cortaSuperficie ? 'la superficie libre' : 'su extremo superior') + '.</div></div>';
-        h += '</div><div class="fig-card-dib" style="flex-basis:290px">' + bloquePresionSVG(c, d) + '</div></div>';
+        h += fila('E_{' + c.k + '} = \\sum F_i = ' + f(d.F) + '\\ \\text{' + uF + '}' + (d.gzA ? '\\qquad \\gamma\\,\\bar z\\,A = ' + f(d.gzA.F) + '\\ \\checkmark' : ''));
+        h += fila('s_P = \\dfrac{\\sum F_i\\,s_i}{E_{' + c.k + '}} = ' + nl(d.sP) + '\\ \\text{' + uL + '}\\qquad z_P = ' + nl(c.zP) + '\\ \\text{' + uL + '}');
+        if(!d.horizontal && Math.abs(d.angPlaca - 90) > 1e-6)
+          h += fila('E_x = E\\,\\operatorname{sen}\\alpha = ' + f(Math.abs(c.Fx)) + '\\ ' + (c.Fx < 0 ? '\\leftarrow' : '\\rightarrow') + '\\qquad E_y = E\\cos\\alpha = ' + f(Math.abs(c.Fy)) + '\\ ' + (c.Fy < 0 ? '\\downarrow' : '\\uparrow'));
+        h += '<div class="hint-sm">' + kx('s') + ' sobre la cara, desde ' + (d.cortaSuperficie ? 'la superficie libre' : 'su extremo superior') + (d.angPlaca && Math.abs(d.angPlaca - 90) > 1e-6 && !d.horizontal ? '; ' + kx('\\alpha = ' + dec(d.angPlaca,'ang') + '^\\circ') + ' con la horizontal' : '') + '.</div></div>';
+        h += '</div><div class="fig-card-dib" style="flex-basis:290px">' + esquemaCargaSVG(c, d, true) + '</div></div>';
       });
       // resumen
       h += '<table class="tabla" style="margin-top:6px"><thead><tr><th>Empuje</th><th>Zona</th><th class="r">E (' + uF + ')</th><th class="r">z<sub>P</sub> (' + uL + ')</th><th class="r">E<sub>x</sub> (' + uF + ')</th><th class="r">E<sub>y</sub> (' + uF + ')</th><th>Sentido</th></tr></thead><tbody>';
@@ -1423,7 +1192,8 @@ function resultantePresaHtml(r){
   h += '<div class="hint-sm">' + kx('x, y') + ' desde O; ' + (ru.corta
     ? kx('P_R') + ' es donde la línea de acción corta la cara mojada de ' + kx('E_{' + ru.cara.k + '}') + '.'
     : 'la línea de acción no corta ninguna cara mojada; ' + kx('P_R') + ' es su punto más cercano a los empujes.') + '</div></div>';
-  return h;
+  // el esquema de toda la presa, con R acotada donde actúa (2026-10-04)
+  return '<div class="fig-card"><div class="fig-card-datos">' + h + '</div><div class="fig-card-dib" style="flex-basis:340px">' + esquemaResultanteSVG(r, true) + '</div></div>';
 }
 
 // ── Informe LaTeX ──
@@ -1460,7 +1230,7 @@ function latexResultantePresa(r, h){
   const x = ru.P.x - ru.O.x, y = ru.P.y - ru.O.y;
   filas.push('x\\,R_y - y\\,R_x &= \\sum M_O:\\quad x(' + f(ru.Ry) + ') - y(' + f(ru.Rx) + ') = ' + f(ru.Mo));
   filas.push('P_R &= (' + nl(x) + ';\\ ' + nl(y) + ')' + UL + (ru.zR !== null ? ',\\qquad z_R = ' + nl(ru.zR) + UL : ''));
-  tex += h.lamina(tkpResultantePresa(r), 'Resultante \\\'unica $R$ en $P_R$. Cotas en ' + uL + '.' + (inclinada ? ' $\\theta_R = ' + dec(ag.grados,'ang') + '^\\circ$.' : ''));
+  tex += h.lamina(esquemaResultanteTikZ(r, true), 'Resultante \\\'unica $R$ en $P_R$. Cotas en ' + uL + '.' + (inclinada ? ' $\\theta_R = ' + dec(ag.grados,'ang') + '^\\circ$.' : ''));
   tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
   tex += '{\\footnotesize $x$, $y$ desde $O$; los brazos, perpendiculares a cada empuje.}\\\\[2pt]\n';
   tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $\\theta_R = ' + dec(ag.grados,'ang') + '^\\circ$ de la ' + eje : '')
@@ -1470,65 +1240,6 @@ function latexResultantePresa(r, h){
   if(Math.abs(x*ru.Ry - y*ru.Rx - ru.Mo) > 1e-6*Math.max(1, Math.abs(ru.Mo)))
     console.warn('Informe LaTeX: la resultante de la presa no reproduce su momento');
   return tex;
-}
-// Figura de la resultante: la presa, el líquido, los empujes finos y R en violeta
-// llegando a P_R, con su línea de acción, su ángulo y la cota z_R.
-function tkpResultantePresa(r){
-  tkpReiniciar();
-  const ru = r.res, g = r.g, F = v => v.toFixed(3);
-  const xs = g.verts.map(q=>q.x), ys = g.verts.map(q=>q.y);
-  const Bw = g.base.x1 - g.base.x0;
-  const xa = Math.min(...xs) - 0.45*Bw, xb = Math.max(...xs) + 0.45*Bw;
-  const ya = g.base.y, yb = Math.max(...ys, ...[1,2].map(z=>nivelZona(z)).filter(isFinite));
-  const k = Math.min(9.5/Math.max(xb-xa,1e-9), 6.5/Math.max(yb-ya,1e-9), 2.4);
-  const X = x => (x-xa)*k, Y = y => (y-ya)*k;
-  const cr = crestaPresa(g);
-  let out = '';
-  [1,2].forEach(z=>{
-    const nv = nivelZona(z); if(!isFinite(nv) || nv <= g.base.y) return;
-    const x0 = z === 1 ? X(xa) : X(cr.x), x1 = z === 1 ? X(cr.x) : X(xb);
-    out += '\\fill[bsaAgua!15] (' + F(x0) + ',0) rectangle (' + F(x1) + ',' + F(Y(nv)) + ');\n';
-    out += '\\draw[bsaAgua, line width=1pt] (' + F(x0) + ',' + F(Y(nv)) + ') -- (' + F(x1) + ',' + F(Y(nv)) + ');\n';
-    tkpOcupar(x0, Y(nv), x1, Y(nv) + 0.05);
-  });
-  out += '\\fill[fill=gray!28, draw=bsaPresa, line width=1.2pt] ' + g.verts.map(q=>'(' + F(X(q.x)) + ',' + F(Y(q.y)) + ')').join(' -- ') + ' -- cycle;\n';
-  for(let i=0;i<g.verts.length;i++){ const a = g.verts[i], b = g.verts[(i+1)%g.verts.length]; tkpOcuparTrazo(X(a.x), Y(a.y), X(b.x), Y(b.y), 0.05); }
-  out += '\\draw[bsaTierra, line width=1pt] (' + F(X(xa)) + ',0) -- (' + F(X(xb)) + ',0);\n';
-  for(let x = X(xa) + 0.15; x < X(xb); x += 0.25) out += '\\draw[bsaTierra!70, line width=.35pt] (' + F(x) + ',0) -- (' + F(x-0.15) + ',-0.15);\n';
-  tkpOcupar(X(xa), -0.2, X(xb), 0);
-  // empujes, finos
-  r.agua.forEach(c=>{
-    const px = X(c.P.x), py = Y(c.P.y), L = 1.1;
-    out += '\\draw[-{Latex[length=1.8mm]}, bsaPres, line width=.9pt] (' + F(px - c.dir.x*L) + ',' + F(py - c.dir.y*L) + ') -- (' + F(px - c.dir.x*0.05) + ',' + F(py - c.dir.y*0.05) + ');\n';
-    tkpOcuparTrazo(px - c.dir.x*L, py - c.dir.y*L, px, py, 0.07);
-  });
-  // R en P_R con su línea de acción
-  const d = ru.dir, Px = X(ru.P.x), Py = Y(ru.P.y), Lr = 1.9;
-  const x1 = Px - d.x*Lr, y1 = Py - d.y*Lr;
-  out += '\\draw[bsaRes!70, dashed, line width=.5pt] (' + F(x1 - d.x*0.5) + ',' + F(y1 - d.y*0.5) + ') -- (' + F(Px + d.x*0.8) + ',' + F(Py + d.y*0.8) + ');\n';
-  out += '\\draw[-{Latex[length=2.6mm]}, bsaRes, line width=1.6pt] (' + F(x1) + ',' + F(y1) + ') -- (' + F(Px - d.x*0.07) + ',' + F(Py - d.y*0.07) + ');\n';
-  tkpOcuparTrazo(x1, y1, Px, Py, 0.1);
-  out += '\\filldraw[fill=white, draw=bsaRes, line width=.8pt] (' + F(Px) + ',' + F(Py) + ') circle (0.07);\n';
-  tkpOcupar(Px-0.09, Py-0.09, Px+0.09, Py+0.09);
-  // cota z_R, del lado de la cola y por fuera de lo dibujado
-  const lado = x1 >= Px ? 1 : -1;
-  if(ru.zR !== null && ru.zR > 1e-9){
-    const xc = lado > 0 ? Math.max(X(Math.max(...xs)), Px, x1) + 0.55 : Math.min(X(Math.min(...xs)), Px, x1) - 0.55;
-    const yn = Y(ru.niv);
-    out += '\\draw[bsaRes, line width=.5pt] (' + F(xc) + ',' + F(yn) + ') -- (' + F(xc) + ',' + F(Py) + ');\n';
-    out += '\\draw[bsaRes, line width=.5pt] (' + F(xc-0.07) + ',' + F(yn-0.07) + ') -- (' + F(xc+0.07) + ',' + F(yn+0.07) + ') (' + F(xc-0.07) + ',' + F(Py-0.07) + ') -- (' + F(xc+0.07) + ',' + F(Py+0.07) + ');\n';
-    out += '\\draw[bsaRes!70, line width=.35pt, dash pattern=on 1.2pt off 1.2pt] (' + F(Px) + ',' + F(Py) + ') -- (' + F(xc) + ',' + F(Py) + ');\n';
-    tkpOcuparTrazo(xc, yn, xc, Py, 0.05);
-    out += tkpTexto(xc + lado*0.22, (yn + Py)/2, '$z_R = ' + dec(ru.zR,'len') + '$', 'font=\\tiny, color=bsaRes, rotate=90', lado, 0);
-  }
-  // O y los rótulos al final
-  out += '\\filldraw[bsaAcc2] (' + F(X(r.O.x)) + ',' + F(Y(r.O.y)) + ') circle (0.05);\n';
-  out += tkpTexto(X(r.O.x) - 0.2, Y(r.O.y) + 0.2, '$O$', 'font=\\scriptsize, color=bsaAcc2', -1, 1);
-  r.agua.forEach(c=>{ out += tkpTexto(X(c.P.x) - c.dir.x*1.35, Y(c.P.y) - c.dir.y*1.35, '$E_{' + c.k + '}$', 'font=\\scriptsize, color=bsaPres', -c.dir.x, -c.dir.y); });
-  out += tkpTexto(x1 - d.x*0.35, y1 - d.y*0.35, '$R$', 'font=\\small, color=bsaRes', -d.x, -d.y);
-  out += tkpTexto(Px - lado*0.32, Py - 0.25, '$P_R$', 'font=\\scriptsize, color=bsaRes', -lado, -1);
-  if(ru.ag.grados >= 1e-6) out += tkpArcoAngulo(x1, y1, d, '\\theta_R');
-  return out;
 }
 // Cotas de la presa en la figura del informe (las mismas del lienzo): las x de
 // sus vértices bajo el terreno con la base B como total y, a un lado, sus
@@ -1715,7 +1426,7 @@ function latexPresas(h, numInicial){
         if(!d){ tex += '\\[ E_{' + c.k + '} = ' + f(c.F) + UF + ' \\]\n'; return; }
         const hayR = d.bandas.some(bd=>bd.Fr > 1e-12), hayT = d.bandas.some(bd=>bd.Ft > 1e-12);
         const queParte = (hayR && hayT) ? '$\\square$ + $\\triangle$' : (hayT ? '$\\triangle$' : '$\\square$');
-        tex += h.lamina(tkpBloquePresion(c, d), 'Bloque de presiones de $E_{' + c.k + '}$ (' + queParte + '). Cotas en ' + uL + '; $p$ en ' + escLatex(uPres()) + '.');
+        tex += h.lamina(esquemaCargaTikZ(c, d, true), 'Bloque de presiones de $E_{' + c.k + '}$ (' + queParte + '). Cotas en ' + uL + '; $p$ en ' + escLatex(uPres()) + '.');
         const filas = [], terms = [], partes = [];
         d.bandas.forEach((bd,i)=>{
           const capa = d.bandas.length > 1 ? '\\text{capa ' + (i+1) + ':}\\ ' : '';

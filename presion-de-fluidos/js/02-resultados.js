@@ -104,71 +104,6 @@ function ecuacionDelPaso(r, paso){
           sustituida:_sumaTerminos(sus,'sus') + ' = 0', despeje, incT, cargasT};
 }
 
-// ── Croquis SVG de una carga: el tramo mojado, su diagrama del lado del
-//    líquido, F_R en el centro de presión y la cota z_P desde la superficie ──
-function croquisCarga(c, d){
-  const W2 = 230, H2 = 190, m = 22;
-  const pts = (d && d.tipo === 'curvo') ? d.pts : [d.T, d.D];
-  const niv = c.niv;
-  // caja: tramo mojado + superficie libre + diagrama desplazado
-  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y).concat([niv]);
-  const p0 = pts[0], p1 = pts[pts.length-1];
-  const span = Math.max(Math.max(...xs)-Math.min(...xs), Math.max(...ys)-Math.min(...ys), 1e-6);
-  const dia = 0.38*span;                       // altura máxima del diagrama, en unidades del mundo
-  const pMax = Math.max(1e-12, ...pts.map(p=>presionZona(c.z, p.y)));
-  const ptsT = puntosTramo(c.t, 48);
-  const desp = pts.map((p,i)=>{
-    const idx = Math.max(0, Math.min(ptsT.length-2, Math.round(i/(pts.length-1)*(ptsT.length-1))));
-    const nv = normalHaciaZona(c.t, idx, ptsT, c.z);
-    const h = presionZona(c.z, p.y)/pMax*dia;
-    return {x:p.x + nv.x*h, y:p.y + nv.y*h};
-  });
-  const todos = pts.concat(desp).concat([{x:Math.min(...xs), y:niv}, {x:Math.max(...xs), y:niv}]);
-  const x0 = Math.min(...todos.map(p=>p.x)), x1 = Math.max(...todos.map(p=>p.x));
-  const y0 = Math.min(...todos.map(p=>p.y)), y1 = Math.max(...todos.map(p=>p.y));
-  const k = Math.min((W2-2*m)/Math.max(x1-x0,1e-6), (H2-2*m)/Math.max(y1-y0,1e-6));
-  const X = x => m + (x-x0)*k + ((W2-2*m) - (x1-x0)*k)/2;
-  const Y = y => H2 - m - (y-y0)*k - ((H2-2*m) - (y1-y0)*k)/2;
-  const F3 = v => v.toFixed(1);
-  let s = '<svg class="croq-svg" viewBox="0 0 ' + W2 + ' ' + H2 + '" xmlns="http://www.w3.org/2000/svg">';
-  // superficie libre
-  s += '<line x1="0" y1="' + F3(Y(niv)) + '" x2="' + W2 + '" y2="' + F3(Y(niv)) + '" stroke="#2f7fb5" stroke-width="1.4"/>';
-  s += '<text x="' + (c.z===1 ? 4 : W2-4) + '" y="' + F3(Y(niv)-3) + '" font-size="8" fill="#1f6b96" text-anchor="' + (c.z===1?'start':'end') + '">superficie libre · zona ' + c.z + '</text>';
-  // diagrama
-  const poly = pts.map(p=>F3(X(p.x)) + ',' + F3(Y(p.y))).concat(desp.slice().reverse().map(p=>F3(X(p.x)) + ',' + F3(Y(p.y)))).join(' ');
-  s += '<polygon points="' + poly + '" fill="rgba(192,57,43,.14)" stroke="#c0392b" stroke-width="1"/>';
-  // flechas del diagrama
-  const nfl = Math.min(6, pts.length-1);
-  for(let i=1;i<=nfl;i++){
-    const q = Math.round(i/(nfl+1)*(pts.length-1));
-    const a = desp[q], b = pts[q];
-    if(Math.hypot(X(a.x)-X(b.x), Y(a.y)-Y(b.y)) < 8) continue;
-    s += '<line x1="' + F3(X(a.x)) + '" y1="' + F3(Y(a.y)) + '" x2="' + F3(X(b.x)) + '" y2="' + F3(Y(b.y)) + '" stroke="#c0392b" stroke-width=".9" marker-end="url(#fl' + c.k + ')"/>';
-  }
-  s += '<defs><marker id="fl' + c.k + '" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#c0392b"/></marker>'
-     + '<marker id="fr' + c.k + '" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#8f1d12"/></marker></defs>';
-  // tramo
-  s += '<polyline points="' + pts.map(p=>F3(X(p.x)) + ',' + F3(Y(p.y))).join(' ') + '" fill="none" stroke="#1b1f24" stroke-width="3.2" stroke-linecap="round"/>';
-  // nombres de los extremos
-  const nomT = d.T && d.T.nombre ? d.T.nombre : '', nomD = d.D && d.D.nombre ? d.D.nombre : '';
-  if(nomT) s += '<text x="' + F3(X(p0.x)+5) + '" y="' + F3(Y(p0.y)-5) + '" font-size="9" font-weight="700" fill="#0b3f3a">' + nomT + '</text>';
-  if(nomD) s += '<text x="' + F3(X(p1.x)+5) + '" y="' + F3(Y(p1.y)+11) + '" font-size="9" font-weight="700" fill="#0b3f3a">' + nomD + '</text>';
-  // resultante en P
-  const Px = X(c.P.x), Py = Y(c.P.y), Lf = 46;
-  s += '<line x1="' + F3(Px - c.dir.x*Lf) + '" y1="' + F3(Py + c.dir.y*Lf) + '" x2="' + F3(Px - c.dir.x*7) + '" y2="' + F3(Py + c.dir.y*7) + '" stroke="#8f1d12" stroke-width="2.2" marker-end="url(#fr' + c.k + ')"/>';
-  s += '<circle cx="' + F3(Px) + '" cy="' + F3(Py) + '" r="2.6" fill="#8f1d12"/>';
-  s += '<text x="' + F3(Px - c.dir.x*(Lf+4)) + '" y="' + F3(Py + c.dir.y*(Lf+4) + (c.dir.y > 0.5 ? 9 : (c.dir.y < -0.5 ? -3 : 3))) + '" font-size="9" font-weight="700" fill="#8f1d12" text-anchor="' + (c.dir.x > 0.3 ? 'end' : (c.dir.x < -0.3 ? 'start' : 'middle')) + '">F<tspan font-size="7" dy="2">' + c.k + '</tspan><tspan dy="-2"> = ' + dec(c.F,'f') + ' ' + unitFor + '</tspan></text>';
-  s += '<text x="' + F3(Px + 6) + '" y="' + F3(Py + 3) + '" font-size="8.5" font-style="italic" fill="#8f1d12">P</text>';
-  // cota z_P
-  const lado = (c.z === 1) ? -1 : 1;
-  const xc = (lado < 0) ? m*0.55 : W2 - m*0.55;
-  s += '<line x1="' + F3(xc) + '" y1="' + F3(Y(niv)) + '" x2="' + F3(xc) + '" y2="' + F3(Py) + '" stroke="#1b1f24" stroke-width=".9"/>';
-  s += '<line x1="' + F3(Px) + '" y1="' + F3(Py) + '" x2="' + F3(xc) + '" y2="' + F3(Py) + '" stroke="#1b1f24" stroke-width=".6" stroke-dasharray="2,2"/>';
-  [Y(niv), Py].forEach(yy=>{ s += '<line x1="' + F3(xc-3) + '" y1="' + F3(yy+3) + '" x2="' + F3(xc+3) + '" y2="' + F3(yy-3) + '" stroke="#1b1f24" stroke-width=".9"/>'; });
-  s += '<text x="' + F3(xc + lado*(-4)) + '" y="' + F3((Y(niv)+Py)/2 + 3) + '" font-size="8.5" font-weight="600" fill="#1b1f24" text-anchor="' + (lado<0 ? 'start' : 'end') + '">z<tspan font-size="6.5" dy="2">P</tspan><tspan dy="-2"> = ' + dec(c.zP,'len') + ' ' + unitLen + '</tspan></text>';
-  s += '</svg>';
-  return s;
-}
 
 // ── Leyenda de los tramos (2026-10-03): el lienzo acota solo las proyecciones
 //    Δx y Δy; la longitud real de cada tramo (y el radio de un arco) va aquí,
@@ -227,7 +162,8 @@ function resultanteUnicaHtml(r){
   }
   if(ru.zR !== null) h += fila('z_R = ' + nl(ru.zR) + '\\ \\text{' + uL + '}\\ \\text{bajo la superficie libre}');
   h += '</div>';
-  return h;
+  // el esquema de todo el conjunto, con R acotada donde actúa (2026-10-04)
+  return '<div class="fig-card"><div class="fig-card-datos">' + h + '</div><div class="fig-card-dib" style="flex-basis:340px">' + esquemaResultanteSVG(r, false) + '</div></div>';
 }
 
 function renderResultados(r){
@@ -279,43 +215,31 @@ function renderResultados(r){
     if(!d){
       h += '<div class="hint-sm">Resultante por integración: ' + kx('F = ' + f(c.F)) + ' ' + uF + '.</div>';
     } else if(d.tipo === 'recto'){
+      // fórmula y resultado (2026-10-04); la sustitución, en el informe
+      const fl = tx => '<div class="eq-row"><div class="eq-body">' + kx(tx) + '</div></div>';
       h += '<div class="proc-block" style="padding:9px 12px">';
       d.bandas.forEach((bd,i)=>{
-        const pre = d.bandas.length > 1 ? '<div class="proc-sub">Capa ' + (i+1) + ' (γ = ' + f(bd.g) + ')</div>' : '';
-        h += pre;
-        if(bd.Fr > 1e-12)
-          h += '<div class="eq-row"><div class="eq-body">' + kx('F_{\\square} = b\\,L\\,p_{\\min} = ' + nl(c.b) + '\\,(' + nl(bd.l) + ')(' + f(Math.min(bd.p0,bd.p1)) + ') = ' + f(bd.Fr) + '\\ \\text{' + uF + '}\\quad\\text{a}\\ L/2 = ' + nl(bd.sR)) + '</div></div>';
-        if(bd.Ft > 1e-12)
-          h += '<div class="eq-row"><div class="eq-body">' + kx('F_{\\triangle} = \\tfrac12\\,b\\,L\\,(p_{\\max}-p_{\\min}) = \\tfrac12\\,' + nl(c.b) + '\\,(' + nl(bd.l) + ')(' + f(Math.abs(bd.p1-bd.p0)) + ') = ' + f(bd.Ft) + '\\ \\text{' + uF + '}\\quad\\text{a}\\ ' + (bd.p1 >= bd.p0 ? '2L/3' : 'L/3') + ' = ' + nl(bd.sT)) + '</div></div>';
+        if(d.bandas.length > 1) h += '<div class="proc-sub">Capa ' + (i+1) + ' (γ = ' + f(bd.g) + ')</div>';
+        if(bd.Fr > 1e-12) h += fl('F_{\\square} = b\\,L\\,p_{\\min} = ' + f(bd.Fr) + '\\ \\text{' + uF + '}\\qquad s = ' + nl(bd.s0 + bd.sR) + '\\ \\text{' + uL + '}');
+        if(bd.Ft > 1e-12) h += fl('F_{\\triangle} = \\tfrac12\\,b\\,L\\,(p_{\\max}-p_{\\min}) = ' + f(bd.Ft) + '\\ \\text{' + uF + '}\\qquad s = ' + nl(bd.s0 + bd.sT) + '\\ \\text{' + uL + '}');
       });
-      const sumaF = d.bandas.map(bd=>f(bd.F)).join(' + ');
-      h += '<div class="eq-row"><div class="eq-body">' + kx(c.nombre + ' = ' + (d.bandas.length > 1 ? sumaF : d.bandas.map(bd=>(bd.Fr>1e-12?f(bd.Fr):'') + (bd.Fr>1e-12&&bd.Ft>1e-12?' + ':'') + (bd.Ft>1e-12?f(bd.Ft):'')).join('')) + ' = ' + f(d.F) + '\\ \\text{' + uF + '}') + '</div></div>';
-      // centro de presión por momentos desde el extremo menos profundo
-      const terms = [];
-      d.bandas.forEach(bd=>{ if(bd.Fr>1e-12) terms.push(f(bd.Fr) + '(' + nl(bd.s0 + bd.sR) + ')'); if(bd.Ft>1e-12) terms.push(f(bd.Ft) + '(' + nl(bd.s0 + bd.sT) + ')'); });
-      h += '<div class="eq-row"><div class="eq-body">' + kx('s_P = \\dfrac{\\sum F_i s_i}{' + c.nombre + '} = \\dfrac{' + terms.join(' + ') + '}{' + f(d.F) + '} = ' + nl(d.sP) + '\\ \\text{' + uL + '}') + '</div></div>'
-        + '<div class="hint-sm">' + kx('s_P') + ' desde ' + (d.T.nombre ? d.T.nombre : 'la superficie libre') + '.</div>'
-        + (d.gzA ? '<div class="eq-row"><div class="eq-body">' + kx('\\gamma\\,\\bar z\\,A = ' + f(d.gzA.g) + '\\,(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F) + '\\ \\text{' + uF + '}\\quad\\checkmark') + '</div></div>' : '');
-      h += '</div>';
+      h += fl(c.nombre + ' = \\sum F_i = ' + f(d.F) + '\\ \\text{' + uF + '}' + (d.gzA ? '\\qquad \\gamma\\,\\bar z\\,A = ' + f(d.gzA.F) + '\\ \\checkmark' : ''));
+      h += fl('s_P = \\dfrac{\\sum F_i\\,s_i}{' + c.nombre + '} = ' + nl(d.sP) + '\\ \\text{' + uL + '}\\qquad z_P = ' + nl(c.zP) + '\\ \\text{' + uL + '}');
+      h += '<div class="hint-sm">' + kx('s') + ' sobre el tramo, desde ' + (d.T.nombre ? d.T.nombre : 'la superficie libre') + '.</div></div>';
     } else {
+      const fl = tx => '<div class="eq-row"><div class="eq-body">' + kx(tx) + '</div></div>';
       h += '<div class="proc-block" style="padding:9px 12px">';
-      h += '<div class="proc-sub">Componente horizontal (proyección vertical, ' + nl(d.yTop - d.yBot) + ' ' + uL + ')</div>';
       d.bandasH.forEach((bd,i)=>{
-        if(bd.Fr > 1e-12) h += '<div class="eq-row"><div class="eq-body">' + kx('F_{h\\square} = b\\,h\\,p_{\\text{sup}} = ' + nl(c.b) + '(' + nl(bd.h) + ')(' + f(bd.p0) + ') = ' + f(bd.Fr)) + '</div></div>';
-        if(bd.Ft > 1e-12) h += '<div class="eq-row"><div class="eq-body">' + kx('F_{h\\triangle} = \\tfrac12\\,b\\,h\\,(p_{\\text{inf}}-p_{\\text{sup}}) = \\tfrac12\\,' + nl(c.b) + '(' + nl(bd.h) + ')(' + f(bd.p1-bd.p0) + ') = ' + f(bd.Ft)) + '</div></div>';
+        if(d.bandasH.length > 1) h += '<div class="proc-sub">Capa ' + (i+1) + '</div>';
+        if(bd.Fr > 1e-12) h += fl('F_{h\\square} = b\\,h\\,p_{\\text{sup}} = ' + f(bd.Fr) + '\\ \\text{' + uF + '}');
+        if(bd.Ft > 1e-12) h += fl('F_{h\\triangle} = \\tfrac12\\,b\\,h\\,(p_{\\text{inf}}-p_{\\text{sup}}) = ' + f(bd.Ft) + '\\ \\text{' + uF + '}');
       });
-      h += '<div class="eq-row"><div class="eq-body">' + kx('F_h = ' + f(Math.abs(d.Fh)) + '\\ \\text{' + uF + '}\\ (\\text{hacia la ' + d.sentidoH + '})') + '</div></div>';
-      h += '<div class="proc-sub" style="margin-top:6px">Componente vertical (peso del bloque de líquido sobre la placa)</div>';
-      if(d.segmento){
-        h += '<div class="eq-row"><div class="eq-body">' + kx('A_{\\text{bloque}} = A_{\\text{trapecio}} ' + (d.segmento.haciaArriba ? '-' : '+') + ' A_{\\text{segmento}} = ' + nl(d.segmento.Atrap) + (d.segmento.haciaArriba ? ' - ' : ' + ') + nl(d.segmento.Aseg) + ' = ' + nl(d.segmento.A) + '\\ \\text{' + uL + '}^2') + '</div></div>'
-          + '<div class="hint-sm">Segmento circular: ' + kx('A = \\tfrac{R^2}{2}(\\varphi - \\sin\\varphi)') + ' con ' + kx('R = ' + nl(d.arc.R)) + ' ' + uL + ' y ' + kx('\\varphi = ' + dec(d.segmento.phi*180/Math.PI,'ang') + '^\\circ') + '.</div>';
-      }
-      h += '<div class="eq-row"><div class="eq-body">' + kx('F_v = b\\sum\\gamma_i A_i = ' + nl(c.b) + '\\,(' + d.areas.filter(a=>a.A>1e-12).map(a=>f(a.g) + '\\cdot' + nl(a.A)).join(' + ') + ') = ' + f(Math.abs(d.FvBloque)) + '\\ \\text{' + uF + '}\\ (\\text{hacia ' + d.sentidoV + '})') + '</div></div>';
-      h += '<div class="eq-row"><div class="eq-body">' + kx(c.nombre + ' = \\sqrt{F_h^2 + F_v^2} = \\sqrt{' + f(Math.abs(d.Fh)) + '^2 + ' + f(Math.abs(d.Fv)) + '^2} = ' + f(d.F) + '\\ \\text{' + uF + '}\\qquad \\theta = ' + dec(d.theta,'ang') + '^\\circ') + '</div></div>';
-      h += '<div class="eq-row"><div class="eq-body">' + kx('O_c = (' + nl(d.arc.cx) + ';\\ ' + nl(d.arc.cy) + ')\\qquad z_P = ' + nl(d.zP) + '\\ \\text{' + uL + '}') + '</div></div>';
-      h += '</div>';
+      h += fl('F_h = \\sum F_{h,i} = ' + f(Math.abs(d.Fh)) + '\\ \\text{' + uF + '}\\ (\\text{hacia la ' + d.sentidoH + '})');
+      h += fl('F_v = b\\sum\\gamma_i A_i = ' + f(Math.abs(d.FvBloque)) + '\\ \\text{' + uF + '}\\ (\\text{hacia ' + d.sentidoV + '})');
+      h += fl(c.nombre + ' = \\sqrt{F_h^2 + F_v^2} = ' + f(d.F) + '\\ \\text{' + uF + '}\\qquad \\theta = ' + dec(d.theta,'ang') + '^\\circ\\qquad z_P = ' + nl(d.zP) + '\\ \\text{' + uL + '}');
+      h += '<div class="hint-sm">' + kx('F_h') + ' sobre la proyección vertical; ' + kx('F_v') + ', peso del bloque de líquido sobre la placa; ' + kx(c.nombre) + ' pasa por el centro del arco.</div></div>';
     }
-    h += '</div><div class="fig-card-dib">' + (d ? croquisCarga(c, d) : '') + '</div></div>';
+    h += '</div><div class="fig-card-dib" style="flex-basis:290px">' + (d ? esquemaCargaSVG(c, d) : '') + '</div></div>';
   });
   // tabla resumen (R4)
   let SX=0, SY=0;
