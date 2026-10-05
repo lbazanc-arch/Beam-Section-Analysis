@@ -206,8 +206,8 @@ function applyTransformar(){
 // hacia arriba). Si el vector cae justo en uno de los dos ejes del modelo
 // —(0, −1) es la 'y' positiva y (1, 0) la 'x' positiva— vuelve a esa dirección,
 // que es como la escribiría el alumno. `c.ang` es el ángulo INTERNO (desde +x,
-// antihorario, hacia donde apunta); el de la ventana lo sigue dando
-// `bsaAnguloOpuesto` al abrirla.
+// antihorario, hacia donde apunta), el mismo que escribe el alumno desde el
+// 2026-10-04.
 function girarDireccionCarga(c, grados){
   const v = girarVector(dirCarga(c, null), grados);
   direccionDesdeVector(c, v.x, v.y);

@@ -101,6 +101,7 @@ function txtDCL(fx, x, y, txt, col, tam, peso, anchor, ital, dirX, dirY){
   return '';
 }
 
+const DCL_ALTO_MAX = 440;
 function svgDCL(r, ti, sub){
   _dclCajas = [];
   _dclW = 0; _dclH = 0;        // se fijan en cuanto se conoce el viewBox
@@ -130,29 +131,49 @@ function svgDCL(r, ti, sub){
   };
   const _reservarArco = (cx,cy,rr)=>_reservar(cx-rr-3, cy-rr-3, cx+rr+3, cy+rr+3);
   const t = r.internas[ti];
-  const sCut = sub.sa + 0.62*(sub.sb - sub.sa);
+  // Dónde se dibuja el corte genérico: al 62 % del subtramo, pero a no menos de
+  // ~72 px de su inicio (y como mucho al 90 %). En un subtramo corto, al 62 % los
+  // arcos de M del corte y del nudo anterior se pisaban con sus rótulos
+  // (2026-10-04). La escala se estima como más abajo, con el corte en el final.
+  let fCut = 0.62;
+  {
+    const sC = cadenaDe(r, t), iC = (t.idx !== undefined) ? t.idx : ti;
+    let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
+    const m = p => { x0=Math.min(x0,p.x); x1=Math.max(x1,p.x); y0=Math.min(y0,p.y); y1=Math.max(y1,p.y); };
+    for(let k2=0;k2<=iC;k2++) m(sC[k2].desde);
+    m({x:t.desde.x + t.ux*sub.sb, y:t.desde.y + t.uy*sub.sb});
+    const sx = Math.max(x1-x0, 1e-6), sy = Math.max(y1-y0, 0);
+    let k0 = (540-2*64)/sx;
+    if(sy > 1e-9) k0 = Math.min(k0, (DCL_ALTO_MAX-88-108)/sy);
+    const h = (sub.sb - sub.sa)*k0;
+    if(h > 1e-9) fCut = Math.max(0.62, Math.min(0.9, 72/h));
+  }
+  const sCut = sub.sa + fCut*(sub.sb - sub.sa);
   const P = {x:t.desde.x + t.ux*sCut, y:t.desde.y + t.uy*sCut};
   const sCutG = t.s0 + sCut;
 
+  // Solo la cadena del tramo (01-): una rama que cuelga de ella llega como la
+  // acción que transmite en su nudo de unión.
+  const segsC = cadenaDe(r, t), tiC = (t.idx !== undefined) ? t.idx : ti, cadC = cadDe(r, t);
   const cadPts = [];
-  for(let k2=0;k2<=ti;k2++) cadPts.push({x:r.internas[k2].desde.x, y:r.internas[k2].desde.y,
-                                         nom:r.internas[k2].desde.nombre});
+  for(let k2=0;k2<=tiC;k2++) cadPts.push({x:segsC[k2].desde.x, y:segsC[k2].desde.y,
+                                         nom:segsC[k2].desde.nombre});
   const nodosInc = cadPts.slice();
   cadPts.push({x:P.x, y:P.y});
 
-  const acciones = (r.internas.puntuales||[]).filter(o=>o.s!==null && o.s < sCutG - 1e-9);
+  const acciones = puntualesDe(r, t).filter(o=>o.s!==null && o.s < sCutG - 1e-9);
 
   const distr = [];
   cargas.filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
-    const pos = r.cad.findIndex(z=>z.t.id===c.tramo);
-    if(pos < 0 || pos > ti) return;
+    const pos = cadC.findIndex(z=>z.t.id===c.tramo);
+    if(pos < 0 || pos > tiC) return;
     const z = trozoCargado(c);
     if(!z || z.len <= 1e-12) return;
-    const el = r.internas[pos];
-    const inv = (r.cad[pos].desde.id !== z.g.a.id);
+    const el = segsC[pos];
+    const inv = (cadC[pos].desde.id !== z.g.a.id);
     const r1 = inv ? (z.g.L - z.s2) : z.s1;
     const r2 = inv ? (z.g.L - z.s1) : z.s2;
-    const hasta = (pos < ti) ? el.L : sCut;
+    const hasta = (pos < tiC) ? el.L : sCut;
     const corte = Math.min(r2, hasta);
     if(corte <= r1 + 1e-12) return;
     const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
@@ -173,7 +194,9 @@ function svgDCL(r, ti, sub){
   const span = Math.max(maxx-minx, 1e-6), spanY = Math.max(maxy-miny, 0);
   const W2=540, MX=64, MTOP=88, MBOT=108;   // sitio para las cotas escalonadas
   let kk = (W2-2*MX)/span;
-  const H2 = Math.max(200, Math.min(320, MTOP+MBOT+spanY*kk));
+  // Alto máximo 440 (antes 320): en un pórtico alto la escala la fijaba la
+  // altura y los tramos horizontales cortos quedaban en pocos píxeles.
+  const H2 = Math.max(200, Math.min(DCL_ALTO_MAX, MTOP+MBOT+spanY*kk));
   _dclW = W2; _dclH = H2;   // límites para que ningún rótulo se salga
   if(spanY > 1e-9) kk = Math.min(kk, (H2-MTOP-MBOT)/spanY);
   const cx0 = (W2-2*MX-span*kk)/2;
@@ -283,18 +306,19 @@ function svgDCL(r, ti, sub){
   // ── acciones puntuales
   acciones.forEach(o=>{
     const a=o.a, X=SX(a.x), Y=SY(a.y);
-    const col = a.reac ? '#1a7f37' : (Math.abs(a.fx)+Math.abs(a.fy) < 1e-12 ? '#8b5cf6' : '#c62828');
+    const col = a.reac ? '#1a7f37' : a.rama ? COL_RAMA
+              : (Math.abs(a.fx)+Math.abs(a.fy) < 1e-12 ? '#8b5cf6' : '#c62828');
     const Fm = Math.hypot(a.fx, a.fy);
     if(Fm > 1e-12){
       const ex=a.fx/Fm, ey=-a.fy/Fm;    // dirección de la fuerza en pantalla
       sv += flecha(X-ex*AL, Y-ey*AL, X-ex*4, Y-ey*4, col, 2.2);
       _reservarTrazo(X-ex*AL, Y-ey*AL, X-ex*4, Y-ey*4, 5);
-      sv += txtDCL(texto, X-ex*(AL+8), Y-ey*(AL+8)+3, dec(Fm,'f'), col, 10, 800, 'middle', false, -ex, -ey);
+      sv += txtDCL(texto, X-ex*(AL+8), Y-ey*(AL+8)+3, (a.rama ? 'F'+a.rama.nombre+' = ' : '') + dec(Fm,'f'), col, 10, 800, 'middle', false, -ex, -ey);
     }
     if(Math.abs(a.m) > 1e-12){
       sv += arcoM(X, Y, 15, col, a.m < 0);
       _reservarArco(X, Y, 15);
-      sv += txtDCL(texto, X+24, Y-18, dec(Math.abs(a.m),'mom'), col, 10, 800, undefined, false, 1, -1);
+      sv += txtDCL(texto, X+24, Y-18, (a.rama ? 'M'+a.rama.nombre+' = ' : '') + dec(Math.abs(a.m),'mom'), col, 10, 800, undefined, false, 1, -1);
     }
   });
 
@@ -344,7 +368,7 @@ function svgDCL(r, ti, sub){
     if(rr > 1e-6 && rr < _rCut - 1e-6) _marcas.push(rr);
   });
   distr.forEach(d=>{
-    if(d.pos !== ti) return;        // solo las cargas de ESTE tramo
+    if(d.pos !== tiC) return;        // solo las cargas de ESTE tramo
     [d.a, d.b].forEach(pt=>{
       const rr = Math.hypot(pt.x - orig.x, pt.y - orig.y);
       if(rr > 1e-6 && rr < _rCut - 1e-6) _marcas.push(rr);

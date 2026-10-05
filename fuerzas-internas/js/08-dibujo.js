@@ -1143,12 +1143,15 @@ function dibujarCarga(c){
   }
   if(c.tipo==='P' || c.tipo==='PX'){
     // Una sola flecha para cualquier dirección: vertical, horizontal,
-    // perpendicular al tramo o axial. El signo decide el sentido (negativo =
-    // contrario al positivo de esa dirección).
+    // perpendicular al tramo, axial o inclinada. La flecha ocupa SIEMPRE el
+    // sitio de la magnitud positiva —llega al punto desde el lado contrario a
+    // su dirección— y el signo solo invierte la punta: con magnitud negativa
+    // sale del punto (2026-10-04, decisión del profesor; antes saltaba al otro
+    // lado del punto y podía caer encima de un tramo o de otra carga).
     const d = dirCarga(c, g);
-    const sg = (c.mag < 0) ? -1 : 1;
+    const neg = (c.mag < 0);
     // en pantalla el eje y crece hacia abajo, así que se invierte
-    const vx = d.x*sg, vy = -d.y*sg;
+    const vx = d.x, vy = -d.y;
     // Una fuerza paralela a la barra actúa SOBRE la barra y ahí se dibuja;
     // para que no se pierda contra el eje lleva un halo blanco que la recorta
     // y su valor va al costado de la flecha, no en la cola.
@@ -1171,8 +1174,11 @@ function dibujarCarga(c){
     }
     ctx.strokeStyle='#d94f5c'; ctx.fillStyle='#d94f5c'; ctx.lineWidth=2.6;
     ctx.beginPath(); ctx.moveTo(qx,qy); ctx.lineTo(ex,ey); ctx.stroke();
-    const ang = Math.atan2(vy, vx);
-    ctx.save(); ctx.translate(px - vx*3, py - vy*3); ctx.rotate(ang);
+    // Punta: en el punto si la magnitud es positiva; en la cola, mirando hacia
+    // fuera, si es negativa.
+    ctx.save();
+    if(neg){ ctx.translate(qx, qy); ctx.rotate(Math.atan2(-vy, -vx)); }
+    else   { ctx.translate(px - vx*3, py - vy*3); ctx.rotate(Math.atan2(vy, vx)); }
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-11,-5); ctx.lineTo(-11,5);
     ctx.closePath(); ctx.fill(); ctx.restore();
     _ocFlecha(qx, qy, px - vx*2, py - vy*2, 3.4, 'carga');

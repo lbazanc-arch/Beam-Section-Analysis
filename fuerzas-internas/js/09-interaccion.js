@@ -66,9 +66,10 @@ function distanciaACarga(c, mx, my){
   // Puntual en cualquier dirección: distancia al TRAZO de la flecha, que nace
   // a 50 px del punto en sentido contrario a la carga; se alarga 10 px más
   // para cubrir el rótulo del valor, que va tras la cola.
+  // La flecha está siempre del lado de la magnitud positiva (08-): el signo
+  // solo cambia la punta.
   const dir = dirCarga(c, g);
-  const sg = (c.mag < 0) ? -1 : 1;
-  const vx = dir.x*sg, vy = -dir.y*sg;             // y de pantalla hacia abajo
+  const vx = dir.x, vy = -dir.y;                   // y de pantalla hacia abajo
   const largo = COLA_FLECHA_PX + 10;
   const d = distanciaASegmento(mx, my, px - vx*largo, py - vy*largo, px, py);
   return (d <= TOL_FLECHA_PX) ? d : Infinity;
@@ -123,8 +124,8 @@ function nodoEn(mx,my){
     if(Math.hypot(px-mx,py-my)<14) return n; }
   return null;
 }
-function tramoEn(mx,my){
-  let mejor=null, dm=12;
+function tramoEn(mx,my,tol){
+  let mejor=null, dm=(tol===undefined) ? 12 : tol;
   for(const t of tramos){
     const g=geoTramo(t); if(!g) continue;
     const [ax,ay]=aPantalla(g.a.x,g.a.y), [bx,by]=aPantalla(g.b.x,g.b.y);
@@ -134,6 +135,23 @@ function tramoEn(mx,my){
     if(d<dm){ dm=d; mejor=t; }
   }
   return mejor;
+}
+// Qué elemento hay bajo el cursor para Mover / editar, Eliminar y el doble clic
+// (2026-10-04). Orden: el nudo; el tramo si se toca SU LÍNEA (a ≤ 5 px); la
+// carga; y por último el tramo con su tolerancia normal. Sin el segundo paso,
+// el bloque de una carga repartida —cuyo borde inferior es la propia línea del
+// tramo— tapaba el tramo entero: no se podía seleccionar, arrastrar ni borrar
+// tocándolo, y el primer toque de Eliminar se llevaba la carga.
+const TOL_LINEA_TRAMO_PX = 5;
+function elementoEn(mx,my){
+  const n = nodoEn(mx,my);
+  if(n) return {tipo:'nodo', id:n.id};
+  const tl = tramoEn(mx,my,TOL_LINEA_TRAMO_PX);
+  if(tl) return {tipo:'tramo', id:tl.id};
+  const c = cargaEn(mx,my);
+  if(c) return {tipo:'carga', id:c.id};
+  const t = tramoEn(mx,my);
+  return t ? {tipo:'tramo', id:t.id} : null;
 }
 function addNodo(x,y){
   const n={id:++nodoSeq, x:snap(x), y:snap(y), nombre:'', apoyo:'libre', rotula:false};
@@ -204,16 +222,10 @@ function onDown(e){
     // algo que se va a eliminar), un arrastre rápido en vacío (paneo
     // temporal) o uno sostenido en vacío (recuadro múltiple). Se resuelve en
     // onMove/onUp.
-    let hit = null;
-    if(n) hit = {tipo:'nodo', id:n.id};
-    else {
-      const c = cargaEn(mx,my);
-      if(c) hit = {tipo:'carga', id:c.id};
-      else {
-        const t = tramoEn(mx,my);
-        if(t) hit = {tipo:'tramo', id:t.id};
-      }
-    }
+    // En modo borrar, el segundo clic de un doble clic no hace nada: borraba
+    // lo que quedaba debajo de lo recién borrado (la carga y luego su tramo).
+    if(tool==='borrar' && e.detail >= 2) return;
+    const hit = elementoEn(mx,my);
     gesto = { modo:tool, hit, x0:mx, y0:my, wx0:wx, wy0:wy, moved:false, mantenido:false };
     if(!hit) armarEsperaDeRecuadro(gesto);
     return;
@@ -315,7 +327,7 @@ function onUp(){
         }
       } else if(gesto.tipo==='rubber-borrar'){
         const r = elementosEnRecuadro(gesto.x0, gesto.y0, gesto.x1, gesto.y1);
-        bN = r.ns; bT = r.ts;
+        bN = r.ns; bT = r.ts; bC = r.cs;
       }
       ocultarRecuadroSeleccion();
       if(bN.length || bT.length || bC.length){
@@ -393,7 +405,8 @@ function ocultarRecuadroSeleccion(){
 }
 // Nudos y tramos que caen dentro del recuadro (coords de pantalla). Un tramo
 // cuenta si sus DOS nudos quedan dentro (evita ambigüedad con tramos que
-// solo lo atraviesan). Las cargas no participan del recuadro por ahora.
+// solo lo atraviesan). Las cargas (`cs`) cuentan si el recuadro encierra lo
+// que se ve de ellas (`partesDeCarga`); solo las usa el recuadro de borrado.
 function elementosEnRecuadro(x0,y0,x1,y1){
   const rx0=Math.min(x0,x1), rx1=Math.max(x0,x1);
   const ry0=Math.min(y0,y1), ry1=Math.max(y0,y1);
@@ -403,7 +416,49 @@ function elementosEnRecuadro(x0,y0,x1,y1){
     const [ax,ay]=aPantalla(nodo(t.a).x,nodo(t.a).y), [bx,by]=aPantalla(nodo(t.b).x,nodo(t.b).y);
     return dentro(ax,ay) && dentro(bx,by);
   }).map(t=>t.id);
-  return {ns, ts};
+  const cs = VIS.cargas ? cargas.filter(c=>
+    partesDeCarga(c).some(pts=>pts.every(([px,py])=>dentro(px,py)))).map(c=>c.id) : [];
+  return {ns, ts, cs};
+}
+// Grupos de puntos de pantalla de una carga: el recuadro la encierra si contiene
+// TODOS los puntos de alguno de ellos. Puntual: su punta (el punto de
+// aplicación) o el centro de la flecha, para que valga tanto un recuadro sobre
+// el punto como uno que rodee solo la flecha. Par: su centro. Repartida: los
+// dos extremos del trozo cargado o el centro del bloque. Calca `distanciaACarga`.
+function partesDeCarga(c){
+  const enNudo = (c.destino === 'nudo');
+  let g = null, px = 0, py = 0;
+  if(enNudo){
+    const nn = nodo(c.nudo); if(!nn) return [];
+    g = geoDeCarga(c);
+    [px,py] = aPantalla(nn.x, nn.y);
+  } else {
+    const t = tramos.find(z=>z.id===c.tramo); g = t && geoTramo(t);
+    if(!g) return [];
+  }
+  if(c.tipo==='U' || c.tipo==='T'){
+    if(enNudo) return [];
+    const z = trozoCargado(c);
+    if(!z || z.len <= 1e-12) return [];
+    const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
+    const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9);
+    const h1 = 34*w1/wm, h2 = 34*w2/wm;
+    const a = aPantalla(g.a.x+g.ux*z.s1, g.a.y+g.uy*z.s1);
+    const b = aPantalla(g.a.x+g.ux*z.s2, g.a.y+g.uy*z.s2);
+    const d = dirCarga(c, g), ex = -d.x, ey = d.y;
+    // El centro del bloque: una repartida a lo largo de todo el tramo no se
+    // puede encerrar entera sin encerrar también sus nudos.
+    const cx = (a[0]+b[0])/2 + ex*(h1+h2)/4, cy = (a[1]+b[1])/2 + ey*(h1+h2)/4;
+    return [[a, b], [[cx, cy]]];
+  }
+  if(!enNudo){
+    const s = Math.max(0, Math.min(g.L, sDesdePos(c, g, c.pos)));
+    [px,py] = aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
+  }
+  if(c.tipo==='M') return [[[px,py]]];
+  const dir = dirCarga(c, g);
+  const vx = dir.x, vy = -dir.y, m = COLA_FLECHA_PX/2;
+  return [[[px,py]], [[px - vx*m, py - vy*m]]];
 }
 
 // ── Estado del puente táctil (criterio cap6/cap9) ──────────────────────────
@@ -488,9 +543,10 @@ document.addEventListener('keydown', e=>{
 // Doble clic o doble toque (el puente táctil de 18- llama aquí).
 // · Herramienta «Cargas»: gana la CARGA bajo el cursor, aunque esté sobre su
 //   nudo, y se edita; sin carga debajo, se hace UNA vez lo que el toque simple.
-// · Cualquier otra herramienta: edita solo el nudo o el tramo, NUNCA una carga
-//   (competían con ellos; decisión del profesor, 2026-09-14). Las cargas se
-//   editan con la herramienta «Cargas» o con el ✎ del panel de elementos.
+// · Cualquier otra herramienta: edita lo que dé `elementoEn` —nudo, carga o
+//   tramo—. Del 2026-09-14 al 2026-10-04 las cargas no se editaban aquí porque
+//   el bloque de una repartida tapaba su tramo; desde que la línea del tramo
+//   tiene prioridad (`elementoEn`) ya no compiten (decisión del profesor).
 function onDbl(e){
   const r=cv.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
@@ -503,10 +559,14 @@ function onDbl(e){
     ejecutarToqueCarga(p || {tipo:tipoCargaPendiente, destino:destinoDeToqueCarga(mx, my)});
     return;
   }
-  const n=nodoEn(mx,my);
-  if(n){ abrirNudo(n.id); return; }
-  const t=tramoEn(mx,my);
-  if(t) abrirTramo(t.id);
+  // En modo borrar el doble toque (puente táctil) no abre ventanas: el primer
+  // toque ya borró, y lo que quede debajo no se edita sin pedirlo.
+  if(tool==='borrar') return;
+  const h=elementoEn(mx,my);
+  if(!h) return;
+  if(h.tipo==='nodo') abrirNudo(h.id);
+  else if(h.tipo==='carga') editarCarga(h.id);
+  else abrirTramo(h.id);
 }
 
 function setTool(t){
@@ -710,11 +770,11 @@ function aplicarTramo(){
       const rad=A*Math.PI/180;
       const nx=g.a.x+L*Math.cos(rad), ny=g.a.y+L*Math.sin(rad);
       const ddx=nx-g.b.x, ddy=ny-g.b.y;
-      // se arrastra el resto de la cadena para no romper la continuidad
-      const cad=cadena();
-      const idx=cad.findIndex(e=>e.t.id===t.id);
+      // Se arrastra todo lo que cuelga del nudo final (sin cruzar el tramo):
+      // el resto de la cadena y sus ramas, para no romper la continuidad.
+      const arrastre=nudosMasAlla(t, g.b.id);
       g.b.x=nx; g.b.y=ny;
-      if(idx>=0) for(let i=idx+1;i<cad.length;i++){ cad[i].hasta.x+=ddx; cad[i].hasta.y+=ddy; }
+      nodos.forEach(n=>{ if(n.id!==g.b.id && arrastre.has(n.id)){ n.x+=ddx; n.y+=ddy; } });
       invalidarResultados();
     }
   }

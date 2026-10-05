@@ -113,7 +113,7 @@ function iconoSentido(c){
 function nombreDireccion(c){
   const d = dirDeCarga(c);
   const nom = (DIR_CARGA[d] || {}).nom || '';
-  return (d === 'ang') ? (nom + ' ' + dec(bsaAnguloOpuesto(c.ang, true),'ang') + '°') : nom;
+  return (d === 'ang') ? (nom + ' ' + dec(angulo360(c.ang),'ang') + '°') : nom;
 }
 
 function htmlArbolCargas(){
@@ -192,9 +192,11 @@ function editTramo(id,campo,v){
   // el redondeo de cos y sen): no hay cambio.
   if(Math.hypot(ddx,ddy) <= 1e-9*Math.max(1, g.L)){ refrescar(); return; }
   registrarCambio();
-  const cad=cadena(); const idx=cad.findIndex(e=>e.t.id===t.id);
+  // Se arrastra todo lo que cuelga del nudo final (sin cruzar el tramo): el
+  // resto de la cadena y sus ramas, para no romper la continuidad.
+  const arrastre=nudosMasAlla(t, g.b.id);
   g.b.x=nx; g.b.y=ny;
-  if(idx>=0) for(let i=idx+1;i<cad.length;i++){ cad[i].hasta.x+=ddx; cad[i].hasta.y+=ddy; }
+  nodos.forEach(n=>{ if(n.id!==g.b.id && arrastre.has(n.id)){ n.x+=ddx; n.y+=ddy; } });
   invalidarResultados(); centrar(); refrescar();
 }
 function editApoyo(id,v){

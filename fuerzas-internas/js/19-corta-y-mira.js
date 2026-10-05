@@ -27,7 +27,8 @@ function abrirCorteEn(t, mx, my){
   const cuerpo = document.getElementById('corteCuerpo');
   const info = datosCorte(R, ti, s);
   if(sub) sub.innerHTML = 'Sección a <b>' + dec(s,'len') + ' ' + unitLen + '</b> de ' + ti.desde.nombre
-    + ' sobre el tramo ' + ti.desde.nombre + ti.hasta.nombre + ' (abscisa global ' + dec(ti.s0 + s,'len') + ' ' + unitLen + '). '
+    + ' sobre el tramo ' + ti.desde.nombre + ti.hasta.nombre
+    + (ti.cadena ? '. ' : ' (abscisa global ' + dec(ti.s0 + s,'len') + ' ' + unitLen + '). ')
     + 'Se conserva el trozo a la izquierda del corte y en la cara cortada se ponen N, V y M en el sentido positivo del convenio; '
     + 'el signo del valor dice el sentido real.';
   if(cuerpo) cuerpo.innerHTML = svgDCLCorte(R, ti, s, info) + htmlEcuacionesCorte(info);
@@ -46,17 +47,20 @@ function datosCorte(r, ti, s){
   const sub = ti.subs.find(q=>s >= q.sa - 1e-9 && s <= q.sb + 1e-9) || ti.subs[ti.subs.length-1];
   const N = polyVal(sub.cN, s), V = polyVal(sub.cV, s), M = polyVal(sub.cM, s);
   // acciones puntuales (cargas, pares y reacciones) antes del corte
-  const puntuales = (r.internas.puntuales || []).filter(o=>o.s !== null && o.s < sGlobal - 1e-9).map(o=>o.a);
+  // Todo dentro de la cadena del tramo (01-): una rama llega como la acción que
+  // transmite en su nudo de unión, que está entre los puntuales.
+  const cadC = cadDe(r, ti);
+  const puntuales = puntualesDe(r, ti).filter(o=>o.s !== null && o.s < sGlobal - 1e-9).map(o=>o.a);
   // cargas repartidas: la parte del trozo cargado que queda antes del corte
-  const posActual = r.cad.findIndex(x=>x.t.id === ti.tramo.id);
+  const posActual = cadC.findIndex(x=>x.t.id === ti.tramo.id);
   const repartidas = [];
   cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
     const z = trozoCargado(c);
     if(!z || z.len <= 1e-12) return;
-    const posTramo = r.cad.findIndex(x=>x.t.id===c.tramo);
+    const posTramo = cadC.findIndex(x=>x.t.id===c.tramo);
     if(posTramo < 0 || posTramo > posActual) return;
     const gc = z.g;
-    const inv = (r.cad[posTramo].desde.id !== gc.a.id);
+    const inv = (cadC[posTramo].desde.id !== gc.a.id);
     let r1 = inv ? (gc.L - z.s2) : z.s1;
     let r2 = inv ? (gc.L - z.s1) : z.s2;
     const hasta = (posTramo < posActual) ? gc.L : s;
@@ -70,7 +74,7 @@ function datosCorte(r, ti, s){
     const trozo = corte - r1;
     const Fp = (wa+wb)/2*trozo;
     const I1 = r1*Fp + trozo*trozo*(wa+2*wb)/6;
-    const origen = r.cad[posTramo].desde;
+    const origen = cadC[posTramo].desde;
     const dirx = inv ? -gc.ux : gc.ux, diry = inv ? -gc.uy : gc.uy;
     const dd = dirCarga(c, gc);
     const uc = (Math.abs(Fp) > 1e-12) ? I1/Fp : (r1 + corte)/2;
@@ -92,9 +96,10 @@ function svgDCLCorte(r, ti, s, info){
   const F1 = n => n.toFixed(1);
   const P = info.P;
   // ámbito: los nudos del trozo, el corte y las cargas
-  const posActual = r.cad.findIndex(x=>x.t.id === ti.tramo.id);
+  const cadC = cadDe(r, ti);
+  const posActual = cadC.findIndex(x=>x.t.id === ti.tramo.id);
   const nudosTrozo = [];
-  r.cad.forEach((e,i)=>{ if(i <= posActual){ if(!nudosTrozo.some(n=>n.id===e.desde.id)) nudosTrozo.push(e.desde); } });
+  cadC.forEach((e,i)=>{ if(i <= posActual){ if(!nudosTrozo.some(n=>n.id===e.desde.id)) nudosTrozo.push(e.desde); } });
   let minx=Infinity, maxx=-Infinity, miny=Infinity, maxy=-Infinity;
   const mete = (x,y)=>{ minx=Math.min(minx,x); maxx=Math.max(maxx,x); miny=Math.min(miny,y); maxy=Math.max(maxy,y); };
   nudosTrozo.forEach(n=>mete(n.x,n.y)); mete(P.x,P.y);
@@ -150,7 +155,7 @@ function svgDCLCorte(r, ti, s, info){
     sv += texto(Rx-ex*50, Ry-ey*50+3, dec(Math.abs(d.Fp),'f'), '#8a6508', 9.5, 700, 'middle', true);
   });
   // barra del trozo
-  r.cad.forEach((e,i)=>{
+  cadC.forEach((e,i)=>{
     if(i > posActual) return;
     const fin = (i === posActual) ? P : e.hasta;
     sv += linea(SX(e.desde.x), SY(e.desde.y), SX(fin.x), SY(fin.y), '#26415e', 4.6);
@@ -169,11 +174,13 @@ function svgDCLCorte(r, ti, s, info){
   info.puntuales.forEach(a=>{
     const X = SX(a.x), Y = SY(a.y);
     const Fm = Math.hypot(a.fx, a.fy);
-    const col = a.reac ? '#1a7f37' : '#c62828';
+    // Lo que transmite una rama (01-) va en naranja y con su nombre.
+    const col = a.reac ? '#1a7f37' : (a.rama ? COL_RAMA : '#c62828');
     if(Fm > 1e-12){
       const ex=a.fx/Fm, ey=-a.fy/Fm;
       sv += flecha(X-ex*38, Y-ey*38, X-ex*5, Y-ey*5, col, 2.2);
-      const nom = a.reac ? (a.inc ? nombreAccion(a).tex.replace(/[{}]/g,'').replace('_','') : 'R') + ' = ' : '';
+      const nom = a.reac ? (a.inc ? nombreAccion(a).tex.replace(/[{}]/g,'').replace('_','') : 'R') + ' = '
+                : (a.rama ? 'F' + a.rama.nombre + ' = ' : '');
       sv += texto(X-ex*50 + (Math.abs(ex)<0.3 ? 16 : 0), Y-ey*50+3, nom + dec(Fm,'f'), col, 10, 800, 'middle');
       // brazo desde el corte: perpendicular de P a la línea de acción
       const dx=a.x-P.x, dy=a.y-P.y, ux2=a.fx/Fm, uy2=a.fy/Fm;
@@ -188,9 +195,9 @@ function svgDCLCorte(r, ti, s, info){
       }
     }
     if(Math.abs(a.m) > 1e-12){
-      const colM = a.reac ? '#1a7f37' : '#8b5cf6';
+      const colM = a.reac ? '#1a7f37' : (a.rama ? COL_RAMA : '#8b5cf6');
       sv += arcoM(X, Y, 15, colM, a.m < 0);
-      sv += texto(X+22, Y-18, (a.reac ? 'M = ' : '') + dec(Math.abs(a.m),'mom'), colM, 10, 800);
+      sv += texto(X+22, Y-18, (a.reac ? 'M = ' : (a.rama ? 'M' + a.rama.nombre + ' = ' : '')) + dec(Math.abs(a.m),'mom'), colM, 10, 800);
     }
   });
   // N, V, M en la cara, en el sentido positivo del convenio

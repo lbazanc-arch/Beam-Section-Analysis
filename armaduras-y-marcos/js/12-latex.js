@@ -777,6 +777,26 @@ function tikzBrazosMomento(O, fuerzas, tx, ty, ext, reg){
     if(reg) reg.caja(x, y, girado ? c.h : c.w, girado ? c.w : c.h, 'rotulo');
     return '\\node[bsaCota' + (girado ? ', rotate=90' : '') + '] at (' + F(x) + ',' + F(y) + ') {' + txt + '};\n';
   };
+  // ¿Se lee cada valor en su cota? Si alguno no cabe en su línea, todas las
+  // cotas se nombran ($d_1$, $d_2$…) y los valores van en una leyenda al costado
+  // del DCL (2026-10-04, petición del profesor). La deja en
+  // `tikzBrazosMomento.leyenda` para que la figura la ponga al final.
+  const cabe = (txt, largo) => _cajaRotuloArm(txt, 'scriptsize', e).w + 0.12/e <= largo;
+  const conLeyenda =
+    xs.some((xv, i)=>!cabe(dec(Math.abs(xv-O.x),'len') + (i === xs.length-1 ? '\\,' + uL : ''), Math.abs(parseFloat(tx(xv)) - x0)))
+    || ys.some(yv=>!cabe(dec(Math.abs(yv-O.y),'len') + '\\,' + uL, Math.abs(parseFloat(ty(yv)) - y0)));
+  const filasLeyenda = [];
+  tikzBrazosMomento.leyenda = '';
+  // En modo leyenda: el nombre en medio si cabe; si no, pasado el extremo.
+  const nombre = (val, xa, ya, xb, yb, girado) => {
+    const k = filasLeyenda.length + 1, nom = '$d_{' + k + '}$';
+    filasLeyenda.push({nom:'d_{' + k + '}', val:dec(val,'len') + '\\,\\text{' + uL + '}'});
+    const w = _cajaRotuloArm(nom, 'scriptsize', e).w;
+    const largo = Math.hypot(xb - xa, yb - ya);
+    if(w + 0.08/e <= largo) return numero(nom, (xa+xb)/2, (ya+yb)/2, girado);
+    return girado ? numero(nom, xa, Math.max(ya, yb) + w/2 + 0.10/e, true)
+                  : numero(nom, Math.max(xa, xb) + w/2 + 0.10/e, ya, false);
+  };
   if(xs.length){
     s += guia(x0, yTop, x0, yBase - (xs.length-1)*0.42/e - 0.14/e);
     xs.forEach((xv, i)=>{
@@ -784,7 +804,8 @@ function tikzBrazosMomento(O, fuerzas, tx, ty, ext, reg){
       s += guia(x1, yTop, x1, yy - 0.14/e);
       s += '\\draw[black!70, line width=0.45pt, <->, >=stealth] (' + F(x0) + ',' + F(yy) + ') -- (' + F(x1) + ',' + F(yy) + ');\n';
       if(reg) reg.seg(x0, yy, x1, yy, 0.02/e, 'cota');
-      s += numero(dec(Math.abs(xv-O.x),'len') + (i === xs.length-1 ? '\\,' + uL : ''), (x0+x1)/2, yy, false);
+      s += conLeyenda ? nombre(Math.abs(xv-O.x), x0, yy, x1, yy, false)
+                      : numero(dec(Math.abs(xv-O.x),'len') + (i === xs.length-1 ? '\\,' + uL : ''), (x0+x1)/2, yy, false);
     });
   }
   if(ys.length){
@@ -799,9 +820,11 @@ function tikzBrazosMomento(O, fuerzas, tx, ty, ext, reg){
       s += guia(xf + sg*0.10/e, y1, xx + sg*0.14/e, y1);
       s += '\\draw[black!70, line width=0.45pt, <->, >=stealth] (' + F(xx) + ',' + F(y0) + ') -- (' + F(xx) + ',' + F(y1) + ');\n';
       if(reg) reg.seg(xx, y0, xx, y1, 0.02/e, 'cota');
-      s += numero(dec(Math.abs(yv-O.y),'len') + '\\,' + uL, xx, (y0+y1)/2, true);
+      s += conLeyenda ? nombre(Math.abs(yv-O.y), xx, y0, xx, y1, true)
+                      : numero(dec(Math.abs(yv-O.y),'len') + '\\,' + uL, xx, (y0+y1)/2, true);
     });
   }
+  tikzBrazosMomento.leyenda = bsaLeyendaBrazosTikz(filasLeyenda);
   return s;
 }
 // Las fuerzas exteriores que producen momento en el DCL global: las cargas de
@@ -1074,8 +1097,31 @@ function tikzBrazosCorte(lado, datosCorte, item, nombreCentro, escala){
     reg.seg(cx, cy, fx0, fy0, 0.02/esc, 'cota', {idCota});
     textosCota.push({brazo, fx0, fy0, idCota});
   });
+  // Si algún valor no encuentra sitio limpio (ni sobre su línea ni a un lado),
+  // todas las cotas se nombran ($d_1$…) y los valores van en una leyenda al
+  // costado (2026-10-04). Se prueba antes de escribir nada.
+  const sitioLimpio = (txt, fx0, fy0, idCota) => {
+    const cj = _cajaRotuloArm(txt, 'scriptsize', esc);
+    const Lc = Math.hypot(fx0-cx, fy0-cy) || 1e-9, nx = -(fy0-cy)/Lc, ny = (fx0-cx)/Lc;
+    const enT = t => [cx + (fx0-cx)*t, cy + (fy0-cy)*t];
+    const libre = p => !reg.choca(_polCaja(p[0], p[1], cj.w, cj.h), 0.02/esc,
+                  it => it.tipo !== 'barra' && (it.tipo !== 'cota' || it.idCota !== idCota));
+    const ts = [0.5, 0.35, 0.65, 0.22, 0.78];
+    const dn = (Math.abs(nx)*cj.w + Math.abs(ny)*cj.h)/2 + 0.04/esc;
+    return ts.map(enT).some(libre)
+        || ts.map(enT).some(p => libre([p[0] + nx*dn, p[1] + ny*dn]) || libre([p[0] - nx*dn, p[1] - ny*dn]));
+  };
+  const conLeyenda = textosCota.length > 1
+    && !textosCota.every(q => sitioLimpio(dec(q.brazo,'len') + '\\,' + escLatex(unitLen), q.fx0, q.fy0, q.idCota));
+  const filasLeyenda = [];
   textosCota.forEach(({brazo, fx0, fy0, idCota}) => {
-    const txt = dec(brazo,'len') + '\\,' + escLatex(unitLen), cj = _cajaRotuloArm(txt, 'scriptsize', esc);
+    let txt = dec(brazo,'len') + '\\,' + escLatex(unitLen);
+    if(conLeyenda){
+      const kk = filasLeyenda.length + 1;
+      filasLeyenda.push({nom:'d_{' + kk + '}', val:dec(brazo,'len') + '\\,\\text{' + escLatex(unitLen) + '}'});
+      txt = '$d_{' + kk + '}$';
+    }
+    const cj = _cajaRotuloArm(txt, 'scriptsize', esc);
     const Lc = Math.hypot(fx0-cx, fy0-cy) || 1e-9, nx = -(fy0-cy)/Lc, ny = (fx0-cx)/Lc;
     const enT = t => [cx + (fx0-cx)*t, cy + (fy0-cy)*t];
     const libre = (p, conCotas) => !reg.choca(_polCaja(p[0], p[1], cj.w, cj.h), 0.02/esc,
@@ -1095,6 +1141,7 @@ function tikzBrazosCorte(lado, datosCorte, item, nombreCentro, escala){
   if(!enPorcion) s += _rotuloNudo(reg, cx, cy, nombreCentro, 'bsaNudo, text=black!65', 'C');
   pend.forEach(p=>{ s += _rotuloTrasExtremo(p.ex, p.ey, p.dx, p.dy, p.txt, 'bsaRot, text=' + p.col, esc, reg, p.largo); });
   trazos.forEach(t=>{ s += _trazoEvitando(reg, t[0], t[1], t[2], t[3], _tinte(t[4], 60) + ', dashed, line width=0.45pt'); });
+  s += bsaLeyendaBrazosTikz(filasLeyenda);
   return {tikz:s, enPorcion, angulos};
 }
 
@@ -1558,6 +1605,8 @@ function _armaduraCompleta(opts, kFijo){
   }
   // El DCL global lleva también su marco x,y, con el mismo criterio.
   if(opts.reaccionesIncognita) s += mejorEsquina(reg);
+  // La leyenda de los brazos, si hizo falta, a la derecha de todo lo dibujado.
+  if(opts.brazosDesde && tikzBrazosMomento.leyenda) s += tikzBrazosMomento.leyenda;
   return {s, k, anchoReal, B: reg.limites(it => it.tipo !== 'guia')};
 }
 // Arma el texto .tex y lo DEVUELVE (no descarga nada).

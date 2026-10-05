@@ -347,6 +347,20 @@ function bsaReferenciasLatex(opts){
     + '\\end{list}}\n';
 }
 
+// Leyenda de los brazos de giro al costado de un DCL del PDF (2026-10-04,
+// petición del profesor). Cuando las cotas de los brazos no dejan leer su valor
+// (no caben en su línea o se pisan), en la figura cada cota lleva solo su
+// nombre ($d_1$, $d_{AB}$…) y aquí se dan los valores. Se pone al final del
+// tikzpicture, a la derecha de todo lo dibujado. `filas` = [{nom, val}], con
+// `nom` en modo matemático y `val` ya con su unidad. La usan fuerzas internas,
+// armaduras y presión.
+function bsaLeyendaBrazosTikz(filas){
+  if(!filas || !filas.length) return '';
+  return '\\node[anchor=north west, xshift=4mm, font=\\scriptsize, align=left, draw=black!25, '
+    + 'fill=white, rounded corners=1pt, inner sep=3pt] at (current bounding box.north east) {'
+    + '\\textbf{Brazos}' + filas.map(f=>'\\\\ $' + f.nom + ' = ' + f.val + '$').join('') + '};\n';
+}
+
 // los cinco PDF.
 function colofonLatexBSA(){
   // Todo el bloque va en una minipage de ancho completo: es indivisible, asi
@@ -428,6 +442,81 @@ function bsaAnguloAgudoEje(ux, uy){
 function bsaTextoAnguloAgudo(ux, uy){
   const a = bsaAnguloAgudoEje(ux, uy);
   return dec(a.grados,'ang') + '° de la ' + (a.desdeV ? 'vertical' : 'horizontal');
+}
+// Angulo de una fuerza inclinada en el CROQUIS de una ventana (SVG, y hacia
+// abajo), medido desde +x (2026-10-04, peticion del profesor). Va en la COLA
+// de la flecha (x, y), que es donde la flecha arranca en la direccion `ang`
+// (grados, desde +x, antihorario, hacia donde apunta): con el arco en el nudo,
+// al otro lado de la flecha, no se entendia a que se referia. Dibuja +x a trazos
+// con su rotulo, el arco del equivalente MAS CORTO (en (-180, 180]: 270 se
+// acota -90) con punta en el sentido del giro, y el valor donde menos estorba:
+// lejos de las direcciones `ocupadas` (grados, mismo convenio; la flecha y +x
+// ya se cuentan). Lo usan fuerzas internas, armaduras y presion (el tope).
+// Devuelve {svg, t}: t es el angulo acotado.
+function bsaArcoAnguloSVG(o){
+  const F = v => v.toFixed(1), rad = g => g*Math.PI/180;
+  const x = o.x, y = o.y, col = o.col || '#c0392b', r = o.r || 15, ref = o.ref || 30;
+  let t = (((+o.ang % 360) + 540) % 360) - 180;
+  if(t <= -180 + 1e-9) t = 180;
+  t = +t.toFixed(4);
+  let s = '<line x1="' + F(x) + '" y1="' + F(y) + '" x2="' + F(x + ref) + '" y2="' + F(y)
+        + '" stroke="' + col + '" stroke-width="1" stroke-dasharray="3,2" opacity=".85"/>'
+        + '<text x="' + F(x + ref + 2) + '" y="' + F(y + 3) + '" font-family="Inter,sans-serif" font-size="8.5" font-weight="700" fill="#66727e">+x</text>';
+  if(Math.abs(t) > 0.5){
+    const ex = x + r*Math.cos(rad(t)), ey = y - r*Math.sin(rad(t));
+    s += '<path d="M ' + F(x + r) + ' ' + F(y) + ' A ' + r + ' ' + r + ' 0 0 ' + (t > 0 ? 0 : 1) + ' '
+       + F(ex) + ' ' + F(ey) + '" fill="none" stroke="' + col + '" stroke-width="1.4"/>';
+    // Punta tangente al arco en su extremo, en el sentido del giro.
+    const tx = (t > 0) ? -Math.sin(rad(t)) : Math.sin(rad(t));
+    const ty = (t > 0) ? -Math.cos(rad(t)) : Math.cos(rad(t));
+    const g = Math.atan2(ty, tx)*180/Math.PI;
+    s += '<polygon points="0,0 -6,-2.8 -6,2.8" fill="' + col + '" transform="translate(' + F(ex) + ',' + F(ey) + ') rotate(' + g.toFixed(1) + ')"/>';
+  }
+  // El valor: se prueban sitios alrededor de la cola (bisectriz del arco y a
+  // sus lados, a dos distancias) y gana el que no pisa nada de lo dibujado
+  // (`o.segs` [x1,y1,x2,y2] y `o.cajas` {x0,x1,y0,y1}, en pantalla), no se sale
+  // del dibujo (`o.ancho`, `o.alto`) y queda más lejos de las direcciones
+  // ocupadas. Devuelve también su caja, para que el que llama la registre.
+  const txt = dec(t, 'ang') + '°';
+  const ocup = [0, t].concat(o.ocupadas || []);
+  const dif = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
+  const pisa = (c, sg) => {                  // ¿el segmento sg cruza la caja c (con holgura)?
+    const h = 2, dx = sg[2]-sg[0], dy = sg[3]-sg[1];
+    const p = [-dx, dx, -dy, dy], q = [sg[0]-(c.x0-h), (c.x1+h)-sg[0], sg[1]-(c.y0-h), (c.y1+h)-sg[1]];
+    let t0 = 0, t1 = 1;
+    for(let i = 0; i < 4; i++){
+      if(Math.abs(p[i]) < 1e-12){ if(q[i] < 0) return false; continue; }
+      const rr = q[i]/p[i];
+      if(p[i] < 0){ if(rr > t1) return false; if(rr > t0) t0 = rr; } else { if(rr < t0) return false; if(rr < t1) t1 = rr; }
+    }
+    return true;
+  };
+  const segsTodos = (o.segs || []).concat([[x, y, x + ref + 12, y]]);
+  for(let i = 0; i < 8; i++){                // el propio arco, en ocho trozos
+    const a0 = rad(t*i/8), a1 = rad(t*(i+1)/8);
+    segsTodos.push([x + r*Math.cos(a0), y - r*Math.sin(a0), x + r*Math.cos(a1), y - r*Math.sin(a1)]);
+  }
+  let mejor = null;
+  for(const dA of [0, 30, -30, 60, -60, 90, -90, 120, -120, 180]) for(const dr of [10, 20, 32]){
+    const a = t/2 + dA, ca = Math.cos(rad(a));
+    const lx = x + (r + dr)*ca, ly = y - (r + dr)*Math.sin(rad(a)) + 3.5;
+    const ta = ca > 0.3 ? 'start' : (ca < -0.3 ? 'end' : 'middle');
+    const w = txt.length*6.2, x0 = ta === 'start' ? lx : (ta === 'end' ? lx - w : lx - w/2);
+    const c = {x0, x1:x0 + w, y0:ly - 9.5, y1:ly + 2.5};
+    let k = 0;
+    segsTodos.forEach(sg=>{ if(pisa(c, sg)) k++; });
+    (o.cajas || []).forEach(b=>{ if(c.x0 < b.x1 && b.x0 < c.x1 && c.y0 < b.y1 && b.y0 < c.y1) k++; });
+    if(o.ancho && (c.x0 < 1 || c.x1 > o.ancho - 1)) k += 5;
+    if(o.alto && (c.y0 < 1 || c.y1 > o.alto - 1)) k += 5;
+    // Primero que no pise nada; después, lo más cerca de la bisectriz del arco
+    // (junto a él), con algo de holgura respecto de la flecha y de +x.
+    const holg = Math.min(30, ...ocup.map(qq => dif(a, qq)));
+    const nota = k*1000 + Math.abs(dA)*0.8 + dr*0.3 - holg*0.5;
+    if(!mejor || nota < mejor.nota) mejor = {nota, lx, ly, ta, c};
+  }
+  s += '<text x="' + F(mejor.lx) + '" y="' + F(mejor.ly) + '" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="' + col
+     + '" text-anchor="' + mejor.ta + '">' + txt + '</text>';
+  return {svg:s, t, caja:mejor.c};
 }
 // Arco del angulo de una reaccion inclinada en el LIENZO, en la cola de su
 // flecha (coordenadas de pantalla, y hacia abajo): entre el eje mas cercano

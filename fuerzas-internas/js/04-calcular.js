@@ -20,7 +20,8 @@ function calcular(){
 function renderError(r){
   let t;
   if(r.error==='sin-viga') t = 'Todavía no hay ningún tramo. Usa <b>Viga</b> en la barra de herramientas.';
-  else if(r.error==='no-cadena') t = 'Los tramos no forman una cadena continua. Revisa que estén unidos por sus nudos.';
+  else if(r.error==='no-conexa') t = 'Hay tramos sueltos: todos deben estar unidos por sus nudos en una sola estructura.';
+  else if(r.error==='anillo') t = 'Los tramos forman un <b>anillo cerrado</b>: este tema resuelve vigas y pórticos abiertos, sin anillos.';
   else if(r.error==='determinacion'){
     const d=r.diag, g=d.inc-d.eq;
     t = 'Hay <b>'+d.inc+' reacción(es)</b> y <b>'+d.eq+' ecuación(es)</b> de equilibrio'

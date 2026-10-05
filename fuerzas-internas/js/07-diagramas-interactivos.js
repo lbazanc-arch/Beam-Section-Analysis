@@ -333,15 +333,23 @@ function gruposDireccion(r){
     // Diferencia de ángulos normalizada a (-180, 180]. Dos tramos siguen la
     // misma recta si esa diferencia es casi nula.
     const d = ult ? ((t.ang - ult.ang + 540) % 360) - 180 : 999;
-    const mismaRecta = ult && Math.abs(d) < TOL_ANG_GRUPO;
+    // Solo dentro de la misma cadena (01-): una rama empieza siempre un grupo.
+    const mismaRecta = ult && Math.abs(d) < TOL_ANG_GRUPO
+                    && (ult.cadena || 0) === (t.cadena || 0) && ult.hasta === t.desde;
     if(mismaRecta){
       ult.tramos.push(t); ult.L += t.L; ult.hasta = t.hasta;
     } else {
-      g.push({tramos:[t], ang:t.ang, L:t.L, s0:t.s0, desde:t.desde, hasta:t.hasta});
+      g.push({tramos:[t], ang:t.ang, L:t.L, s0:t.s0, desde:t.desde, hasta:t.hasta,
+              cadena:t.cadena || 0});
     }
   });
   g.forEach((gr,i)=>{
     gr.idx = i;
+    // El grupo anterior DE SU CADENA (null en el primero): es el que le entrega
+    // N, V y M por el nudo de quiebre. Con una sola cadena, el de índice i − 1.
+    const prev = g[i-1];
+    gr.anterior = (prev && prev.cadena === gr.cadena) ? prev : null;
+    gr.primero = !gr.anterior;
     gr.inclinado = Math.abs(gr.ang) > TOL_ANG_GRUPO;
     // En un tramo inclinado la abscisa no es x ni y, sino la resultante de
     // ambos catetos: se llama r para dejarlo claro.

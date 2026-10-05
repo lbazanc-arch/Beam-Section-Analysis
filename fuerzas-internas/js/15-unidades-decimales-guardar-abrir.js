@@ -828,7 +828,7 @@ function pasoAPasoReacciones(R){
   nomEq.push('\\sum F_x = 0');
   nomEq.push('\\sum F_y = 0');
   nomEq.push('\\sum M_{' + nombreOrigen() + '} = 0');
-  for(let e=3;e<nEq;e++) nomEq.push('\\sum M_{' + escLatex(R.rotulas[e-3].nombre) + '} = 0');
+  for(let e=3;e<nEq;e++) nomEq.push('\\sum M_{' + escLatex(R.rotulas[e-3].etiqueta || R.rotulas[e-3].nombre) + '} = 0');
 
   let out = '\\noindent{\\bfseries\\color{bsaAcc2} Desarrollo}\\\\[3pt]\n';
   // Diagrama de cuerpo libre global: la viga con sus cargas Y con las
@@ -891,7 +891,7 @@ function pasoAPasoReacciones(R){
       + tikzViga(true, {tramos:lado.tramos, incNodos:lado.nodos, rotula:rt,
                         origen:{x:rt.x, y:rt.y, nombre:rt.nombre}})
       + '\\end{tikzpicture}\n\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre del trozo desde la rótula ' + nr
-      + ': $\\sum M_{' + nr + '} = 0$; $' + nr + '_x$ y $' + nr + '_y$ (a trazos) tienen brazo nulo.}\n\\end{center}\\vspace{4pt}\n';
+      + ': $\\sum M_{' + escLatex(rt.etiqueta || rt.nombre) + '} = 0$; $' + nr + '_x$ y $' + nr + '_y$ (a trazos) tienen brazo nulo.}\n\\end{center}\\vspace{4pt}\n';
   };
 
   const dtEq = e => (e >= 2 ? 'momento' : 'fuerza');
@@ -1160,7 +1160,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
   const genAngSub = bsaLetrasGriegas();
   if(gg.inclinado) genAngSub.para(Math.abs(gg.ang));   // θ ya es la inclinación del tramo
   const EPS = 1e-9;
-  const primero = (gg.idx === 0);
+  const primero = gg.primero;
   const sIni = gg.s0;
   const sCut = seg.s0 + sub.sb;
   const O = gg.desde;
@@ -1354,7 +1354,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
   // una línea de cota: los rótulos buscan sitio por encima o a los lados.
   // Una reacción bajo un apoyo baja hasta 1.30 y lleva su valor al costado;
   // la flecha V de la cara cortada, hasta 0.92: la banda empieza debajo.
-  const hayBajoApoyo = (R.internas.puntuales || []).some(o=>{
+  const hayBajoApoyo = puntualesDe(R, seg).some(o=>{
     if(o.s === null) return false;
     if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return false;
     if(o.s >= sCut - EPS) return false;
@@ -1363,7 +1363,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
   });
   // Un rodillo inclinado bajo la viga lleva su flecha más larga (1.55) y el arco
   // en la cola: la banda de cotas empieza más abajo.
-  const hayInclinadaBajo = (R.internas.puntuales || []).some(o=>{
+  const hayInclinadaBajo = puntualesDe(R, seg).some(o=>{
     if(o.s === null) return false;
     if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return false;
     if(o.s >= sCut - EPS) return false;
@@ -1415,7 +1415,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
   }
 
   // ── Acciones puntuales del trozo: reacciones (con nombre), cargas y pares ──
-  (R.internas.puntuales || []).forEach(o=>{
+  puntualesDe(R, seg).forEach(o=>{
     if(o.s === null) return;
     if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return;
     if(o.s >= sCut - EPS) return;
@@ -1442,7 +1442,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
            + F(x-ex*larga) + ',' + F(y-ey*larga) + ') -- (' + F(x-ex*corta) + ',' + F(y-ey*corta) + ');\n';
       tzOcuparTrazo(x-ex*larga, y-ey*larga, x-ex*corta, y-ey*corta, 0.07);
       if(inclinada) out += tikzArcoReaccionFI(x-ex*larga, y-ey*larga, ex, ey, genAngSub);
-      const lab = a.reac ? '$' + nom.tex + '=' + Fz(Fm) + '$' : Fz(Fm) + '\\,' + uF;
+      const lab = (a.reac || a.rama) ? '$' + nom.tex + '=' + Fz(Fm) + '$' : Fz(Fm) + '\\,' + uF;
       if(!inclinada && ey > 0.5){
         // Fuerza hacia arriba: su cola cae bajo la viga, en la banda de cotas,
         // así que el valor va al costado de la flecha, hacia afuera del trozo.
@@ -1462,7 +1462,9 @@ function tikzDCLSub(R, gg, seg, sub, info){
       out += '\\draw[-{Latex[length=1.8mm]}, color=' + colM + ', line width=1pt] ('
            + F(x+0.28) + ',' + F(y) + ') arc ' + arc + ';\n';
       tzOcupar(x-0.34, y-0.34, x+0.34, y+0.34);
-      const lab = a.reac ? '$' + nom.tex + '=' + dec(Math.abs(a.m),'momento') + '$' : dec(Math.abs(a.m),'momento') + '\\,' + uM;
+      const lab = a.reac ? '$' + nom.tex + '=' + dec(Math.abs(a.m),'momento') + '$'
+                : a.rama ? '$' + nom.texM + '=' + dec(Math.abs(a.m),'momento') + '$'
+                : dec(Math.abs(a.m),'momento') + '\\,' + uM;
       out += tzTexto(x+0.55, y+0.32, lab, 'font=\\tiny, color=' + colM, 1, 1);
     }
   });
@@ -1506,7 +1508,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
   //    centroides de las repartidas, y la abscisa completa en el nivel
   //    exterior ──
   const marcas = [0, rCut];
-  (R.internas.puntuales || []).forEach(o=>{
+  puntualesDe(R, seg).forEach(o=>{
     if(o.s === null) return;
     const rr = o.s - sIni;
     if(rr > 1e-6 && rr < rCut - 1e-6) marcas.push(rr);

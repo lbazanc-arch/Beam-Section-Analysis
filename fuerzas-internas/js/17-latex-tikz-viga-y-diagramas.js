@@ -441,6 +441,22 @@ function tikzViga(conReacciones, sel){
       .sort((a,b)=>Math.abs(a-OR.x)-Math.abs(b-OR.x));
     let base = Math.min(minY - 1.60, ext.y0 - 0.45);
     const x0 = Xn(OR.x);
+    // ¿Se leen todos los brazos en su cota? Si el valor de alguno no cabe en su
+    // línea, la figura pasa a nombrarlos ($d_1$, $d_2$…) y los valores van en una
+    // leyenda a su costado (2026-10-04, petición del profesor; bsaLeyendaBrazosTikz).
+    const uLb = escLatex(unitLen), ysB0 = [...new Set(brazosY.map(v=>+v.toFixed(4)))];
+    const yOR = Yn(OR.y);
+    const conLeyenda =
+      xsB.some((xv, i)=>tzAncho(dec(Math.abs(xv-OR.x),'len') + (i === xsB.length-1 ? '\\,' + uLb : ''), 'font=\\scriptsize') + 0.15 > Math.abs(Xn(xv) - x0))
+      || ysB0.some(yv=>tzAncho(dec(Math.abs(yv-OR.y),'len') + '\\,' + uLb, 'font=\\scriptsize') + 0.15 > Math.abs(Yn(yv) - yOR));
+    const filasLeyenda = [];
+    // Rótulo de una cota en modo leyenda: el nombre en medio si cabe; si no,
+    // pasado su extremo exterior.
+    const nombreBrazo = (val) => {
+      const k = filasLeyenda.length + 1;
+      filasLeyenda.push({nom:'d_{' + k + '}', val:dec(val,'len') + '\\,\\text{' + uLb + '}'});
+      return '$d_{' + k + '}$';
+    };
     if(xsB.length){
       out += '\\draw[black!45, line width=.35pt, dashed] (' + F(x0) + ',' + F(minY-0.15) + ') -- ('
            + F(x0) + ',' + F(base - (xsB.length-1)*0.40 - 0.15) + ');\n';
@@ -452,8 +468,13 @@ function tikzViga(conReacciones, sel){
       out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] ('
            + F(x0) + ',' + F(yy) + ') -- (' + F(x1) + ',' + F(yy) + ');\n';
       tzOcuparTrazo(x0, yy, x1, yy, 0.05);
-      out += tzTextoFijo((x0+x1)/2, yy, dec(Math.abs(xv-OR.x),'len') + (i === xsB.length-1 ? '\\,' + escLatex(unitLen) : ''),
-                         'font=\\scriptsize, color=black!75');
+      if(conLeyenda){
+        const nom = nombreBrazo(Math.abs(xv-OR.x)), w = tzAncho(nom, 'font=\\scriptsize');
+        const xm = (w + 0.10 <= Math.abs(x1 - x0)) ? (x0+x1)/2 : Math.max(x0, x1) + w/2 + 0.12;
+        out += tzTextoFijo(xm, yy, nom, 'font=\\scriptsize, color=black!75');
+      } else
+        out += tzTextoFijo((x0+x1)/2, yy, dec(Math.abs(xv-OR.x),'len') + (i === xsB.length-1 ? '\\,' + escLatex(unitLen) : ''),
+                           'font=\\scriptsize, color=black!75');
     });
     // Cotas corridas verticales desde OR (brazos de las fuerzas horizontales)
     const ysB = [...new Set(brazosY.map(v=>+v.toFixed(4)))]
@@ -465,12 +486,20 @@ function tikzViga(conReacciones, sel){
       out += '\\draw[black!45, line width=.35pt, dashed] (' + F(Xn(OR.x)) + ',' + F(y0) + ') -- (' + F(xx+0.12) + ',' + F(y0) + ');\n';
       out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] ('
            + F(xx) + ',' + F(y0) + ') -- (' + F(xx) + ',' + F(y1) + ');\n';
+      if(conLeyenda){
+        const nom = nombreBrazo(Math.abs(yv-OR.y)), w = tzAncho(nom, 'font=\\scriptsize');
+        const ym = (w + 0.10 <= Math.abs(y1 - y0)) ? (y0+y1)/2 : Math.max(y0, y1) + w/2 + 0.12;
+        tzOcupar(xx-0.16, ym - w/2, xx+0.16, ym + w/2);
+        out += '\\node[rotate=90, font=\\scriptsize, color=black!75, fill=white, inner sep=1pt] at ('
+             + F(xx) + ',' + F(ym) + ') {' + nom + '};\n';
+        return;
+      }
       const w2 = tzAncho(dec(Math.abs(yv-OR.y),'len'), 'font=\\scriptsize');
       tzOcupar(xx-0.16, (y0+y1)/2 - w2/2, xx+0.16, (y0+y1)/2 + w2/2);
       out += '\\node[rotate=90, font=\\scriptsize, color=black!75, fill=white, inner sep=1pt] at ('
            + F(xx) + ',' + F((y0+y1)/2) + ') {' + dec(Math.abs(yv-OR.y),'len') + '\\,' + escLatex(unitLen) + '};\n';
     });
-    return out + rotulos;
+    return out + rotulos + bsaLeyendaBrazosTikz(filasLeyenda);
   }
 
   // ── Cotas de la figura del modelo (2026-10-03, el criterio del lienzo,
@@ -724,7 +753,7 @@ function construirLatex(){
   // Los subíndices nombran el punto real: $\sum M_A = 0$ dice por sí solo
   // respecto a qué se toman los momentos, sin aclaración entre paréntesis.
   tex += '$$\\sum F_x = 0 \\qquad \\sum F_y = 0 \\qquad \\sum M_{' + nombreOrigen() + '} = 0'
-    + R.rotulas.map(rt=>'\\qquad \\sum M_{' + escLatex(rt.nombre) + '} = 0').join('') + '$$\n';
+    + R.rotulas.map(rt=>'\\qquad \\sum M_{' + escLatex(rt.etiqueta || rt.nombre) + '} = 0').join('') + '$$\n';
   tex += 'con ' + R.inc.length + ' incógnita(s) de reacción y ' + R.diag.eq + ' ecuación(es): la viga es '
     + 'isostática y las reacciones salen de la estática.\\\\[6pt]\n';
   tex += pasoAPasoReacciones(R);
@@ -772,9 +801,11 @@ function construirLatex(){
       tex += '\\subpaso{Tramo ' + escLatex(gg.recorrido) + '\\quad '
         + (gg.inclinado ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : 'horizontal')
         + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL + '}\n';
+      tex += textoRama(R, grupos, gg, 'inicio');
       tex += tablaAreasGrupo(R, gg);
       tex += tablaNudosGrupo(R, gg);
       tex += tablaSingulares(R, gg);
+      tex += textoRama(R, grupos, gg, 'fin');
     });
   } else {
   tex += '\\seccion{3. Paso 2 --- Funciones $N(x)$, $V(x)$ y $M(x)$ por tramos}\n';
@@ -798,6 +829,7 @@ function construirLatex(){
       + (gg.inclinado ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : 'horizontal')
       + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL
       + '\\quad abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + '}\n';
+    tex += textoRama(R, grupos, gg, 'inicio');
     tex += fraseCortesGrupo(R, gg);
     gg.tramos.forEach(seg=>{
       seg.subs.forEach(sub=>{
@@ -807,6 +839,7 @@ function construirLatex(){
     });
     tex += tablaNudosGrupo(R, gg);
     tex += tablaSingulares(R, gg);
+    tex += textoRama(R, grupos, gg, 'fin');
   });
   }
 

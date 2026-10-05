@@ -144,21 +144,102 @@ function geoTramo(t){
   return {a, b, dx, dy, L, ux:dx/L, uy:dy/L, nx:-dy/L, ny:dx/L,
           ang: Math.atan2(dy,dx)*180/Math.PI};
 }
-// La cadena en orden: se recorre desde un extremo
-function cadena(){
-  if(!tramos.length) return [];
+// ── La estructura como cadena principal más ramas (2026-10-04) ──
+// Hasta esa fecha el tema solo resolvía tramos uno detrás de otro: si a un nudo
+// llegaban tres tramos (un pórtico con un voladizo que sale de la viga), daba
+// «no forman una cadena». Ahora vale cualquier ÁRBOL (sin anillos cerrados):
+//  · la CADENA PRINCIPAL sale de un extremo libre (el primer nudo con un solo
+//    tramo, como antes) y en cada bifurcación sigue por el lado con más tramos;
+//  · cada RAMA que cuelga de un nudo X de otra cadena se recorre desde su
+//    extremo libre HACIA X, que es como se resuelve un voladizo a mano: el
+//    trozo «anterior» de cualquier corte de la rama es la punta de la rama.
+// Para su cadena madre, una rama es una acción más en X: la fuerza y el par que
+// le transmite (la suma de todo lo que actúa sobre la rama, llevada a X). Con
+// eso cada cadena se resuelve con el mismo motor de siempre. Una estructura sin
+// bifurcaciones da una sola cadena, idéntica a la de antes.
+function _adyacencia(){
   const ady = {}; nodos.forEach(n=>ady[n.id]=[]);
-  tramos.forEach(t=>{ ady[t.a].push(t); ady[t.b].push(t); });
-  let ini = nodos.find(n=>ady[n.id].length===1) || nodos[0];
-  const orden = [], vistos = {};
-  let actual = ini, guard = 0;
-  while(guard++ < 200){
-    const sig = ady[actual.id].find(t=>!vistos[t.id]);
-    if(!sig) break;
-    vistos[sig.id] = true;
-    const otro = nodo(sig.a===actual.id ? sig.b : sig.a);
-    orden.push({t:sig, desde:actual, hasta:otro});
-    actual = otro;
+  tramos.forEach(t=>{ if(ady[t.a]) ady[t.a].push(t); if(ady[t.b]) ady[t.b].push(t); });
+  return ady;
+}
+// Nudos a los que se llega desde `idIni` sin cruzar el tramo `tSin`.
+function nudosMasAlla(tSin, idIni){
+  const ady = _adyacencia(), vistos = new Set([idIni]), pila = [idIni];
+  while(pila.length){
+    const id = pila.pop();
+    (ady[id] || []).forEach(z=>{
+      if(tSin && z.id === tSin.id) return;
+      const o = (z.a === id) ? z.b : z.a;
+      if(!vistos.has(o)){ vistos.add(o); pila.push(o); }
+    });
   }
-  return orden;
+  return vistos;
+}
+function descomponerEnCadenas(){
+  if(!tramos.length) return {cadenas:[]};
+  const ady = _adyacencia();
+  const usados = nodos.filter(n=>ady[n.id].length);
+  if(!usados.length || nudosMasAlla(null, usados[0].id).size !== usados.length)
+    return {error:'no-conexa'};
+  if(tramos.length !== usados.length - 1) return {error:'anillo'};
+  const usadoT = new Set();
+  // Tramos de la rama que empieza por `z` saliendo de `desdeId` (z incluido).
+  const tamRama = (z, desdeId) => {
+    const o = (z.a === desdeId) ? z.b : z.a;
+    let k = 1; const vistosT = new Set([z.id]), pila = [o], vistosN = new Set([desdeId, o]);
+    while(pila.length){
+      const id = pila.pop();
+      ady[id].forEach(w=>{
+        if(vistosT.has(w.id)) return; vistosT.add(w.id); k++;
+        const p = (w.a === id) ? w.b : w.a;
+        if(!vistosN.has(p)){ vistosN.add(p); pila.push(p); }
+      });
+    }
+    return k;
+  };
+  // Camino desde `ini` hasta un extremo, siguiendo en cada nudo el tramo libre
+  // con más tramos detrás (a igualdad, el primero, como el recorrido de antes).
+  const camino = (ini, primero) => {
+    const orden = []; let actual = ini, sig = primero || null, guard = 0;
+    while(guard++ < 1000){
+      if(!sig){
+        let mejor = null, tm = -1;
+        ady[actual.id].forEach(z=>{
+          if(usadoT.has(z.id)) return;
+          const k = tamRama(z, actual.id);
+          if(k > tm){ tm = k; mejor = z; }
+        });
+        sig = mejor;
+      }
+      if(!sig) break;
+      usadoT.add(sig.id);
+      const otro = nodo(sig.a === actual.id ? sig.b : sig.a);
+      orden.push({t:sig, desde:actual, hasta:otro});
+      actual = otro; sig = null;
+    }
+    return orden;
+  };
+  const raiz = usados.find(n=>ady[n.id].length === 1) || usados[0];
+  const cadenas = [{id:0, cad:camino(raiz), padre:null, union:null}];
+  // Las ramas de cada cadena, en el orden de sus nudos. Una rama nueva se
+  // añade al final, así que el bucle recorre también las de las ramas.
+  for(let k = 0; k < cadenas.length; k++){
+    const c = cadenas[k];
+    const nudosC = [c.cad[0].desde].concat(c.cad.map(e=>e.hasta));
+    nudosC.forEach(X=>{
+      if(c.union && X.id === c.union.id) return;     // la unión es de la madre
+      ady[X.id].forEach(z=>{
+        if(usadoT.has(z.id)) return;
+        const ida = camino(X, z);                    // de X a la punta
+        const cad = ida.reverse().map(e=>({t:e.t, desde:e.hasta, hasta:e.desde}));
+        cadenas.push({id:cadenas.length, cad, padre:k, union:X});
+      });
+    });
+  }
+  return {cadenas};
+}
+// La cadena principal (lo que era toda la estructura antes de las ramas).
+function cadena(){
+  const est = descomponerEnCadenas();
+  return (est.cadenas && est.cadenas.length) ? est.cadenas[0].cad : [];
 }

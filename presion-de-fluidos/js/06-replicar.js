@@ -184,7 +184,7 @@ function _textoDireccion(u){
   const d = direccionIncognita(u);
   const agudo = bsaAnguloAgudoEje(d.x, d.y).grados < 1e-6 ? '' : ' (a ' + bsaTextoAnguloAgudo(d.x, d.y) + ')';
   if(u.tipo==='T') return (u.n.tope && u.n.tope.modo === 'angulo')
-    ? 'tope desde ' + dec(bsaAnguloOpuesto(u.n.tope.ang, true),'ang') + '°' : 'tope ⟂' + agudo;
+    ? 'tope hacia ' + dec(angulo360Pf(u.n.tope.ang),'ang') + '°' : 'tope ⟂' + agudo;
   return (u.n.apModo === 'normal') ? 'móvil ⟂' + agudo
     : 'móvil apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng===undefined?90:u.n.apAng),'ang') + '°';
 }
@@ -417,15 +417,21 @@ function setApoyo(t){
 // Un tope liso empuja perpendicularmente a la compuerta desde el lado en
 // que está (modo `normal`); si el problema da la dirección, modo `angulo`.
 let _topeModo = 'normal';
+// Ángulo en [0, 360), redondeado a 1e-4, para enseñarlo.
+function angulo360Pf(a){
+  const r = +((((+a % 360) + 360) % 360).toFixed(4));
+  return (r >= 360) ? 0 : r;
+}
 function abrirTopeModal(id){
   topeId=id; const n=nodos.find(z=>z.id===id); if(!n) return;
   document.getElementById('tpNom').textContent=n.nombre;
   const tp = n.tope || {};
-  // El campo va en el convenio del alumno (de dónde empuja el tope); el
-  // modelo guarda el opuesto, la dirección de la fuerza, que es lo que lee
-  // direccionIncognita.
+  // El campo dice hacia dónde EMPUJA el tope, desde +x y antihorario: es el
+  // mismo número que guarda el modelo y lee direccionIncognita (2026-10-04;
+  // antes decía desde dónde empujaba, el opuesto). Por defecto 180°: hacia la
+  // izquierda, el mismo tope de siempre.
   document.getElementById('tpAng').value =
-    (tp.ang !== undefined && isFinite(+tp.ang)) ? bsaAnguloOpuesto(tp.ang, true) : 0;
+    (tp.ang !== undefined && isFinite(+tp.ang)) ? angulo360Pf(tp.ang) : 180;
   // lado por defecto: el seco, si solo una zona tiene líquido
   let lado = tp.lado;
   if(!lado){
@@ -435,6 +441,7 @@ function abrirTopeModal(id){
   document.getElementById('tpLado').value = String(lado);
   setTopeModo(tp.modo === 'angulo' ? 'angulo' : 'normal');
   document.getElementById('topeModal').classList.add('show');
+  dibujarCroquisTope();
 }
 function setTopeModo(m){
   _topeModo = m;
@@ -443,12 +450,91 @@ function setTopeModo(m){
   const a = document.getElementById('tpTabNormal'), b = document.getElementById('tpTabAngulo');
   if(a) a.classList.toggle('active', m==='normal');
   if(b) b.classList.toggle('active', m==='angulo');
+  dibujarCroquisTope();
+}
+// Croquis de la ventana del tope (2026-10-04, petición del profesor): el nudo,
+// los tramos de la compuerta que llegan a él, el bloque del tope y la flecha de
+// la fuerza que hace, con su ángulo acotado desde +x. Se acota el equivalente de
+// arco más corto, en (−180°, 180°] (270° se acota −90°); si no es el número
+// escrito, una nota lo dice sin tocar el campo. Con «Perpendicular» la dirección
+// sale de la compuerta, como en el cálculo (direccionIncognita).
+function dibujarCroquisTope(){
+  const cont = document.getElementById('tpCroquis'); if(!cont) return;
+  const n = nodos.find(z=>z.id===topeId); if(!n){ cont.innerHTML = ''; return; }
+  const W2 = 300, H2 = 190, cx = W2/2, cy = H2/2, F = v => v.toFixed(1);
+  const rad = g => g*Math.PI/180, ROJO = '#c0392b', ACC = '#0f5c56';
+  const _a = parseFloat((document.getElementById('tpAng')||{}).value);
+  const lado = parseInt((document.getElementById('tpLado')||{}).value, 10) || 1;
+  // Dirección de la fuerza del tope, con los datos que hay ahora en la ventana.
+  let d = null;
+  if(_topeModo !== 'angulo'){
+    const nv = normalCompuertaEnNudo(n, lado);
+    if(nv) d = {x:-nv.x, y:-nv.y};
+  }
+  if(!d){ const a = rad(isFinite(_a) ? _a : 180); d = {x:Math.cos(a), y:Math.sin(a)}; }
+  let s = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;height:auto;display:block">';
+  // Tramos que llegan al nudo, con su forma (los arcos también), a escala.
+  const piezas = [];
+  let ext = 1e-9;
+  tramos.forEach(t=>{
+    if(t.a !== n.id && t.b !== n.id) return;
+    let pts = puntosTramo(t, 24);
+    if(pts.length < 2) return;
+    if(t.b === n.id) pts = pts.slice().reverse();
+    pts.forEach(p=>{ ext = Math.max(ext, Math.hypot(p.x-n.x, p.y-n.y)); });
+    const o = nodos.find(z=>z.id === (t.a === n.id ? t.b : t.a));
+    piezas.push({pts, o});
+  });
+  const k = 62/ext;
+  const P = p => [cx + (p.x-n.x)*k, cy - (p.y-n.y)*k];
+  piezas.forEach(({pts, o})=>{
+    s += '<polyline points="' + pts.map(p=>P(p).map(F).join(',')).join(' ')
+       + '" fill="none" stroke="' + ACC + '" stroke-width="3" stroke-linecap="round" opacity=".7"/>';
+    const [ex, ey] = P(pts[pts.length-1]);
+    if(o) s += '<text x="' + F(ex + (ex-cx)*0.12) + '" y="' + F(ey + (ey-cy)*0.12 + 3) + '" font-family="Inter,sans-serif" font-size="10" font-weight="700" fill="#44505c" text-anchor="middle">' + o.nombre + '</text>';
+  });
+  // La fuerza SALE del nudo en su dirección y el bloque del tope queda detrás
+  // del nudo, del lado contrario (2026-10-04, corrección del profesor): así el
+  // ángulo se acota EN EL NUDO, desde +x hasta la propia flecha
+  // (bsaArcoAnguloSVG, core), y el arco toca la fuerza.
+  const ux = d.x, uy = -d.y, L = 54, px = -uy, py = ux;
+  const ax1 = cx + ux*L, ay1 = cy + uy*L;
+  s += '<line x1="' + F(cx + ux*7) + '" y1="' + F(cy + uy*7) + '" x2="' + F(ax1 - ux*2) + '" y2="' + F(ay1 - uy*2) + '" stroke="' + ROJO + '" stroke-width="2.4"/>'
+     + '<polygon points="0,0 -9,-4 -9,4" fill="' + ROJO + '" transform="translate(' + F(ax1) + ',' + F(ay1) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>';
+  const bx = cx - ux*8, by = cy - uy*8;
+  s += '<line x1="' + F(bx+px*13) + '" y1="' + F(by+py*13) + '" x2="' + F(bx-px*13) + '" y2="' + F(by-py*13) + '" stroke="#1b1f24" stroke-width="2.4"/>';
+  for(let i = -2; i <= 2; i++){
+    const hx = bx + px*i*5.5, hy = by + py*i*5.5;
+    s += '<line x1="' + F(hx) + '" y1="' + F(hy) + '" x2="' + F(hx - ux*6 + px*4) + '" y2="' + F(hy - uy*6 + py*4) + '" stroke="#1b1f24" stroke-width="1"/>';
+  }
+  // Lo que el valor no debe pisar: los tramos, la flecha, el bloque y los nombres.
+  const segsT = [[cx, cy, ax1, ay1], [bx+px*13, by+py*13, bx-px*13, by-py*13], [bx, by, bx - ux*8, by - uy*8]];
+  piezas.forEach(({pts})=>{ for(let i = 0; i < pts.length-1; i++){ const a1 = P(pts[i]), a2 = P(pts[i+1]); segsT.push([a1[0], a1[1], a2[0], a2[1]]); } });
+  const cajasT = [{x0:cx+7, x1:cx+22, y0:cy-20, y1:cy-6}];
+  piezas.forEach(({pts, o})=>{ if(!o) return; const [ex, ey] = P(pts[pts.length-1]);
+    const qx = ex + (ex-cx)*0.12, qy = ey + (ey-cy)*0.12; cajasT.push({x0:qx-8, x1:qx+8, y0:qy-8, y1:qy+5}); });
+  const gF = Math.atan2(d.y, d.x)*180/Math.PI;
+  const arco = bsaArcoAnguloSVG({x:cx, y:cy, ang:gF, col:ROJO, r:20,
+                                 segs:segsT, cajas:cajasT, ancho:W2, alto:H2});
+  s += arco.svg;
+  const t = arco.t;
+  s += '<circle cx="' + cx + '" cy="' + cy + '" r="5" fill="' + ACC + '" stroke="#fff" stroke-width="2"/>';
+  s += '<text x="' + (cx+9) + '" y="' + (cy-9) + '" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="#1b1f24">' + n.nombre + '</text>';
+  cont.innerHTML = s + '</svg>';
+  const nota = document.getElementById('tpNotaAng');
+  if(nota){
+    const ver = _topeModo === 'angulo' && isFinite(_a) && Math.abs(t - _a) > 1e-6;
+    nota.style.display = ver ? '' : 'none';
+    if(ver) nota.textContent = 'En el croquis se acota ' + dec(t,'ang') + '°: es la misma dirección que '
+      + dec(_a,'ang') + '° con un arco más corto desde +x.';
+  }
 }
 function closeTopeModal(){ document.getElementById('topeModal').classList.remove('show'); topeId=null; }
 function applyTope(){
   const n=nodos.find(z=>z.id===topeId);
   if(n){
-    const nuevo = {ang:bsaAnguloOpuesto(parseFloat(document.getElementById('tpAng').value)||0), modo:_topeModo,
+    const _a = parseFloat(document.getElementById('tpAng').value);
+    const nuevo = {ang:isFinite(_a) ? _a : 180, modo:_topeModo,
                    lado:parseInt(document.getElementById('tpLado').value,10)||1};
     // Aplicar sin tocar nada no deja paso de deshacer ni oculta el panel.
     const tp = n.tope;

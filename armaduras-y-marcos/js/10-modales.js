@@ -146,12 +146,17 @@ function quitarCarga(id){
 const DIR_CARGA_ARM = {
   y:   {nom:'Vertical',   ico:'\u2193', ayuda:'Vertical, positiva hacia abajo.'},
   x:   {nom:'Horizontal', ico:'\u2192', ayuda:'Horizontal, positiva hacia la derecha.'},
-  ang: {nom:'Inclinada',  ico:'\u2220', ayuda:'0\u00b0 hacia la izquierda, 90\u00b0 abajo, 180\u00b0 derecha, 270\u00b0 arriba.'}
+  ang: {nom:'Inclinada',  ico:'\u2220', ayuda:'0\u00b0 derecha, 90\u00b0 arriba, 180\u00b0 izquierda, 270\u00b0 abajo.'}
 };
 // Vector unitario en el que actua una magnitud positiva. `ang` es el angulo
-// INTERNO (desde +x, antihorario, HACIA DONDE APUNTA la flecha), no el que
-// escribe el alumno: ese senala de donde viene y es el opuesto. La media
-// vuelta la da bsaAnguloOpuesto al leer y al escribir el campo.
+// INTERNO (desde +x, antihorario, HACIA DONDE APUNTA la flecha). Desde el
+// 2026-10-04 es tambien el numero que escribe el alumno (antes escribia de
+// donde venia, el opuesto): la ventana ya no da media vuelta.
+// Angulo en [0, 360), redondeado a 1e-4, para ensenarlo en la ventana.
+function angulo360Arm(a){
+  const r = +((((+a % 360) + 360) % 360).toFixed(4));
+  return (r >= 360) ? 0 : r;
+}
 function vectorCarga(dir, ang){
   if(dir === 'ang'){ const a = (+ang || 0)*Math.PI/180; return {x:Math.cos(a), y:Math.sin(a)}; }
   if(dir === 'x') return {x:1, y:0};
@@ -170,7 +175,7 @@ function _cargasNudoDeComponentes(fx, fy){
 }
 function descPuntual(c){
   const m = dec(+c.mag || 0, 'f');
-  if((c.dir || 'y') === 'ang') return m + ' ' + unitFor + ' a ' + dec(bsaAnguloOpuesto(c.ang, true), 'ang') + '\u00b0';
+  if((c.dir || 'y') === 'ang') return m + ' ' + unitFor + ' a ' + dec(angulo360Arm(c.ang), 'ang') + '\u00b0';
   return m + ' ' + unitFor + ' ' + (DIR_CARGA_ARM[c.dir || 'y'] || DIR_CARGA_ARM.y).ico;
 }
 function descCargaNudo(c){ return descPuntual(c); }
@@ -247,10 +252,10 @@ function abrirCargaArmModal(){
     (edCargaArm.nuevo ? 'Carga en el nudo ' : 'Editar carga del nudo ') + n.nombre;
   document.getElementById('cgLblMag').textContent = 'Magnitud (' + unitFor + ')';
   document.getElementById('cgMag').value = c ? c.mag : 10;
-  // El campo ensena el angulo del USUARIO (de donde viene la carga). Ojo con
-  // `|| -90`: 0 es un angulo valido y el operador logico lo daba por ausente.
+  // El campo ensena hacia donde apunta la carga, el mismo numero que guarda
+  // c.ang (270 = abajo por defecto). Ojo con `|| -90`: 0 es un angulo valido.
   document.getElementById('cgAng').value =
-    (c && c.ang !== undefined && isFinite(+c.ang)) ? bsaAnguloOpuesto(c.ang, true) : 90;
+    (c && c.ang !== undefined && isFinite(+c.ang)) ? angulo360Arm(c.ang) : 270;
   setDirCargaArm(_pintarDirsArm(c ? (c.dir || 'y') : 'y'));
   document.getElementById('cargaModal').classList.add('show');
 }
@@ -290,9 +295,9 @@ function aplicarCargaArm(){
     aviso('Esa carga ya no existe.', 'error'); cerrarCargaArm(); return;
   }
   const dir = document.getElementById('cgDir').value;
-  // El campo dice DE DONDE VIENE la carga; se guarda hacia donde va.
+  // El campo dice hacia donde apunta la carga, que es lo que se guarda.
   const angUsr = parseFloat(document.getElementById('cgAng').value);
-  const ang = bsaAnguloOpuesto(isFinite(angUsr) ? angUsr : 90);
+  const ang = isFinite(angUsr) ? angUsr : 270;
   const mag = parseFloat(document.getElementById('cgMag').value) || 0;
   if(Math.abs(mag) < 1e-12){ aviso('La magnitud es cero: la carga no har\u00eda nada.', 'error'); return; }
   registrarCambio();
@@ -310,7 +315,7 @@ function dibujarCroquisCargaArm(){
   const W2 = 220, H2 = 200, F = v => v.toFixed(1);
   const dir = (document.getElementById('cgDir') || {}).value || 'y';
   const _angUsr = parseFloat((document.getElementById('cgAng') || {}).value);
-  const ang = bsaAnguloOpuesto(isFinite(_angUsr) ? _angUsr : 90);
+  const ang = isFinite(_angUsr) ? _angUsr : 270;
   const mag = parseFloat((document.getElementById('cgMag') || {}).value) || 0;
   const n = nodos.find(z=>z.id === edCargaArm.nudo);
   const cx = W2/2, cy = H2/2;
@@ -325,12 +330,69 @@ function dibujarCroquisCargaArm(){
       s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + F(cx+(o.x-n.x)*k) + '" y2="' + F(cy-(o.y-n.y)*k)
          + '" stroke="#563aa8" stroke-width="2.6" stroke-linecap="round" opacity=".55"/>'; });
   }
+  // La flecha ocupa SIEMPRE el sitio de la magnitud positiva y el signo solo
+  // invierte la punta (2026-10-04, como en fuerzas internas). La INCLINADA sale
+  // del nudo en la dirección escrita y su ángulo se acota EN EL NUDO, desde +x
+  // hasta la propia flecha (bsaArcoAnguloSVG, core), para que el arco toque la
+  // fuerza (corrección del profesor); las demás llegan al nudo, como siempre.
+  // Se acota el equivalente de arco más corto (270° → −90°) y la ventana lo dice.
+  const nota = document.getElementById('cgNotaAng');
+  if(nota) nota.style.display = 'none';
   if(Math.abs(mag) > 1e-12){
-    const v = vectorCarga(dir, ang), sg = mag >= 0 ? 1 : -1;
-    const ux = v.x*sg, uy = -v.y*sg, L = 52;
-    s += '<line x1="' + F(cx-ux*L) + '" y1="' + F(cy-uy*L) + '" x2="' + F(cx-ux*9) + '" y2="' + F(cy-uy*9) + '" stroke="#c0392b" stroke-width="2.2"/>'
-       + '<polygon points="0,0 -9,-4 -9,4" fill="#c0392b" transform="translate(' + F(cx-ux*8) + ',' + F(cy-uy*8) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>'
-       + '<text x="' + F(cx-ux*(L+12)) + '" y="' + F(cy-uy*(L+12)+3) + '" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#c0392b" text-anchor="middle">' + dec(Math.abs(mag),'f') + '</text>';
+    const v = vectorCarga(dir, ang), neg = mag < 0;
+    const ux = v.x, uy = -v.y, L = 52, sale = (dir === 'ang');
+    const punta = (x, y, dx, dy) => '<polygon points="0,0 -9,-4 -9,4" fill="#c0392b" transform="translate(' + F(x) + ',' + F(y) + ') rotate(' + (Math.atan2(dy,dx)*180/Math.PI).toFixed(1) + ')"/>';
+    let lx, ly, ta = 'middle';
+    if(!sale){
+      const tx = cx - ux*L, ty = cy - uy*L;
+      s += '<line x1="' + F(tx) + '" y1="' + F(ty) + '" x2="' + F(cx-ux*9) + '" y2="' + F(cy-uy*9) + '" stroke="#c0392b" stroke-width="2.2"/>';
+      s += neg ? punta(tx, ty, -ux, -uy) : punta(cx-ux*8, cy-uy*8, ux, uy);
+      lx = cx-ux*(L+12); ly = cy-uy*(L+12)+3;
+    } else {
+      const ax0 = cx + ux*8, ay0 = cy + uy*8, ax1 = cx + ux*L, ay1 = cy + uy*L;
+      s += '<line x1="' + F(ax0) + '" y1="' + F(ay0) + '" x2="' + F(ax1 - ux*(neg ? 0 : 2)) + '" y2="' + F(ay1 - uy*(neg ? 0 : 2)) + '" stroke="#c0392b" stroke-width="2.2"/>';
+      s += neg ? punta(ax0, ay0, -ux, -uy) : punta(ax1, ay1, ux, uy);
+      // Lo que el valor y el ángulo no deben pisar: la flecha, las barras, +x y el nombre.
+      const segs = [[cx, cy, ax1, ay1], [cx, cy, cx + 44, cy]];
+      if(n){
+        let esc = 1e-9;
+        const con = barras.filter(b2=>b2.a===n.id||b2.b===n.id)
+          .map(b2=>nodos.find(z=>z.id===(b2.a===n.id?b2.b:b2.a))).filter(Boolean);
+        con.forEach(o2=>{ esc = Math.max(esc, Math.hypot(o2.x-n.x, o2.y-n.y)); });
+        con.forEach(o=>segs.push([cx, cy, cx+(o.x-n.x)*52/esc, cy-(o.y-n.y)*52/esc]));
+      }
+      const txtV = dec(Math.abs(mag),'f');
+      const caja = (x0, y0, ta2) => { const w = txtV.length*5.9, xa = ta2 === 'start' ? x0 : (ta2 === 'end' ? x0 - w : x0 - w/2); return {x0:xa, x1:xa + w, y0:y0 - 9, y1:y0 + 2.5}; };
+      const cajaNom = {x0:cx+10, x1:cx+26, y0:cy-20, y1:cy-6};
+      const choca = c => segs.filter(sg=>{
+        const mx = Math.max(sg[0], sg[2]), mn = Math.min(sg[0], sg[2]), my = Math.max(sg[1], sg[3]), mny = Math.min(sg[1], sg[3]);
+        if(c.x1 < mn - 2 || c.x0 > mx + 2 || c.y1 < mny - 2 || c.y0 > my + 2) return false;
+        for(let i = 0; i <= 12; i++){ const px2 = sg[0]+(sg[2]-sg[0])*i/12, py2 = sg[1]+(sg[3]-sg[1])*i/12;
+          if(px2 >= c.x0-2 && px2 <= c.x1+2 && py2 >= c.y0-2 && py2 <= c.y1+2) return true; }
+        return false; }).length + ((c.x0 < cajaNom.x1 && cajaNom.x0 < c.x1 && c.y0 < cajaNom.y1 && cajaNom.y0 < c.y1) ? 1 : 0);
+      const anc = vx => vx > 0.3 ? 'start' : (vx < -0.3 ? 'end' : 'middle');
+      const sitios = [{x0:cx + ux*(L+12), y0:cy + uy*(L+12) + 3, ta:anc(ux)}];
+      [[-uy, ux], [uy, -ux]].forEach(([px, py])=>{ [36, 44, 28].forEach(m=>{
+        sitios.push({x0:cx + ux*m + px*12, y0:cy + uy*m + py*12 + 3, ta:anc(px)}); }); });
+      let mejorV = null;
+      sitios.forEach(q=>{
+        const cj = caja(q.x0, q.y0, q.ta);
+        const fuera = (cj.x0 < 1 || cj.x1 > W2-1 || cj.y0 < 1 || cj.y1 > H2-1) ? 5 : 0;
+        const k = choca(cj) + fuera;
+        if(!mejorV || k < mejorV.k) mejorV = {k, x0:q.x0, y0:q.y0, ta:q.ta};
+      });
+      lx = mejorV.x0; ly = mejorV.y0; ta = mejorV.ta;
+      s += bsaArcoAnguloSVG({x:cx, y:cy, ang:ang, col:'#c0392b', r:18,
+                             segs, cajas:[cajaNom, caja(lx, ly, ta)], ancho:W2, alto:H2}).svg;
+      let tt = ((ang % 360) + 540) % 360 - 180;
+      if(tt <= -180 + 1e-9) tt = 180;
+      if(nota && isFinite(_angUsr) && Math.abs(tt - _angUsr) > 1e-6){
+        nota.style.display = '';
+        nota.textContent = 'En el croquis se acota ' + dec(tt, 'ang') + '\u00b0: es la misma dirección que '
+          + dec(_angUsr, 'ang') + '\u00b0 con un arco más corto desde +x.';
+      }
+    }
+    s += '<text x="' + F(lx) + '" y="' + F(ly) + '" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#c0392b" text-anchor="' + ta + '">' + dec(Math.abs(mag),'f') + '</text>';
   }
   s += '<circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#563aa8" stroke="#fff" stroke-width="2"/>';
   if(n) s += '<text x="' + (cx+11) + '" y="' + (cy-10) + '" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="#1b1f24">' + n.nombre + '</text>';

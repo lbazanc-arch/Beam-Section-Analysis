@@ -559,8 +559,13 @@ function tkpDCL(r, sel){
 // ── Figura de brazos de una ecuación de momentos (R10): el centro marcado y,
 //    para cada fuerza que produce momento, su línea de acción a trazos y la
 //    perpendicular desde el centro con su cota ──
-function tkpBrazos(r, ec, sel){
+// Con `conLeyenda` (2026-10-04, petición del profesor) cada brazo lleva solo su
+// nombre ($d_1$) y los valores van en una leyenda al costado del DCL
+// (bsaLeyendaBrazosTikz, core). Se pasa a ese modo solo si, con los valores
+// escritos, alguno tuvo que apartarse de su cota (el registro lo alejó con guía).
+function tkpBrazos(r, ec, sel, conLeyenda){
   tkpReiniciar();
+  let desplazado = false;
   const caja = _cajaModelo();
   const {X, Y} = caja;
   const F = v => v.toFixed(3);
@@ -614,10 +619,18 @@ function tkpBrazos(r, ec, sel){
     const tm = f.bl > 1e-6 ? (f.t0 + f.bl)/2/f.bl : 0.5;
     const mx = X(C.x) + (qx - X(C.x))*tm, my = Y(C.y) + (qy - Y(C.y))*tm;
     const nx = -(qy - Y(C.y)), ny = (qx - X(C.x)); const nn = Math.hypot(nx,ny) || 1;
-    out += tkpTexto(mx + nx/nn*0.22, my + ny/nn*0.22, '$d_{' + f.sub + '} = ' + dec(f.brazo,'len') + '$', 'font=\\tiny, color=bsaAcc2', nx/nn, ny/nn);
+    const rot = tkpTexto(mx + nx/nn*0.22, my + ny/nn*0.22,
+                         conLeyenda ? '$d_{' + f.sub + '}$' : '$d_{' + f.sub + '} = ' + dec(f.brazo,'len') + '$',
+                         'font=\\tiny, color=bsaAcc2', nx/nn, ny/nn);
+    if(rot.indexOf('gray!55') >= 0) desplazado = true;
+    out += rot;
     // marca de perpendicular
     out += '\\draw[bsaAcc2, line width=.4pt] (' + F(qx) + ',' + F(qy) + ') circle (0.03);\n';
   });
+  if(!conLeyenda && desplazado && filas.length > 1) return tkpBrazos(r, ec, sel, true);
+  if(conLeyenda)
+    out += bsaLeyendaBrazosTikz(filas.map(f=>({nom:'d_{' + f.sub + '}',
+      val:dec(f.brazo,'len') + '\\,\\text{' + escLatex(unitLen) + '}'})));
   return out;
 }
 

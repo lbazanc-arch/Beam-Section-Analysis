@@ -96,6 +96,12 @@ function _fila(izq, terms, cola, porFila, sep){
 // ── Nombre de una acción puntual, tal como se cita en el desarrollo ──
 function nombreAccion(ac){
   const EPS = 1e-9;
+  // Lo que una rama transmite a su nudo de unión (03-): F_{HC} y M_{HC}.
+  if(ac.rama){
+    const r = escLatex(ac.rama.nombre);
+    return {tex:'F_{' + r + '}', texM:'M_{' + r + '}',
+            txt:'Acción del tramo ' + r + ' sobre ' + escLatex(ac.rama.union.nombre)};
+  }
   if(ac.reac){
     // La incógnita viene adjunta desde el motor: se usa el MISMO nombre que en
     // el desarrollo y en el resumen de reacciones. Un móvil orientado es R_A.
@@ -129,7 +135,7 @@ function terminosCorte(R, gg, seg, sub){
   const a = off + sub.sa, b = off + sub.sb;
   const t0 = gg.tramos[0];
   const ux = t0.ux, uy = t0.uy, nx = -uy, ny = ux;
-  const sIni = gg.s0, primero = (gg.idx === 0);
+  const sIni = gg.s0, primero = gg.primero;
   const tN=[], tV=[], tM=[], acc=[], wAct=[], wRes=[];
   const Fz = v => dec(Math.abs(v),'fuerza');
   const Mz = v => dec(Math.abs(v),'momento');
@@ -158,7 +164,7 @@ function terminosCorte(R, gg, seg, sub){
   }
 
   // B · Acciones puntuales situadas antes del corte (reacciones, cargas, pares)
-  (R.internas.puntuales || []).forEach(o=>{
+  puntualesDe(R, seg).forEach(o=>{
     if(o.s === null) return;
     if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return;
     if(o.s > seg.s0 + sub.sa + EPS) return;
@@ -505,7 +511,7 @@ function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
 // sobre los ejes nuevos. Se muestra la rotación y las acciones del nudo.
 function bloqueQuiebre(R, grupos, gg, info){
   const EPS = 1e-9;
-  const prev = grupos[gg.idx - 1];
+  const prev = gg.anterior;
   if(!prev || !info.ctes) return '';
   const segP = prev.tramos[prev.tramos.length - 1];
   const subP = segP.subs[segP.subs.length - 1];
@@ -516,7 +522,7 @@ function bloqueQuiebre(R, grupos, gg, info){
   const Nr = Nm*cD - Vm*sD, Vr = Nm*sD + Vm*cD;
   const nx = -u2.y, ny = u2.x;
   let dN = 0, dV = 0, dM = 0; const enNudo = [];
-  (R.internas.puntuales || []).forEach(o=>{
+  puntualesDe(R, gg.tramos[0]).forEach(o=>{
     if(o.s === null || Math.abs(o.s - gg.s0) > EPS) return;
     const ac = o.a;
     const Fpar = ac.fx*u2.x + ac.fy*u2.y, Fper = ac.fx*nx + ac.fy*ny;
@@ -913,6 +919,32 @@ function fraseCortesGrupo(R, gg){
     + n + ' intervalo' + (n === 1 ? '' : 's') + '}, que se analizan a continuación.}\\\\[3pt]\n';
 }
 
+// ── Ramas (2026-10-04): una rama se desarrolla antes que la cadena a la que se
+// une, desde su extremo; al acabar, lo que transmite a su nudo de unión entra en
+// esa cadena como una acción más (03-, `nombreAccion`). 'inicio' lo dice al
+// empezar su primer tramo; 'fin', tras el último, da esa acción con sus números.
+function textoRama(R, grupos, gg, momento){
+  const cs = R.internas.cadenas;
+  const c = cs && cs[gg.cadena];
+  if(!c || !c.union || !c.equivalente) return '';
+  const X = escLatex(c.union.nombre), nom = escLatex(c.equivalente.rama.nombre);
+  if(momento === 'inicio'){
+    if(!gg.primero) return '';
+    return '\\noindent El tramo ' + nom + ' es una \\textbf{rama} que sale del nudo ' + X
+      + ': se resuelve antes que el resto, empezando por su extremo ' + escLatex(gg.desde.nombre)
+      + ', de modo que el trozo que se conserva en cada corte es solo la punta de la rama. '
+      + 'Lo que la rama transmite a ' + X + ' entra después como una acción más en ese nudo.\n';
+  }
+  const sig = grupos[gg.idx + 1];
+  if(sig && sig.cadena === gg.cadena) return '';
+  const e = c.equivalente, uF = escLatex(unitFor), uM = escLatex(unidadMomento());
+  return '\\noindent\\textbf{Acción del tramo ' + nom + ' sobre ' + X + '.} Es la suma de todo lo que actúa '
+    + 'sobre la rama (cargas y reacciones), con su momento respecto de ' + X + ':\n'
+    + '\\[F_{x,' + nom + '} = \\textstyle\\sum F_x = ' + dec(e.fx,'fuerza') + '\\ \\text{' + uF + '},\\qquad '
+    + 'F_{y,' + nom + '} = \\textstyle\\sum F_y = ' + dec(e.fy,'fuerza') + '\\ \\text{' + uF + '},\\qquad '
+    + 'M_{' + nom + '} = \\textstyle\\sum M_{' + X + '} = ' + dec(e.m,'momento') + '\\ \\text{' + uM + '}\\]\n';
+}
+
 // ── Comprobaciones finales: extremo libre/apoyo, rótulas, apoyos articulados ──
 function comprobacionesFinales(R, grupos){
   const EPS = 1e-9;
@@ -924,7 +956,7 @@ function comprobacionesFinales(R, grupos){
   const ux = segL.ux, uy = segL.uy, nx = -uy, ny = ux;
   const sFin = gL.s0 + gL.L;
   let dN = 0, dV = 0, dM = 0; const quien = [];
-  (R.internas.puntuales || []).forEach(o=>{
+  puntualesDe(R, segL).forEach(o=>{
     if(o.s === null || Math.abs(o.s - sFin) > 1e-6) return;
     const ac = o.a;
     dN += -(ac.fx*ux + ac.fy*uy); dV += (ac.fx*nx + ac.fy*ny); dM += -(ac.m || 0);
@@ -943,8 +975,21 @@ function comprobacionesFinales(R, grupos){
                 v:'$' + dec(Nm,'fuerza') + ' + (' + dec(dN,'fuerza') + ') = ' + dec(Nm+dN,'fuerza') + '$ ' + uF,
                 ok:Math.abs(Nm + dN) < 1e-5*Math.max(1, Math.abs(Nm))});
   // rótulas: M = 0
-  (R.rotulas || []).forEach(rt=>{
+  // Una vez por nudo (una rótula en una bifurcación da varias ecuaciones), y
+  // también en el final de una rama que llega a ella.
+  const rotNudos = [...new Map((R.rotulas || []).map(rt=>[rt.id, nodo(rt.id)])).values()];
+  const cs = R.internas.cadenas || [];
+  rotNudos.forEach(rt=>{
     R.internas.forEach(seg=>{
+      const finRama = cs[seg.cadena] && cs[seg.cadena].union && cs[seg.cadena].union.id === rt.id
+                   && seg.hasta.id === rt.id;
+      if(finRama){
+        const su = seg.subs[seg.subs.length - 1];
+        const m = polyVal(su.cM, su.sb);
+        filas.push({q:'En la rótula ' + escLatex(rt.nombre) + ' el momento debe ser nulo',
+                    v:'$M = ' + dec(m,'momento') + '$ ' + uM, ok:Math.abs(m) < 1e-5});
+        return;
+      }
       if(seg.desde.id !== rt.id) return;
       const su = seg.subs[0];
       const m = polyVal(su.cM, su.sa);
@@ -952,10 +997,13 @@ function comprobacionesFinales(R, grupos){
                   v:'$M = ' + dec(m,'momento') + '$ ' + uM, ok:Math.abs(m) < 1e-5});
     });
   });
-  // apoyos articulados en los extremos de la cadena: M = 0
-  const primero = R.internas[0], ultimo = R.internas[R.internas.length - 1];
-  [{n:primero.desde, su:primero.subs[0], x:primero.subs[0].sa},
-   {n:ultimo.hasta, su:ultimo.subs[ultimo.subs.length-1], x:ultimo.subs[ultimo.subs.length-1].sb}].forEach(e=>{
+  // apoyos articulados en los extremos de la estructura: M = 0. Son el
+  // arranque de cada cadena (siempre un extremo) y el final de la principal.
+  const ultimo = R.internas[R.internas.length - 1];
+  const extremos = (R.internas.cadenas || [R.internas]).map(c=>c[0]).filter(Boolean)
+    .map(s=>({n:s.desde, su:s.subs[0], x:s.subs[0].sa}));
+  extremos.push({n:ultimo.hasta, su:ultimo.subs[ultimo.subs.length-1], x:ultimo.subs[ultimo.subs.length-1].sb});
+  extremos.forEach(e=>{
     if(!e.n || !(e.n.apoyo === 'simple' || e.n.apoyo === 'movil')) return;
     const m = polyVal(e.su.cM, e.x);
     filas.push({q:'El apoyo articulado ' + escLatex(e.n.nombre) + ' está en un extremo: no transmite momento',
@@ -1071,7 +1119,7 @@ function tikzEsquemaGrupo(R, gg, W){
                    'font=\\tiny, color=bsaDist!70!black', 0, lado);
   });
   // acciones puntuales del grupo (incluidos sus dos nudos extremos)
-  (R.internas.puntuales || []).forEach(o=>{
+  puntualesDe(R, gg.tramos[0]).forEach(o=>{
     if(o.s === null || o.s < gg.s0 - 1e-6 || o.s > gg.s0 + gg.L + 1e-6) return;
     const acn = o.a, x = X(o.s - gg.s0);
     const Fper = acn.fx*nx + acn.fy*ny, Fpar = acn.fx*ux + acn.fy*uy;

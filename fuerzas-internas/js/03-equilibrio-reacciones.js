@@ -21,8 +21,12 @@ function resolverSistema(A,b){
 
 function analizar(){
   if(tramos.length < 1) return {error:'sin-viga'};
-  const cad = cadena();
-  if(cad.length !== tramos.length) return {error:'no-cadena'};
+  // Cadena principal y ramas (01-). Un anillo cerrado o una pieza suelta no se
+  // resuelven: el primero es hiperestático por dentro y la segunda no es una
+  // sola estructura.
+  const est = descomponerEnCadenas();
+  if(est.error) return {error:est.error};
+  const cad = est.cadenas[0].cad;
 
   const acc = todasLasAcciones();
   // incógnitas de reacción
@@ -40,7 +44,7 @@ function analizar(){
     if(g >= 2) inc.push({n, tipo:'Rx'});
     if(g >= 3) inc.push({n, tipo:'M'});
   });
-  const rotulas = nodos.filter(n=>n.rotula && !esExtremo(n));
+  const rotulas = ecuacionesDeRotula(cad);
   const nEq = 3 + rotulas.length;
   const diag = {inc:inc.length, eq:nEq, rot:rotulas.length};
   if(inc.length !== nEq) return {error:'determinacion', diag, acc, inc};
@@ -81,9 +85,49 @@ function analizar(){
   if(!x) return {error:'singular', diag, acc, inc};
   const val = {};
   inc.forEach((u,j)=>{ val[j] = x[j]; });
-  return {acc, inc, val, diag, cad, rotulas, A, b};
+  return {acc, inc, val, diag, cad, rotulas, A, b, estructura:est};
 }
 
+// Una ecuación de momento nulo por cada tramo que sale de una rótula, menos el
+// que va hacia el arranque de la cadena principal (2026-10-04). Con dos tramos
+// es la de siempre: el propio nudo. Con tres o más (una rótula en una
+// bifurcación: todas las piezas articuladas en el nudo) hay una por cada lado
+// que no contiene el arranque; cada una es un objeto que HEREDA del nudo
+// (nombre, x, y, id…) y lleva su `lado` y su `etiqueta` («C,CD»), y
+// `ladoDeRotula` devuelve ese lado. Así quien recorre R.rotulas no cambia.
+function ecuacionesDeRotula(cad){
+  const raiz = cad && cad.length ? cad[0].desde.id : null;
+  const ady = _adyacencia(), out = [];
+  nodos.forEach(n=>{
+    if(!n.rotula || esExtremo(n)) return;
+    const lados = (ady[n.id] || []).filter(z=>!nudosMasAlla(z, (z.a === n.id) ? z.b : z.a).has(raiz));
+    if(lados.length <= 1){ out.push(n); return; }
+    lados.forEach(z=>{
+      const o = nodo((z.a === n.id) ? z.b : z.a);
+      const e = Object.create(n);
+      e.lado = _ladoPorTramo(n, z);
+      e.etiqueta = n.nombre + ',' + n.nombre + o.nombre;
+      out.push(e);
+    });
+  });
+  return out;
+}
+// Lo que hay al otro lado de la rótula `rt` saliendo por el tramo `sale`.
+function _ladoPorTramo(rt, sale){
+  const ady = _adyacencia(), trs = [sale.id], nds = [];
+  const vistosT = new Set([sale.id]);
+  const cola = [(sale.a === rt.id) ? sale.b : sale.a]; nds.push(cola[0]);
+  while(cola.length){
+    const id = cola.shift();
+    (ady[id] || []).forEach(z=>{
+      if(vistosT.has(z.id)) return;
+      vistosT.add(z.id); trs.push(z.id);
+      const o = (z.a === id) ? z.b : z.a;
+      if(o !== rt.id && nds.indexOf(o) < 0){ nds.push(o); cola.push(o); }
+    });
+  }
+  return {nodos:nds, tramos:trs};
+}
 function esExtremo(n){
   const c = tramos.filter(t=>t.a===n.id || t.b===n.id).length;
   return c <= 1;
@@ -99,15 +143,20 @@ function accionEnLado(c, lado){
   return lado.tramos.indexOf(c.tramo) >= 0;
 }
 function ladoDeRotula(rt, cad){
-  // se toma la parte de la cadena a partir de la rótula hacia el final
-  const idx = cad.findIndex(e=>e.desde.id===rt.id);
+  if(rt && rt.lado) return rt.lado;      // una de las ecuaciones de una bifurcación
+  // Se toma la parte de la estructura que queda al otro lado de la rótula
+  // desde el arranque de la cadena principal (cad[0].desde): en una cadena,
+  // de la rótula hacia el final; con ramas, incluidas las que cuelgan de esa
+  // parte. Los nudos van en orden de recorrido desde la rótula, sin ella.
   const trs = [], nds = [];
-  if(idx < 0) return {nodos:nds, tramos:trs};
-  for(let i=idx;i<cad.length;i++){
-    trs.push(cad[i].t.id);
-    if(nds.indexOf(cad[i].hasta.id) < 0) nds.push(cad[i].hasta.id);
-  }
-  return {nodos:nds, tramos:trs};
+  const raiz = cad && cad.length ? cad[0].desde.id : null;
+  const ady = _adyacencia();
+  const sale = (ady[rt.id] || []).find(z=>{
+    const o = (z.a === rt.id) ? z.b : z.a;
+    return !nudosMasAlla(z, o).has(raiz);
+  });
+  if(!sale || raiz === rt.id) return {nodos:nds, tramos:trs};
+  return _ladoPorTramo(rt, sale);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -117,7 +166,6 @@ function ladoDeRotula(rt, cad){
 // ═══════════════════════════════════════════════════════════
 function fuerzasInternas(res){
   const N = 80;
-  const salida = [];
   // Acciones PUNTUALES (cargas concentradas, momentos y reacciones).
   // Las distribuidas NO entran aquí: se integran aparte según el tramo,
   // porque incluir además su resultante total las contaba dos veces.
@@ -134,11 +182,74 @@ function fuerzasInternas(res){
     else if(u.tipo==='Ry') puntuales.push({x:u.n.x, y:u.n.y, fx:0, fy:v, m:0, reac:true, nodo:u.n, inc:u});
     else puntuales.push({x:u.n.x, y:u.n.y, fx:0, fy:0, m:v, reac:true, nodo:u.n, inc:u});
   });
-  const posPuntual = puntuales.map(a=>({a, s:posicionEnCadena(a, res.cad)}));
+  // Cada acción se reparte a la cadena donde está: su tramo o su nudo. La
+  // unión de una rama con su madre es de la madre.
+  const est = res.estructura || {cadenas:[{id:0, cad:res.cad, padre:null, union:null}]};
+  const cadDeTramo = {}, cadDeNudo = {};
+  est.cadenas.forEach(c=>{
+    c.cad.forEach(e=>{ cadDeTramo[e.t.id] = c.id; });
+    [c.cad[0].desde].concat(c.cad.map(e=>e.hasta)).forEach(n=>{
+      if(c.union && n.id === c.union.id) return;
+      if(cadDeNudo[n.id] === undefined) cadDeNudo[n.id] = c.id;
+    });
+  });
+  const cadDeAccion = a => {
+    if(a.reac) return cadDeNudo[a.nodo.id];
+    const c = a.carga;
+    if(!c) return 0;
+    return (c.destino === 'nudo') ? cadDeNudo[c.nudo] : cadDeTramo[c.tramo];
+  };
+  const porCadena = est.cadenas.map(()=>[]);
+  puntuales.forEach(a=>{ const k = cadDeAccion(a); porCadena[k === undefined ? 0 : k].push(a); });
+  // Las repartidas (como resultantes, `res.acc`) solo hacen falta para el
+  // equivalente de una rama: dentro de su cadena se integran aparte.
+  const repartidasDe = k => res.acc.filter(a=>a.carga && (a.carga.tipo === 'U' || a.carga.tipo === 'T')
+                                        && cadDeTramo[a.carga.tramo] === k);
+  // Las ramas se resuelven antes que su madre (tienen un índice mayor): la madre
+  // necesita lo que cada rama le transmite en la unión.
+  const resultados = new Array(est.cadenas.length);
+  for(let k = est.cadenas.length - 1; k >= 0; k--){
+    const cc = est.cadenas[k];
+    const lista = porCadena[k].slice();
+    est.cadenas.forEach(h=>{ if(h.padre === k) lista.push(resultados[h.id].equivalente); });
+    const r = _internasDeCadena(res, cc, lista, N);
+    r.id = cc.id; r.cad = cc.cad; r.padre = cc.padre; r.union = cc.union;
+    if(cc.union){
+      // Lo que la rama transmite a su madre en X: la suma de todo lo que actúa
+      // sobre ella (puntuales, ramas suyas y repartidas), con su momento en X.
+      const X = cc.union;
+      let fx = 0, fy = 0, m = 0;
+      lista.concat(repartidasDe(k)).forEach(a=>{
+        fx += a.fx; fy += a.fy;
+        m += (a.x - X.x)*a.fy - (a.y - X.y)*a.fx + (a.m || 0);
+      });
+      // Se nombra por el tramo que llega a X, en el sentido del recorrido (HC).
+      const eU = cc.cad[cc.cad.length - 1];
+      r.equivalente = {x:X.x, y:X.y, fx, fy, m,
+                       rama:{cadena:k, union:X, tramo:eU.t, nombre:eU.desde.nombre + eU.hasta.nombre}};
+    }
+    resultados[k] = r;
+  }
+  // Orden de los tramos: el mismo del cálculo, las ramas antes que la cadena a
+  // la que se unen (la principal al final). Así el informe y la pantalla
+  // desarrollan cada rama antes de usar lo que transmite. Con una sola cadena
+  // no cambia nada.
+  const salida = [];
+  for(let k = resultados.length - 1; k >= 0; k--) resultados[k].forEach(s=>salida.push(s));
+  salida.puntuales = resultados[0].puntuales;   // los de la cadena principal
+  salida.cadenas = resultados;
+  return salida;
+}
+
+// N, V y M de los tramos de UNA cadena, con las acciones puntuales que actúan
+// sobre ella (incluidas las que le transmiten sus ramas).
+function _internasDeCadena(res, cc, puntuales, N){
+  const salida = [];
+  const posPuntual = puntuales.map(a=>({a, s:posicionEnCadena(a, cc.cad)}));
   salida.puntuales = posPuntual;   // lo usa el DCL del método de ecuaciones
 
   let acumL = 0;
-  res.cad.forEach((e)=>{
+  cc.cad.forEach((e, idxE)=>{
     const g = geoTramo(e.t);
     const invert = (e.desde.id !== e.t.a);
     const ux = invert ? -g.ux : g.ux, uy = invert ? -g.uy : g.uy;
@@ -164,11 +275,11 @@ function fuerzasInternas(res){
       cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
         const z = trozoCargado(c);
         if(!z || z.len <= 1e-12) return;
-        const posTramo = res.cad.findIndex(x=>x.t.id===c.tramo);
-        const posActual = res.cad.findIndex(x=>x.t.id===e.t.id);
+        const posTramo = cc.cad.findIndex(x=>x.t.id===c.tramo);
+        const posActual = cc.cad.findIndex(x=>x.t.id===e.t.id);
         if(posTramo < 0 || posTramo > posActual) return;
         const gc = z.g;
-        const inv = (res.cad[posTramo].desde.id !== gc.a.id ? true : false);
+        const inv = (cc.cad[posTramo].desde.id !== gc.a.id ? true : false);
         // límites del trozo medidos EN EL SENTIDO DEL RECORRIDO
         let r1 = inv ? (gc.L - z.s2) : z.s1;
         let r2 = inv ? (gc.L - z.s1) : z.s2;
@@ -191,7 +302,7 @@ function fuerzasInternas(res){
         // perdía el par que sí produce. Con las integrales el par sale solo.
         const Fp = (wa+wb)/2*trozo;                        // I0
         const I1 = r1*Fp + trozo*trozo*(wa+2*wb)/6;        // ∫u·w du
-        const origen = res.cad[posTramo].desde;
+        const origen = cc.cad[posTramo].desde;
         const dirx = inv ? -gc.ux : gc.ux, diry = inv ? -gc.uy : gc.uy;
         // La resultante actúa según la orientación de la carga; el momento
         // se toma en su forma general, porque con una carga perpendicular
@@ -290,12 +401,24 @@ function fuerzasInternas(res){
 
     salida.push({tramo:e.t, nombre:nomTramo(e.t), L:g.L, ang:g.ang,
                  invert, s0:acumL, puntos, subs,
-                 desde:e.desde, hasta:e.hasta, ux, uy});
+                 desde:e.desde, hasta:e.hasta, ux, uy,
+                 cadena:cc.id, idx:idxE});
     acumL += g.L;
   });
   return salida;
 }
 
+// Cadena (resultado de `_internasDeCadena`) a la que pertenece un tramo de
+// R.internas, y sus acciones puntuales con la posición en ESA cadena. Con una
+// sola cadena son R.internas y R.internas.puntuales, como siempre.
+// Color de lo que transmite una rama en los DCL de pantalla.
+const COL_RAMA = '#c2410c';
+function cadenaDe(r, seg){
+  const cs = r && r.internas && r.internas.cadenas;
+  return (cs && seg && cs[seg.cadena]) ? cs[seg.cadena] : r.internas;
+}
+function puntualesDe(r, seg){ return cadenaDe(r, seg).puntuales || []; }
+function cadDe(r, seg){ const c = cadenaDe(r, seg); return c.cad || r.cad; }
 // posición acumulada de un punto sobre la cadena (o null si no cae en ella)
 function posicionEnCadena(a, cad){
   let acum = 0;
