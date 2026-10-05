@@ -120,7 +120,12 @@ function nombreAccion(ac){
   }
   if(Math.abs(ac.m) > EPS && Math.hypot(ac.fx, ac.fy) < EPS)
     return {tex:'M_{\\text{apl}}', txt:'Momento aplicado'};
-  return {tex:'P', txt:'Carga puntual'};
+  // Cada carga puntual con su número ($P_1$, $P_2$…), el mismo en el DCL y en
+  // las ecuaciones (2026-10-05: una «P» suelta no decía cuál era).
+  const lista = cargas.filter(c=>c.tipo === 'P' || c.tipo === 'PX');
+  const k = ac.carga ? lista.indexOf(ac.carga) + 1 : 0;
+  return k > 0 ? {tex:'P_{' + k + '}', txt:'Carga puntual $P_{' + k + '}$'}
+               : {tex:'P', txt:'Carga puntual'};
 }
 
 // ── Términos del equilibrio del trozo situado ANTES del corte ──
@@ -372,8 +377,10 @@ function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
   const L = 3.5;
   tzReiniciar();
   let o = '';
-  o += '\\draw[line width=1.5pt, color=bsaMuted] (' + F(-u1.x*L) + ',' + F(-u1.y*L) + ') -- (0,0);\n';
-  o += '\\draw[line width=1.7pt, color=bsaAcc2] (0,0) -- (' + F(u2.x*L) + ',' + F(u2.y*L) + ');\n';
+  // Las barras van a trazos y tenues, para que destaquen las fuerzas y sus
+  // nombres (2026-10-05, observación del profesor).
+  o += '\\draw[line width=1.3pt, color=bsaMuted!55, dash pattern=on 5pt off 3pt] (' + F(-u1.x*L) + ',' + F(-u1.y*L) + ') -- (0,0);\n';
+  o += '\\draw[line width=1.3pt, color=bsaAcc2!45, dash pattern=on 5pt off 3pt] (0,0) -- (' + F(u2.x*L) + ',' + F(u2.y*L) + ');\n';
   tzOcuparTrazo(-u1.x*L, -u1.y*L, 0, 0, 0.09);
   tzOcuparTrazo(0, 0, u2.x*L, u2.y*L, 0.09);
   o += '\\filldraw[color=bsaAcc2] (0,0) circle (0.07);\n';
@@ -410,12 +417,16 @@ function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
   const terna = (u, n, s, col, sN, sV, sM, vN, vV, vM, dN, dV, dM) => {
     let q = '';
     const ex = u.x*s, ey = u.y*s;
-    const flecha = (ax, ay, bx, by, tex) => {
-      q += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1.2pt] ('
+    // `lado` (opcional): el rótulo va al COSTADO de la flecha, a media altura,
+    // en esa dirección; sin él, pasada la punta. Pasada la punta, el de N caía en
+    // el nudo, ya ocupado, y acababa lejos con una guía (2026-10-05).
+    const flecha = (ax, ay, bx, by, tex, lado) => {
+      q += '\\draw[-{Latex[length=2.4mm]}, color=' + col + ', line width=1.5pt] ('
          + F(ax) + ',' + F(ay) + ') -- (' + F(bx) + ',' + F(by) + ');\n';
       tzOcuparTrazo(ax, ay, bx, by, 0.07);
       const dx = bx-ax, dy = by-ay;
-      q += tzTexto(bx+dx*0.32, by+dy*0.32, '{\\scriptsize' + tex + '}', 'color=' + col, dx, dy);
+      if(lado) q += tzTexto((ax+bx)/2 + lado.x*0.38, (ay+by)/2 + lado.y*0.38, '{\\normalsize' + tex + '}', 'color=' + col, lado.x, lado.y);
+      else q += tzTexto(bx+dx*0.32, by+dy*0.32, '{\\normalsize' + tex + '}', 'color=' + col, dx, dy);
     };
     // Una solicitación nula no es una fuerza sobre el cuerpo libre: no se
     // dibuja. Un arco con «M = 0.00» al lado confunde más de lo que explica.
@@ -432,24 +443,27 @@ function tikzNudoQuiebre(u1, u2, nom, ang, Nm, Vm, Mm, N0, V0, M0, enNudo){
     // N: sobre el eje, entre 1.70 y 2.50; la punta va donde diga el sentido
     if(Math.abs(vN) > NULO){
       const kN = dN*sg(vN);             // +1 hacia afuera del nudo, −1 hacia él
-      if(kN > 0) flecha(ex*1.70, ey*1.70, ex*2.50, ey*2.50, '$' + sN + '$');
-      else       flecha(ex*2.50, ey*2.50, ex*1.70, ey*1.70, '$' + sN + '$');
+      // al costado contrario al de V, para que no se junten
+      const kV = (Math.abs(vV) > NULO) ? dV*sg(vV) : 1;
+      const ladoN = {x:-n.x*kV, y:-n.y*kV};
+      if(kN > 0) flecha(ex*1.70, ey*1.70, ex*2.50, ey*2.50, '$' + sN + '$', ladoN);
+      else       flecha(ex*2.50, ey*2.50, ex*1.70, ey*1.70, '$' + sN + '$', ladoN);
     }
     // M: arco sobre la barra; antihorario si dM·signo > 0, horario si no
     if(Math.abs(vM) > NULO){
       const cx = ex*2.95, cy = ey*2.95, kM = dM*sg(vM);
-      q += '\\draw[-{Latex[length=1.8mm]}, color=' + col + ', line width=1.1pt] ('
+      q += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1.4pt] ('
          + F(cx+0.30) + ',' + F(cy) + ') arc (0:' + (kM > 0 ? '300' : '-300') + ':0.30);\n';
       tzOcupar(cx-0.36, cy-0.36, cx+0.36, cy+0.36);
-      q += tzTexto(cx - n.x*0.64, cy - n.y*0.64,
-                   '{\\scriptsize$' + sM + '$}', 'color=' + col, -n.x, -n.y);
+      q += tzTexto(cx - n.x*0.70, cy - n.y*0.70,
+                   '{\\normalsize$' + sM + '$}', 'color=' + col, -n.x, -n.y);
     }
     return q;
   };
   // llega: N⁻>0 tira hacia la barra (dN=+1 sobre −û, es decir "afuera"), V⁻>0
   // hacia +n̂, M⁻>0 horario. Sale: N₀>0 afuera (+û), V₀>0 hacia −n̂, M₀>0
   // antihorario.
-  o += terna(u1, n1, -1, 'bsaMuted', 'N^-', 'V^-', 'M^-', Nm, Vm, Mm, +1, +1, -1);
+  o += terna(u1, n1, -1, 'bsaAcc', 'N^-', 'V^-', 'M^-', Nm, Vm, Mm, +1, +1, -1);
   o += terna(u2, n2, +1, 'bsaReac', 'N_0', 'V_0', 'M_0', N0, V0, M0, +1, -1, +1);
 
   // ── Cargas aplicadas justo en el nudo ──
@@ -565,7 +579,7 @@ function bloqueQuiebre(R, grupos, gg, info){
   out += '\\begin{center}\\begin{tikzpicture}\n'
        + tikzNudoQuiebre(u1, u2, nn, ang, Nm, Vm, Mm, N0, V0, M0, enNudo)
        + '\\end{tikzpicture}\\\\[2pt]\n{\\footnotesize\\color{bsaMuted} DCL del nudo ' + nn
-       + ': en gris lo que llega por ' + np + ', en verde lo que sale al tramo nuevo'
+       + ': en azul lo que llega por ' + np + ', en verde lo que sale al tramo nuevo'
        + (enNudo.length ? ', en rojo y violeta las cargas del nudo' : '') + '. ' + fraseAng + '}\\end{center}\\vspace{2pt}\n';
   let proy;
   if(ang.modo === 'eje')
@@ -632,8 +646,33 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
   // escribe el pequeño desarrollo de cada proyección, que es lo que el alumno
   // tiene que saber hacer. En un tramo horizontal no hay nada que proyectar.
   const EPS = 1e-9;
+  // Componente de una fuerza con nombre: P_{1} → P_{1,x}; P → P_x.
+  const subc = (Fs, c) => /\}$/.test(Fs) ? Fs.replace(/\}$/, ',' + c + '}') : Fs + '_' + c;
+  // Una carga inclinada se descompone una vez, con el ángulo que acota su figura.
+  acc.forEach(f=>{
+    const p = f.proy;
+    if(!p || Math.abs(p.fx) < EPS || Math.abs(p.fy) < EPS || /^R_|^F_/.test(p.tex)) return;
+    if(!_primeraVez('comp-' + p.tex)) return;
+    const Fm = Math.hypot(p.fx, p.fy), ag = bsaAnguloAgudoEje(p.fx/Fm, p.fy/Fm);
+    if(ag.grados < 4) return;
+    const letra = (_angulosFiguraFI.find(x => x.letra && Math.abs(x.valor - ag.grados) < 0.15) || {}).letra || '\\alpha';
+    const fx = ag.desdeV ? '\\operatorname{sen}' : '\\cos', fy = ag.desdeV ? '\\cos' : '\\operatorname{sen}';
+    const sx = p.fx < 0 ? '-' : '', sy = p.fy < 0 ? '-' : '';
+    out += '\\noindent{\\footnotesize $' + p.tex + '$ forma $' + letra + ' = ' + dec(ag.grados,'ang') + '^\\circ$ con la '
+      + (ag.desdeV ? 'vertical' : 'horizontal') + ' (acotado en la figura); sus componentes ($+x$ a la derecha, $+y$ hacia arriba):}\n';
+    out += _alineada([subc(p.tex, 'x') + ' &= ' + sx + p.tex + fx + letra + ' = ' + dec(p.fx,'fuerza') + '\\ \\text{' + uF + '} & '
+      + subc(p.tex, 'y') + ' &= ' + sy + p.tex + fy + letra + ' = ' + dec(p.fy,'fuerza') + '\\ \\text{' + uF + '}']);
+  });
   if(gg.inclinado && esPrimerCorte){
     const th = gg.ang*Math.PI/180, co = Math.cos(th), si = Math.sin(th);
+    const t0p = gg.tramos[0], uxp = t0p.ux, uyp = t0p.uy, nxp = -uyp, nyp = uxp;
+    // Eje vertical u horizontal: la proyección es la propia componente, con su signo.
+    const comp1 = (Fs, cx, cy, fx, fy) => {
+      const t = [];
+      if(Math.abs(cx) > 0.5 && Math.abs(fx) > EPS) t.push((cx < 0 ? '-' : '') + subc(Fs, 'x'));
+      if(Math.abs(cy) > 0.5 && Math.abs(fy) > EPS) t.push((cy < 0 ? '-' : '') + subc(Fs, 'y'));
+      return t.length ? t.join(' + ').replace('+ -', '- ') : '0';
+    };
     const filasP = [];
     acc.forEach(f=>{
       const p = f.proy;
@@ -641,15 +680,18 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
       if(Math.abs(p.Fper) < EPS && Math.abs(p.Fpar) < EPS) return;
       const Fs = p.tex;
       let ePer, ePar, vPer, vPar;
-      if(Math.abs(p.fx) < EPS){
+      if(!gg.oblicuo){
+        ePer = comp1(Fs, nxp, nyp, p.fx, p.fy);  ePar = comp1(Fs, uxp, uyp, p.fx, p.fy);
+        vPer = p.Fper;                           vPar = p.Fpar;
+      } else if(Math.abs(p.fx) < EPS){
         ePer = Fs + '\\cos\\theta';  ePar = Fs + '\\sin\\theta';
         vPer = p.fy*co;              vPar = p.fy*si;
       } else if(Math.abs(p.fy) < EPS){
         ePer = '-' + Fs + '\\sin\\theta'; ePar = Fs + '\\cos\\theta';
         vPer = -p.fx*si;                  vPar = p.fx*co;
       } else {
-        ePer = Fs + '_y\\cos\\theta - ' + Fs + '_x\\sin\\theta';
-        ePar = Fs + '_x\\cos\\theta + ' + Fs + '_y\\sin\\theta';
+        ePer = subc(Fs, 'y') + '\\cos\\theta - ' + subc(Fs, 'x') + '\\sin\\theta';
+        ePar = subc(Fs, 'x') + '\\cos\\theta + ' + subc(Fs, 'y') + '\\sin\\theta';
         vPer = p.Fper;                    vPar = p.Fpar;
       }
       filasP.push(Fs + ': \\quad F_{\\perp} &= ' + ePer + ' = ' + dec(vPer,'fuerza')
@@ -658,7 +700,8 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
     });
     if(filasP.length){
       out += '\\noindent{\\footnotesize Cada fuerza se proyecta sobre el eje del tramo y sobre su '
-        + 'normal, con $\\theta = ' + dec(gg.ang,'ang') + '^\\circ$ ($F_{\\perp}$ positiva hacia '
+        + 'normal' + (gg.oblicuo ? ', con $\\theta = ' + dec(gg.ang,'ang') + '^\\circ$' : ' (tramo ' + (gg.vertical ? 'vertical' : 'horizontal') + ': cada proyección es una componente)')
+        + ' ($F_{\\perp}$ positiva hacia '
         + 'arriba de la normal, $F_{\\parallel}$ en el sentido de avance):}\n';
       out += _alineada(filasP);
     }
@@ -1136,8 +1179,7 @@ function tikzEsquemaGrupo(R, gg, W){
       out += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1.1pt] (' + F(x) + ',' + F(ini)
            + ') -- (' + F(x) + ',' + F(fin) + ');\n';
       tzOcuparTrazo(x, ini, x, fin, 0.07);
-      const lab = acn.reac ? '$' + comp('\\perp') + '=' + dec(Math.abs(Fper),'fuerza') + '$'
-                : (gg.inclinado ? '$F_{\\perp}=' : '') + dec(Math.abs(Fper),'fuerza') + (gg.inclinado ? '$' : '') + '\\,' + uF;
+      const lab = '$' + comp('\\perp') + '=' + dec(Math.abs(Fper),'fuerza') + '$' + (acn.reac || acn.rama ? '' : '\\,' + uF);
       out += tzTexto(x, ini + (Fper > 0 ? -0.20 : 0.20), lab, 'font=\\tiny, color=' + col, 0, Fper > 0 ? -1 : 1);
     }
     if(Math.abs(Fpar) > EPS){
@@ -1145,8 +1187,7 @@ function tikzEsquemaGrupo(R, gg, W){
       out += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1.1pt] (' + F(x - s*0.85) + ',' + F(y)
            + ') -- (' + F(x - s*0.10) + ',' + F(y) + ');\n';
       tzOcuparTrazo(x - s*0.85, y, x - s*0.10, y, 0.07);
-      const lab = acn.reac ? '$' + comp('\\parallel') + '=' + dec(Math.abs(Fpar),'fuerza') + '$'
-                : (gg.inclinado ? '$F_{\\parallel}=' : '') + dec(Math.abs(Fpar),'fuerza') + (gg.inclinado ? '$' : '') + '\\,' + uF;
+      const lab = '$' + comp('\\parallel') + '=' + dec(Math.abs(Fpar),'fuerza') + '$' + (acn.reac || acn.rama ? '' : '\\,' + uF);
       out += tzTexto(x - s*1.05, y, lab, 'font=\\tiny, color=' + col, -s, 0);
     }
     if(Math.abs(acn.m) > EPS){
@@ -1154,8 +1195,45 @@ function tikzEsquemaGrupo(R, gg, W){
       const arc = acn.m > 0 ? '(0:300:0.28)' : '(0:-300:0.28)';
       out += '\\draw[-{Latex[length=1.8mm]}, color=' + colM + ', line width=1pt] (' + F(x+0.28) + ',0) arc ' + arc + ';\n';
       tzOcupar(x-0.34, -0.34, x+0.34, 0.34);
-      const lab = acn.reac ? '$' + nom.tex + '=' + dec(Math.abs(acn.m),'momento') + '$' : dec(Math.abs(acn.m),'momento') + '\\,' + uM;
+      const lab = acn.reac ? '$' + nom.tex + '=' + dec(Math.abs(acn.m),'momento') + '$'
+                : acn.rama ? '$' + nom.texM + '=' + dec(Math.abs(acn.m),'momento') + '$'
+                : dec(Math.abs(acn.m),'momento') + '\\,' + uM;
       out += tzTexto(x + 0.55, 0.42, lab, 'font=\\tiny, color=' + colM, 1, 1);
+    }
+  });
+  // ── N, V y M donde el tramo se une al resto de la estructura (2026-10-05) ──
+  // Son los valores con los que arrancan y acaban sus diagramas: sin ellos no
+  // se entiende de dónde sale el primer valor de N, V o M. Se dibujan en su
+  // sentido POSITIVO, como en la cara de un corte, con el valor con su signo.
+  // En la cara de arranque: N positiva tira hacia fuera, V hacia arriba, M
+  // horario; en la de llegada: N hacia fuera, V hacia abajo, M antihorario.
+  const ady = _adyacencia();
+  [-1, 1].forEach(lado=>{
+    const nd = lado < 0 ? gg.desde : gg.hasta;
+    if((ady[nd.id] || []).length < 2) return;           // extremo libre o apoyo final
+    const seg = lado < 0 ? gg.tramos[0] : gg.tramos[gg.tramos.length - 1];
+    const su = lado < 0 ? seg.subs[0] : seg.subs[seg.subs.length - 1];
+    const sx = lado < 0 ? su.sa : su.sb;
+    const Nv = polyVal(su.cN, sx), Vv = polyVal(su.cV, sx), Mv = polyVal(su.cM, sx);
+    const x = lado < 0 ? 0 : W, nn = escLatex(nd.nombre), col = 'bsaAcc';
+    if(Math.abs(Nv) > 5e-4){
+      const a1 = x + lado*0.40, a2 = x + lado*1.15;
+      out += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1.1pt] (' + F(a1) + ',0) -- (' + F(a2) + ',0);\n';
+      tzOcuparTrazo(a1, 0, a2, 0, 0.07);
+      out += tzTexto(a2 + lado*0.25, 0, '$N_{' + nn + '}=' + dec(Nv,'fuerza') + '$', 'font=\\tiny, color=' + col, lado, 0);
+    }
+    if(Math.abs(Vv) > 5e-4){
+      const vd = lado < 0 ? 1 : -1, xv = x + lado*0.14;
+      out += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1.1pt] (' + F(xv) + ',' + F(-vd*0.85)
+           + ') -- (' + F(xv) + ',' + F(-vd*0.08) + ');\n';
+      tzOcuparTrazo(xv, -vd*0.85, xv, -vd*0.08, 0.07);
+      out += tzTexto(xv, -vd*1.08, '$V_{' + nn + '}=' + dec(Vv,'fuerza') + '$', 'font=\\tiny, color=' + col, 0, -vd);
+    }
+    if(Math.abs(Mv) > 5e-4){
+      const arc = lado < 0 ? '(0:-300:0.30)' : '(0:300:0.30)';
+      out += '\\draw[-{Latex[length=1.8mm]}, color=bsaMomento, line width=1pt] (' + F(x+0.30) + ',0) arc ' + arc + ';\n';
+      tzOcupar(x-0.36, -0.36, x+0.36, 0.36);
+      out += tzTexto(x + lado*0.55, 0.55, '$M_{' + nn + '}=' + dec(Mv,'momento') + '$', 'font=\\tiny, color=bsaMomento', lado, 1);
     }
   });
   return out;

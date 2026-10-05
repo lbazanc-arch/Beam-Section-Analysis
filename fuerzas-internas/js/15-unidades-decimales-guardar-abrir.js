@@ -770,7 +770,8 @@ function _angulosFiguraTex(lista){
 // `pend` (opcional): lista de rótulos pendientes. Si se da, la letra no se
 // coloca aquí sino que se deja en ella como {x,y,txt,opts,dir}, para que la
 // figura la coloque cuando ya tenga reservada toda su geometría (tikzViga).
-function tikzArcoReaccionFI(ox, oy, ux, uy, gen, pend){
+function tikzArcoReaccionFI(ox, oy, ux, uy, gen, pend, col){
+  const cA = col || 'bsaReac';
   const ag = bsaAnguloAgudoEje(ux, uy);
   if(ag.grados < 4) return '';
   const rayDeg = ag.desdeV ? (uy >= 0 ? 90 : -90) : (ux >= 0 ? 0 : 180);
@@ -780,13 +781,13 @@ function tikzArcoReaccionFI(ox, oy, ux, uy, gen, pend){
   const cr = Math.cos(rayDeg*Math.PI/180), sr = Math.sin(rayDeg*Math.PI/180), R2 = 0.45;
   const F3 = v => v.toFixed(3);
   const letra = gen.para(ag.grados);
-  let q = '\\draw[bsaReac!55, line width=0.35pt, dash pattern=on 1.5pt off 1.5pt] (' + F3(ox) + ',' + F3(oy)
+  let q = '\\draw[' + cA + '!55, line width=0.35pt, dash pattern=on 1.5pt off 1.5pt] (' + F3(ox) + ',' + F3(oy)
         + ') -- (' + F3(ox + 0.62*cr) + ',' + F3(oy + 0.62*sr) + ');\n';
-  q += '\\draw[bsaReac!70, line width=0.45pt] (' + F3(ox + R2*cr) + ',' + F3(oy + R2*sr)
+  q += '\\draw[' + cA + '!70, line width=0.45pt] (' + F3(ox + R2*cr) + ',' + F3(oy + R2*sr)
      + ') arc [start angle=' + rayDeg + ', end angle=' + endDeg.toFixed(2) + ', radius=' + R2 + '];\n';
   const am = (rayDeg + endDeg)/2*Math.PI/180;
   const rot = {x:ox + 0.72*Math.cos(am), y:oy + 0.72*Math.sin(am), txt:'$' + letra + '$',
-               opts:'font=\\tiny, color=bsaReac', dir:[Math.cos(am), Math.sin(am)]};
+               opts:'font=\\tiny, color=' + cA, dir:[Math.cos(am), Math.sin(am)]};
   if(pend) pend.push(rot);
   else q += tzTexto(rot.x, rot.y, rot.txt, rot.opts, rot.dir[0], rot.dir[1]);
   _angulosFiguraFI.push({letra, valor:ag.grados});
@@ -836,7 +837,11 @@ function pasoAPasoReacciones(R){
   // positivo supuesto de cada una antes de plantear las ecuaciones.
   const _dclGlobal = tikzViga(true);
   const angsGlobal = _angulosFiguraFI.slice();     // las letras de esta figura
-  out += '\\begin{center}\\begin{tikzpicture}\n' + _dclGlobal
+  // El DCL global (y la descomposición del rodillo inclinado, que lo cita) va
+  // justo antes de la PRIMERA ecuación global que se desarrolla, no al principio:
+  // con rótulas, sus ecuaciones van antes y el DCL quedaba páginas atrás de donde
+  // se usa (2026-10-05, observación del profesor). Sin rótulas sale donde siempre.
+  let preGlobal = '\\begin{center}\\begin{tikzpicture}\n' + _dclGlobal
        + '\\end{tikzpicture}\n'
        + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre global: cargas y reacciones incógnita '
        + 'en su sentido positivo; brazos acotados desde $' + nombreOrigen() + '$.' + _angulosFiguraTex(angsGlobal) + '}\n\\end{center}\\vspace{4pt}\n';
@@ -857,18 +862,18 @@ function pasoAPasoReacciones(R){
     const fn = comp => (((comp === 'x') !== ag.desdeV) ? '\\cos' : '\\operatorname{sen}');
     const sg = comp => ((comp === 'x' ? ca : sa) < 0 ? '-' : '');
     const f4 = v => (Math.round(v*10000)/10000).toFixed(4);
-    out += '\\noindent{\\footnotesize El rodillo de ' + nn + ' apoya sobre un plano inclinado, así que su '
+    preGlobal += '\\noindent{\\footnotesize El rodillo de ' + nn + ' apoya sobre un plano inclinado, así que su '
       + 'única reacción no es vertical: forma $' + letra + ' = ' + g + '$ con la ' + (ag.desdeV ? 'vertical' : 'horizontal')
       + ', el ángulo acotado en la figura. Antes de sumar, se descompone; el signo de cada componente '
       + 'es el del sentido de la flecha.}\\\\[2pt]\n';
-    out += _alineada([
+    preGlobal += _alineada([
       'R_{x' + nn + '} &= ' + sg('x') + nR + fn('x') + letra + ' = ' + sg('x') + nR + fn('x') + ' ' + g + ' = ' + f4(ca) + '\\,' + nR,
       'R_{y' + nn + '} &= ' + sg('y') + nR + fn('y') + letra + ' = ' + sg('y') + nR + fn('y') + ' ' + g + ' = ' + f4(sa) + '\\,' + nR
     ]);
     const O = nombreOrigen(), coefM = R.A[2][j];
-    out += '\\noindent{\\footnotesize Su momento respecto de $' + O + '$ es el de esas dos componentes, '
+    preGlobal += '\\noindent{\\footnotesize Su momento respecto de $' + O + '$ es el de esas dos componentes, '
       + 'cada una por su propia distancia:}\\\\[2pt]\n';
-    out += _alineada([
+    preGlobal += _alineada([
       'M_{' + O + '} &= x_{' + nn + '}\\,R_{y' + nn + '} - y_{' + nn + '}\\,R_{x' + nn + '}',
       '&= (' + dec(u.n.x,'len') + ')\\,(' + f4(sa) + '\\,' + nR + ') - (' + dec(u.n.y,'len') + ')\\,(' + f4(ca) + '\\,' + nR + ')',
       '&= ' + dec(coefM,'len') + '\\,' + nR
@@ -959,6 +964,9 @@ function pasoAPasoReacciones(R){
                  : (e === 1 ? '+\\!\\uparrow\\ ' : '\\circlearrowleft\\!+\\ ');
   const etiqueta = e => ico(e) + nomEq[e] + ':\\quad';
   const _cabecera = (e) => (e >= 3 && R.rotulas[e-3] ? dclRotula(R.rotulas[e-3]) : '');
+  // Lo que precede a la primera ecuación global (ΣFx, ΣFy, ΣM del origen): el DCL
+  // global y, si lo hay, el rodillo inclinado. Se entrega una sola vez.
+  const sacarGlobal = () => { const g = preGlobal; preGlobal = ''; return g; };
 
   // Numeración de las ecuaciones y de dónde salió cada incógnita, para poder
   // citarlas al sustituir.
@@ -993,6 +1001,7 @@ function pasoAPasoReacciones(R){
         if(usada[e]) continue;
         usada[e] = true; restantes--;
         numEc[e] = ++nSig; nums.push(numEc[e]);
+        if(e < 3){ const g = sacarGlobal(); if(g){ flush(); out += g; } }
         const dcl = _cabecera(e);
         if(dcl){ flush(); out += dcl; }      // el DCL de la rótula va antes de SU ecuación
         const rf = refsDe(e);
@@ -1018,6 +1027,7 @@ function pasoAPasoReacciones(R){
     const p = pendientes(el)[0];
     const rf = refsDe(el);
     const hayPrevias = izqTerms(el, false).length > 1;
+    if(el < 3) out += sacarGlobal();
     out += _cabecera(el);
     // 1 · La ecuación completa, con las incógnitas en símbolos y numerada. Se
     //     omite cuando no aporta nada: una ecuación con una sola incógnita de
@@ -1158,7 +1168,9 @@ function tikzApoyo(x, y, tipo, k, angMuro, angApoyo){
 function tikzDCLSub(R, gg, seg, sub, info){
   _angulosFiguraFI = [];
   const genAngSub = bsaLetrasGriegas();
-  if(gg.inclinado) genAngSub.para(Math.abs(gg.ang));   // θ ya es la inclinación del tramo
+  // θ es la inclinación del tramo; si no la lleva, igual queda reservada para que
+  // el ángulo de una carga se llame α y no se confunda con ella.
+  genAngSub.para(gg.oblicuo ? Math.abs(gg.ang) : -999);
   const EPS = 1e-9;
   const primero = gg.primero;
   const sIni = gg.s0;
@@ -1187,7 +1199,9 @@ function tikzDCLSub(R, gg, seg, sub, info){
   todos.forEach(p=>{ minx=Math.min(minx,p.x); maxx=Math.max(maxx,p.x);
                      miny=Math.min(miny,p.y); maxy=Math.max(maxy,p.y); });
   const dxB = Math.max(maxx-minx, 1e-6), dyB = Math.max(maxy-miny, 1e-6);
-  const k = Math.min(2.4, 10.0/dxB, 5.6/dyB);
+  // Tope 3.2 (antes 2.4): un tramo corto, como una rama de 1 m, salía diminuto
+  // y sus flechas y rótulos se amontonaban (2026-10-05). Los largos no cambian.
+  const k = Math.min(3.2, 10.0/dxB, 5.6/dyB);
   const X = x => (x-minx)*k, Y = y => (y-miny)*k;
   const F = n => n.toFixed(3);
   tzReiniciar();
@@ -1204,6 +1218,7 @@ function tikzDCLSub(R, gg, seg, sub, info){
                              y: Y(O.y) + uy*(r*pxU) + nyq*sep});
 
   let out = '';
+  const nombresNudo = [];
   for(let i=0;i<todos.length-1;i++){
     out += '\\draw[line width=1.7pt, color=bsaAcc2] (' + F(X(todos[i].x)) + ',' + F(Y(todos[i].y))
          + ') -- (' + F(X(todos[i+1].x)) + ',' + F(Y(todos[i+1].y)) + ');\n';
@@ -1211,9 +1226,11 @@ function tikzDCLSub(R, gg, seg, sub, info){
   }
   pts.forEach((p,i)=>{
     out += '\\filldraw[color=bsaAcc2] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.055);\n';
-    out += '\\node[below left, font=\\scriptsize\\bfseries, color=bsaAcc2] at ('
-         + F(X(p.x)) + ',' + F(Y(p.y)) + ') {' + escLatex(p.nom) + '};\n';
+    // El nombre se reserva aquí, abajo a la izquierda, y se escribe al final:
+    // si para entonces una flecha lo pisa, busca hueco (2026-10-05: la «H» de la
+    // rama quedaba debajo de su carga).
     tzOcupar(X(p.x)-0.36, Y(p.y)-0.38, X(p.x)+0.06, Y(p.y)-0.02);
+    nombresNudo.push({x:X(p.x), y:Y(p.y), nom:escLatex(p.nom), i:_tzCajas.length - 1});
     // El apoyo se dibuja tal cual: así el alumno ve de dónde salen las
     // reacciones. En los grupos siguientes al primero, el nudo de arranque
     // ya está representado por N0, V0 y M0 y no lleva apoyo.
@@ -1236,7 +1253,10 @@ function tikzDCLSub(R, gg, seg, sub, info){
   // En un tramo inclinado, las ecuaciones del corte usan las componentes
   // perpendicular y paralela de cada fuerza, y esas salen de θ. Sin el ángulo
   // en la figura, los senos y cosenos del desarrollo no se sostienen en nada.
-  if(gg.inclinado){
+  // Un tramo vertical u horizontal no lleva θ (2026-10-05): se sobrentiende.
+  // El rótulo de θ se coloca AL FINAL, cuando ya están las cotas: así las esquiva.
+  let rotTheta = null;
+  if(gg.oblicuo){
     const ox = X(O.x), oy = Y(O.y);
     const gr = dec(gg.ang,'ang');
     const a2 = gg.ang;                       // ángulo del eje con la horizontal
@@ -1249,9 +1269,9 @@ function tikzDCLSub(R, gg, seg, sub, info){
          + F(a2) + ':' + F(rr) + ');\n';
     const am = (((sgx > 0 ? 0 : 180) + a2)/2)*Math.PI/180;
     tzOcupar(ox - rr, oy - rr, ox + rr, oy + rr);
-    out += tzTexto(ox + Math.cos(am)*(rr + 0.34), oy + Math.sin(am)*(rr + 0.34),
-                   '{\\scriptsize$\\theta = ' + gr + '^\\circ$}', 'color=bsaCarga',
-                   Math.cos(am), Math.sin(am));
+    rotTheta = [ox + Math.cos(am)*(rr + 0.34), oy + Math.sin(am)*(rr + 0.34),
+                '{\\scriptsize$\\theta = ' + gr + '^\\circ$}', 'color=bsaCarga',
+                Math.cos(am), Math.sin(am)];
   }
 
   // ── Cargas repartidas hasta el corte ──
@@ -1442,7 +1462,11 @@ function tikzDCLSub(R, gg, seg, sub, info){
            + F(x-ex*larga) + ',' + F(y-ey*larga) + ') -- (' + F(x-ex*corta) + ',' + F(y-ey*corta) + ');\n';
       tzOcuparTrazo(x-ex*larga, y-ey*larga, x-ex*corta, y-ey*corta, 0.07);
       if(inclinada) out += tikzArcoReaccionFI(x-ex*larga, y-ey*larga, ex, ey, genAngSub);
-      const lab = (a.reac || a.rama) ? '$' + nom.tex + '=' + Fz(Fm) + '$' : Fz(Fm) + '\\,' + uF;
+      // Una carga inclinada lleva también su ángulo, en la cola (2026-10-05).
+      const cargaIncl = !a.reac && !a.rama && bsaAnguloAgudoEje(ex, ey).grados >= 4;
+      if(cargaIncl) out += tikzArcoReaccionFI(x-ex*larga, y-ey*larga, ex, ey, genAngSub, null, 'bsaCarga');
+      // Toda fuerza lleva su nombre, el mismo de las ecuaciones ($P_1$…).
+      const lab = '$' + nom.tex + '=' + Fz(Fm) + '$' + ((a.reac || a.rama) ? '' : '\\,' + uF);
       if(!inclinada && ey > 0.5){
         // Fuerza hacia arriba: su cola cae bajo la viga, en la banda de cotas,
         // así que el valor va al costado de la flecha, hacia afuera del trozo.
@@ -1493,14 +1517,32 @@ function tikzDCLSub(R, gg, seg, sub, info){
   // ── Brazos de las resultantes repartidas, medidos hasta el corte ──
   // Se acotan aparte porque son los que entran en la ecuación de momentos y
   // no se pueden leer de la cadena de posiciones.
+  // Si la expresión de algún brazo no cabe en su cota (2026-10-05: «½(x − 4.00)»
+  // se quedaba sin línea a la vista), todas se nombran $b_1$, $b_2$… y las
+  // expresiones van en la leyenda «Brazos» al costado (bsaLeyendaBrazosTikz).
   let SEP0 = BRAZO0;
-  brazos.slice(0, 3).forEach((bz, i)=>{
+  const brazosV = brazos.slice(0, 3);
+  const largoBrazo = bz => { const p1 = qEje(bz.r, 0), p2 = qEje(rCut, 0); return Math.hypot(p2.x-p1.x, p2.y-p1.y); };
+  const brazoLeyenda = brazosV.some(bz => tzAncho(bz.tex, 'font=\\tiny') + 0.16 > largoBrazo(bz));
+  const filasBrazo = [];
+  brazosV.forEach((bz, i)=>{
     const sep = BRAZO0 + i*BRAZO_SALTO;
     const p1 = qEje(bz.r, sep), p2 = qEje(rCut, sep);
     out += '\\draw[bsaDist!70!black, line width=.45pt, {Latex[length=1.2mm]}-{Latex[length=1.2mm]}] ('
          + F(p1.x) + ',' + F(p1.y) + ') -- (' + F(p2.x) + ',' + F(p2.y) + ');\n';
     tzOcuparTrazo(p1.x, p1.y, p2.x, p2.y, 0.04);
-    out += tzTextoFijo((p1.x+p2.x)/2, (p1.y+p2.y)/2, bz.tex, 'font=\\tiny, color=bsaDist!70!black');
+    if(brazoLeyenda){
+      const nomB = '$b_{' + (i+1) + '}$';
+      filasBrazo.push({nom:'b_{' + (i+1) + '}', val:bz.tex.replace(/^\$|\$$/g, '')});
+      const w = tzAncho(nomB, 'font=\\tiny'), largo = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+      // en medio si cabe; si no, pasado el extremo del lado contrario al corte
+      if(w + 0.10 <= largo) out += tzTextoFijo((p1.x+p2.x)/2, (p1.y+p2.y)/2, nomB, 'font=\\tiny, color=bsaDist!70!black');
+      else {
+        const L1 = largo || 1, dx = (p1.x-p2.x)/L1, dy = (p1.y-p2.y)/L1;
+        out += tzTextoFijo(p1.x + dx*(w/2 + 0.10), p1.y + dy*(w/2 + 0.10), nomB, 'font=\\tiny, color=bsaDist!70!black');
+      }
+    } else
+      out += tzTextoFijo((p1.x+p2.x)/2, (p1.y+p2.y)/2, bz.tex, 'font=\\tiny, color=bsaDist!70!black');
     SEP0 = sep + BRAZO_SALTO;
   });
 
@@ -1564,5 +1606,22 @@ function tikzDCLSub(R, gg, seg, sub, info){
   });
   out += tzTextoFijo((a1.x+b1.x)/2, (a1.y+b1.y)/2, '$' + gg.simbolo + '$',
                      'font=\\scriptsize, color=bsaMuted');
+  // Los nombres de los nudos: en su sitio si nada lo pisa; si no, donde quepan.
+  nombresNudo.forEach(nq=>{
+    const caja = _tzCajas[nq.i];
+    _tzCajas[nq.i] = {x0:0, x1:0, y0:0, y1:0};          // la suya no cuenta
+    const pisado = _tzCajas.some((q, j) => j > nq.i && !q.guia && !q.rot
+      && caja.x0 < q.x1 && caja.x1 > q.x0 && caja.y0 < q.y1 && caja.y1 > q.y0);
+    if(!pisado){
+      _tzCajas[nq.i] = caja;
+      out += '\\node[below left, font=\\scriptsize\\bfseries, color=bsaAcc2] at ('
+           + F(nq.x) + ',' + F(nq.y) + ') {' + nq.nom + '};\n';
+    } else
+      out += tzTexto(nq.x + 0.22, nq.y + 0.22, '\\textbf{' + nq.nom + '}', 'font=\\scriptsize, color=bsaAcc2', 1, 1);
+  });
+  // θ al final: busca hueco entre todo lo ya rotulado, cotas incluidas.
+  if(rotTheta) out += tzTexto(...rotTheta);
+  // La leyenda de los brazos, a la derecha de todo lo dibujado.
+  out += bsaLeyendaBrazosTikz(filasBrazo);
   return out;
 }

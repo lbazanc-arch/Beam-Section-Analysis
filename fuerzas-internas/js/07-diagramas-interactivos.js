@@ -351,6 +351,12 @@ function gruposDireccion(r){
     gr.anterior = (prev && prev.cadena === gr.cadena) ? prev : null;
     gr.primero = !gr.anterior;
     gr.inclinado = Math.abs(gr.ang) > TOL_ANG_GRUPO;
+    // Un eje a 90°, 180° o 270° no es «inclinado» para el alumno: es vertical u
+    // horizontal y no lleva ángulo θ ni proyecciones con senos y cosenos
+    // (2026-10-05, observación del profesor). `oblicuo` es el que sí los lleva.
+    const resto = Math.abs(gr.ang) % 90;
+    gr.oblicuo = resto > TOL_ANG_GRUPO && resto < 90 - TOL_ANG_GRUPO;
+    gr.vertical = !gr.oblicuo && Math.abs(Math.abs(gr.ang) - 90) < TOL_ANG_GRUPO;
     // En un tramo inclinado la abscisa no es x ni y, sino la resultante de
     // ambos catetos: se llama r para dejarlo claro.
     gr.simbolo = gr.inclinado ? 'r' : 'x';

@@ -203,7 +203,7 @@ function renderResultados(r){
     + 'y pulsa Generar; cada uno lleva sus tres diagramas con su propia abscisa.</div>'
     + '<div class="vis-row" id="grupoSel">'
     + grupos.map(g=>'<label class="vis-item"><input type="checkbox" data-g="'+g.idx+'" checked>'
-        + '<span>' + g.recorrido + (g.inclinado ? ' · ' + dec(g.ang,'ang') + '°' : ' · recto')
+        + '<span>' + g.recorrido + (g.oblicuo ? ' · ' + dec(g.ang,'ang') + '°' : (g.vertical ? ' · vertical' : ' · recto'))
         + '</span></label>').join('')
     + '</div>'
     + '<div style="display:flex;gap:7px;margin:9px 0 12px">'
@@ -300,7 +300,7 @@ function htmlDiagramasGrupos(r, idxs){
     return '<div style="margin-bottom:16px">'
       + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">'
       + 'Tramo ' + g.recorrido + ' — '
-      + (g.inclinado ? 'inclinado ' + dec(g.ang,'ang') + '°' : 'recto')
+      + (g.oblicuo ? 'inclinado ' + dec(g.ang,'ang') + '°' : (g.vertical ? 'vertical' : 'recto'))
       + ' · L = ' + dec(g.L,'len') + ' ' + unitLen
       + ' · abscisa <i>' + g.simbolo + '</i> desde ' + g.desde.nombre + '</div>'
       + '<div class="proc-block">' + svgDiagramas(r, g) + '</div>'
@@ -439,7 +439,7 @@ function vdPintarSelectores(){
       '<label class="vd-radio' + (i===_vdGrupo ? ' on' : '') + '">'
     + '<input type="radio" name="vdG" value="' + i + '"' + (i===_vdGrupo ? ' checked' : '')
     + ' onchange="vdCambioGrupo(' + i + ')">'
-    + '<span>' + g.recorrido + (g.inclinado ? ' · ' + dec(g.ang,'ang') + '°' : ' · recto')
+    + '<span>' + g.recorrido + (g.oblicuo ? ' · ' + dec(g.ang,'ang') + '°' : (g.vertical ? ' · vertical' : ' · recto'))
     + '</span></label>').join('');
   const sel = document.getElementById('vdSelCarga');
   sel.innerHTML = cargas.map(c=>

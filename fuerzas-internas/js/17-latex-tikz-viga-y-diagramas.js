@@ -799,7 +799,7 @@ function construirLatex(){
       if(gg.idx > 0)
         tex += '\\vspace{8pt}\\noindent{\\color{bsaAcc2}\\rule{\\linewidth}{.8pt}}\\vspace{5pt}\n';
       tex += '\\subpaso{Tramo ' + escLatex(gg.recorrido) + '\\quad '
-        + (gg.inclinado ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : 'horizontal')
+        + (gg.oblicuo ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : (gg.vertical ? 'vertical' : 'horizontal'))
         + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL + '}\n';
       tex += textoRama(R, grupos, gg, 'inicio');
       tex += tablaAreasGrupo(R, gg);
@@ -826,7 +826,7 @@ function construirLatex(){
     if(gg.idx > 0)
       tex += '\\vspace{8pt}\\noindent{\\color{bsaAcc2}\\rule{\\linewidth}{.8pt}}\\vspace{5pt}\n';
     tex += '\\subpaso{Tramo ' + escLatex(gg.recorrido) + '\\quad '
-      + (gg.inclinado ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : 'horizontal')
+      + (gg.oblicuo ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : (gg.vertical ? 'vertical' : 'horizontal'))
       + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL
       + '\\quad abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + '}\n';
     tex += textoRama(R, grupos, gg, 'inicio');
