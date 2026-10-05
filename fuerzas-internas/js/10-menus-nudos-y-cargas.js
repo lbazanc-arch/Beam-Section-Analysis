@@ -602,8 +602,11 @@ function _marcoDeDir(v){ return (v === 'perp' || v === 'axial') ? 'local' : 'glo
 // ── Carga puntual inclinada: magnitud y ángulo, o componentes x, y ──
 // (2026-10-04, petición del profesor.) La verdad del modelo sigue siendo
 // mag + ang (ángulo INTERNO, hacia donde apunta el vector con mag positiva).
-// Las componentes son otra forma de escribirlo: Fx, Fy con +x a la derecha y
-// +y hacia arriba. Mientras se ven las componentes, los campos de magnitud y
+// Las componentes son otra forma de escribirlo: Fx positiva hacia la derecha y
+// Fy positiva HACIA ABAJO, como la carga vertical de todo el tema (2026-10-05,
+// corrección del profesor; antes Fy era positiva hacia arriba y contradecía a la
+// dirección «Vert.»). El vector del modelo lleva +y arriba, así que Fy cambia
+// de signo en el borde. Mientras se ven las componentes, los campos de magnitud y
 // ángulo no se leen; al dejar de verlas se rellenan desde ellas
 // (`_sincroDesdeComp`), y al volver a verlas se calculan de ellos.
 let _compVisible = false;
@@ -616,7 +619,7 @@ const _num = id => parseFloat((document.getElementById(id)||{}).value);
 // Magnitud y ángulo interno que dicen ahora los campos de la ventana.
 function _magAngModal(){
   if(_compVisible){
-    const fx = _num('cgFx') || 0, fy = _num('cgFy') || 0, m = Math.hypot(fx, fy);
+    const fx = _num('cgFx') || 0, fy = -(_num('cgFy') || 0), m = Math.hypot(fx, fy);
     return {mag: m, ang: (m > 1e-12) ? Math.atan2(fy, fx)*180/Math.PI : -90};
   }
   const u = _num('cgAng');
@@ -627,7 +630,7 @@ function _sincroHaciaComp(){
   const u = _num('cgAng'), m = _num('cgMag') || 0;
   const a = (isFinite(u) ? u : 270)*Math.PI/180;
   document.getElementById('cgFx').value = _redondo(Math.abs(m*Math.cos(a)) < 1e-12 ? 0 : m*Math.cos(a), 6);
-  document.getElementById('cgFy').value = _redondo(Math.abs(m*Math.sin(a)) < 1e-12 ? 0 : m*Math.sin(a), 6);
+  document.getElementById('cgFy').value = _redondo(Math.abs(m*Math.sin(a)) < 1e-12 ? 0 : -m*Math.sin(a), 6);
 }
 function _sincroDesdeComp(){
   const r = _magAngModal();
@@ -728,7 +731,7 @@ function setDirCarga(v){
     // añadirle la coletilla del marco la partiría en dos líneas.
     // Una carga de nudo tampoco lleva coordenadas que explicar.
     if(v === 'ang' && _entradaModal() === 'comp')
-      txt = 'Componentes con signo: +x hacia la derecha, +y hacia arriba.';
+      txt = 'Fx positiva a la derecha, Fy positiva hacia abajo.';
     else if(v === 'ang' || !t){ /* la ayuda basta */ }
     else if(_marcoDeDir(v) === 'local'){
       txt += ' Las coordenadas se miden entonces desde el nudo inicial del tramo.';
