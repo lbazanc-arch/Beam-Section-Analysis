@@ -120,7 +120,9 @@ function dec(v,t){
           : (t==='ang' ? DEC.ang : DEC.fuerza));
   const n = Number(v);
   if(!isFinite(n)) return '0';
-  return (Math.abs(n) < 5e-11 ? 0 : n).toFixed(d);
+  const s = (Math.abs(n) < 5e-11 ? 0 : n).toFixed(d);
+  // Un valor que redondea a cero se escribe sin signo: «−0.00» no dice nada.
+  return /^-0(\.0+)?$/.test(s) ? s.slice(1) : s;
 }
 function esCero(v){ return Math.abs(v) < 1e-9; }
 function kx(tex){

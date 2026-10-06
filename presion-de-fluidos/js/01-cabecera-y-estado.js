@@ -83,7 +83,10 @@ function dec(v,t){
   const d = (t==='len') ? DEC.len : (t==='ang' ? DEC.ang : DEC.fuerza);
   const n = Number(v);
   if(!isFinite(n)) return '0';
-  return (Math.abs(n)<5e-11?0:n).toFixed(d);
+  const s = (Math.abs(n)<5e-11?0:n).toFixed(d);
+  // Un valor que redondea a cero se escribe sin signo: «−0.00» no dice nada
+  // (sale, p. ej., con el tope justo a punto de abrirse, 12-).
+  return /^-0(\.0+)?$/.test(s) ? s.slice(1) : s;
 }
 function esCero(v){ return Math.abs(v) < 1e-9; }
 function num(id,def){ const e=document.getElementById(id); const v=e?parseFloat(e.value):NaN;
@@ -111,14 +114,16 @@ let zonas = {1:[], 2:[]};   // [{g, niv}]
 let avisoOrden = {1:false, 2:false};
 
 function capasOrdenadas(z){
-  const lista = zonas[z].filter(l=>isFinite(l.g) && isFinite(l.niv));
+  const lista = zonas[z].map((l, i)=>({l, i})).filter(o=>isFinite(o.l.g) && isFinite(o.l.niv));
   if(!lista.length){ avisoOrden[z] = false; return []; }
-  const niveles = lista.map(l=>l.niv).sort((a,b)=>b-a);      // de arriba a abajo
-  const dens = lista.map(l=>l.g).sort((a,b)=>a-b);            // del más liviano al más denso
+  const niveles = lista.map(o=>o.l.niv).sort((a,b)=>b-a);      // de arriba a abajo
+  // del más liviano al más denso; `idx` es la fila del panel de ese líquido, que
+  // es lo que decide su color (colorLiquido)
+  const dens = lista.map(o=>({g:o.l.g, idx:o.i})).sort((a,b)=>a.g-b.g || a.idx-b.idx);
   // ¿el alumno los había puesto ya en el orden físico?
-  const comoEstan = lista.slice().sort((a,b)=>b.niv-a.niv).map(l=>l.g);
-  avisoOrden[z] = comoEstan.some((g,i)=>Math.abs(g-dens[i]) > 1e-12);
-  return niveles.map((niv,i)=>({niv, g:dens[i]}));
+  const comoEstan = lista.slice().sort((a,b)=>b.l.niv-a.l.niv).map(o=>o.l.g);
+  avisoOrden[z] = comoEstan.some((g,i)=>Math.abs(g-dens[i].g) > 1e-12);
+  return niveles.map((niv,i)=>({niv, g:dens[i].g, idx:dens[i].idx}));
 }
 
 // Presión manométrica de la zona z a la cota y: se acumula capa a capa,
@@ -174,21 +179,37 @@ function pintarZonas(){
       return;
     }
     const ord = capasOrdenadas(z);
-    let h = zonas[z].map((l,i)=>
-      '<div class="liq-row">'
-      + '<div class="liq-sw" style="background:'+colorCapa(l.g)+'"></div>'
-      + '<span class="lab">γ</span><input type="number" step="any" value="'+l.g+'" '
-      + 'title="Peso específico ('+uGamma()+')" onchange="editLiquido('+z+','+i+',\'g\',this.value)">'
-      + '<span class="lab">nivel</span><input type="number" step="any" value="'+l.niv+'" '
-      + 'title="Cota de la superficie libre ('+unitLen+')" onchange="editLiquido('+z+','+i+',\'niv\',this.value)">'
-      + '<button class="x" onclick="borrarLiquido('+z+','+i+')">×</button></div>').join('');
+    // Una tarjeta por líquido (2026-10-05): su color, su número de capa (de arriba
+    // abajo, una vez ordenadas), γ y la cota de su superficie, con unidades.
+    let h = zonas[z].map((l,i)=>{
+      const capa = ord.findIndex(c=>c.idx === i);
+      const nombre = capa === 0 ? 'Líquido superior' : (capa > 0 ? 'Capa ' + (capa + 1) : 'Líquido');
+      const desde = capa > 0 ? 'Empieza en la cota y = ' + dec(ord[capa].niv,'len') + ' ' + unitLen : 'Superficie libre de la zona';
+      return '<div class="liq-card" style="--liq:' + colorLiquido(z, i) + '">'
+        + '<div class="liq-cab"><span class="liq-sw"></span><span class="liq-nom">' + nombre + '</span>'
+        + '<button class="liq-quitar" title="Quitar este líquido" aria-label="Quitar este líquido" onclick="borrarLiquido('+z+','+i+')">'
+        + '<svg viewBox="0 0 16 16" width="13" height="13"><path d="M4 5h8l-.7 8.2a1 1 0 0 1-1 .8H5.7a1 1 0 0 1-1-.8zM3 4h10M6.5 4V2.8h3V4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>'
+        + '<label class="liq-campo"><span>Peso específico γ</span><input type="number" step="any" value="'+l.g+'" onchange="editLiquido('+z+','+i+',\'g\',this.value)"><em>'+uGamma()+'</em></label>'
+        + '<label class="liq-campo"><span>Cota de su superficie</span><input type="number" step="any" value="'+l.niv+'" onchange="editLiquido('+z+','+i+',\'niv\',this.value)"><em>'+unitLen+'</em></label>'
+        + '<div class="liq-nota">' + desde + '</div>'
+        + '</div>';
+    }).join('');
     if(avisoOrden[z])
       h += '<div class="zona-avi">Los líquidos se han reordenado por densidad: el más liviano flota sobre el más denso.</div>';
-    if(ord.length > 1)
-      h += '<div class="hint-sm">De arriba a abajo: '
-         + ord.map(c=>'γ='+dec(c.g,'f')).join(' · ') + '</div>';
     el.innerHTML = h;
   });
+}
+// Cada líquido con SU color, sin repetir en todo el modelo (2026-10-05, petición
+// del profesor: con el color por densidad, agua y aceite casi no se distinguían).
+// Se asigna por la fila del panel: zona 1 primero y la zona 2 a continuación.
+const PALETA_LIQ = ['#2f7fb5', '#d08a1e', '#7b52c7', '#2e9e6a', '#c2453a', '#1aa0a8', '#8c6a3f', '#cf5fa0'];
+function colorLiquido(z, idx){
+  const k = (z === 1 ? 0 : zonas[1].length) + (idx || 0);
+  return PALETA_LIQ[k % PALETA_LIQ.length];
+}
+function colorLiquidoRGBA(z, idx, a){
+  const h = colorLiquido(z, idx);
+  return 'rgba(' + parseInt(h.slice(1,3),16) + ',' + parseInt(h.slice(3,5),16) + ',' + parseInt(h.slice(5,7),16) + ',' + a + ')';
 }
 function colorCapa(g){
   const t = Math.max(0, Math.min(1, (g-6)/12));
@@ -1049,7 +1070,9 @@ function calcular(){
     rp.style.display='block';
     // Sin compuerta pero con presa, solo la presa; con las dos, la presa va después.
     const soloPresa = R.error === 'sin-tramos' && RP && RP.length;
-    rp.innerHTML = (soloPresa ? '' : (R.error ? renderError(R) : renderResultados(R)))
+    // El problema inverso, si se acaba de elegir un nivel (12-), va primero.
+    rp.innerHTML = (typeof inversoHtml === 'function' ? inversoHtml() : '')
+                 + (soloPresa ? '' : (R.error ? renderError(R) : renderResultados(R)))
                  + (RP && RP.length ? presasHtml(soloPresa || R.error ? 1 : 6) : '');
     try{ renderKatex(rp); }catch(e){}
   }

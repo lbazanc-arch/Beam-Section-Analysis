@@ -19,7 +19,9 @@ function estadoActual(){
     zonas: JSON.parse(JSON.stringify(zonas)),
     ancho: num('pB',1),
     unidades:{len:unitLen, fuerza:unitFor},
-    decimales: DEC
+    decimales: DEC,
+    // El problema inverso elegido (12-, 2026-10-05): la pregunta y el nivel.
+    inverso: (typeof inversoGuardable === 'function') ? inversoGuardable() : null
   };
 }
 
@@ -85,6 +87,8 @@ function cargarProyecto(id){
     // aquí son otros nudos, Replicar copiaba lo que el alumno no había marcado.
     vaciarSeleccionPF(); invalidarResultados();
     reNombrar(); centrar(); refrescar(); cerrarHistorial();
+    // El problema inverso guardado: se vuelve a resolver y aparece al pulsar Resolver.
+    if(typeof restaurarInverso === 'function') restaurarInverso(e.inverso);
   }catch(err){ aviso('No se pudo abrir el ejercicio.', 'error'); }
 }
 function borrarProyecto(id){
@@ -146,7 +150,7 @@ function confirmarAnchoPendiente(){
 function manejarEsc(){
   // 1) Un modal abierto: se cierra con su función propia para no dejar estado sucio
   const cierres = {presaModal:'cerrarPresa', arcoModal:'cerrarArco', edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal', pesoModal:'cerrarPeso',
-    ejModal:'cerrarEjemplos',
+    ejModal:'cerrarEjemplos', invModal:'cerrarInverso',
     unitsModal:'closeUnitsModal', decModal:'closeDecModal',
     guardarModal:'cerrarGuardar', histModal:'cerrarHistorial',
     transModal:'closeTransformar', repModal:'closeReplicar'};

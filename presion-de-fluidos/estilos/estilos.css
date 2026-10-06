@@ -49,7 +49,17 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 .liq-row input{width:100%;min-width:0;padding:4px 6px;border:1px solid var(--border2);
   border-radius:5px;font-family:var(--mf);font-size:11px;}
 .liq-row .lab{font-size:9px;color:var(--muted);font-weight:700;min-width:12px;}
-.liq-sw{width:14px;height:14px;border-radius:50%;flex:none;}
+.liq-sw{width:12px;height:12px;border-radius:50%;flex:none;background:var(--liq);}
+.liq-card{border:1px solid var(--border2);border-left:4px solid var(--liq);border-radius:8px;padding:7px 9px 6px;margin-bottom:6px;background:#fff;}
+.liq-cab{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.liq-nom{flex:1;font-size:11px;font-weight:800;color:var(--text);}
+.liq-quitar{border:1px solid var(--border2);background:#fff;border-radius:6px;width:24px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;padding:0;}
+.liq-quitar:hover{color:#c0392b;border-color:#c0392b;background:#fef2f2;}
+.liq-campo{display:flex;align-items:center;gap:6px;margin:3px 0;}
+.liq-campo span{flex:1;font-size:10px;color:var(--muted);font-weight:700;}
+.liq-campo input{width:72px;padding:4px 6px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mf);font-size:11px;text-align:right;}
+.liq-campo em{font-style:normal;font-size:9.5px;color:var(--muted);min-width:38px;}
+.liq-nota{font-size:9.5px;color:var(--muted);margin-top:3px;font-style:italic;}
 .zona-avi{font-size:9.5px;color:#b45309;font-weight:700;margin-top:4px;line-height:1.35;}
 .list-empty{font-size:10.5px;color:var(--muted);text-align:center;padding:12px 6px;font-style:italic;}
 .panel-grow{flex:0 1 auto;min-height:0;}
@@ -350,6 +360,32 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 }
 .tpl-btn.active::after{content:''; position:absolute; top:5px; right:6px; width:7px; height:7px;
   border-radius:50%; background:var(--acc);}
+
+/* ── Problema inverso (12-): la ventana y su sección de resultados ── */
+.inv-lbl{font-size:9.5px;font-weight:800;color:var(--acc);text-transform:uppercase;letter-spacing:.6px;margin:12px 0 6px;}
+.inv-zonas{display:flex;gap:7px;}
+.inv-zonas .modo-btn{font-size:11px;padding:7px 4px;}
+.inv-zonas .modo-btn:disabled{opacity:.4;cursor:not-allowed;}
+.inv-conds{display:flex;flex-direction:column;gap:6px;}
+.inv-grupo{font-size:10px;font-weight:700;color:var(--muted);margin-top:4px;}
+.inv-cond{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:8px 26px 8px 11px;}
+.inv-cond b{font-size:12px;}
+.inv-cond span{font-size:10.5px;font-weight:500;color:var(--muted);line-height:1.35;}
+.inv-valor{margin:2px 0 4px 12px;}
+.inv-res{margin-top:14px;border-top:1px solid var(--border);padding-top:4px;}
+.inv-sol{border:1px solid var(--border2);border-left:4px solid var(--acc);border-radius:9px;padding:9px 12px;margin-bottom:8px;background:#fff;}
+.inv-sol-cab{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.inv-h{font-family:var(--mf);font-size:17px;font-weight:700;color:var(--acc2);font-style:italic;}
+.inv-etq{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--acc);background:var(--acc-l);border-radius:20px;padding:2px 9px;}
+.inv-sol-sub{font-size:10.5px;color:var(--muted);margin:2px 0 5px;}
+.inv-sol-txt{font-size:12px;line-height:1.5;color:var(--text);}
+.inv-usar{margin-top:8px;padding:6px 12px;font-size:11px;}
+.inv-proc{margin-top:10px;}
+.inv-paso{font-size:11px;font-weight:700;color:var(--acc2);margin:10px 0 4px;}
+.inv-tabla{margin:2px 0 6px;}
+.inv-tabla td{vertical-align:middle;}
+.inv-dcl{width:100%;max-width:520px;height:auto;display:block;margin:4px auto 2px;background:#fff;border:1px solid var(--border);border-radius:9px;}
+.inv-curva{width:100%;max-width:560px;height:auto;display:block;margin:10px auto 2px;background:#fff;border:1px solid var(--border);border-radius:9px;}
 
 :root{--ej-acc:var(--acc); --ej-acc2:var(--acc2); --ej-suave:var(--acc-l);}
 /* ── Ventana de ejemplos: una tarjeta por caso, con el acento del tema ──

@@ -316,7 +316,8 @@ function renderResultados(r){
     const s = sentidoRealIncognita(u, v);
     h += '<tr><td><b>'+kx(simbIncognita(u))+'</b></td><td>'+descIncognita(u)+' en <b>'+u.n.nombre+'</b>'+_dirAgudoHtml(u)+'</td>'
       + '<td class="r"><b>'+f(Math.abs(v))+'</b></td>'
-      + '<td>' + iconoSentidoHtml(s.x, s.y) + (u.tipo==='T' ? (v >= 0 ? ' empuja a la compuerta' : ' <b style="color:#c0392b">se separa</b>') : '') + '</td></tr>';
+      + '<td>' + iconoSentidoHtml(s.x, s.y) + (u.tipo==='T' ? (r.topesSueltos.indexOf(u) >= 0 ? ' <b style="color:#c0392b">se separa</b>'
+                       : (Number(dec(v, 'f')) === 0 ? ' a punto de abrirse' : ' empuja a la compuerta')) : '') + '</td></tr>';
   });
   h += '</tbody></table>'
     + '<div class="hint-sm">Magnitud y sentido real (flecha).</div>';

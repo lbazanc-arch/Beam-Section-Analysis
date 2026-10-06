@@ -357,15 +357,32 @@ function tzMetrica(opts){
 }
 // Los comandos de LaTeX ($, \, \tfrac...) no ocupan sitio, pero una fracción
 // sí ensancha: se cuentan sus dos números.
-function tzAncho(txt, opts){
+function _tzAnchoTxt(txt, opts){
   const m = tzMetrica(opts);
   const limpio = String(txt).replace(/\\[a-zA-Z]+/g, '').replace(/[$\\{}^_,]/g, '');
   return Math.max(1, limpio.length) * m.w + 0.14;
 }
-function tzAlto(txt, opts){
+function _tzAltoTxt(txt, opts){
   const m = tzMetrica(opts);
   // Una fracción \tfrac ocupa dos pisos de alto.
   return m.h * (/\\[dt]?frac/.test(String(txt)) ? 1.7 : 1);
+}
+// Giro (grados) del scope en el que se está dibujando (2026-10-05: los diagramas
+// de un tramo inclinado se dibujan girados, 16-). El texto sigue derecho en la
+// página, así que en las coordenadas giradas su caja es la del rótulo girado −θ:
+// el registro tiene que reservar ESA caja, o los rótulos se pisan.
+let _tzGiro = 0;
+function tzAncho(txt, opts){
+  const w = _tzAnchoTxt(txt, opts);
+  if(!_tzGiro) return w;
+  const a = _tzGiro*Math.PI/180;
+  return w*Math.abs(Math.cos(a)) + _tzAltoTxt(txt, opts)*Math.abs(Math.sin(a));
+}
+function tzAlto(txt, opts){
+  const h = _tzAltoTxt(txt, opts);
+  if(!_tzGiro) return h;
+  const a = _tzGiro*Math.PI/180;
+  return _tzAnchoTxt(txt, opts)*Math.abs(Math.sin(a)) + h*Math.abs(Math.cos(a));
 }
 function tzOcupar(x0, y0, x1, y1){
   _tzCajas.push({x0:Math.min(x0,x1), y0:Math.min(y0,y1),
@@ -1165,8 +1182,31 @@ function tikzApoyo(x, y, tipo, k, angMuro, angApoyo){
 // actúa depende de la abscisa, así que su resultante no es un número sino
 // w(x-d), aplicada a la mitad de ese trozo. Solo las cargas que terminan
 // antes del intervalo se sustituyen por su resultante numérica.
+// ── Leyenda al costado de un DCL (2026-10-05, petición del profesor) ──
+// La figura lleva solo la variable ($P_1$, $w_1$, $R_{yD}$, $N_0$…) y aquí van sus
+// valores; debajo, los brazos, si sus cotas también van por nombre. Una sola
+// caja, a la derecha de todo lo dibujado. Una variable repetida se da una vez.
+function leyendaFigFI(valores, brazos){
+  // Sin repetir, y por familias: repartidas y sus resultantes, puntuales, pares,
+  // lo que transmite una rama, reacciones y lo que llega por el nudo.
+  const ORDEN = ['w', 'W', 'P', 'C', 'F', 'M', 'R', 'N', 'V'];
+  const clave = f => { const i = ORDEN.indexOf(f.nom.charAt(0)); return (i < 0 ? 99 : i)*1000 + (parseInt((f.nom.match(/\d+/) || ['0'])[0], 10) || 0); };
+  const uniq = l => (l || []).filter((f, i, a)=>a.findIndex(g=>g.nom === f.nom) === i);
+  const bloques = [];
+  const v = uniq(valores).map((f, i)=>({f, i})).sort((p, q)=>clave(p.f) - clave(q.f) || p.i - q.i).map(p=>p.f);
+  const b = uniq(brazos);
+  if(v.length) bloques.push('\\textbf{Valores}' + v.map(f=>'\\\\ $' + f.nom + ' = ' + f.val + '$').join(''));
+  if(b.length) bloques.push('\\textbf{Brazos}' + b.map(f=>'\\\\ $' + f.nom + ' = ' + f.val + '$').join(''));
+  if(!bloques.length) return '';
+  return '\\node[anchor=north west, xshift=4mm, font=\\scriptsize, align=left, draw=black!25, '
+    + 'fill=white, rounded corners=1pt, inner sep=3pt] at (current bounding box.north east) {'
+    + bloques.join('\\\\[3pt]') + '};\n';
+}
+
 function tikzDCLSub(R, gg, seg, sub, info){
   _angulosFiguraFI = [];
+  const valores = [];             // la leyenda: {nom, val}
+  const uTx = u => '\\,\\text{' + u + '}';
   const genAngSub = bsaLetrasGriegas();
   // θ es la inclinación del tramo; si no la lleva, igual queda reservada para que
   // el ángulo de una carga se llame α y no se confunda con ella.
@@ -1319,11 +1359,11 @@ function tikzDCLSub(R, gg, seg, sub, info){
     }
     tzOcuparBloque(A, B, ex, ey, h1, h2);
     const sgR = (Math.abs(h1) >= Math.abs(h2) ? Math.sign(h1) : Math.sign(h2)) || 1;
+    const nomW = nombreCargaFI(c), nomR = nombreResultanteFI(c);
+    valores.push({nom:nomW, val:dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '\\to' + dec(Math.abs(w2),'fuerza') : '') + uTx(escLatex(uDist()))});
     const etiquetaW = () => tzTexto(
       (A.x+B.x)/2+ex*sgR*(alt+0.24), (A.y+B.y)/2+ey*sgR*(alt+0.24),
-      '$w=' + dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '\\to' + dec(Math.abs(w2),'fuerza') : '')
-      + '$\\,' + escLatex(uDist()),
-      'font=\\tiny, color=bsaDist!70!black', ex*sgR, ey*sgR);
+      '$' + nomW + '$', 'font=\\tiny, color=bsaDist!70!black', ex*sgR, ey*sgR);
 
     // Resultantes, en trazo discontinuo y con su punto de aplicación.
     // Cada una se dibuja donde de verdad actúa, para que el brazo del
@@ -1345,7 +1385,8 @@ function tikzDCLSub(R, gg, seg, sub, info){
       const Ares = (w1+w2)/2*tr;
       if(Math.abs(Ares) > 1e-9){
         const dc = tr*(w1+2*w2)/(3*(w1+w2));
-        flecha(r1+dc, Ares, '$W=' + Fz(Ares) + '$', alt + 0.85);
+        flecha(r1+dc, Ares, '$' + nomR + '$', alt + 0.85);
+        valores.push({nom:nomR, val:Fz(Ares) + uTx(uF)});
         marcasCota.push(g1 + dc);
         // Su brazo hasta la sección también se acota: es el que entra en la
         // ecuación de momentos y no se lee de la cadena de posiciones.
@@ -1356,12 +1397,13 @@ function tikzDCLSub(R, gg, seg, sub, info){
       // que crece), cada uno con su resultante en función de la abscisa.
       marcasCota.push(g1);
       if(Math.abs(w1) > 1e-9){
-        flecha(r1 + tr/2, w1*tr, '$W_1=' + Fz(w1) + '\\,' + brazo(g1) + '$', alt + 0.85);
+        flecha(r1 + tr/2, w1*tr, '$' + nomR + '$', alt + 0.85);
+        valores.push({nom:nomR, val:Fz(w1) + '\\,' + brazo(g1) + uTx(uF)});
         brazos.push({r: g1 + tr/2, tex: '$\\tfrac{1}{2}' + brazo(g1) + '$'});
       }
       if(Math.abs(kw) > 1e-9){
-        flecha(r1 + tr*2/3, kw*tr*tr/2,
-               '$W_2=\\tfrac{1}{2}\\,' + Fz(kw) + '\\,' + brazo(g1) + '^{2}$', alt + 1.35);
+        flecha(r1 + tr*2/3, kw*tr*tr/2, '$' + nomR + "'$", alt + 1.35);
+        valores.push({nom:nomR + "'", val:'\\tfrac{1}{2}\\,' + Fz(kw) + '\\,' + brazo(g1) + '^{2}' + uTx(uF)});
         brazos.push({r: g1 + tr*2/3, tex: '$\\tfrac{1}{3}' + brazo(g1) + '$'});
       }
     }
@@ -1412,8 +1454,8 @@ function tikzDCLSub(R, gg, seg, sub, info){
       out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] ('
            + F(ox+s*u0x*0.12) + ',' + F(oy+s*u0y*0.12) + ') -- (' + F(ox+s*u0x*1.0) + ',' + F(oy+s*u0y*1.0) + ');\n';
       tzOcuparTrazo(ox+s*u0x*0.12, oy+s*u0y*0.12, ox+s*u0x*1.0, oy+s*u0y*1.0, 0.07);
-      out += tzTexto(ox+s*u0x*1.25, oy+s*u0y*1.25, '$N_0=' + dec(N0,'fuerza') + '$',
-                     'font=\\tiny, color=bsaAcc', s*u0x, s*u0y);
+      out += tzTexto(ox+s*u0x*1.25, oy+s*u0y*1.25, '$N_0$', 'font=\\tiny, color=bsaAcc', s*u0x, s*u0y);
+      valores.push({nom:'N_0', val:dec(N0,'fuerza') + uTx(uF)});
     }
     // V0 positivo: sobre la cara de arranque actúa hacia arriba de la normal
     if(Math.abs(V0) > EPS){
@@ -1421,16 +1463,16 @@ function tikzDCLSub(R, gg, seg, sub, info){
       out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] ('
            + F(ox-s*n0x*0.95) + ',' + F(oy-s*n0y*0.95) + ') -- (' + F(ox-s*n0x*0.10) + ',' + F(oy-s*n0y*0.10) + ');\n';
       tzOcuparTrazo(ox-s*n0x*0.95, oy-s*n0y*0.95, ox-s*n0x*0.10, oy-s*n0y*0.10, 0.07);
-      out += tzTexto(ox-s*n0x*1.20, oy-s*n0y*1.20, '$V_0=' + dec(V0,'fuerza') + '$',
-                     'font=\\tiny, color=bsaAcc', -s*n0x, -s*n0y);
+      out += tzTexto(ox-s*n0x*1.20, oy-s*n0y*1.20, '$V_0$', 'font=\\tiny, color=bsaAcc', -s*n0x, -s*n0y);
+      valores.push({nom:'V_0', val:dec(V0,'fuerza') + uTx(uF)});
     }
     if(Math.abs(M0) > EPS){
       const arc = M0 > 0 ? '(0:-300:0.30)' : '(0:300:0.30)';   // M0 positivo: horario sobre esta cara
       out += '\\draw[-{Latex[length=1.8mm]}, color=bsaMomento, line width=1pt] ('
            + F(ox+0.30) + ',' + F(oy) + ') arc ' + arc + ';\n';
       tzOcupar(ox-0.36, oy-0.36, ox+0.36, oy+0.36);
-      out += tzTexto(ox-0.85, oy+0.62, '$M_0=' + dec(M0,'momento') + '$',
-                     'font=\\tiny, color=bsaMomento', -1, 1);
+      out += tzTexto(ox-0.85, oy+0.62, '$M_0$', 'font=\\tiny, color=bsaMomento', -1, 1);
+      valores.push({nom:'M_0', val:dec(M0,'momento') + uTx(uM)});
     }
   }
 
@@ -1463,10 +1505,13 @@ function tikzDCLSub(R, gg, seg, sub, info){
       tzOcuparTrazo(x-ex*larga, y-ey*larga, x-ex*corta, y-ey*corta, 0.07);
       if(inclinada) out += tikzArcoReaccionFI(x-ex*larga, y-ey*larga, ex, ey, genAngSub);
       // Una carga inclinada lleva también su ángulo, en la cola (2026-10-05).
-      const cargaIncl = !a.reac && !a.rama && bsaAnguloAgudoEje(ex, ey).grados >= 4;
+      // La acción de una rama (F_HC) también, si es inclinada (2026-10-05).
+      const cargaIncl = !a.reac && bsaAnguloAgudoEje(ex, ey).grados >= 4;
       if(cargaIncl) out += tikzArcoReaccionFI(x-ex*larga, y-ey*larga, ex, ey, genAngSub, null, 'bsaCarga');
-      // Toda fuerza lleva su nombre, el mismo de las ecuaciones ($P_1$…).
-      const lab = '$' + nom.tex + '=' + Fz(Fm) + '$' + ((a.reac || a.rama) ? '' : '\\,' + uF);
+      // Toda fuerza lleva su nombre, el mismo de las ecuaciones ($P_1$…), y su
+      // valor va en la leyenda.
+      const lab = '$' + nom.tex + '$';
+      valores.push({nom:nom.tex, val:Fz(Fm) + uTx(uF)});
       if(!inclinada && ey > 0.5){
         // Fuerza hacia arriba: su cola cae bajo la viga, en la banda de cotas,
         // así que el valor va al costado de la flecha, hacia afuera del trozo.
@@ -1486,9 +1531,9 @@ function tikzDCLSub(R, gg, seg, sub, info){
       out += '\\draw[-{Latex[length=1.8mm]}, color=' + colM + ', line width=1pt] ('
            + F(x+0.28) + ',' + F(y) + ') arc ' + arc + ';\n';
       tzOcupar(x-0.34, y-0.34, x+0.34, y+0.34);
-      const lab = a.reac ? '$' + nom.tex + '=' + dec(Math.abs(a.m),'momento') + '$'
-                : a.rama ? '$' + nom.texM + '=' + dec(Math.abs(a.m),'momento') + '$'
-                : dec(Math.abs(a.m),'momento') + '\\,' + uM;
+      const nomM = a.rama ? nom.texM : nom.tex;
+      const lab = '$' + nomM + '$';
+      valores.push({nom:nomM, val:dec(Math.abs(a.m),'momento') + uTx(uM)});
       out += tzTexto(x+0.55, y+0.32, lab, 'font=\\tiny, color=' + colM, 1, 1);
     }
   });
@@ -1621,7 +1666,26 @@ function tikzDCLSub(R, gg, seg, sub, info){
   });
   // θ al final: busca hueco entre todo lo ya rotulado, cotas incluidas.
   if(rotTheta) out += tzTexto(...rotTheta);
-  // La leyenda de los brazos, a la derecha de todo lo dibujado.
-  out += bsaLeyendaBrazosTikz(filasBrazo);
+  // Marco de referencia (û, n̂) del tramo, como en los DCL de nudo (2026-10-05,
+  // corrección del profesor): dice hacia dónde son positivas F∥ y F⊥. Va en la
+  // primera esquina libre de lo dibujado; si ninguna lo está, a un costado.
+  {
+    const e = tzExtension();
+    const cand = [[e.x0 + 0.45, e.y1 - 0.45], [e.x1 - 0.45, e.y1 - 0.45], [e.x0 + 0.45, e.y0 + 0.45],
+                  [e.x1 - 0.45, e.y0 + 0.45], [e.x0 - 1.0, e.y1 - 0.45], [e.x0 - 1.0, e.y0 + 0.45]];
+    const libre = ([x, y]) => !tzChoca({x0:x - 0.30, y0:y - 0.30, x1:x + 1.05, y1:y + 1.05})
+                           && !tzChoca({x0:x + Math.min(0, ux, nx)*1.05 - 0.1, y0:y + Math.min(0, uy, ny)*1.05 - 0.1,
+                                        x1:x + Math.max(0, ux, nx)*1.05 + 0.1, y1:y + Math.max(0, uy, ny)*1.05 + 0.1});
+    const [mx, my] = cand.find(libre) || cand[4];
+    out += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (' + F(mx) + ',' + F(my) + ') -- (' + F(mx + ux*0.7) + ',' + F(my + uy*0.7) + ');\n';
+    out += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (' + F(mx) + ',' + F(my) + ') -- (' + F(mx + nx*0.7) + ',' + F(my + ny*0.7) + ');\n';
+    out += '\\fill[bsaAcc] (' + F(mx) + ',' + F(my) + ') circle (0.8pt);\n';
+    tzOcuparTrazo(mx, my, mx + ux*0.7, my + uy*0.7, 0.05);
+    tzOcuparTrazo(mx, my, mx + nx*0.7, my + ny*0.7, 0.05);
+    out += tzTexto(mx + ux*0.92, my + uy*0.92, '{\\scriptsize$\\hat{u}$}', 'color=bsaAcc', ux, uy);
+    out += tzTexto(mx + nx*0.92, my + ny*0.92, '{\\scriptsize$\\hat{n}$}', 'color=bsaAcc', nx, ny);
+  }
+  // La leyenda de valores y brazos, a la derecha de todo lo dibujado.
+  out += leyendaFigFI(valores, filasBrazo);
   return out;
 }

@@ -210,10 +210,14 @@ function tkpCompuerta(opts){
   // su lado sea más ancha que el rótulo: con 1.3 cm fijos, el rótulo en una
   // sola línea (~4.3 cm) cruzaba la compuerta y el símbolo del apoyo.
   const OPT_ZONA = z => 'font=\\tiny, color=bsaAgua!80!black, align=' + (z===1 ? 'left' : 'right');
+  // Con el problema inverso (13-), el nivel de su zona es la INCÓGNITA: se
+  // rotula y se acota como h, no con el valor que se va a hallar (2026-10-05).
+  const inc = opts.incognita || null;
   const etqZona = {1:[], 2:[]}, anchoZona = {1:0, 2:0};
   [1,2].forEach(z=>{
     capasOrdenadas(z).forEach((c,i)=>{
-      const txt = (i===0 ? 'Zona ' + z + ' \\textperiodcentered\\ nivel $' + dec(c.niv,'len') + '$\\,' + escLatex(unitLen) + '\\\\' : '')
+      const nivTxt = (inc && inc.z === z) ? 'nivel: inc\\\'ognita $h$' : 'nivel $' + dec(c.niv,'len') + '$\\,' + escLatex(unitLen);
+      const txt = (i===0 ? 'Zona ' + z + ' \\textperiodcentered\\ ' + nivTxt + '\\\\' : '')
                 + '$\\gamma = ' + dec(c.g,'f') + '$\\,' + escLatex(unitFor) + '/' + escLatex(unitLen) + '$^3$';
       etqZona[z].push({c, txt});
       anchoZona[z] = Math.max(anchoZona[z], tkpAncho(txt, OPT_ZONA(z)));
@@ -296,9 +300,10 @@ function tkpCompuerta(opts){
     capas.forEach((c,i)=>{
       const abajo = (i+1<capas.length) ? capas[i+1].niv : (miny - 2);
       const yTop = Y(Math.min(c.niv, maxy + 0.4)), yBot = Math.max(by0, Y(abajo));
-      const tono = 12 + 8*i;
-      out += '\\fill[bsaAgua!' + tono + '] (' + F(bx0) + ',' + F(yBot) + ') rectangle (' + F(bx1) + ',' + F(yTop) + ');\n';
-      out += '\\draw[bsaAgua, line width=' + (i===0 ? '1pt' : '.6pt') + (i===0 ? '' : ', dashed') + '] (' + F(bx0) + ',' + F(yTop) + ') -- (' + F(bx1) + ',' + F(yTop) + ');\n';
+      // cada líquido con su color; la interfaz con la capa de encima, a trazos y oscura
+      const col = 'bsaLiq' + (((z === 1 ? 0 : zonas[1].length) + (c.idx || 0)) % PALETA_LIQ.length);
+      out += '\\fill[' + col + '!18] (' + F(bx0) + ',' + F(yBot) + ') rectangle (' + F(bx1) + ',' + F(yTop) + ');\n';
+      out += '\\draw[' + (i===0 ? col : 'black!70') + ', line width=' + (i===0 ? '1pt' : '.7pt') + (i===0 ? '' : ', dash pattern=on 3pt off 2pt') + '] (' + F(bx0) + ',' + F(yTop) + ') -- (' + F(bx1) + ',' + F(yTop) + ');\n';
     });
     out += '\\end{scope}\n';
   });
@@ -319,6 +324,14 @@ function tkpCompuerta(opts){
       const mojados = nodos.filter(n=>n.y < niv - 1e-9);
       if(!mojados.length) return;
       const xc = (z===1) ? bx0 + 0.55 : bx1 - 0.55;
+      if(inc && inc.z === z){
+        // la altura h, del punto de referencia a la superficie libre
+        out += '\\draw[bsaMuted, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] (' + F(xc) + ',' + F(Y(inc.ref)) + ') -- (' + F(xc) + ',' + F(Y(niv)) + ');\n';
+        out += '\\draw[bsaMuted, dashed, line width=.4pt] (' + F(xc) + ',' + F(Y(inc.ref)) + ') -- (' + F(X(minx)) + ',' + F(Y(inc.ref)) + ');\n';
+        out += '\\node[fill=white, inner sep=1pt, font=\\small] at (' + F(xc) + ',' + F((Y(inc.ref) + Y(niv))/2) + ') {$h$};\n';
+        tkpOcuparTrazo(xc, Y(niv), xc, Y(inc.ref), 0.08);
+        return;
+      }
       const hondo = mojados.reduce((m,n)=>n.y < m.y ? n : m, mojados[0]);
       const alto = mojados.reduce((m,n)=>n.y > m.y ? n : m, mojados[0]);
       const puntos = [hondo];
@@ -700,6 +713,8 @@ function construirLatex(){
     + '\\definecolor{bsaAcc2}{HTML}{0B3F3A}\n'
     + '\\definecolor{bsaMuted}{HTML}{66727E}\n'
     + '\\definecolor{bsaAgua}{HTML}{2F7FB5}\n'
+    // los colores de los líquidos (PALETA_LIQ, 01-): bsaLiq0, bsaLiq1…
+    + PALETA_LIQ.map((c, i)=>'\\definecolor{bsaLiq' + i + '}{HTML}{' + c.slice(1).toUpperCase() + '}\n').join('')
     + '\\definecolor{bsaPres}{HTML}{C0392B}\n'
     + '\\definecolor{bsaTope}{HTML}{B45309}\n'
     + '\\definecolor{bsaPeso}{HTML}{7A5C1E}\n'
@@ -764,6 +779,8 @@ function construirLatex(){
     + '  {\\small\\color{bsaMuted} Generado: ' + escLatex(dt) + '}\n'
     + '\\end{center}\n\\vspace{6pt}\n\n';
   if(soloPresa){
+    // El problema inverso (13-), si se eligió un nivel: va antes de la resolución.
+    if(typeof latexInverso === 'function') tex += latexInverso({lamina, tablaCaption, porque});
     tex += latexPresas({lamina, tablaCaption, porque}, 1);
     tex += bsaReferenciasLatex();
     tex += colofonLatexBSA();
@@ -777,7 +794,7 @@ function construirLatex(){
     // La lámina de planteamiento lleva las cotas de la compuerta y, al costado,
     // la leyenda con la longitud real de cada tramo (2026-10-03).
     figN++;
-    tex += '\\begin{center}\n\\bsaFiguraLeyenda{\\begin{tikzpicture}\n' + tkpCompuerta() + '\\end{tikzpicture}}{' + leyendaTramosTex() + '}\\par\\nopagebreak\\vspace{4pt}\n'
+    tex += '\\begin{center}\n\\bsaFiguraLeyenda{\\begin{tikzpicture}\n' + tkpCompuerta({incognita:(typeof incognitaFiguraInv === 'function') ? incognitaFiguraInv() : null}) + '\\end{tikzpicture}}{' + leyendaTramosTex() + '}\\par\\nopagebreak\\vspace{4pt}\n'
       + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} Compuerta y l\\\'iquido. $b = ' + nl(b) + '$' + UL + '; cotas en ' + uL + '.}\n\\end{center}\n\\vspace{4pt}\n';
   }
   const apoyosTxt = r.inc.map(u=>'$' + simbIncognita(u) + '$ (' + descIncognita(u) + ' en ' + escLatex(u.n.nombre) + ')');
@@ -792,6 +809,9 @@ function construirLatex(){
   tex += '\\noindent\\textbf{Procedimiento.} (1) Presi\\\'on en los puntos clave de cada tramo mojado; (2) resultante de cada tramo y su centro de presi\\\'on' + (r.resultante ? ', y la resultante \\\'unica de todo el l\\\'iquido' : '') + '; '
     + '(3) diagrama de cuerpo libre de la compuerta; (4) ecuaciones de equilibrio en el orden en que se despejan; (5) comprobaciones.\\\\[4pt]\n';
   tex += '\\noindent\\textbf{Convenio.} $x$ hacia la derecha, $y$ hacia arriba, momentos positivos en sentido antihorario. Las profundidades $h$ se miden desde la superficie libre de la zona correspondiente.\n';
+
+  // El problema inverso (13-), si se eligió un nivel: tras el planteamiento.
+  if(typeof latexInverso === 'function') tex += latexInverso({lamina, tablaCaption, porque});
 
   // ═══ 2. Paso 1: presiones ═══
   tex += '\\seccion{2. Paso 1 --- Presi\\\'on en los puntos clave}\n';
@@ -1035,7 +1055,7 @@ function construirLatex(){
       const factor = dp.factor === '1' ? '' : '\\,' + dp.factor;
       filas.push(' & ' + dp.simb + factor + ' = ' + f(-dp.sumaConocida) + '\\ \\Rightarrow\\ \\boxed{' + dp.simb + ' = ' + f(dp.valor) + UF + '}');
       tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-      if(dp.valor < 0) tex += '{\\footnotesize El signo negativo indica que $' + dp.simb + '$ act\\\'ua en sentido contrario al supuesto' + (r.inc[paso.j].tipo === 'T' ? ': el tope no puede tirar, la compuerta se separa de \\\'el' : '') + '.}\\\\[2pt]\n';
+      if(dp.valor < 0 && Number(dec(dp.valor, 'f')) !== 0) tex += '{\\footnotesize El signo negativo indica que $' + dp.simb + '$ act\\\'ua en sentido contrario al supuesto' + (r.inc[paso.j].tipo === 'T' ? ': el tope no puede tirar, la compuerta se separa de \\\'el' : '') + '.}\\\\[2pt]\n';
       deQuien[paso.j] = paso.num;
     } else if(paso.tipo === 'sistema'){
       const filas = [];

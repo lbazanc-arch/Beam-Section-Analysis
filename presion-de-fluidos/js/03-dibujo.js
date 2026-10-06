@@ -605,16 +605,23 @@ function dibujar(){
       const abajo = (i+1<capas.length) ? capas[i+1].niv : -1e6;
       const [,ya] = aPantalla(0, c.niv);
       const [,yb] = aPantalla(0, Math.max(abajo, -1e6));
-      ctx.fillStyle = colorCapa(c.g).replace('rgb','rgba').replace(')', ',.30)');
+      // Cada líquido con su color (colorLiquido, 01-); la superficie libre, línea
+      // continua, y la INTERFAZ con la capa de encima, a trazos y más oscura: sin
+      // ella dos líquidos se confundían (2026-10-05).
+      ctx.fillStyle = colorLiquidoRGBA(z, c.idx, .26);
       ctx.fillRect(0, ya, W, Math.min(yb,H)-ya);
-      ctx.strokeStyle = '#2f7fb5'; ctx.lineWidth = (i===0)?2:1.2;
+      ctx.strokeStyle = (i===0) ? colorLiquido(z, c.idx) : 'rgba(27,31,36,.75)';
+      ctx.lineWidth = (i===0) ? 2 : 1.6;
+      if(i > 0) ctx.setLineDash([9, 5]);
       ctx.beginPath(); ctx.moveTo(0,ya); ctx.lineTo(W,ya); ctx.stroke();
-      const etq = (i===0 ? 'Zona ' + z + ' · nivel ' + dec(c.niv,'len') + ' ' + unitLen + ' · ' : '') + 'γ = ' + dec(c.g,'f') + ' ' + uGamma();
+      ctx.setLineDash([]);
+      const etq = (i===0 ? 'Zona ' + z + ' · nivel ' + dec(c.niv,'len') + ' ' + unitLen + ' · ' : 'Interfaz y = ' + dec(c.niv,'len') + ' ' + unitLen + ' · ')
+                + 'γ = ' + dec(c.g,'f') + ' ' + uGamma();
       const xi = _margenIzq() + 2;
       // La superficie del líquido cruza el lienzo entero: se registra fina, para
       // que un rótulo no se escriba justo encima de ella.
       _reservarTrazo(0, ya, W, ya, (i===0?2:1.2)/2 + 0.6, 'nivel');
-      _rotulo(etq, z===1 ? xi : W-8, ya+13, '#1f6b96', 0, 1, '700 10px Inter,sans-serif',
+      _rotulo(etq, z===1 ? xi : W-8, ya+13, colorLiquido(z, c.idx), 0, 1, '700 10px Inter,sans-serif',
               z===1 ? 'left' : 'right', _ROT_ZONA);
     });
     ctx.restore();
