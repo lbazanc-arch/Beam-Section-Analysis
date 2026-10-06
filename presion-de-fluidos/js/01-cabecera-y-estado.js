@@ -113,17 +113,17 @@ function nomTramo(t){
 let zonas = {1:[], 2:[]};   // [{g, niv}]
 let avisoOrden = {1:false, 2:false};
 
+// Las capas de la zona, de arriba abajo, cada una con SU líquido. Un líquido más
+// denso encima de otro más liviano es imposible en reposo: antes se intercambiaban
+// en silencio; desde el 2026-10-05 (decisión del profesor) la zona se marca como
+// errónea (avisoOrden), no se dibuja ni se calcula, y el panel lo avisa.
 function capasOrdenadas(z){
   const lista = zonas[z].map((l, i)=>({l, i})).filter(o=>isFinite(o.l.g) && isFinite(o.l.niv));
   if(!lista.length){ avisoOrden[z] = false; return []; }
-  const niveles = lista.map(o=>o.l.niv).sort((a,b)=>b-a);      // de arriba a abajo
-  // del más liviano al más denso; `idx` es la fila del panel de ese líquido, que
-  // es lo que decide su color (colorLiquido)
-  const dens = lista.map(o=>({g:o.l.g, idx:o.i})).sort((a,b)=>a.g-b.g || a.idx-b.idx);
-  // ¿el alumno los había puesto ya en el orden físico?
-  const comoEstan = lista.slice().sort((a,b)=>b.l.niv-a.l.niv).map(o=>o.l.g);
-  avisoOrden[z] = comoEstan.some((g,i)=>Math.abs(g-dens[i].g) > 1e-12);
-  return niveles.map((niv,i)=>({niv, g:dens[i].g, idx:dens[i].idx}));
+  const ord = lista.slice().sort((a,b)=>b.l.niv - a.l.niv || a.l.g - b.l.g);
+  avisoOrden[z] = ord.some((o,k)=>k > 0 && o.l.g < ord[k-1].l.g - 1e-12);
+  if(avisoOrden[z]) return [];
+  return ord.map(o=>({niv:o.l.niv, g:o.l.g, idx:o.i}));
 }
 
 // Presión manométrica de la zona z a la cota y: se acumula capa a capa,
@@ -158,9 +158,12 @@ function anchoB(){ return Math.abs(num('pB',1))||1; }
 
 function addLiquido(z){
   registrarCambio();
-  const c = capasOrdenadas(z);
-  const nivPrev = c.length ? c[c.length-1].niv - 1 : 0;
-  zonas[z].push({g:9.81, niv:nivPrev});
+  const vals = zonas[z].filter(l=>isFinite(l.g) && isFinite(l.niv));
+  const nivPrev = vals.length ? Math.min(...vals.map(l=>l.niv)) - 1 : 0;
+  // debajo de todos y al menos tan denso como el más denso: así no nace en un
+  // orden imposible
+  const gNuevo = vals.length ? Math.max(9.81, ...vals.map(l=>l.g)) : 9.81;
+  zonas[z].push({g:gNuevo, niv:nivPrev});
   invalidarResultados(); refrescar();   // 06-: el panel era del líquido de antes
 }
 function borrarLiquido(z,i){ registrarCambio(); zonas[z].splice(i,1); invalidarResultados(); refrescar(); }
@@ -169,6 +172,7 @@ function editLiquido(z,i,campo,v){
   const val = parseFloat(v);
   if(isFinite(val)) zonas[z][i][campo] = val;
   invalidarResultados(); refrescar();
+  if(avisoOrden[z]) aviso('Zona ' + z + ': un líquido más denso quedó encima de otro más liviano. Revisa las cotas.', 'error');
 }
 function pintarZonas(){
   [1,2].forEach(z=>{
@@ -183,8 +187,9 @@ function pintarZonas(){
     // abajo, una vez ordenadas), γ y la cota de su superficie, con unidades.
     let h = zonas[z].map((l,i)=>{
       const capa = ord.findIndex(c=>c.idx === i);
-      const nombre = capa === 0 ? 'Líquido superior' : (capa > 0 ? 'Capa ' + (capa + 1) : 'Líquido');
-      const desde = capa > 0 ? 'Empieza en la cota y = ' + dec(ord[capa].niv,'len') + ' ' + unitLen : 'Superficie libre de la zona';
+      const nombre = capa === 0 ? 'Líquido superior' : (capa > 0 ? 'Capa ' + (capa + 1) : 'Líquido ' + (i + 1));
+      const desde = capa > 0 ? 'Empieza en la cota y = ' + dec(ord[capa].niv,'len') + ' ' + unitLen
+                  : (capa === 0 ? 'Superficie libre de la zona' : 'Sin dibujar: revisa el orden');
       return '<div class="liq-card" style="--liq:' + colorLiquido(z, i) + '">'
         + '<div class="liq-cab"><span class="liq-sw"></span><span class="liq-nom">' + nombre + '</span>'
         + '<button class="liq-quitar" title="Quitar este líquido" aria-label="Quitar este líquido" onclick="borrarLiquido('+z+','+i+')">'
@@ -195,7 +200,8 @@ function pintarZonas(){
         + '</div>';
     }).join('');
     if(avisoOrden[z])
-      h += '<div class="zona-avi">Los líquidos se han reordenado por densidad: el más liviano flota sobre el más denso.</div>';
+      h += '<div class="zona-avi">Orden imposible: un líquido más denso está por encima de otro más liviano. '
+         + 'El más liviano debe tener la cota más alta. Mientras no se corrija, esta zona no se dibuja ni se calcula.</div>';
     el.innerHTML = h;
   });
 }
@@ -1059,6 +1065,24 @@ function planEquilibrio(r){
 }
 
 function calcular(){
+  [1,2].forEach(z=>capasOrdenadas(z));
+  const malas = [1,2].filter(z=>avisoOrden[z]);
+  if(malas.length){
+    R = null; RP = null;
+    const rp = document.getElementById('resultsPanel'), ra = document.getElementById('resultsArea'), hint = document.getElementById('noResultsHint');
+    if(ra) ra.style.display = 'block';
+    if(hint) hint.style.display = 'none';
+    if(rp){
+      rp.style.display = 'block';
+      rp.innerHTML = '<div class="res-section"><div class="res-title"><div class="num">!</div>No se puede resolver</div>'
+        + '<div class="verdict bad"><div class="verdict-t">Líquidos</div>En la zona ' + malas.join(' y la zona ')
+        + ' un líquido más denso está por encima de otro más liviano, y en reposo eso no ocurre. '
+        + 'Revisa las cotas en el panel <b>Líquidos</b>: el más liviano debe tener la cota más alta.</div></div>';
+    }
+    dibujar();
+    aviso('Revisa el orden de los líquidos de la zona ' + malas.join(' y ') + '.', 'error');
+    return;
+  }
   R = analizar();
   RP = presas.length ? analizarPresas() : null;    // las presas son otro cuerpo libre (10-)
   const rp = document.getElementById('resultsPanel');
