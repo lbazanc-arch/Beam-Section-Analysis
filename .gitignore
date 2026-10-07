@@ -11,3 +11,9 @@ Bibliografia/
 ideas/
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Casos resueltos con la app (proyectos .json, informes PDF, capturas): solo en local.
+ejercicios/
+
+# Arranque local de la vista previa (contiene la ruta de Python de esta máquina).
+.claude/launch.json
