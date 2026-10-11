@@ -562,57 +562,9 @@ function tikzViga(conReacciones, sel){
 //  INFORME: estructura del documento
 //  Sigue el orden en que se enseña el tema: planteamiento y convenio de
 //  signos → reacciones → funciones por tramos (con DCL y ecuaciones) →
-//  diagramas → comprobaciones. Cada paso lleva su «¿Por qué?».
+//  diagramas → comprobaciones. Sin explicaciones de concepto ni «¿Por qué?»
+//  (2026-10-11, directriz del profesor): figuras, ecuaciones y tablas.
 // ═══════════════════════════════════════════════════════════
-// Resultante y centroide de cada carga repartida, tal como se usan para las
-// reacciones (la viga completa admite la sustitución; un trozo cortado, no).
-// Se redujo a lo que entra en la ecuación de momentos: cuánto vale W y dónde
-// actúa. La columna con la fórmula desarrollada y la de coordenadas globales
-// saturaban la tabla sin añadir nada que no estuviera ya en la figura.
-// La posición se da SIEMPRE respecto del nudo de referencia del pórtico (el
-// primero de la cadena): en horizontal, o en vertical si el tramo es vertical.
-function tablaCargasEquivalentes(R){
-  const lista = cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T');
-  if(!lista.length) return '';
-  const uL = escLatex(unitLen), uF = escLatex(unitFor), uM = escLatex(unidadMomento());
-  const O = (R && R.cad && R.cad.length) ? R.cad[0].desde : {x:0, y:0, nombre:'O'};
-  const nO = escLatex(O.nombre || 'O');
-  let hayPar = false;
-  let filas = '';
-  lista.forEach(c=>{
-    const z = trozoCargado(c); if(!z || z.len <= 1e-12) return;
-    const t = tramos.find(q=>q.id === c.tramo);
-    const g = t && geoTramo(t);
-    const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
-    const W = (w1+w2)/2*z.len;
-    const a = accionesDeCarga(c)[0];
-    const nom = (c._peso ? 'Peso propio' : (c.tipo==='U' ? 'Uniforme' : 'Variable'))
-              + ' $' + nombreCargaFI(c) + '$ en ' + escLatex(t ? nomTramo(t) : '?');
-    // Sin resultante no hay centroide, pero sí un par: es el término que
-    // entra de verdad en la ecuación de momentos.
-    if(Math.abs(W) < 1e-9){
-      hayPar = true;
-      filas += nom + ' & sin resultante ($w$ cambia de signo) & par $= '
-             + dec(a ? (a.m || 0) : 0, 'momento') + '$ ' + uM + ' \\\\\n';
-      return;
-    }
-    // Vertical → se mide en vertical desde el nivel de O; en los demás casos,
-    // en horizontal desde O.
-    const vert = g && Math.abs(g.ux) < 1e-9;
-    const d = vert ? (a.y - O.y) : (a.x - O.x);
-    const pos = 'a ' + dec(Math.abs(d),'len') + ' ' + uL + ' de ' + nO
-              + (vert ? (d < 0 ? ' (hacia abajo)' : ' (hacia arriba)') : '');
-    filas += nom + ' & $' + nombreResultanteFI(c) + ' = ' + dec(Math.abs(W),'fuerza') + '$ ' + uF + ' & ' + pos + ' \\\\\n';
-  });
-  if(!filas) return '';
-  let out = tablaCaption('Cargas equivalentes: resultante $W$ en el centroide; posición desde ' + nO
-    + (hayPar ? '. Si $w$ cambia de signo puede quedar un par' : '') + '.');
-  out += '{\\footnotesize\\begin{center}\\begin{tabular}{lll}\n\\hline\n'
-    + 'Carga & Resultante & Actúa \\\\\n\\hline\n' + filas
-    + '\\hline\n\\end{tabular}\\end{center}}\n';
-  return out;
-}
-
 function construirLatex(){
   if(!R || R.error || !R.internas){
     aviso('Primero pulsa Calcular (o revisa el equilibrio de la viga).');
@@ -654,8 +606,6 @@ function construirLatex(){
     + '  \\noindent{\\large\\bfseries\\color{bsaAcc}#1}\\par\\nopagebreak\n'
     + '  \\vspace{3pt}\\nopagebreak\\hrule\\nopagebreak\\vspace{7pt}\\nopagebreak}\n'
     + '\\newcommand{\\subpaso}[1]{\\par\\addvspace{6pt}\\noindent{\\bfseries\\color{bsaAcc2}#1}\\par\\nopagebreak\\vspace{3pt}\\nopagebreak}\n'
-    + '\\newcommand{\\porque}[1]{\\par\\vspace{3pt}\\noindent\\fcolorbox{bsaAcc!40}{bsaAcc!5}{%\n'
-    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\footnotesize{\\bfseries\\color{bsaAcc2}¿Por qué?}\\ #1}}\\par\\vspace{4pt}}\n'
     // Reduce una caja solo si pasa del ancho de línea (diagramas inclinados, 16-).
     + '\\newsavebox{\\bsaCaja}\n'
     + '\\newcommand{\\bsaEncajar}[1]{\\sbox{\\bsaCaja}{#1}\\ifdim\\wd\\bsaCaja>\\linewidth'
@@ -673,7 +623,6 @@ function construirLatex(){
     return '\n\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n';
   }
   const grupos = gruposDireccion(R);
-  const hayDist = cargasConPeso().some(c=>c.tipo==='U'||c.tipo==='T');
   const hayN = R.internas.some(seg=>seg.subs.some(su=>su.cN.some(v=>Math.abs(v)>5e-9)));
 
   let tex = preambulo;
@@ -686,13 +635,12 @@ function construirLatex(){
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += '\\begin{center}\\begin{tikzpicture}[scale=1]\n' + tikzViga() + '\\end{tikzpicture}\\end{center}\n';
-  tex += figCaption('Modelo de la viga: apoyos, cargas y nombres de nudo, con las cotas de posición.');
+  tex += figCaption('Modelo de la viga.');
   // Aquí iba una tabla con las coordenadas de cada nudo y otra con cada carga.
   // Las dos repetían, en números, lo que la figura ya dice: se eliminaron.
   const _usados = pesos.filter(p=>tramos.some(t=>t.pesoId === p.id));
   if(_usados.length){
-    tex += tablaCaption('Peso propio considerado, en dirección vertical y sobre la '
-      + 'longitud real del eje.');
+    tex += tablaCaption('Peso propio.');
     tex += '{\\footnotesize\\begin{center}\\begin{tabular}{lrl}\n\\hline\n'
       + 'Valor & Peso (' + escLatex(uDist()) + ') & Tramos \\\\\n\\hline\n';
     _usados.forEach(p=>{
@@ -704,32 +652,15 @@ function construirLatex(){
   tex += '\\subpaso{Convenio de signos}\n';
   tex += '\\begin{center}\\begin{tikzpicture}[scale=.62]\n' + tikzConvenio()
        + '\\end{tikzpicture}\\end{center}\n';
-  tex += figCaption('Sentido POSITIVO de las tres solicitaciones internas sobre las dos caras de un corte.');
-  tex += '\\noindent\\begin{itemize}\\setlength{\\itemsep}{1pt}\n'
-    + '\\item $N > 0$ cuando la sección está en \\textbf{tracción}: cada trozo tira del otro.\n'
-    + '\\item $V > 0$ cuando las fuerzas transversales tienden a hacer \\textbf{girar el trozo en sentido horario}: '
-    + 'sobre la cara derecha del trozo izquierdo, $V$ positiva apunta hacia abajo.\n'
-    + '\\item $M > 0$ cuando el momento \\textbf{comprime las fibras superiores} y tracciona las inferiores: la viga '
-    + 'se curva cóncava hacia arriba (\\emph{sonríe}).\n'
-    + '\\end{itemize}\n';
+  tex += figCaption('Sentidos positivos de $N$, $V$ y $M$.');
 
   // ══ 2. Paso 1: reacciones ══
   tex += '\\seccion{2. Paso 1 --- Reacciones en los apoyos}\n';
-  if(hayDist){
-    tex += tablaCargasEquivalentes(R);
-  }
-  tex += 'Ecuaciones de equilibrio' + (R.rotulas.length ? ', con momento nulo en cada rótula' : '')
-    + ' (' + R.inc.length + ' incógnitas y ' + R.diag.eq + ' ecuaciones):\n';
-  // Los subíndices nombran el punto real: $\sum M_A = 0$ dice por sí solo
-  // respecto a qué se toman los momentos, sin aclaración entre paréntesis.
-  tex += '$$\\sum F_x = 0 \\qquad \\sum F_y = 0 \\qquad \\sum M_{' + nombreOrigen() + '} = 0'
-    + R.rotulas.map(rt=>'\\qquad \\sum M_{' + escLatex(rt.etiqueta || rt.nombre) + '} = 0').join('') + '$$\n';
   tex += pasoAPasoReacciones(R);
   // Cada reacción con su nombre completo ($R_{yD}$, $R_{xD}$, $R_A$, $M_D$) y
   // el sentido real con un icono, no con una frase: se lee de un vistazo.
   tex += tablaCaption('Reacciones en los apoyos, con su sentido real.');
-  // La nota del signo va al costado de la tabla, breve (2026-10-05).
-  tex += '\\resultado{\\small\\begin{minipage}[c]{0.58\\linewidth}\\centering\n'
+  tex += '\\resultado{\\small\\centering\n'
     + '\\begin{tabular}{@{}crc@{}}\n\\hline\n'
     + '\\textbf{Reacción} & \\textbf{Valor} & \\textbf{Sentido real} \\\\\n\\hline\n';
   R.inc.forEach((u,j)=>{
@@ -746,9 +677,7 @@ function construirLatex(){
       + dec(v, esMom?'momento':'fuerza') + '$\\,' + escLatex(esMom?unidadMomento():unitFor)
       + ' & ' + iconoReaccion(u, v) + ' \\\\\n';
   });
-  tex += '\\hline\n\\end{tabular}\\end{minipage}\\hfill\\begin{minipage}[c]{0.38\\linewidth}\\footnotesize'
-    + '\\textbf{Nota.} Un valor negativo indica que la reacción actúa al revés de lo supuesto en el DCL. '
-    + 'La flecha da el sentido real.\\end{minipage}}\n';
+  tex += '\\hline\n\\end{tabular}\\par}\n';
 
   // ══ 3. Paso 2: el método elegido ══
   // El PDF sigue el método que el alumno escogió en la columna de control
@@ -756,8 +685,6 @@ function construirLatex(){
   // construye por áreas y NO repite el desarrollo por ecuaciones.
   if(porAreas){
     tex += '\\seccion{3. Paso 2 --- Diagramas por el método de las áreas}\n';
-    tex += '\\noindent Conocidas las reacciones, no hace falta cortar y plantear el equilibrio en '
-      + 'cada intervalo: los diagramas se construyen acumulando áreas desde un extremo.\n';
     grupos.forEach(gg=>{
       if(gg.idx > 0)
         tex += '\\vspace{8pt}\\noindent{\\color{bsaAcc2}\\rule{\\linewidth}{.8pt}}\\vspace{5pt}\n';
@@ -771,10 +698,6 @@ function construirLatex(){
     });
   } else {
   tex += '\\seccion{3. Paso 2 --- Funciones $N(x)$, $V(x)$ y $M(x)$ por tramos}\n';
-  tex += '\\noindent La abscisa de la sección se mide desde el último punto de quiebre de la viga: se llama '
-    + '$x$ en los tramos horizontales y $r$ en los inclinados, donde se mide a lo largo del eje del tramo. '
-    + 'Las solicitaciones se refieren siempre a los ejes locales: $N$ según el eje del tramo y $V$ '
-    + 'perpendicular a él.\n';
 
   grupos.forEach(gg=>{
     const sb = gg.simbolo;
@@ -785,7 +708,6 @@ function construirLatex(){
       + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL
       + '\\quad abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + '}\n';
     tex += textoRama(R, grupos, gg, 'inicio');
-    tex += fraseCortesGrupo(R, gg);
     gg.tramos.forEach(seg=>{
       seg.subs.forEach(sub=>{
         tex += desarrolloCorte(R, grupos, gg, seg, sub, figCaption);
@@ -799,9 +721,6 @@ function construirLatex(){
 
   // ══ 4. Paso 3: diagramas ══
   tex += '\\seccion{4. Paso 3 --- Diagramas de fuerzas internas}\n';
-  tex += '\\noindent Cada diagrama se dibuja debajo del esquema del tramo, con la misma escala horizontal, '
-    + 'de modo que cada salto o cambio de pendiente quede justo bajo la acción que lo produce. Se acotan los '
-    + 'valores en los extremos de cada intervalo, los puntos donde la función se anula y los extremos de $M$.\n';
   // Aquí iba, por tramo, una tabla con la forma que debe tener cada diagrama
   // (constante, lineal, parábola). El propio diagrama ya la muestra.
   grupos.forEach(gg=>{
@@ -821,8 +740,9 @@ function construirLatex(){
   // comprobación; con «áreas» no aparecen los cortes. Antes el método de las
   // áreas se añadía aquí como comprobación cuando no era el elegido.
 
-  tex += bsaReferenciasLatex({extra:['Rodr\\\'iguez, H.~J. (s.f.). \\emph{Fuerzas internas} (cap.~8). '
-    + 'Secci\\\'on de Ingenier\\\'ia Mec\\\'anica, Pontificia Universidad Cat\\\'olica del Per\\\'u.']});
+  // Sin tabla de cargas equivalentes ni lista de referencias (2026-10-11,
+  // directriz del profesor): la resultante de cada repartida ya está en la caja
+  // «Valores» del DCL global, y su brazo en sus cotas.
 
   // ── Colofón (R20): el mismo bloque en los cinco temas, desde core/comun.js ──
   tex += colofonLatexBSA();

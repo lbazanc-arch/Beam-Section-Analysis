@@ -848,7 +848,7 @@ function pasoAPasoReacciones(R){
   nomEq.push('\\sum M_{' + nombreOrigen() + '} = 0');
   for(let e=3;e<nEq;e++) nomEq.push('\\sum M_{' + escLatex(R.rotulas[e-3].etiqueta || R.rotulas[e-3].nombre) + '} = 0');
 
-  let out = '\\noindent{\\bfseries\\color{bsaAcc2} Desarrollo}\\\\[3pt]\n';
+  let out = '';
   // Diagrama de cuerpo libre global: la viga con sus cargas Y con las
   // reacciones dibujadas como incógnitas, para que se vea el sentido
   // positivo supuesto de cada una antes de plantear las ecuaciones.
@@ -860,8 +860,7 @@ function pasoAPasoReacciones(R){
   // se usa (2026-10-05, observación del profesor). Sin rótulas sale donde siempre.
   let preGlobal = '\\begin{center}\\begin{tikzpicture}\n' + _dclGlobal
        + '\\end{tikzpicture}\n'
-       + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre global: cargas y reacciones incógnita '
-       + 'en su sentido positivo; brazos acotados desde $' + nombreOrigen() + '$.' + _angulosFiguraTex(angsGlobal) + '}\n\\end{center}\\vspace{4pt}\n';
+       + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} DCL global.' + _angulosFiguraTex(angsGlobal) + '}\n\\end{center}\\vspace{4pt}\n';
 
   // ── El rodillo inclinado: su reacción se descompone con el ángulo de la figura ──
   // Antes su coeficiente aparecía ya multiplicado (5.66 R_C) sin explicación. Se
@@ -879,17 +878,11 @@ function pasoAPasoReacciones(R){
     const fn = comp => (((comp === 'x') !== ag.desdeV) ? '\\cos' : '\\operatorname{sen}');
     const sg = comp => ((comp === 'x' ? ca : sa) < 0 ? '-' : '');
     const f4 = v => (Math.round(v*10000)/10000).toFixed(4);
-    preGlobal += '\\noindent{\\footnotesize El rodillo de ' + nn + ' apoya sobre un plano inclinado, así que su '
-      + 'única reacción no es vertical: forma $' + letra + ' = ' + g + '$ con la ' + (ag.desdeV ? 'vertical' : 'horizontal')
-      + ', el ángulo acotado en la figura. Antes de sumar, se descompone; el signo de cada componente '
-      + 'es el del sentido de la flecha.}\\\\[2pt]\n';
     preGlobal += _alineada([
       'R_{x' + nn + '} &= ' + sg('x') + nR + fn('x') + letra + ' = ' + sg('x') + nR + fn('x') + ' ' + g + ' = ' + f4(ca) + '\\,' + nR,
       'R_{y' + nn + '} &= ' + sg('y') + nR + fn('y') + letra + ' = ' + sg('y') + nR + fn('y') + ' ' + g + ' = ' + f4(sa) + '\\,' + nR
     ]);
     const O = nombreOrigen(), coefM = R.A[2][j];
-    preGlobal += '\\noindent{\\footnotesize Su momento respecto de $' + O + '$ es el de esas dos componentes, '
-      + 'cada una por su propia distancia:}\\\\[2pt]\n';
     preGlobal += _alineada([
       'M_{' + O + '} &= x_{' + nn + '}\\,R_{y' + nn + '} - y_{' + nn + '}\\,R_{x' + nn + '}',
       '&= (' + dec(u.n.x,'len') + ')\\,(' + f4(sa) + '\\,' + nR + ') - (' + dec(u.n.y,'len') + ')\\,(' + f4(ca) + '\\,' + nR + ')',
@@ -912,8 +905,8 @@ function pasoAPasoReacciones(R){
     return '\\begin{center}\\begin{tikzpicture}\n'
       + tikzViga(true, {tramos:lado.tramos, incNodos:lado.nodos, rotula:rt,
                         origen:{x:rt.x, y:rt.y, nombre:rt.nombre}})
-      + '\\end{tikzpicture}\n\\\\[2pt]{\\footnotesize\\color{bsaMuted} Cuerpo libre del trozo desde la rótula ' + nr
-      + ': $\\sum M_{' + escLatex(rt.etiqueta || rt.nombre) + '} = 0$; $' + nr + '_x$ y $' + nr + '_y$ (a trazos) tienen brazo nulo.}\n\\end{center}\\vspace{4pt}\n';
+      + '\\end{tikzpicture}\n\\\\[2pt]{\\footnotesize\\color{bsaMuted} DCL del trozo desde la rótula ' + nr
+      + '.}\n\\end{center}\\vspace{4pt}\n';
   };
 
   const dtEq = e => (e >= 2 ? 'momento' : 'fuerza');
@@ -959,18 +952,8 @@ function pasoAPasoReacciones(R){
     return v;
   };
 
-  // ── Todo el desarrollo va alineado a la izquierda ──
-  // Con `$$…$$` cada ecuación quedaba centrada y el bloque se leía como una
-  // lista de fórmulas sueltas, sin poder seguir la columna del «=». `flalign*`
-  // con el `&&` final empuja la fila contra el margen izquierdo.
-  const _izq = (tex) => '\\begin{flalign*}\n' + tex + ' &&\n\\end{flalign*}\n';
   // Una ecuación con muchos términos (pórtico con rótula y varias cargas) se
   // salía del margen en una sola línea: a partir de seis términos se parte.
-  // Lista de referencias: «(1)», «(1) y (2)», «(1), (2) y (4)». Cada ecuación
-  // lleva número para poder citarla: sin él, un desarrollo encadenado obliga
-  // al lector a buscar hacia arriba de qué ecuación salió cada valor.
-  const _refs = ns => ns.length === 1 ? '(' + ns[0] + ')'
-    : '(' + ns.slice(0, -1).join('), (') + ') y (' + ns[ns.length-1] + ')';
   const carg = [];                 // términos de carga de cada ecuación
   for(let e=0;e<nEq;e++) carg.push(terminosEquilibrio(R, e));
 
@@ -985,20 +968,9 @@ function pasoAPasoReacciones(R){
   // global y, si lo hay, el rodillo inclinado. Se entrega una sola vez.
   const sacarGlobal = () => { const g = preGlobal; preGlobal = ''; return g; };
 
-  // Numeración de las ecuaciones y de dónde salió cada incógnita, para poder
-  // citarlas al sustituir.
+  // Numeración de las ecuaciones.
   const numEc = new Array(nEq).fill(0);
-  const deQuien = new Array(nInc).fill(0);
   let nSig = 0;
-  // Ecuaciones ya resueltas cuyas incógnitas intervienen en ésta.
-  const refsDe = (e) => {
-    const ns = [];
-    R.inc.forEach((u,j)=>{
-      if(Math.abs(R.A[e][j]) < 1e-9 || !conocido[j] || !deQuien[j]) return;
-      if(ns.indexOf(deQuien[j]) < 0) ns.push(deQuien[j]);
-    });
-    return ns.sort((a,b)=>a-b);
-  };
 
   let restantes = nEq;
   while(restantes > 0){
@@ -1013,7 +985,7 @@ function pasoAPasoReacciones(R){
       // Ninguna se despeja sola: las que quedan forman un sistema simultáneo.
       const libres = [], nums = [];
       let filasS = [];
-      const flush = () => { if(filasS.length){ out += _alineada(filasS); filasS = []; } };
+      const flush = () => { if(filasS.length){ out += _ecuaciones(filasS); filasS = []; } };
       for(let e=0;e<nEq;e++){
         if(usada[e]) continue;
         usada[e] = true; restantes--;
@@ -1021,81 +993,59 @@ function pasoAPasoReacciones(R){
         if(e < 3){ const g = sacarGlobal(); if(g){ flush(); out += g; } }
         const dcl = _cabecera(e);
         if(dcl){ flush(); out += dcl; }      // el DCL de la rótula va antes de SU ecuación
-        const rf = refsDe(e);
-        filasS.push(_fila(etiqueta(e), izqTerms(e, true).concat(carg[e]),
-                          ' = 0\\qquad(' + numEc[e] + ')', 5, ' & '));
-        if(rf.length)
-          filasS.push('& {\\footnotesize\\text{con ' + _refs(rf) + ' ya sustituidas}}');
-        pendientes(e).forEach(p=>{ if(libres.indexOf(p.j) < 0) libres.push(p.j); });
+        // Dos líneas por ecuación (2026-10-11, directriz del profesor): la
+        // ecuación completa y, debajo, la expresión que queda con lo ya hallado
+        // sustituido y las cargas sumadas (a R_x + b R_y = c).
+        const par = [_fila(etiqueta(e), izqTerms(e, false).concat(carg[e]),
+                           ' = 0\\qquad(' + numEc[e] + ')', 5, ' & ')];
+        const pe = pendientes(e);
+        // Sin cargas ni valores ya hallados, la segunda línea repetiría la primera.
+        const reduce = carg[e].length || izqTerms(e, false).length > pe.length;
+        if(pe.length && reduce){
+          const c = izqTerms(e, true).concat(carg[e])
+                      .filter(t=>t.tex.indexOf('R_') < 0 && t.tex.indexOf('M_') < 0)
+                      .reduce((s,t)=>s + t.v, 0);
+          par.push(_fila('', pe.map(p=>({v:p.a, tex:termInc(p.u, p.a, e)})),
+                         ' = ' + dec(-c, dtEq(e)) + '\\ \\text{' + unEq(e) + '}', 5, ' & '));
+        }
+        filasS.push(par);
+        pe.forEach(p=>{ if(libres.indexOf(p.j) < 0) libres.push(p.j); });
       }
       flush();
       if(libres.length){
-        out += '\\noindent{\\footnotesize Las ecuaciones ' + _refs(nums) + ' no se despejan por '
-          + 'separado: forman un sistema simultáneo. Resolviéndolo:}\\\\[2pt]\n';
-        out += _izq(libres.map(j=>simb(R.inc[j]) + ' = '
+        // Los valores del sistema, en una línea centrada como las ecuaciones.
+        out += '\\[' + libres.map(j=>simb(R.inc[j]) + ' = '
           + dec(R.val[j], (R.inc[j].tipo === 'M' && R.inc[j].ang === undefined) ? 'momento' : 'fuerza')
-          + '\\ \\text{' + uInc(R.inc[j]) + '}').join('\\qquad '));
-        libres.forEach(j=>{ conocido[j] = true; deQuien[j] = nums[nums.length-1]; });
+          + '\\ \\text{' + uInc(R.inc[j]) + '}').join('\\qquad ') + '\\]\n';
+        libres.forEach(j=>{ conocido[j] = true; });
       }
       break;
     }
 
     usada[el] = true; restantes--;
     const p = pendientes(el)[0];
-    const rf = refsDe(el);
     const hayPrevias = izqTerms(el, false).length > 1;
     if(el < 3) out += sacarGlobal();
     out += _cabecera(el);
-    // 1 · La ecuación completa, con las incógnitas en símbolos y numerada. Se
-    //     omite cuando no aporta nada: una ecuación con una sola incógnita de
-    //     coeficiente unidad y sin cargas ya es el propio despeje, y
-    //     escribirla repetía la misma línea dos veces.
+    // Dos líneas por ecuación (2026-10-11, directriz del profesor): la ecuación
+    // completa —incógnitas, cargas y fuerza × brazo, igualada a cero— y debajo
+    // la incógnita con su valor. Lo ya hallado se sustituye sin escribirlo.
+    // Una ecuación con una sola incógnita de coeficiente unidad y sin cargas
+    // ya es el propio despeje: va en una sola línea.
     const trivial = !hayPrevias && !carg[el].length && Math.abs(Math.abs(p.a)-1) < 1e-9;
-    numEc[el] = ++nSig;      // toda ecuación lleva número, para poder citarla
+    numEc[el] = ++nSig;
+    const dtI = (p.u.tipo === 'M' && p.u.ang === undefined) ? 'momento' : 'fuerza';
+    const valor = simb(p.u) + ' = ' + dec(R.val[p.j], dtI) + '\\ \\text{' + uInc(p.u) + '}';
     const filas = [];
-    if(!trivial)
+    if(trivial) filas.push(etiqueta(el) + ' & ' + valor + '\\qquad(' + numEc[el] + ')');
+    else {
       filas.push(_fila(etiqueta(el), izqTerms(el, false).concat(carg[el]),
                        ' = 0\\qquad(' + numEc[el] + ')', 5, ' & '));
-    // 2 · Sustitución de lo ya hallado, citando de dónde sale cada valor
-    const sust = izqTerms(el, true).concat(carg[el]);
-    const cte = sust.filter(t=>t.tex.indexOf('R_') < 0 && t.tex.indexOf('M_') < 0)
-                    .reduce((s,t)=>s + t.v, 0);
-    const coefTxt = Math.abs(Math.abs(p.a)-1) < 1e-9 ? '' : dec(Math.abs(p.a),'len') + '\\,';
-    if(hayPrevias)
-      filas.push(_fila(rf.length ? '{\\footnotesize\\text{de } ' + _refs(rf) + ':}\\quad' : '',
-                       sust, ' = 0', 5, ' & '));
-    // 3 · Despeje, con la división a la vista si el coeficiente no es 1
-    const dtI = (p.u.tipo === 'M' && p.u.ang === undefined) ? 'momento' : 'fuerza';
-    const izqDes = (p.a < 0 ? '-' : '') + termInc(p.u, p.a, el);
-    let linea = izqDes + ' = ' + dec(-cte, dtEq(el)) + '\\ \\text{' + unEq(el) + '}';
-    if(Math.abs(Math.abs(p.a)-1) > 1e-9)
-      linea += ' \\quad\\Rightarrow\\quad ' + simb(p.u) + ' = \\dfrac{' + dec(-cte, dtEq(el))
-             + '}{' + dec(p.a,'len') + '} = ' + dec(R.val[p.j], dtI)
-             + '\\ \\text{' + uInc(p.u) + '}';
-    else if(p.a < 0)
-      linea += ' \\quad\\Rightarrow\\quad ' + simb(p.u) + ' = ' + dec(R.val[p.j], dtI)
-             + '\\ \\text{' + uInc(p.u) + '}';
-    // Si la ecuación era trivial no se escribió arriba: el número va aquí,
-    // sobre el propio despeje, para que la cita apunte a algo visible.
-    filas.push((trivial ? etiqueta(el) : '') + ' & ' + linea
-               + (trivial ? '\\qquad(' + numEc[el] + ')' : ''));
+      filas.push(' & ' + valor);
+    }
     out += _alineada(filas);
     conocido[p.j] = true;
-    deQuien[p.j] = numEc[el];
   }
-
-  // Comprobación compacta: con todas las reacciones halladas, cada ecuación
-  // debe cerrar. Antes se listaba una tabla entera de residuos nulos, que
-  // repetía lo que el propio desarrollo ya había demostrado.
-  let peor = 0;
-  for(let e=0;e<nEq;e++){
-    let acc = 0;
-    R.inc.forEach((u,j)=>{ acc += R.A[e][j]*R.val[j]; });
-    peor = Math.max(peor, Math.abs(acc - R.b[e]));
-  }
-  out += '\\noindent{\\footnotesize Sustituyendo los valores hallados en las '
-    + nEq + ' ecuaciones, el mayor residuo es ' + dec(peor,'momento')
-    + ': el sistema cierra.}\\\\[4pt]\n';
   return out;
 }
 

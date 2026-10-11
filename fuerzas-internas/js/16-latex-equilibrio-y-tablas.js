@@ -72,6 +72,11 @@ function _sumaTex(terms, ceroTxt){
 function _alineada(filas){
   return '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
 }
+// Varias ecuaciones de dos líneas en un solo bloque, con aire entre una y otra
+// (2026-10-11, el profesor las veía muy juntas). `pares` es [[ecuación, resultado], …].
+function _ecuaciones(pares){
+  return '\\begin{align*}\n' + pares.map(p=>p.join(' \\\\\n')).join(' \\\\[10pt]\n') + '\n\\end{align*}\n';
+}
 function _fila(izq, terms, cola, porFila, sep){
   const n = porFila || 4;
   const sp = (sep === undefined) ? ' &= ' : sep;
@@ -582,35 +587,24 @@ function bloqueQuiebre(R, grupos, gg, info){
       console.warn('Informe LaTeX: el DCL del nudo no cierra', {nudo:gg.desde.nombre, sx, sy, sm});
   }
   const {N0, V0, M0} = info.ctes;
-  const nn = escLatex(gg.desde.nombre), np = escLatex(prev.recorrido);
+  const nn = escLatex(gg.desde.nombre);
   const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
   const g = dec(D*180/Math.PI,'ang');
   const ang = anguloQuiebre(u1, u2, D);
-  const ejeTxt = v => (v ? 'vertical' : 'horizontal');
-  const recto90 = ang.modo === 'recto' && Math.abs(ang.grados - 90) < 1;
   let out = '';
-  const fraseAng = ang.modo === 'eje'
-    ? '$\\theta$: barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ', desde la ' + ejeTxt(ang.desdeV) + '.'
-    : ang.modo === 'recto'
-    ? 'Barras ' + (recto90 ? 'perpendiculares' : 'paralelas') + ': sin ángulo.'
-    : '$\\theta_1$, $\\theta_2$ desde su eje más cercano; $\\theta$ es el giro entre barras.';
   out += '\\begin{center}\\begin{tikzpicture}\n'
        + tikzNudoQuiebre(u1, u2, nn, ang, Nm, Vm, Mm, N0, V0, M0, enNudo)
        + '\\end{tikzpicture}\\\\[2pt]\n{\\footnotesize\\color{bsaMuted} DCL del nudo ' + nn
-       + ': en azul lo que llega por ' + np + ', en verde lo que sale al tramo nuevo'
-       + (enNudo.length ? ', en rojo y violeta las cargas del nudo' : '') + '. ' + fraseAng + '}\\end{center}\\vspace{2pt}\n';
-  let proy;
-  if(ang.modo === 'eje')
-    proy = 'Proyectando con $\\theta = ' + dec(ang.phi,'ang') + '^\\circ$ (ángulo de la barra ' + (ang.deLlega ? 'que llega' : 'nueva') + ' con la ' + ejeTxt(ang.desdeV) + '):';
-  else if(ang.modo === 'recto')
-    proy = 'La barra nueva es ' + (recto90 ? 'perpendicular' : 'paralela') + ' a la anterior ($\\theta = ' + ang.grados.toFixed(0) + '^\\circ$), así que:';
-  else
-    proy = 'Con $\\theta_1 = ' + dec(ang.phi1,'ang') + '^\\circ$ (' + ejeTxt(ang.desdeV1) + ') y $\\theta_2 = ' + dec(ang.phi2,'ang') + '^\\circ$ (' + ejeTxt(ang.desdeV2)
-         + '), el giro entre barras es $\\theta = ' + (D < 0 ? '-' : '') + (ang.rel ? '(' + ang.rel + ') = ' : '') + g + '^\\circ$'
-         + (D < 0 ? ' (negativo: horario)' : '') + '. Proyectando:';
-  out += '\\noindent{\\footnotesize Al final del tramo ' + np + ': $N^- = ' + dec(Nm,'fuerza')
-    + '$, $V^- = ' + dec(Vm,'fuerza') + '$ ' + uF + ', $M^- = ' + dec(Mm,'momento') + '$ ' + uM
-    + '. ' + proy + '}\n';
+       + '.}\\end{center}\\vspace{2pt}\n';
+  // Sin frases (2026-10-11, directriz del profesor): lo que llega del tramo
+  // anterior y el ángulo con que se proyecta, en una línea de fórmulas.
+  let angTex;
+  if(ang.modo === 'eje') angTex = '\\theta = ' + dec(ang.phi,'ang') + '^\\circ';
+  else if(ang.modo === 'recto') angTex = '\\theta = ' + ang.grados.toFixed(0) + '^\\circ';
+  else angTex = '\\theta_1 = ' + dec(ang.phi1,'ang') + '^\\circ,\\ \\theta_2 = ' + dec(ang.phi2,'ang') + '^\\circ,\\ '
+              + '\\theta = ' + (D < 0 ? '-' : '') + (ang.rel ? '(' + ang.rel + ') = ' : '') + g + '^\\circ';
+  out += '$$N^- = ' + dec(Nm,'fuerza') + '\\ \\text{' + uF + '},\\quad V^- = ' + dec(Vm,'fuerza') + '\\ \\text{' + uF
+    + '},\\quad M^- = ' + dec(Mm,'momento') + '\\ \\text{' + uM + '}\\qquad ' + angTex + '$$\n';
   const extraN = enNudo.filter(e=>Math.abs(e.Fpar) > EPS).map(e=>(e.Fpar > 0 ? ' - ' : ' + ') + dec(Math.abs(e.Fpar),'fuerza')).join('');
   const extraV = enNudo.filter(e=>Math.abs(e.Fper) > EPS).map(e=>(e.Fper < 0 ? ' - ' : ' + ') + dec(Math.abs(e.Fper),'fuerza')).join('');
   const extraM = enNudo.filter(e=>Math.abs(e.m) > EPS).map(e=>(e.m > 0 ? ' - ' : ' + ') + dec(Math.abs(e.m),'momento')).join('');
@@ -649,18 +643,21 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
   const Lz = v => dec(v,'len');
   let out = '';
 
-  out += '\\noindent{\\bfseries Corte en $' + Lz(a) + ' \\le ' + sb + ' \\le ' + Lz(b) + '$\\,' + uL + '}\\\\[2pt]\n';
-  out += '\\begin{center}\\begin{tikzpicture}\n' + tikzDCLSub(R, gg, seg, sub, info)
-       + '\\end{tikzpicture}\\end{center}\n';
-  const capDCL = figCaption('DCL del trozo antes de la sección $S$ (abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + ').' + _angulosFiguraTex(_angulosFiguraFI));
-  out += capDCL;
-  const nFig = (capDCL.match(/Figura (\d+)/) || [])[1];
-  const verFig = nFig ? ' (Figura ' + nFig + ')' : '';
-
-  // El quiebre se explica UNA vez por nudo, en el primer corte del grupo.
-  // Repetirlo en cada corte era lo que sobraba: los números son los mismos.
+  // El nudo de quiebre se resuelve PRIMERO, con su DCL y sus N₀, V₀, M₀, y solo
+  // después se abre el corte del trozo (2026-10-11, directriz del profesor): con
+  // los dos DCL seguidos no se veía qué valores eran de cuál. Una vez por nudo,
+  // en el primer corte del grupo.
   const esPrimerCorte = (seg === gg.tramos[0] && sub === gg.tramos[0].subs[0]);
   if(info.ctes && esPrimerCorte) out += bloqueQuiebre(R, grupos, gg, info);
+
+  // Rótulo y DCL en una minipage: así el rótulo no queda solo al pie de una
+  // página con su figura en la siguiente.
+  out += '\\par\\noindent\\begin{minipage}{\\linewidth}\n'
+       + '{\\bfseries Corte en $' + Lz(a) + ' \\le ' + sb + ' \\le ' + Lz(b) + '$\\,' + uL + '}\n'
+       + '\\begin{center}\\begin{tikzpicture}\n' + tikzDCLSub(R, gg, seg, sub, info)
+       + '\\end{tikzpicture}\\end{center}\n\\end{minipage}\n';
+  out += figCaption('DCL del trozo antes de la sección $S$.' + _angulosFiguraTex(_angulosFiguraFI));
+
 
   // ── Proyección de cada acción sobre los ejes del tramo ──
   // Antes era una tabla de cuatro columnas con el resultado ya hecho. Ahora se
@@ -670,9 +667,7 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
   // Componente de una fuerza con nombre: P_{1} → P_{1,x}; P → P_x.
   const subc = (Fs, c) => /\}$/.test(Fs) ? Fs.replace(/\}$/, ',' + c + '}') : Fs + '_' + c;
   // Una carga inclinada se descompone una vez, con el ángulo que acota su figura.
-  // Componentes y proyección van en UN párrafo (2026-10-05, corrección del
-  // profesor): la frase de las componentes y la de la proyección, juntas.
-  const compTxt = [], compFilas = [];
+  const compFilas = [];
   acc.forEach(f=>{
     const p = f.proy;
     if(!p || Math.abs(p.fx) < EPS || Math.abs(p.fy) < EPS || /^R_|^F_/.test(p.tex)) return;
@@ -682,12 +677,9 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
     const letra = (_angulosFiguraFI.find(x => x.letra && Math.abs(x.valor - ag.grados) < 0.15) || {}).letra || '\\alpha';
     const fx = ag.desdeV ? '\\operatorname{sen}' : '\\cos', fy = ag.desdeV ? '\\cos' : '\\operatorname{sen}';
     const sx = p.fx < 0 ? '-' : '', sy = p.fy < 0 ? '-' : '';
-    compTxt.push('$' + p.tex + '$ forma $' + letra + ' = ' + dec(ag.grados,'ang') + '^\\circ$ con la '
-      + (ag.desdeV ? 'vertical' : 'horizontal') + verFig);
     compFilas.push(subc(p.tex, 'x') + ' &= ' + sx + p.tex + fx + letra + ' = ' + dec(p.fx,'fuerza') + '\\ \\text{' + uF + '} & '
       + subc(p.tex, 'y') + ' &= ' + sy + p.tex + fy + letra + ' = ' + dec(p.fy,'fuerza') + '\\ \\text{' + uF + '}');
   });
-  const fraseComp = compTxt.length ? compTxt.join('; ') + '; sus componentes en $x$ e $y$' : '';
   let compDicho = false;
   if(gg.inclinado && esPrimerCorte){
     const th = gg.ang*Math.PI/180, co = Math.cos(th), si = Math.sin(th);
@@ -724,24 +716,19 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
         + '\\ \\text{' + uF + '} & F_{\\parallel} &= ' + ePar + ' = ' + dec(vPar,'fuerza')
         + '\\ \\text{' + uF + '}');
     });
+    // Sin frases (2026-10-11, directriz del profesor): solo las proyecciones.
     if(filasP.length){
-      const fraseP = 'cada fuerza se proyecta perpendicular ($F_{\\perp}$, según $\\hat{n}$) y paralela ($F_{\\parallel}$, según $\\hat{u}$) al eje del tramo'
-        + (gg.oblicuo ? ', con $\\theta = ' + dec(gg.ang,'ang') + '^\\circ$' + (fraseComp ? '' : verFig) : '');
-      out += '\\noindent{\\footnotesize ' + (fraseComp ? fraseComp + ', y ' + fraseP : fraseP.charAt(0).toUpperCase() + fraseP.slice(1)) + ':}\n';
       if(compFilas.length) out += _alineada(compFilas);
       out += _alineada(filasP);
       compDicho = true;
     }
   }
-  if(compFilas.length && !compDicho)
-    out += '\\noindent{\\footnotesize ' + fraseComp + ':}\n' + _alineada(compFilas);
+  if(compFilas.length && !compDicho) out += _alineada(compFilas);
 
   // Ley de la carga cortada
   wAct.forEach(w=>{
     const hayProy = Math.abs(Math.abs(w.cp) - 1) > 1e-6 || Math.abs(w.cu) > 1e-6;
     if(Math.abs(w.k) > 1e-9){
-      out += '\\noindent{\\footnotesize La carga repartida cortada varía linealmente; su intensidad '
-        + 'en la sección es:}\n';
       out += '$$w(' + sb + ') = ' + polyTex([w.wA - w.k*w.g1, w.k], 'fuerza', sb) + '\\ \\text{' + uW + '}'
         + (hayProy ? '\\qquad w_{\\perp} = ' + polyTex([(w.wA - w.k*w.g1)*w.cp, w.k*w.cp], 'fuerza', sb)
                    + ',\\quad w_{\\parallel} = ' + polyTex([(w.wA - w.k*w.g1)*w.cu, w.k*w.cu], 'fuerza', sb) : '')
@@ -750,39 +737,34 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
       // La proyección lleva números propios de este corte, así que va fuera de
       // la caja conceptual: la caja se escribe una vez, los números siempre.
       if(hayProy)
-        out += '\\noindent{\\footnotesize En este tramo inclinado la intensidad se proyecta sobre la '
-          + 'normal ($w_{\\perp} = ' + dec(Math.abs(w.w1p),'fuerza') + '$) y sobre el eje '
-          + '($w_{\\parallel} = ' + dec(Math.abs(w.wA*w.cu),'fuerza') + '$ ' + uW + ').}\\\\[2pt]\n';
+        out += '$$w_{\\perp} = ' + dec(Math.abs(w.w1p),'fuerza') + '\\ \\text{' + uW + '}\\qquad '
+          + 'w_{\\parallel} = ' + dec(Math.abs(w.wA*w.cu),'fuerza') + '\\ \\text{' + uW + '}$$\n';
     }
   });
 
-  // Ecuaciones de equilibrio del trozo, con todos los términos
-  out += '\\noindent{\\footnotesize Equilibrio del trozo:}\n';
-  const filas = [];
+  // Ecuaciones de equilibrio del trozo: dos líneas cada una (2026-10-11,
+  // directriz del profesor), la suma igualada a cero y debajo la función ya
+  // reducida. Entre una ecuación y la siguiente, aire (`_ecuaciones`).
+  const pares = [];
   const negN = tN.map(t=>({v:-t.v, tex:t.tex}));
-  if(tN.length || gN.some(v=>Math.abs(v) > 5e-9)){
-    filas.push(_fila('\\xrightarrow{+}\\ \\sum F_{\\parallel} = 0:\\quad', negN, (tN.length ? ' + N = 0' : 'N = 0'), 4, ' & '));
-    filas.push(_fila('N(' + sb + ')', tN, (tN.length > 2 ? ' \\\\\n &= ' : ' = ') + polyTex(gN,'fuerza',sb) + '\\ \\text{' + uF + '}'));
-  }
-  filas.push(_fila('+\\!\\uparrow\\ \\sum F_{\\perp} = 0:\\quad', tV, (tV.length ? ' - V = 0' : 'V = 0'), 4, ' & '));
-  filas.push(_fila('V(' + sb + ')', tV, (tV.length > 2 ? ' \\\\\n &= ' : ' = ') + polyTex(gV,'fuerza',sb) + '\\ \\text{' + uF + '}'));
+  if(tN.length || gN.some(v=>Math.abs(v) > 5e-9))
+    pares.push([_fila('\\xrightarrow{+}\\ \\sum F_{\\parallel} = 0:\\quad', negN, (tN.length ? ' + N = 0' : 'N = 0'), 4, ' & '),
+                '& N(' + sb + ') = ' + polyTex(gN,'fuerza',sb) + '\\ \\text{' + uF + '}']);
+  pares.push([_fila('+\\!\\uparrow\\ \\sum F_{\\perp} = 0:\\quad', tV, (tV.length ? ' - V = 0' : 'V = 0'), 4, ' & '),
+              '& V(' + sb + ') = ' + polyTex(gV,'fuerza',sb) + '\\ \\text{' + uF + '}']);
   // Momentos respecto del corte S, antihorario positivo: la M interna del
   // trozo izquierdo es antihoraria, y cada fuerza hacia arriba situada a la
   // izquierda del corte da momento horario (por eso entra con signo cambiado).
-  let filaM = '\\circlearrowleft\\!+\\ \\sum M_{S} = 0:\\quad M &';
+  let filaM = '\\circlearrowleft\\!+\\ \\sum M_{S} = 0:\\quad & M';
   tM.forEach((t,i)=>{
     if(i > 0 && i % 3 === 0) filaM += ' \\\\\n &\\qquad ';
     filaM += (t.v < 0 ? ' + ' : ' - ') + t.tex;
   });
-  filas.push(filaM + ' = 0');
-  filas.push(_fila('M(' + sb + ')', tM, (tM.length > 1 ? ' \\\\\n &= ' : ' = ') + polyTex(gM,'momento',sb) + '\\ \\text{' + uM + '}', 3));
-  out += _alineada(filas);
+  pares.push([filaM + ' = 0', '& M(' + sb + ') = ' + polyTex(gM,'momento',sb) + '\\ \\text{' + uM + '}']);
+  out += _ecuaciones(pares);
 
-  // Funciones resultantes, destacadas
-  out += '\\resultado{'
-    + (gN.some(v=>Math.abs(v) > 5e-9) ? '$N(' + sb + ') = ' + polyTex(gN,'fuerza',sb) + '$ ' + uF + '\\quad ' : '')
-    + '$V(' + sb + ') = ' + polyTex(gV,'fuerza',sb) + '$ ' + uF
-    + '\\quad $M(' + sb + ') = ' + polyTex(gM,'momento',sb) + '$ ' + uM + '}\n';
+  // La caja verde con N(x), V(x), M(x) repetía la segunda línea de cada
+  // ecuación: se quitó (2026-10-11, directriz del profesor).
 
   // ── Valores en los extremos y en los puntos singulares ──
   // Iban en una frase corrida de tres líneas; en tabla se comparan de un
@@ -791,8 +773,8 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
   const cerosM = raicesEn(gM, a, b).filter(x=>x > a + 1e-6 && x < b - 1e-6);
   const hayNn = gN.some(v=>Math.abs(v) > 5e-9);
   const puntos = [{x:a, nota:''}]
-    .concat(cerosV.map(x=>({x, nota:'$V = 0$: aquí $M$ es extremo'})))
-    .concat(cerosM.map(x=>({x, nota:'$M = 0$: punto de inflexión'})))
+    .concat(cerosV.map(x=>({x, nota:'$V = 0$'})))
+    .concat(cerosM.map(x=>({x, nota:'$M = 0$'})))
     .concat([{x:b, nota:''}])
     .sort((p,q)=>p.x - q.x);
   const hayNota = puntos.some(p=>p.nota);
@@ -893,7 +875,7 @@ function tablaSingulares(R, gg){
         if(v < su.sa + 1e-6 || v > su.sb - 1e-6) return;
         const mv = polyVal(su.cM, v);
         const antes = polyVal(su.cV, Math.max(su.sa, v-1e-3));
-        filas.push({x:off+v, tipo: antes > 0 ? '$M$ máximo ($V$ pasa de $+$ a $-$)' : '$M$ mínimo ($V$ pasa de $-$ a $+$)',
+        filas.push({x:off+v, tipo: antes > 0 ? '$M$ máximo' : '$M$ mínimo',
                     m:mv, v:0});
       });
     });
@@ -926,15 +908,13 @@ function tablaAreasGrupo(R, gg){
       const der = [su.cM[1]||0, 2*(su.cM[2]||0), 3*(su.cM[3]||0)];
       raicesEn(der, su.sa, su.sb).forEach(v=>{
         if(v <= su.sa + 1e-9 || v >= su.sb - 1e-9) return;
-        extremos.push('$V = 0$ en $' + gg.simbolo + ' = ' + dec(off+v,'len') + '$ (ra\\\'iz de $V$ en ese intervalo), y all\\\'i $M = ' + dec(polyVal(su.cM, v),'momento') + '$ ' + uM);
+        extremos.push('$V = 0$ en $' + gg.simbolo + ' = ' + dec(off+v,'len') + '$, $M = ' + dec(polyVal(su.cM, v),'momento') + '$ ' + uM);
       });
     });
   });
   if(extremos.length)
     out += '\\noindent{\\footnotesize Extremos interiores de $M$: ' + extremos.join('; ') + '.}\\\\[2pt]\n';
-  out += tablaCaption('Tramo ' + escLatex(gg.recorrido) + ': en cada intervalo, el cambio de '
-    + '$V$ es el área de la carga (con signo cambiado) y el cambio de $M$ es el área bajo el diagrama de '
-    + '$V$. Valores en ' + uF + ' y ' + uM + '.');
+  out += tablaCaption('Tramo ' + escLatex(gg.recorrido) + '. Valores en ' + uF + ' y ' + uM + '.');
   out += '{\\footnotesize\\begin{center}\\begin{tabular}{crrrrrr}\n\\hline\n'
     + 'Intervalo & $V_{\\text{ini}}$ & $V_{\\text{fin}}$ & $\\Delta V = -\\!\\int w$ & '
     + '$M_{\\text{ini}}$ & $M_{\\text{fin}}$ & $\\Delta M = \\int V$ \\\\\n\\hline\n';
@@ -948,8 +928,8 @@ function tablaAreasGrupo(R, gg){
       if(prev){
         const dV = Vi - prev.V, dM = Mi - prev.M;
         const partes = [];
-        if(Math.abs(dV) > 1e-7) partes.push('$V$ salta $' + dec(dV,'fuerza') + '$ ' + uF + ' (fuerza puntual)');
-        if(Math.abs(dM) > 1e-7) partes.push('$M$ salta $' + dec(dM,'momento') + '$ ' + uM + ' (par aplicado)');
+        if(Math.abs(dV) > 1e-7) partes.push('$\\Delta V = ' + dec(dV,'fuerza') + '$ ' + uF);
+        if(Math.abs(dM) > 1e-7) partes.push('$\\Delta M = ' + dec(dM,'momento') + '$ ' + uM);
         if(partes.length) saltos.push('En $' + gg.simbolo + ' = ' + dec(off+su.sa,'len') + '$: ' + partes.join(' y ') + '.');
       }
       out += dec(off+su.sa,'len') + '--' + dec(off+su.sb,'len') + ' & ' + dec(Vi,'fuerza') + ' & ' + dec(Vf,'fuerza')
@@ -964,19 +944,6 @@ function tablaAreasGrupo(R, gg){
   return out;
 }
 
-// ── Cuántos intervalos se analizan en este grupo ──
-// Antes iba una tabla con la abscisa y el motivo de cada corte, repetida en
-// cada tramo. El motivo ya se ve en la figura del modelo y en el desarrollo
-// de cada corte, así que basta con anunciar cuántos intervalos hay; la
-// situación que obliga a cortar se explica una sola vez, al abrir el paso 2.
-function fraseCortesGrupo(R, gg){
-  let n = 0;
-  gg.tramos.forEach(t2=>{ n += t2.subs.length; });
-  if(n === 1) return '';
-  return '\\noindent{\\footnotesize Las acciones sobre este tramo obligan a cortar en \\textbf{'
-    + n + ' intervalo' + (n === 1 ? '' : 's') + '}, que se analizan a continuación.}\\\\[3pt]\n';
-}
-
 // ── Ramas (2026-10-04): una rama se desarrolla antes que la cadena a la que se
 // une, desde su extremo; al acabar, lo que transmite a su nudo de unión entra en
 // esa cadena como una acción más (03-, `nombreAccion`). 'inicio' lo dice al
@@ -988,15 +955,12 @@ function textoRama(R, grupos, gg, momento){
   const X = escLatex(c.union.nombre), nom = escLatex(c.equivalente.rama.nombre);
   if(momento === 'inicio'){
     if(!gg.primero) return '';
-    return '\\noindent El tramo ' + nom + ' es una \\textbf{rama} que sale del nudo ' + X
-      + ': se resuelve antes que el resto, empezando por su extremo ' + escLatex(gg.desde.nombre)
-      + ', para facilitar el desarrollo.\\par\\smallskip\n';
+    return '\\noindent\\textbf{Rama ' + nom + '} (de ' + escLatex(gg.desde.nombre) + ' al nudo ' + X + ').\\par\\smallskip\n';
   }
   const sig = grupos[gg.idx + 1];
   if(sig && sig.cadena === gg.cadena) return '';
   const e = c.equivalente, uF = escLatex(unitFor), uM = escLatex(unidadMomento());
-  return '\\noindent\\textbf{Fuerzas que la rama ' + nom + ' transmite al nudo ' + X + '.} Son las del corte '
-    + 'en ' + X + ': la suma de las cargas sobre la rama y su momento respecto de ' + X + ':\n'
+  return '\\noindent\\textbf{Acción del tramo ' + nom + ' sobre ' + X + ':}\n'
     + '\\[F_{x,' + nom + '} = \\textstyle\\sum F_x = ' + dec(e.fx,'fuerza') + '\\ \\text{' + uF + '},\\qquad '
     + 'F_{y,' + nom + '} = \\textstyle\\sum F_y = ' + dec(e.fy,'fuerza') + '\\ \\text{' + uF + '},\\qquad '
     + 'M_{' + nom + '} = \\textstyle\\sum M_{' + X + '} = ' + dec(e.m,'momento') + '\\ \\text{' + uM + '}\\]\n';
