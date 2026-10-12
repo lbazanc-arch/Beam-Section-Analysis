@@ -314,7 +314,9 @@ function vdRender(){
   if(_vdGrupo >= gs.length) _vdGrupo = 0;
   const g = gs[_vdGrupo];
   dclW.innerHTML = svgDCLGlobal(r);
-  diagW.innerHTML = '<div class="proc-block">' + svgDiagramas(r, g) + '</div>'
+  const estW = document.getElementById('vdEstr');
+  if(estW) estW.innerHTML = htmlDiagramasEstructura(r);
+  diagW.innerHTML = (g.inclinado ? htmlDiagramasOrientados(r, g) : '<div class="proc-block">' + svgDiagramas(r, g) + '</div>')
                   + htmlExtremosGrupo(r, g);
 }
 
@@ -585,6 +587,186 @@ function svgDiagramas(r, grupo){
     + 'onmousemove="fiHoverMover(event,'+gid+')" onmouseleave="fiHoverSalir('+gid+')"/>';
   s += '</svg>';
   return s;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DIAGRAMAS CON LA ORIENTACIÓN DE LA ESTRUCTURA (2026-10-11, petición del profesor)
+//  Cada tramo se dibuja en su posición real y la ordenada de N, V o M se lleva
+//  PERPENDICULAR a su eje, del lado de +n̂ (n̂ = û girado 90° antihorario, el
+//  mismo marco del informe): en un tramo horizontal recorrido hacia la derecha
+//  el positivo queda arriba, como en el diagrama de siempre. Sirve para la
+//  estructura entera (`lista` = r.internas) y para un tramo inclinado o vertical
+//  (`lista` = sus tramos). Los textos van derechos. Una escala por diagrama.
+// ═══════════════════════════════════════════════════════════
+const SERIES_DIAG = {
+  N:{col:'#0e9f6e', tit:'DFN — Fuerza normal',   u:'f',   campo:'cN', nulo:'Sin fuerza normal'},
+  V:{col:'#d94f5c', tit:'DFC — Fuerza cortante', u:'f',   campo:'cV', nulo:'Sin fuerza cortante'},
+  M:{col:'#8b5cf6', tit:'DMF — Momento flector', u:'mom', campo:'cM', nulo:'Sin momento flector'}
+};
+function svgDiagramaOrientado(r, clave, lista){
+  const se = SERIES_DIAG[clave];
+  lista = lista || r.internas;
+  // Muestras de cada subtramo: punto del eje (mundo), valor y normal.
+  const trozos = [];
+  let vmax = 0, xs = [], ys = [];
+  lista.forEach(t=>{
+    const nx = -t.uy, ny = t.ux;
+    xs.push(t.desde.x, t.hasta.x); ys.push(t.desde.y, t.hasta.y);
+    t.subs.forEach(su=>{
+      const c = su[se.campo];
+      const grado = c.reduce((g,v,i)=>Math.abs(v) > 1e-12 ? i : g, 0);
+      const n = grado >= 2 ? 24 : 1, pts = [];
+      for(let i=0;i<=n;i++){
+        const s = su.sa + (su.sb - su.sa)*i/n, v = polyVal(c, s);
+        pts.push({x:t.desde.x + t.ux*s, y:t.desde.y + t.uy*s, v});
+        vmax = Math.max(vmax, Math.abs(v));
+      }
+      trozos.push({pts, nx, ny, t});
+    });
+  });
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const D = Math.max(maxX - minX, maxY - minY, 1e-9);
+  const nulo = vmax < 1e-7;
+  const escW = nulo ? 0 : 0.16*D/vmax;                // ordenada máxima = 16 % del tamaño
+  // Envolvente en el mundo: eje y curva.
+  const env = {x0:minX, x1:maxX, y0:minY, y1:maxY};
+  trozos.forEach(tr=>tr.pts.forEach(p=>{
+    const cx = p.x + tr.nx*p.v*escW, cy = p.y + tr.ny*p.v*escW;
+    env.x0 = Math.min(env.x0, cx); env.x1 = Math.max(env.x1, cx);
+    env.y0 = Math.min(env.y0, cy); env.y1 = Math.max(env.y1, cy);
+  }));
+  const W2 = 700, pad = 46;
+  const k = Math.min((W2 - 2*pad)/Math.max(env.x1 - env.x0, 1e-9), 270/Math.max(env.y1 - env.y0, 1e-9));
+  const H2 = Math.max(150, (env.y1 - env.y0)*k + 2*pad);
+  const ox = (W2 - (env.x1 - env.x0)*k)/2;
+  const X = x => ox + (x - env.x0)*k, Y = y => pad + (env.y1 - y)*k;
+  const F = v => v.toFixed(1);
+  let s = '<svg viewBox="0 0 '+W2+' '+F(H2)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">'
+        + '<rect width="'+W2+'" height="'+F(H2)+'" fill="#fff"/>';
+  s += '<text x="10" y="16" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="'+se.col+'">'
+     + se.tit + ' (' + (clave === 'M' ? uMom() : unitFor) + ')</text>';
+  // Relleno y contorno de cada subtramo: un salto queda como borde recto del
+  // trozo siguiente, igual que en el diagrama horizontal.
+  // El contorno se cierra contra el eje solo en los extremos de cada tramo y en
+  // un salto: entre dos subtramos continuos no queda raya.
+  const linea = (a, b) => '<line x1="'+F(a[0])+'" y1="'+F(a[1])+'" x2="'+F(b[0])+'" y2="'+F(b[1])+'" stroke="'+se.col+'" stroke-width="1.8"/>';
+  trozos.forEach((tr, i)=>{
+    if(nulo) return;
+    const ejes = tr.pts.map(p=>[X(p.x), Y(p.y)]);
+    const curva = tr.pts.map(p=>[X(p.x + tr.nx*p.v*escW), Y(p.y + tr.ny*p.v*escW)]);
+    tr.curva = curva;
+    const poli = ejes.concat(curva.slice().reverse()).map(q=>F(q[0])+','+F(q[1])).join(' ');
+    s += '<polygon points="'+poli+'" fill="'+se.col+'" fill-opacity=".14" stroke="none"/>';
+    s += '<polyline points="'+curva.map(q=>F(q[0])+','+F(q[1])).join(' ')
+       + '" fill="none" stroke="'+se.col+'" stroke-width="1.8" stroke-linejoin="round"/>';
+    const prev = trozos[i-1], sig = trozos[i+1];
+    const v0 = tr.pts[0].v;
+    if(prev && prev.t === tr.t){
+      const pv = prev.pts[prev.pts.length-1].v;
+      if(Math.abs(pv - v0) > 1e-7*Math.max(1, Math.abs(v0))) s += linea(prev.curva[prev.curva.length-1], curva[0]);
+    } else s += linea(ejes[0], curva[0]);
+    if(!sig || sig.t !== tr.t) s += linea(curva[curva.length-1], ejes[ejes.length-1]);
+  });
+  // Ejes de los tramos y nudos, encima del relleno.
+  const nudos = {};
+  lista.forEach(t=>{
+    s += '<line x1="'+F(X(t.desde.x))+'" y1="'+F(Y(t.desde.y))+'" x2="'+F(X(t.hasta.x))+'" y2="'+F(Y(t.hasta.y))+'" stroke="#2b3440" stroke-width="2.4" stroke-linecap="round"/>';
+    nudos[t.desde.nombre] = t.desde; nudos[t.hasta.nombre] = t.hasta;
+  });
+  // Registro de cajas para que los rótulos no se pisen.
+  const cajas = [];
+  const libre = c => !cajas.some(q=>c.x0 < q.x1 && c.x1 > q.x0 && c.y0 < q.y1 && c.y1 > q.y0);
+  // Centro de los nudos, para empujar su nombre hacia fuera de la estructura.
+  const cxm = (minX + maxX)/2, cym = (minY + maxY)/2;
+  Object.values(nudos).forEach(n=>{
+    const px = X(n.x), py = Y(n.y);
+    s += '<circle cx="'+F(px)+'" cy="'+F(py)+'" r="3.2" fill="#2b3440"/>';
+    let dx = n.x - cxm, dy = -(n.y - cym), L = Math.hypot(dx, dy);
+    if(L < 1e-9){ dx = 0; dy = 1; L = 1; }
+    const tx = px + dx/L*14, ty = py + dy/L*14 + 4;
+    s += '<text x="'+F(tx)+'" y="'+F(ty)+'" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="#1b1f24" text-anchor="middle">'+n.nombre+'</text>';
+    cajas.push({x0:tx-7, x1:tx+7, y0:ty-11, y1:ty+3});
+  });
+  if(nulo){
+    s += '<text x="'+(W2/2)+'" y="'+F(H2-12)+'" font-family="Inter,sans-serif" font-size="11" fill="#66727e" text-anchor="middle">'+se.nulo+'</text>';
+    return s + '</svg>';
+  }
+  // Valores: extremos de cada subtramo y vértices interiores, con prioridad a
+  // los extremos; los iguales en el mismo punto se escriben una vez.
+  const et = [];
+  trozos.forEach(tr=>{
+    const p = tr.pts, add = (q, prio) => { if(Math.abs(q.v) > 1e-7) et.push({q, tr, prio}); };
+    // Un subtramo de valor constante se rotula una vez, en su centro.
+    const cte = p.every(q=>Math.abs(q.v - p[0].v) < 1e-7*Math.max(1, Math.abs(p[0].v)));
+    if(cte){
+      const a = p[0], b = p[p.length-1];
+      add({x:(a.x + b.x)/2, y:(a.y + b.y)/2, v:a.v}, 2);
+      return;
+    }
+    add(p[0], 2); add(p[p.length-1], 2);
+    for(let i=1;i<p.length-1;i++){
+      const d1 = p[i].v - p[i-1].v, d2 = p[i+1].v - p[i].v;
+      if(d1*d2 < 0) add(p[i], 3);
+    }
+  });
+  // Los trazos (ejes y curvas) también estorban: un valor encima de una línea
+  // no se lee, sobre todo donde dos diagramas se cruzan en una esquina.
+  const trazos = [];
+  lista.forEach(t=>trazos.push([[X(t.desde.x), Y(t.desde.y)], [X(t.hasta.x), Y(t.hasta.y)]]));
+  trozos.forEach(tr=>{ for(let i=1;i<(tr.curva||[]).length;i++) trazos.push([tr.curva[i-1], tr.curva[i]]); });
+  const pisaTrazo = c => trazos.some(([a, b2])=>{
+    const L = Math.hypot(b2[0]-a[0], b2[1]-a[1]), n = Math.max(1, Math.ceil(L/3));
+    for(let i=0;i<=n;i++){
+      const x = a[0] + (b2[0]-a[0])*i/n, y = a[1] + (b2[1]-a[1])*i/n;
+      if(x > c.x0 && x < c.x1 && y > c.y0 && y < c.y1) return true;
+    }
+    return false;
+  });
+  const vistos = [];
+  et.sort((a,b)=>b.prio - a.prio).forEach(e=>{
+    const {q, tr} = e;
+    // El mismo valor ya escrito muy cerca (dos lados de un subtramo constante) no se repite.
+    if(vistos.some(w=>Math.abs(w.v - q.v) < 5e-3*Math.max(1, Math.abs(q.v)) && Math.hypot(w.x - q.x, w.y - q.y) < 0.12*D)) return;
+    vistos.push(q);
+    const txt = dec(q.v, se.u), w = 6*txt.length + 6, h = 13;
+    const cx = X(q.x + tr.nx*q.v*escW), cy = Y(q.y + tr.ny*q.v*escW);
+    // Dirección hacia fuera del diagrama (en pantalla la y va hacia abajo).
+    const sg = q.v >= 0 ? 1 : -1, ux = tr.nx*sg, uy = -tr.ny*sg;
+    const tx = tr.t.ux, ty = -tr.t.uy;
+    // Candidatos: hacia fuera del diagrama a tres distancias y, en cada una, corrido
+    // a lo largo del tramo. Primero uno que no pise ni rótulos ni trazos; si no lo
+    // hay, uno que solo no pise rótulos.
+    const cand = [];
+    [12, 24, 38].forEach(d=>[0, 0.6, -0.6, 1.2, -1.2].forEach(k=>cand.push([ux*d + tx*w*k, uy*d + ty*w*k])));
+    const caja = ([ax, ay]) => {
+      const px = cx + ax + (ux > 0.5 ? w/2 : (ux < -0.5 ? -w/2 : 0)), py = cy + ay;
+      return {px, py, x0:px - w/2, x1:px + w/2, y0:py - h/2, y1:py + h/2};
+    };
+    const elegida = cand.map(caja).find(c=>libre(c) && !pisaTrazo(c)) || cand.map(caja).find(libre);
+    for(const c of (elegida ? [elegida] : [])){
+      const px = c.px, py = c.py;
+      cajas.push(c);
+      // Si el valor tuvo que apartarse, una guía fina lo une a su punto.
+      const bx = Math.max(c.x0, Math.min(cx, c.x1)), by = Math.max(c.y0, Math.min(cy, c.y1));
+      if(Math.hypot(bx - cx, by - cy) > 10)
+        s += '<line x1="'+F(cx)+'" y1="'+F(cy)+'" x2="'+F(bx)+'" y2="'+F(by)+'" stroke="'+se.col+'" stroke-width=".8" stroke-opacity=".6"/>';
+      s += '<circle cx="'+F(cx)+'" cy="'+F(cy)+'" r="2" fill="'+se.col+'"/>'
+         + '<text x="'+F(px)+'" y="'+F(py + 4)+'" font-family="Inter,sans-serif" font-size="10" font-weight="700" fill="'+se.col+'" text-anchor="middle">'+txt+'</text>';
+      break;
+    }
+  });
+  return s + '</svg>';
+}
+// Los tres diagramas de la estructura entera, uno debajo del otro.
+function htmlDiagramasEstructura(r){
+  const hayN = r.internas.some(t=>t.subs.some(su=>su.cN.some(v=>Math.abs(v) > 5e-9)));
+  return (hayN ? ['N','V','M'] : ['V','M']).map(k=>'<div class="proc-block" style="margin-bottom:8px">'
+    + svgDiagramaOrientado(r, k, r.internas) + '</div>').join('');
+}
+// Los de un tramo inclinado o vertical, con su inclinación.
+function htmlDiagramasOrientados(r, g){
+  return ['N','V','M'].map(k=>'<div class="proc-block" style="margin-bottom:8px">'
+    + svgDiagramaOrientado(r, k, g.tramos) + '</div>').join('');
 }
 
 // ── Panel de control estándar BSA (dos niveles) ──

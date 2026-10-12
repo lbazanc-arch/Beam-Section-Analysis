@@ -230,3 +230,7 @@ function htmlEcuacionesCorte(info){
     + (ok(info.resU) && ok(info.resN) && ok(info.resM) ? '✓ El trozo queda en equilibrio con N, V y M en la sección.' : '⚠ El equilibrio del trozo no cierra.') + '</div>'
     + '</div>';
 }
+
+// Figuras de resultados legibles en el teléfono (core/comun.js, 2026-10-11).
+bsaVigilarFigurasMovil('#resultsArea');
+bsaVigilarFigurasMovil('#corteModal');

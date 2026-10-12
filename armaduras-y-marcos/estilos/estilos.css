@@ -335,6 +335,13 @@ body{
    que es ancha, a la derecha; cada ecuación con su resultado debajo y aire entre ellas. */
 .joint-body.corte-body{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);}
 .eq-par{margin-top:12px;}
+/* La porción de un corte: entera en pantallas anchas; en el teléfono, recortada
+   a la porción para que llene el ancho y se lea (svgPorcion, 15-). */
+.porcion-movil{display:none;}
+@media (max-width:640px){
+  .porcion-completa{display:none;}
+  .porcion-movil{display:block;}
+}
 .joint-svg{width:100%; max-width:250px; height:auto; display:block;
   border:1px solid var(--border); border-radius:8px; background:#fff;}
 /* DCL en pantalla: leyenda de una línea por sección (trazo = incógnita,

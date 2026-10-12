@@ -249,3 +249,6 @@ function pintarGuardadosEnEquipo(){
   const c = document.getElementById('histGuardados');
   if(c) c.innerHTML = bsaHtmlGuardados(BSA_FORMATO);
 }
+
+// Figuras de resultados legibles en el teléfono (core/comun.js, 2026-10-11).
+bsaVigilarFigurasMovil('#resultsArea');

@@ -715,6 +715,77 @@ function _bsaTopeAncho(ancho){
 // on* y contenteditable. Un <canvas> pasa a <figure class="bsa-fig"><img>;
 // si esta vacio desaparece. overflow auto/scroll pasa a visible y se quita su
 // max-height; los <details> se abren. KaTeX no se recorre por dentro.
+// ── Figuras legibles en el teléfono (2026-10-11, revisión en celular) ──
+// Un SVG de resultados pensado para el ordenador, encogido a ~320 px, dejaba la
+// letra en 4–7 px. En pantallas de hasta 640 px, cada SVG cuya letra REAL quede
+// por debajo de 9 px se ensancha lo justo (hasta 2,6 veces) dentro de una caja
+// propia que se desliza de lado (.bsa-desliza-caja), con un aviso de una línea encima. Es solo presentación: en el
+// ordenador no hace nada, se rehace al girar el teléfono y el informe rápido lo
+// deshace (bsaLimpiarResultados). `bsaVigilarFigurasMovil(sel)` lo aplica solo
+// cada vez que cambia el contenido de `sel`.
+function bsaFigurasLegibles(raiz){
+  raiz = (typeof raiz === 'string') ? document.querySelector(raiz) : (raiz || document);
+  if(!raiz) return;
+  // Se deshace lo de la pasada anterior: la figura vuelve a su sitio.
+  raiz.querySelectorAll('.bsa-desliza-caja').forEach(w=>{
+    const s = w.querySelector('svg[data-bsa-min]');
+    if(s){ s.style.minWidth = ''; s.removeAttribute('data-bsa-min'); w.parentNode.insertBefore(s, w); }
+    w.remove();
+  });
+  raiz.querySelectorAll('.bsa-desliza').forEach(n=>n.remove());
+  if(window.innerWidth > 640) return;
+  raiz.querySelectorAll('svg').forEach(s=>{
+    if(!s.parentElement || s.parentElement.closest('svg') || s.closest('.katex')) return;   // ni anidados ni de KaTeX
+    const r = s.getBoundingClientRect();
+    if(r.width < 120) return;
+    let min = Infinity;
+    s.querySelectorAll('text').forEach(t=>{
+      const m = t.getScreenCTM(); if(!m) return;
+      const v = (parseFloat(getComputedStyle(t).fontSize) || 0)*Math.hypot(m.a, m.b);
+      if(v > 0 && v < min) min = v;
+    });
+    if(!(min < 9)) return;
+    // La figura va en una caja PROPIA que se desliza: deslizar su contenedor
+    // movía también el texto de al lado (la ventana «Corta y mira» entera).
+    const w = document.createElement('div');
+    w.className = 'bsa-desliza-caja';
+    w.style.cssText = 'overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch';
+    s.parentNode.insertBefore(w, s); w.appendChild(s);
+    s.style.minWidth = Math.ceil(r.width*Math.min(2.6, 9/min)) + 'px';
+    s.setAttribute('data-bsa-min', '1');
+    // Se abre centrada en lo dibujado: hay figuras con margen vacío a un lado.
+    try{
+      const bb = s.getBBox(), vb = s.viewBox && s.viewBox.baseVal, rs = s.getBoundingClientRect();
+      if(vb && vb.width){
+        const k = rs.width/vb.width, cx = (bb.x - vb.x + bb.width/2)*k + (rs.left - w.getBoundingClientRect().left);
+        w.scrollLeft = Math.max(0, cx - w.clientWidth/2);
+      }
+    }catch(e){}
+    const aviso = document.createElement('div');
+    aviso.className = 'bsa-desliza';
+    aviso.setAttribute('data-bsa-pantalla', '');
+    aviso.style.cssText = 'font-size:11px;color:#66727e;margin:2px 0 4px;text-align:right';
+    aviso.textContent = 'Desliza la figura →';
+    w.parentNode.insertBefore(aviso, w);
+  });
+}
+function bsaVigilarFigurasMovil(sel){
+  const raiz = document.querySelector(sel);
+  if(!raiz || typeof MutationObserver === 'undefined') return;
+  let t = null;
+  const obs = new MutationObserver(()=>{ clearTimeout(t); t = setTimeout(correr, 180); });
+  // Mientras se ensancha no se escucha: el propio aviso es un cambio del contenido.
+  function correr(){ obs.disconnect(); try{ bsaFigurasLegibles(raiz); }finally{ obs.observe(raiz, {childList:true, subtree:true}); } }
+  obs.observe(raiz, {childList:true, subtree:true});
+  // Solo si cambia el ANCHO: en el teléfono, la barra del navegador cambia el
+  // alto al desplazarse y dispara 'resize' a cada momento.
+  let ancho = window.innerWidth;
+  window.addEventListener('resize', ()=>{
+    if(window.innerWidth === ancho) return;
+    ancho = window.innerWidth; clearTimeout(t); t = setTimeout(correr, 180);
+  });
+}
+
 function bsaLimpiarResultados(panel, opts){
   opts = opts || {};
   if(typeof panel === 'string') panel = document.getElementById(panel);
@@ -754,6 +825,9 @@ function bsaLimpiarResultados(panel, opts){
     for(let i = 0; i < oh.length && i < ch.length; i++) paralelo(oh[i], ch[i]);
   };
   paralelo(panel, clon);
+  // El ensanche de las figuras para el teléfono (bsaFigurasLegibles) no va al papel.
+  clon.querySelectorAll('svg[data-bsa-min]').forEach(s=>{ s.style.minWidth = ''; s.removeAttribute('data-bsa-min'); });
+  clon.querySelectorAll('.bsa-desliza').forEach(n=>{ if(n.parentNode) n.parentNode.removeChild(n); });
   // Fuera lo oculto ANTES de nada: sus controles y lienzos no se han apuntado.
   const padresOcultos = [];
   ocultos.forEach(c=>{ if(c.parentNode){ padresOcultos.push(c.parentNode); c.parentNode.removeChild(c); } });

@@ -291,10 +291,14 @@ function etiquetasSerie(ramas){
 // Dibuja los grupos pedidos, cada uno con su encabezado.
 function htmlDiagramasGrupos(r, idxs){
   const grupos = gruposDireccion(r);
+  // Primero la estructura entera, con cada diagrama sobre su barra (2026-10-11).
+  const estr = '<div style="margin-bottom:16px">'
+    + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">Estructura completa</div>'
+    + htmlDiagramasEstructura(r) + '</div>';
   if(!idxs || !idxs.length)
-    return '<div class="hint-sm" style="padding:14px;text-align:center">'
+    return estr + '<div class="hint-sm" style="padding:14px;text-align:center">'
          + 'No hay ningún tramo seleccionado.</div>';
-  return idxs.map(i=>{
+  return estr + idxs.map(i=>{
     const g = grupos[i];
     if(!g) return '';
     return '<div style="margin-bottom:16px">'
@@ -303,7 +307,9 @@ function htmlDiagramasGrupos(r, idxs){
       + (g.oblicuo ? 'inclinado ' + dec(g.ang,'ang') + '°' : (g.vertical ? 'vertical' : 'recto'))
       + ' · L = ' + dec(g.L,'len') + ' ' + unitLen
       + ' · abscisa <i>' + g.simbolo + '</i> desde ' + g.desde.nombre + '</div>'
-      + '<div class="proc-block">' + svgDiagramas(r, g) + '</div>'
+      // Un tramo inclinado o vertical, con su inclinación (2026-10-11); uno
+      // horizontal, con el diagrama de siempre y su lectura al pasar el ratón.
+      + (g.inclinado ? htmlDiagramasOrientados(r, g) : '<div class="proc-block">' + svgDiagramas(r, g) + '</div>')
       + htmlExtremosGrupo(r, g) + '</div>';
   }).join('');
 }
@@ -364,6 +370,8 @@ function _vdModal(){
     +       '<select id="vdSelCarga" onchange="vdCambioCarga(this.value)"></select>'
     +     '</div>'
     +     '<div id="vdRuedas"></div>'
+    +     '<div class="vd-sec-tit">Diagramas de la estructura</div>'
+    +     '<div id="vdEstr"></div>'
     +     '<div class="vd-sec-tit">Diagramas del tramo</div>'
     +     '<div id="vdDiag"></div>'
     +   '</div>'
@@ -373,6 +381,8 @@ function _vdModal(){
     +   '</div>'
     + '</div>';
   document.body.appendChild(ov);
+  // En el teléfono, sus figuras se ensanchan para que la letra se lea (core).
+  bsaVigilarFigurasMovil('#vdOv .vd-cuerpo');
   return ov;
 }
 

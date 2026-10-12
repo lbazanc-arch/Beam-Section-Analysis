@@ -151,6 +151,11 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 .tabla td{padding:5px 9px;border-bottom:1px solid var(--border);}
 .tabla .r{text-align:right;}
 .tabla .fila-total td{font-weight:700;background:var(--acc-l);color:var(--acc);border-top:2px solid var(--border2);}
+/* En el teléfono, una tabla ancha (la de fuerzas tiene siete columnas) se desliza
+   dentro de su sitio: antes empujaba la página entera de lado (2026-10-11). */
+@media (max-width:640px){
+  #resultsArea .tabla{display:block;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch;}
+}
 .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:11px;}
 .summary-box{border:1px solid var(--border);border-radius:9px;padding:8px 11px;background:var(--card);}
 .summary-box.hl{background:var(--acc-l);border-color:var(--acc);}

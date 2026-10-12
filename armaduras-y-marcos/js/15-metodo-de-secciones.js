@@ -457,7 +457,14 @@ function svgPorcion(info, sol){
   });
   pend.forEach(p=>{ s += _svgRotuloTrasExtremo(reg, p.ex, p.ey, p.dx, p.dy, p.r, p.col, p.largo); });
   const lin = _svgLineaAngulos(angulos);
-  return _svgEnvolver(s, reg, {x0:0, y0:0, x1:W2, y1:H2}, 4)
+  // Dos encuadres (2026-10-11, petición del profesor): la armadura entera para
+  // pantallas anchas y, en el teléfono, solo la porción con sus fuerzas y el corte,
+  // que así llena el ancho y se lee. El CSS enseña uno u otro (.porcion-completa /
+  // .porcion-movil); el PDF rápido se queda con el que esté a la vista.
+  const B = reg.limites(() => true), p = 8;
+  const mini = B ? {x0:B.x0 - p, y0:B.y0 - p, x1:B.x1 + p, y1:B.y1 + p} : {x0:0, y0:0, x1:W2, y1:H2};
+  return '<div class="porcion-completa">' + _svgEnvolver(s, reg, {x0:0, y0:0, x1:W2, y1:H2}, 4) + '</div>'
+    + '<div class="porcion-movil">' + _svgEnvolver(s, reg, mini, 0) + '</div>'
     + (lin ? '<div class="dcl-ang">' + lin + '</div>' : '');
 }
 
