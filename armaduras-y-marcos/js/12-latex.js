@@ -1523,6 +1523,13 @@ function _armaduraCompleta(opts, kFijo){
   const ocupPorNudo = {}, ocupDe = n => (ocupPorNudo[n.id] = ocupPorNudo[n.id] || _angulosBarras(n));
 
   let s = '';
+  // Corte (opts.corte: la polilínea de trazoCorte, en el mundo; opts.cortadas:
+  // los ids de las barras que corta, sombreadas debajo). 2026-10-11.
+  (opts.cortadas || []).forEach(id=>{
+    const b = barras.find(x=>x.id===id); if(!b) return;
+    const na = nodos.find(x=>x.id===b.a), nb = nodos.find(x=>x.id===b.b);
+    s += '\\draw[bsaRoj, opacity=.18, line width=6pt] (' + tx(na.x) + ',' + ty(na.y) + ') -- (' + tx(nb.x) + ',' + ty(nb.y) + ');\n';
+  });
   barras.forEach(b=>{
     const na = nodos.find(x=>x.id===b.a), nb = nodos.find(x=>x.id===b.b);
     if(!na||!nb) return;
@@ -1539,6 +1546,19 @@ function _armaduraCompleta(opts, kFijo){
     s += '\\draw[' + col + ', line width=' + grosor.toFixed(2) + 'pt] (' + tx(na.x) + ',' + ty(na.y) + ') -- (' + tx(nb.x) + ',' + ty(nb.y) + ');\n';
     reg.seg(X(na.x), Y(na.y), X(nb.x), Y(nb.y), grosor*PT_CM/2/esc, 'barra', _radialBarra(na, nb));
   });
+  if(opts.corte && opts.corte.length > 1){
+    const q = opts.corte;
+    s += '\\draw[bsaRoj, line width=1.2pt, dash pattern=on 5pt off 3pt, line cap=round] '
+      + q.map(p=>'(' + tx(p.x) + ',' + ty(p.y) + ')').join(' -- ') + ';\n';
+    for(let i = 1; i < q.length; i++) reg.seg(X(q[i-1].x), Y(q[i-1].y), X(q[i].x), Y(q[i].y), 0.03/esc, 'corte');
+    [[q[0], q[1]], [q[q.length-1], q[q.length-2]]].forEach(([p, r])=>{
+      const dx = X(p.x) - X(r.x), dy = Y(p.y) - Y(r.y), L = Math.hypot(dx, dy) || 1;
+      const ax = X(p.x) + dx/L*0.28/esc, ay = Y(p.y) + dy/L*0.28/esc;
+      s += '\\fill[bsaRoj] (' + tx(p.x) + ',' + ty(p.y) + ') circle (1.6pt);\n'
+        + '\\node[bsaRot, text=bsaRoj, font=\\small\\bfseries] at (' + ax.toFixed(3) + ',' + ay.toFixed(3) + ') {a};\n';
+      reg.caja(ax, ay, 0.3/esc, 0.35/esc, 'rotulo');
+    });
+  }
   if(opts.valores){
     barras.forEach(b=>{
       const na = nodos.find(x=>x.id===b.a), nb = nodos.find(x=>x.id===b.b);

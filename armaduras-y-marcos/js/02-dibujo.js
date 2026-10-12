@@ -152,20 +152,27 @@ function dibujarReaccion(n, R){
   ctx.save();
   ctx.font = '700 10.5px Inter, sans-serif'; ctx.fillStyle = REAC_COLOR; ctx.textBaseline = 'middle';
   const H = 13;
+  // Cada valor anota su caja (las «a» del corte la esquivan, dibujarRotulosCorte).
+  const escribe = (t, x, y) => {
+    ctx.fillText(t, x, y);
+    const w = ctx.measureText(t).width, al = ctx.textAlign;
+    const x0 = al === 'center' ? x - w/2 : (al === 'right' ? x - w : x);
+    _cajasReaccion.push({x0, y0:y - 7, x1:x0 + w, y1:y + 7});
+  };
   if(!principal){
     // Reacción nula: solo los valores, bajo el nudo.
     ctx.textAlign = 'center';
-    lineas.forEach((t,i)=>ctx.fillText(t, px, py + 44 + H*i));
+    lineas.forEach((t,i)=>escribe(t, px, py + 44 + H*i));
   } else if(ladoLetra){
     // Con arco, la columna va TRAS LA COLA de la flecha, como el rótulo R_C
     // del PDF: junto al fuste chocaba con la letra del ángulo.
     const ax = principal.x0 - principal.ex*16, ay = principal.y0 + principal.ey*16;
     if(Math.abs(principal.ey) >= 0.7){
       ctx.textAlign = 'center';
-      lineas.forEach((t,i)=>ctx.fillText(t, ax, principal.ey > 0 ? ay + 8 + H*i : ay - 8 - H*(lineas.length-1-i)));
+      lineas.forEach((t,i)=>escribe(t, ax, principal.ey > 0 ? ay + 8 + H*i : ay - 8 - H*(lineas.length-1-i)));
     } else {
       ctx.textAlign = principal.ex > 0 ? 'right' : 'left';
-      lineas.forEach((t,i)=>ctx.fillText(t, ax, ay + H*(i - (lineas.length-1)/2)));
+      lineas.forEach((t,i)=>escribe(t, ax, ay + H*(i - (lineas.length-1)/2)));
     }
   } else {
     // Sin arco, junto al fuste, del lado libre: a la derecha de un fuste
@@ -176,10 +183,10 @@ function dibujarReaccion(n, R){
     const mx = (principal.x0 + principal.x1)/2 + cx*12, my = (principal.y0 + principal.y1)/2 + cy*12;
     if(Math.abs(cx) > 0.7){
       ctx.textAlign = cx > 0 ? 'left' : 'right';
-      lineas.forEach((t,i)=>ctx.fillText(t, mx, my + H*(i - (lineas.length-1)/2)));
+      lineas.forEach((t,i)=>escribe(t, mx, my + H*(i - (lineas.length-1)/2)));
     } else {
       ctx.textAlign = 'center';
-      lineas.forEach((t,i)=>ctx.fillText(t, mx, cy > 0 ? my + 6 + H*i : my - 6 - H*(lineas.length-1-i)));
+      lineas.forEach((t,i)=>escribe(t, mx, cy > 0 ? my + 6 + H*i : my - 6 - H*(lineas.length-1-i)));
     }
   }
   ctx.restore();
@@ -242,28 +249,47 @@ function dibujarCarga(n){
   });
 }
 
+// El corte se dibuja CURVO, pasando por el centro de cada barra que corta
+// (trazoCorte, 15-; 2026-10-11, petición del profesor). Mientras se arrastra con
+// la herramienta Corte se ve la recta que se está trazando.
 function dibujarCorte(){
   if(!corte) return;
-  const [x1,y1] = aPantalla(corte.x1, corte.y1);
-  const [x2,y2] = aPantalla(corte.x2, corte.y2);
-  // barras que atraviesa
-  barras.forEach(b=>{
+  const cortadas = barrasDelCorte(corte);
+  cortadas.forEach(b=>{
     const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
-    if(!na||!nb) return;
-    if(!cortanSegmentos(na.x,na.y,nb.x,nb.y, corte.x1,corte.y1,corte.x2,corte.y2)) return;
     const [ax,ay] = aPantalla(na.x,na.y), [bx,by] = aPantalla(nb.x,nb.y);
     ctx.strokeStyle = 'rgba(192,57,43,.22)'; ctx.lineWidth = 13;
     ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
   });
-  ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2.4; ctx.setLineDash([9,6]);
-  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = '#c0392b';
-  [[x1,y1],[x2,y2]].forEach(p=>{
+  const tr = corteDrag ? null : trazoCorte(cortadas, corte.barras ? null : corte);
+  const q = tr ? tr.pts.map(p=>aPantalla(p.x, p.y))
+               : [aPantalla(corte.x1, corte.y1), aPantalla(corte.x2, corte.y2)];
+  ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2.4; ctx.setLineDash([9,6]); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]);
+  for(let i = 1; i < q.length; i++) ctx.lineTo(q[i][0], q[i][1]);
+  ctx.stroke();
+  ctx.setLineDash([]); ctx.lineCap = 'butt';
+  // Los extremos y sus «a» se pintan al final de dibujar() (dibujarRotulosCorte).
+  _extremosCorte = [[q[0], q[1]], [q[q.length-1], q[q.length-2]]].filter(([p, r])=>r);
+}
+function dibujarRotulosCorte(){
+  if(!corte){ _extremosCorte = []; return; }
+  ctx.save();
+  ctx.font = '700 12px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  _extremosCorte.forEach(([p, r])=>{
+    ctx.fillStyle = '#c0392b';
     ctx.beginPath(); ctx.arc(p[0],p[1],4,0,Math.PI*2); ctx.fill();
+    const dx = p[0]-r[0], dy = p[1]-r[1], L = Math.hypot(dx, dy) || 1, ux = dx/L, uy = dy/L;
+    // Delante del extremo y, si ahí hay un valor de reacción, a un lado o más lejos.
+    const cand = [[ux*13, uy*13], [-uy*13, ux*13], [uy*13, -ux*13], [ux*26, uy*26], [-uy*22, ux*22], [uy*22, -ux*22]]
+      .map(([a, c])=>[p[0] + a, p[1] + c]);
+    const libre = ([x, y]) => !_cajasReaccion.some(q=>x + 6 > q.x0 && x - 6 < q.x1 && y + 7 > q.y0 && y - 7 < q.y1);
+    const [x, y] = cand.find(libre) || cand[0];
+    ctx.lineWidth = 4; ctx.strokeStyle = '#fff'; ctx.lineJoin = 'round';
+    ctx.strokeText('a', x, y); ctx.fillText('a', x, y);
   });
-  ctx.font = '700 10.5px Inter, sans-serif';
-  ctx.fillText('corte a–a', (x1+x2)/2 + 8, (y1+y2)/2 - 8);
+  ctx.restore();
+  _extremosCorte = [];
 }
 
 function dibujarCuadroNodo(){
@@ -397,7 +423,8 @@ function dibujarFuerzasBarras(){
 // ── Orden de resolución de los nudos, numerado sobre el lienzo (propuesta C) ──
 function dibujarOrdenNudos(){
   if(typeof metodo !== 'undefined' && metodo === 'secciones') return;
-  const orden = ordenNudos();
+  // El plan de la resolución: con simetría, solo los nudos que se resuelven.
+  const orden = planNudos(resultado).pasos;
   ctx.save();
   orden.forEach((p,i)=>{
     const [px,py] = aPantalla(p.nodo.x, p.nodo.y);
@@ -435,6 +462,7 @@ function dibujarCotasArmadura(){
 
 function dibujar(){
   if(!ctx) return;
+  _cajasReaccion = [];
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
   if(VIS.grilla) dibujarRejilla();
@@ -500,6 +528,9 @@ function dibujar(){
 
   // Cotas, al final: eligen su carril mirando lo que ya está pintado.
   if(VIS.cotas) dibujarCotasArmadura();
+  // Las «a» del corte, encima de todo y con halo: en un teléfono caían bajo el
+  // rótulo de una reacción y no se leían.
+  dibujarRotulosCorte();
 
   // Recuadro de selección múltiple o de borrado en curso (según herramienta)
   if(gesto && (gesto.tipo === 'rubber' || gesto.tipo === 'rubber-borrar')){

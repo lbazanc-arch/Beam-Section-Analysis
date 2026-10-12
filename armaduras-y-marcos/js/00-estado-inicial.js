@@ -11,6 +11,8 @@
 let mouseW = null;
 let metodo = 'nudos';
 let corte = null;        // {x1,y1,x2,y2} en coordenadas del mundo
+let _extremosCorte = []; // extremos del corte curvo, para sus rótulos «a» (02-)
+let _cajasReaccion = []; // cajas de los valores de las reacciones en el lienzo (02-)
 let corteDrag = null;
 let modoCorte = 'auto';
 

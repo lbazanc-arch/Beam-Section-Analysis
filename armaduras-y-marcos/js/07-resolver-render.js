@@ -23,7 +23,7 @@ function resolver(){
   rp.innerHTML = renderResultados(res);
   try{ renderKatex(rp); }catch(e){ console.warn('KaTeX:', e); }
   setTimeout(()=>{
-    const ord = ordenNudos();
+    const ord = planNudos(res).pasos;
     nodos.forEach(n=>{
       const paso = ord.find(p=>p.nodo.id===n.id);
       try{ dibujarDCL('dcl-'+n.id, n, paso ? paso.nuevas : []); }catch(e){}
@@ -212,12 +212,17 @@ function renderResultados(res){
     return h;
   }
 
-  const orden = ordenNudos();
+  // Con simetría se resuelve la mitad (2026-10-11, directriz del profesor):
+  // cada barra hallada da su espejo y los nudos sin nada que despejar se omiten.
+  const plan = planNudos(res), orden = plan.pasos;
   h += '<div class="res-section">'
     + '<div class="res-title"><div class="num">4</div>Método de nudos, paso a paso</div>'
     + '<div class="verdict"><div class="verdict-t">Orden de resolución</div>'
     + orden.map(p=>'<b>' + p.nodo.nombre + '</b>').join(' \u2192 ')
-    + ' <span style="color:var(--muted)">(como máximo dos incógnitas por nudo)</span></div>';
+    + ' <span style="color:var(--muted)">(como máximo dos incógnitas por nudo)</span>'
+    + (plan.sim.tipo ? '<br>' + (plan.sim.tipo === 'simetrica' ? 'Simétrica' : 'Antisimétrica') + ' respecto de '
+        + textoEjeSimetria(plan.sim) + ': se resuelve la mitad.' : '<br>Sin simetría.')
+    + '</div>';
   h += leyendaDCL();
 
   orden.forEach((paso, i)=>{
@@ -277,6 +282,18 @@ function renderResultados(res){
     } else {
       h += '<div class="hint-sm" style="margin-top:8px;color:var(--muted)">'
          + 'Comprobación: todas las barras ya conocidas.</div>';
+    }
+    if(paso.espejos.length){
+      h += '<div class="proc-sub" style="margin-top:9px">Por simetría</div>';
+      paso.espejos.forEach(e=>{
+        const bb = barras.find(x=>x.id===e.barra), bo = barras.find(x=>x.id===e.de);
+        const val = res.fuerzas[e.barra];
+        const tipo = esCero(val) ? '\\text{(fuerza cero)}'
+                   : (val > 0 ? '\\text{(tracción)}' : '\\text{(compresión)}');
+        h += '<div class="eq-row"><div class="eq-body">'
+          + kx('F_{'+nombreBarra(bb)+'} = ' + (e.sg < 0 ? '-' : '') + 'F_{'+nombreBarra(bo)+'} = ' + f(Math.abs(val)) + '\\;\\text{'+uF+'}\\;' + tipo)
+          + '</div></div>';
+      });
     }
 
     h += '</div><div><svg class="joint-svg" id="dcl-'+n.id+'" viewBox="-120 -105 240 210"></svg>'

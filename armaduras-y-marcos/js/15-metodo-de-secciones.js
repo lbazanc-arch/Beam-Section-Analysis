@@ -16,6 +16,126 @@ function cortanSegmentos(ax,ay,bx,by, cx,cy,dx2,dy2){
   return t > 1e-9 && t < 1-1e-9 && u > -1e-9 && u < 1+1e-9;
 }
 
+// ── Trazo curvo del corte (2026-10-11, petición del profesor) ──
+// La recta del corte no dejaba ver qué barras cortaba (la del automático,
+// además, cruzaba todo el dibujo). El trazo pasa por el CENTRO de cada barra
+// cortada, en el orden en que el corte atraviesa las caras de la armadura, y
+// asoma un poco por fuera en los dos extremos. Entre dos barras seguidas va por
+// la cara que comparten: es una Bézier cuadrática con el centro de cada barra
+// como punto de control, que empieza y acaba en el punto medio entre centros, así
+// que cruza cada barra junto a su centro y no toca ninguna otra. Devuelve una
+// polilínea en coordenadas del MUNDO que dibujan igual el lienzo, el SVG y TikZ.
+// `ref` (opcional) es la recta trazada a mano: ordena las barras si no se pueden
+// encadenar por caras.
+function trazoCorte(cortadas, ref){
+  if(!cortadas || !cortadas.length) return null;
+  const nd = id => nodos.find(n=>n.id===id);
+  const orden = _ordenCortadas(cortadas, ref);
+  const P = orden.map(b=>{ const na = nd(b.a), nb = nd(b.b);
+    return {x:(na.x+nb.x)/2, y:(na.y+nb.y)/2, ux:nb.x-na.x, uy:nb.y-na.y}; });
+  const Lm = barras.reduce((s,b)=>{ const na = nd(b.a), nb = nd(b.b);
+    return s + Math.hypot(nb.x-na.x, nb.y-na.y); }, 0)/Math.max(1, barras.length);
+  const ext = 0.3*Lm;
+  // Normal a la barra en el extremo, hacia fuera: lejos del centro vecino.
+  const fuera = (p, q, sg) => {
+    const L = Math.hypot(p.ux, p.uy) || 1;
+    let nx = -p.uy/L, ny = p.ux/L;
+    if(q && ((p.x-q.x)*nx + (p.y-q.y)*ny) < 0){ nx = -nx; ny = -ny; }
+    return {x:p.x + sg*nx*ext, y:p.y + sg*ny*ext};
+  };
+  const n = P.length;
+  const Q = [fuera(P[0], n > 1 ? P[1] : null, 1)].concat(P)
+    .concat([n > 1 ? fuera(P[n-1], P[n-2], 1) : fuera(P[0], null, -1)]);
+  const medio = (a, b) => ({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
+  const pts = [Q[0]];
+  let ini = Q[0];
+  for(let i = 1; i < Q.length-1; i++){
+    const c = Q[i], fin = (i === Q.length-2) ? Q[Q.length-1] : medio(Q[i], Q[i+1]);
+    for(let k = 1; k <= 14; k++){
+      const t = k/14, u = 1-t;
+      pts.push({x:u*u*ini.x + 2*u*t*c.x + t*t*fin.x, y:u*u*ini.y + 2*u*t*c.y + t*t*fin.y});
+    }
+    ini = fin;
+  }
+  return {pts, barras:orden};
+}
+// Orden en que el corte cruza las barras. Se recorren las CARAS de la armadura
+// (grafo plano): cada barra cortada separa dos caras, y un corte que parte la
+// armadura en dos es un camino de cara en cara que empieza y acaba fuera. Si no
+// se puede encadenar así (barras que se cruzan sin nudo, corte raro), se ordenan
+// por su posición a lo largo de la recta trazada o de la nube de centros.
+function _ordenCortadas(cortadas, ref){
+  if(cortadas.length > 1){
+    const porCaras = _ordenPorCaras(cortadas);
+    if(porCaras) return porCaras;
+  }
+  const nd = id => nodos.find(n=>n.id===id);
+  const cen = b => { const na = nd(b.a), nb = nd(b.b); return {x:(na.x+nb.x)/2, y:(na.y+nb.y)/2}; };
+  let dx, dy, ox, oy;
+  if(ref && Math.hypot(ref.x2-ref.x1, ref.y2-ref.y1) > 1e-9){
+    dx = ref.x2-ref.x1; dy = ref.y2-ref.y1; ox = ref.x1; oy = ref.y1;
+  } else {
+    const ps = cortadas.map(cen);
+    ox = ps.reduce((s,p)=>s+p.x,0)/ps.length; oy = ps.reduce((s,p)=>s+p.y,0)/ps.length;
+    let sxx = 0, sxy = 0, syy = 0;
+    ps.forEach(p=>{ const a = p.x-ox, c = p.y-oy; sxx += a*a; sxy += a*c; syy += c*c; });
+    const th = 0.5*Math.atan2(2*sxy, sxx-syy);
+    dx = Math.cos(th); dy = Math.sin(th);
+  }
+  return cortadas.slice().sort((p, q)=>{
+    const a = cen(p), b = cen(q);
+    return ((a.x-ox)*dx + (a.y-oy)*dy) - ((b.x-ox)*dx + (b.y-oy)*dy);
+  });
+}
+function _ordenPorCaras(cortadas){
+  const mapa = {}; nodos.forEach(n=>{ mapa[n.id] = n; });
+  const vec = {}; nodos.forEach(n=>{ vec[n.id] = []; });
+  barras.forEach(b=>{ if(mapa[b.a] && mapa[b.b]){ vec[b.a].push(b.b); vec[b.b].push(b.a); } });
+  Object.keys(vec).forEach(k=>{
+    const n = mapa[k];
+    vec[k].sort((p, q)=>Math.atan2(mapa[p].y-n.y, mapa[p].x-n.x) - Math.atan2(mapa[q].y-n.y, mapa[q].x-n.x));
+  });
+  // Cada media arista u→v pertenece a una cara; la siguiente sale de v hacia el
+  // vecino inmediatamente anterior a u en sentido antihorario.
+  const cara = {}, areas = [];
+  barras.forEach(b=>[[b.a, b.b], [b.b, b.a]].forEach(([u, v])=>{
+    if(cara[u + '>' + v] !== undefined || !mapa[u] || !mapa[v]) return;
+    const fi = areas.length; let a = u, c = v, area = 0, guard = 0;
+    while(cara[a + '>' + c] === undefined && guard++ < 4*barras.length + 4){
+      cara[a + '>' + c] = fi;
+      area += mapa[a].x*mapa[c].y - mapa[c].x*mapa[a].y;
+      const vs = vec[c], i = vs.indexOf(a), sig = vs[(i - 1 + vs.length) % vs.length];
+      a = c; c = sig;
+    }
+    areas.push(area/2);
+  }));
+  // La cara exterior es la de área negativa (recorrida en sentido horario).
+  let exterior = 0;
+  areas.forEach((a, i)=>{ if(a < areas[exterior]) exterior = i; });
+  const lados = cortadas.map(b=>({b, f1:cara[b.a + '>' + b.b], f2:cara[b.b + '>' + b.a]}));
+  if(lados.some(l=>l.f1 === undefined || l.f2 === undefined || l.f1 === l.f2)) return null;
+  const usadas = new Set(), orden = [];
+  let actual = exterior;
+  while(orden.length < cortadas.length){
+    const l = lados.find(x=>!usadas.has(x.b.id) && (x.f1 === actual || x.f2 === actual));
+    if(!l) return null;
+    usadas.add(l.b.id); orden.push(l.b);
+    actual = (l.f1 === actual) ? l.f2 : l.f1;
+    if(actual === exterior && orden.length < cortadas.length) return null;
+  }
+  return actual === exterior ? orden : null;
+}
+// Barras que corta la recta trazada a mano (o las que el resolutor automático
+// dejó apuntadas en `corte.barras`).
+function barrasDelCorte(c){
+  if(!c) return [];
+  if(c.barras) return c.barras.map(id=>barras.find(b=>b.id===id)).filter(Boolean);
+  return barras.filter(b=>{
+    const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
+    return na && nb && cortanSegmentos(na.x,na.y,nb.x,nb.y, c.x1,c.y1,c.x2,c.y2);
+  });
+}
+
 // ── Barras cortadas y partición de la armadura ──
 function analizarCorte(){
   if(!corte) return {valido:false, motivo:'sin-corte'};
@@ -221,12 +341,13 @@ function svgPorcion(info, sol){
        + '" stroke="'+col+'" stroke-width="3"/>';
     reg.seg(ax, ay, bx, by, 1.5, 'barra', {radialDe:[na.id, nb.id]});
   });
-  // línea del corte
-  if(corte){
-    const [cx1,cy1] = P(corte.x1,corte.y1), [cx2,cy2] = P(corte.x2,corte.y2);
-    s += '<line x1="'+cx1.toFixed(1)+'" y1="'+cy1.toFixed(1)+'" x2="'+cx2.toFixed(1)+'" y2="'+cy2.toFixed(1)
-       + '" stroke="#c0392b" stroke-width="2" stroke-dasharray="8,5" opacity=".7"/>';
-    reg.seg(cx1, cy1, cx2, cy2, 1, 'corte');
+  // El corte, curvo y pasando por las barras que corta (trazoCorte).
+  const tr = trazoCorte(info.cortadas, (modoCorte === 'manual') ? corte : null);
+  if(tr){
+    const q = tr.pts.map(p=>P(p.x, p.y));
+    s += '<polyline points="' + q.map(p=>p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')
+       + '" fill="none" stroke="#c0392b" stroke-width="2.2" stroke-dasharray="8,5" stroke-linecap="round"/>';
+    for(let i = 1; i < q.length; i++) reg.seg(q[i-1][0], q[i-1][1], q[i][0], q[i][1], 1, 'corte');
   }
   // nudos (se pintan al final, encima de las flechas) y centros de momentos
   let puntos = '';
@@ -372,50 +493,61 @@ function renderSeccionCorte(){
 
   // La leyenda de los trazos va aquí, dentro de #corteBox y justo antes de la
   // figura: solo sale si hay DCL y se rehace con el corte (03- repinta #corteBox).
+  // Simetría: lo que se halla en el corte da también su barra espejo.
+  const sim = simetriaResolucion(resultado), espejos = [];
+  if(sim.tipo){
+    const hallado = {};
+    sol.pasos.forEach(p=>{ hallado[p.d.barra.id] = true; });
+    sol.pasos.forEach(p=>{ const e = sim.espejo[p.d.barra.id];
+      if(e && !hallado[e.otro]){ hallado[e.otro] = true; espejos.push({barra:e.otro, de:p.d.barra.id, sg:e.sg}); } });
+  }
   h += leyendaDCL();
-  h += '<div class="proc-block"><div class="proc-sub">Diagrama de cuerpo libre de la porción</div>'
-    + svgPorcion(info, sol)
-    + '<div class="hint-sm" style="margin-top:5px">Círculos punteados: centros de momentos.</div></div>';
-
-  sol.pasos.forEach((p, i)=>{
-    const d = p.d;
-    h += '<div class="joint-card"><div class="joint-h"><div class="joint-n">' + (i+1) + '</div>'
-      + 'Barra <b>' + d.nombre + '</b></div>';
-    if(p.tipo === 'momento'){
-      const cx = dec(p.centro.x,'len'), cy = dec(p.centro.y,'len');
-      const nomC = p.centro.nombre || 'O';
-      h += '<div class="hint-sm" style="margin-bottom:6px">Momentos respecto de <b>' + nomC + '</b> (' + cx + ' ; ' + cy + ') ' + uL
-        + (p.otros.length ? ', por donde pasan <b>' + p.otros.join('</b> y <b>') + '</b>.' : '.') + '</div>';
-      h += '<div class="eq-row"><div class="eq-body">'
-        + kx('\\sum M_{' + nomC + '} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
-             + p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('') + ' = 0')
-        + '</div></div>';
-    } else {
-      h += '<div class="hint-sm" style="margin-bottom:6px">Suma de fuerzas en <b>' + p.eje + '</b>'
-        + (p.citas && p.citas.length ? ', con las barras ya halladas en este corte sustituidas por su valor' : '') + ':</div>';
-      h += '<div class="eq-row"><div class="eq-body">'
-        + kx('\\sum F_' + p.eje + ' = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
-             + p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('') + ' = 0')
-        + '</div></div>';
-    }
-    const real = resultado.fuerzas[d.barra.id];
-    const tipo = esCero(p.val) ? '\\text{(fuerza cero)}'
-               : (p.val > 0 ? '\\text{(tracción)}' : '\\text{(compresión)}');
-    h += '<div class="eq-row"><div class="eq-body">'
-      + kx('F_{' + d.nombre + '} = ' + dec(Math.abs(p.val),'f') + '\\;\\text{' + uF + '}\\;' + tipo)
-      + '</div></div>';
-    const coincide = Math.abs(p.val - real) < Math.max(1e-6, Math.abs(real)*1e-6);
-    h += '<div class="hint-sm" style="color:' + (coincide ? '#15803d' : '#c0392b') + '">'
-      + (coincide ? '✓ Coincide con el valor obtenido por el método de nudos.'
-                  : '⚠ Discrepa del método de nudos (' + dec(Math.abs(real),'f') + ').') + '</div>';
-    h += '</div>';
-  });
+  // Tarjeta compacta, como la de un nudo (2026-10-11, directriz del profesor):
+  // las ecuaciones a la izquierda, dos líneas cada una, y la porción a la derecha.
+  h += '<div class="joint-card"><div class="joint-h"><div class="joint-n">1</div>Corte'
+    + '<span style="color:var(--muted);font-weight:500;font-size:11px">porción ' + nomLado + '</span></div>'
+    + '<div class="joint-body corte-body"><div>' + ecuacionesCorteHtml(sol.pasos, espejos, sim) + '</div>'
+    + '<div>' + svgPorcion(info, sol) + '</div></div></div>';
 
   if(info.cero.length){
     const nom = info.cero.map(id=>nombreBarra(barras.find(b=>b.id===id)));
     h += '<div class="hint-sm">El corte también cruza <b>' + nom.join(', ') + '</b>, de fuerza cero: no cuentan como incógnitas.</div>';
   }
 
+  return h;
+}
+
+// Ecuaciones de un corte en pantalla: dos líneas cada una —la suma y, debajo,
+// la barra que despeja— con aire entre una y otra; al final, si hay simetría,
+// las barras espejo. Lo usan el corte manual y cada paso del automático. Solo
+// se avisa si un valor no coincide con la solución global (antes salía un «✓»
+// por ecuación).
+function ecuacionesCorteHtml(items, espejos, sim){
+  const uF = unitFor;
+  const tipoDe = v => esCero(v) ? '\\text{(fuerza cero)}' : (v > 0 ? '\\text{(tracción)}' : '\\text{(compresión)}');
+  const fila = t => '<div class="eq-row"><div class="eq-body">' + kx(t) + '</div></div>';
+  let h = '';
+  items.forEach((p, i)=>{
+    const d = p.d;
+    const etq = p.tipo === 'momento' ? '\\sum M_{' + (p.centro.nombre || 'O') + '} = 0:\\quad ' : '\\sum F_' + p.eje + ' = 0:\\quad ';
+    h += '<div class="eq-par"' + (i ? '' : ' style="margin-top:0"') + '>'
+      + fila(etq + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
+             + p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('') + ' = 0')
+      + fila('F_{' + d.nombre + '} = ' + dec(Math.abs(p.val),'f') + '\\;\\text{' + uF + '}\\;' + tipoDe(p.val));
+    const real = resultado.fuerzas[d.barra.id];
+    if(Math.abs(p.val - real) > Math.max(1e-6, Math.abs(real)*1e-6))
+      h += '<div class="hint-sm" style="color:#c0392b">⚠ Discrepa de la solución global (' + dec(Math.abs(real),'f') + ').</div>';
+    h += '</div>';
+  });
+  if(espejos && espejos.length){
+    h += '<div class="proc-sub" style="margin-top:12px">Por simetría</div>';
+    espejos.forEach(e=>{
+      const b = barras.find(x=>x.id===e.barra), o = barras.find(x=>x.id===e.de);
+      const v = resultado.fuerzas[e.barra];
+      h += fila('F_{' + nombreBarra(b) + '} = ' + (e.sg < 0 ? '-' : '') + 'F_{' + nombreBarra(o) + '} = '
+        + dec(Math.abs(v),'f') + '\\;\\text{' + uF + '}\\;' + tipoDe(v));
+    });
+  }
   return h;
 }
 

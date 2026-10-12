@@ -331,6 +331,10 @@ body{
   display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; flex:none;
 }
 .joint-body{display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:14px; align-items:start;}
+/* Tarjeta de un corte (2026-10-11): ecuaciones a la izquierda y la porción,
+   que es ancha, a la derecha; cada ecuación con su resultado debajo y aire entre ellas. */
+.joint-body.corte-body{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);}
+.eq-par{margin-top:12px;}
 .joint-svg{width:100%; max-width:250px; height:auto; display:block;
   border:1px solid var(--border); border-radius:8px; background:#fff;}
 /* DCL en pantalla: leyenda de una línea por sección (trazo = incógnita,
@@ -437,7 +441,7 @@ body{
   .summary-grid{grid-template-columns:repeat(2,1fr);}
   /* dos DCL uno al lado del otro no caben en movil: se apilan */
   .dcl-par{grid-template-columns:1fr;}
-  .joint-body{grid-template-columns:1fr;}
+  .joint-body, .joint-body.corte-body{grid-template-columns:1fr;}
   .joint-svg{max-width:min(100%, 340px); margin:0 auto;}
 }
 

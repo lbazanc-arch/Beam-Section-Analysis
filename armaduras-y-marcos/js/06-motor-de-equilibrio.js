@@ -282,6 +282,52 @@ function ordenNudos(){
   return orden;
 }
 
+// ── Simetría que reduce la resolución (2026-10-11, directriz del profesor) ──
+// Con una armadura simétrica (o antisimétrica) cada barra espejo lleva la misma
+// fuerza (o la opuesta), así que basta resolver la mitad. Devuelve, por barra,
+// su espejo y el signo. Una pareja solo cuenta si el motor la confirma: es
+// preferible resolver de más que afirmar una igualdad que el cálculo no respalda.
+function simetriaResolucion(res){
+  const sim = analizarSimetria(res);
+  const out = {tipo: sim.simetrica ? 'simetrica' : (sim.antisimetrica ? 'antisimetrica' : null),
+               eje: sim.eje, espejo:{}, pares:[]};
+  if(!out.tipo || !res || !res.fuerzas){ out.tipo = null; return out; }
+  const sg = out.tipo === 'simetrica' ? 1 : -1;
+  const tol = 1e-6*Math.max(1, escalaDelProblema());
+  paresSimetricos(sim).forEach(([a, b])=>{
+    if(Math.abs((res.fuerzas[a.id]||0) - sg*(res.fuerzas[b.id]||0)) > tol) return;
+    out.espejo[a.id] = {otro:b.id, sg}; out.espejo[b.id] = {otro:a.id, sg};
+    out.pares.push([a, b]);
+  });
+  if(!out.pares.length) out.tipo = null;
+  return out;
+}
+// Texto corto de la simetría para pantalla y PDF: «respecto de x = 4.00 m».
+function textoEjeSimetria(sim){ return 'x = ' + dec(sim.eje,'len') + ' ' + unitLen; }
+
+// Plan del método de nudos: el orden de siempre (ordenNudos) y, si hay
+// simetría, cada barra que se halla da también su espejo; los nudos que ya no
+// tienen nada que despejar se omiten. Sin simetría es exactamente ordenNudos.
+// Cada paso: {nodo, nuevas, espejos:[{barra, de, sg}]}.
+function planNudos(res){
+  const sim = simetriaResolucion(res);
+  const orden = ordenNudos();
+  if(!sim.tipo) return {pasos: orden.map(p=>({nodo:p.nodo, nuevas:p.nuevas, espejos:[]})), sim};
+  const conocidas = {}, pasos = [];
+  orden.forEach(p=>{
+    const nuevas = p.nuevas.filter(id=>!conocidas[id]);
+    if(!nuevas.length) return;
+    nuevas.forEach(id=>{ conocidas[id] = true; });
+    const espejos = [];
+    nuevas.forEach(id=>{
+      const e = sim.espejo[id];
+      if(e && !conocidas[e.otro]){ conocidas[e.otro] = true; espejos.push({barra:e.otro, de:id, sg:e.sg}); }
+    });
+    pasos.push({nodo:p.nodo, nuevas, espejos});
+  });
+  return {pasos, sim};
+}
+
 function nombreBarra(b){
   const na = nodos.find(n=>n.id===b.a), nb = nodos.find(n=>n.id===b.b);
   return (na && nb) ? na.nombre + nb.nombre : '?';

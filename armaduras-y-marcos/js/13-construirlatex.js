@@ -33,6 +33,11 @@ function _sumaTexArm(terms, ceroTxt){
 function _alineadaArm(filas){
   return '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
 }
+// Varias ecuaciones de dos líneas en un align*, con 10 pt entre una y otra
+// (2026-10-11, el profesor las veía muy juntas). `pares` es [[ecuación, resultado], …].
+function _ecuacionesArm(pares){
+  return '\\begin{align*}\n' + pares.map(p=>p.join(' \\\\\n')).join(' \\\\[10pt]\n') + '\n\\end{align*}\n';
+}
 // Fila «etiqueta & términos cola», partida cada `porFila` términos.
 function _filaArm(izq, terms, cola, porFila){
   const n = porFila || 5;
@@ -94,7 +99,6 @@ function construirLatex(){
   // tabla en la siguiente.
   const tablaCaption = txt => { tablaN++;
     return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
-  const porque = (clave, txt) => _primeraVezArm(clave) ? '\\porque{' + txt + '}\n' : '';
 
   const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
   const j = nodos.length, m = barras.length;
@@ -150,8 +154,6 @@ function construirLatex(){
     + '  \\noindent{\\large\\bfseries\\color{bsaAcc}#1}\\par\\nopagebreak\n'
     + '  \\vspace{3pt}\\nopagebreak\\hrule\\nopagebreak\\vspace{7pt}\\nopagebreak}\n'
     + '\\newcommand{\\subpaso}[1]{\\par\\addvspace{6pt}\\noindent{\\bfseries\\color{bsaAcc2}#1}\\par\\nopagebreak\\vspace{3pt}\\nopagebreak}\n'
-    + '\\newcommand{\\porque}[1]{\\par\\vspace{3pt}\\noindent\\fcolorbox{bsaAcc2!40}{bsaAcc2!5}{%\n'
-    + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\footnotesize{\\bfseries\\color{bsaAcc2}\\textquestiondown Por qu\\\'e?}\\ #1}}\\par\\vspace{4pt}}\n'
     + '\\newcommand{\\resultado}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaVerde!50}{bsaVerde!6}{%\n'
     + '  \\parbox{\\dimexpr\\linewidth-2\\fboxsep-2\\fboxrule\\relax}{\\small #1}}\\par\\vspace{4pt}}\n'
     + '\\newcommand{\\veredicto}[1]{\\par\\vspace{2pt}\\noindent\\fcolorbox{bsaAcc}{bsaAcc!7}{%\n'
@@ -168,73 +170,51 @@ function construirLatex(){
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += figura(tikzArmaduraCompleta({cotas:true, valores:false, neutra:true, escala:ESC_GLOBAL}), ESC_GLOBAL,
-    'Modelo de la armadura: nudos, barras, apoyos, cargas aplicadas y cotas.' + _angulosArm(_angulosFigura));
-  tex += '\\subpaso{Objetivo}\n'
-    + 'Hallar las reacciones en los apoyos y la fuerza axial en cada barra, indicando si trabaja a '
-    + '\\textbf{tracci\\\'on} (T) o a \\textbf{compresi\\\'on} (C).\n';
-  tex += porque('dos-fuerzas',
-    'Una armadura se idealiza con dos hip\\\'otesis: las cargas act\\\'uan solo en los nudos y las uniones se '
-    + 'comportan como pasadores lisos. Con ellas, cada barra recibe fuerza \\textbf{solo en sus dos extremos}: '
-    + 'es un \\emph{elemento de dos fuerzas}, y el equilibrio obliga a que esas dos fuerzas sean iguales, '
-    + 'opuestas y \\textbf{a lo largo del eje de la barra}. Por eso en una armadura no hay cortante ni momento '
-    + 'flector: solo fuerza axial, y basta un n\\\'umero por barra.');
-  tex += '\\subpaso{Procedimiento de an\\\'alisis}\n'
-    + '\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
-    + '\\item \\textbf{Determinaci\\\'on est\\\'atica.} Se comprueba $m + r = 2j$: tantas inc\\\'ognitas como ecuaciones.\n'
-    + '\\item \\textbf{Reacciones.} Se a\\\'isla la armadura completa, se dibuja su DCL y se plantean '
-    + '$\\sum F_x = 0$, $\\sum F_y = 0$ y $\\sum M = 0$.\n'
-    + '\\item \\textbf{Barras de fuerza cero.} Se detectan por inspecci\\\'on antes de calcular: ahorran trabajo.\n'
-    + (usaSecciones
-      ? '\\item \\textbf{M\\\'etodo de secciones.} Se corta la armadura por no m\\\'as de tres barras desconocidas y se '
-        + 'plantea el equilibrio de un trozo (tres ecuaciones), eligiendo el punto de momentos donde se crucen '
-        + 'dos de las inc\\\'ognitas para que la tercera salga sola.\n'
-      : '\\item \\textbf{M\\\'etodo de nudos.} Se a\\\'isla cada pasador y se plantean $\\sum F_x = 0$ y '
-        + '$\\sum F_y = 0$, recorriendo los nudos de modo que en cada uno queden como m\\\'aximo dos inc\\\'ognitas.\n')
-    + '\\item \\textbf{Resumen y comprobaci\\\'on.} Se tabulan las fuerzas con su naturaleza y se verifica el '
-    + 'equilibrio en un nudo no usado.\n'
-    + '\\end{enumerate}\n';
+    'Modelo de la armadura.' + _angulosArm(_angulosFigura));
+  // Sin objetivo, «¿Por qué?» ni procedimiento (2026-10-11, directriz del
+  // profesor: nada de conceptos). El convenio queda como leyenda de una línea.
   tex += '\\subpaso{Convenio de signos}\n'
-    + '\\noindent Toda fuerza de barra desconocida se supone en \\textbf{tracci\\\'on}: sale del nudo, tirando de '
-    + '\\\'el hacia la barra. Si el resultado es positivo la barra est\\\'a en tracci\\\'on; si es negativo, en '
-    + 'compresi\\\'on (empuja al nudo). En las figuras: \\textcolor{bsaAcc2}{\\rule[0.06cm]{0.45cm}{1.6pt}} '
-    + 'tracci\\\'on, \\textcolor{bsaRoj}{\\rule[0.06cm]{0.45cm}{1.6pt}} compresi\\\'on, '
-    + '\\textcolor{bsaAcc}{\\rule[0.06cm]{0.45cm}{1.6pt}} cargas aplicadas, '
-    + '\\textcolor{bsaVerde}{\\rule[0.06cm]{0.45cm}{1.6pt}} reacciones. '
-    + 'En los DCL, la fuerza que se despeja va \\tikz[baseline=-0.6ex]\\draw[bsaNeutro, line width=1.1pt, dash pattern=on 3.6pt off 2.2pt] (0,0) -- (0.55,0); '
-    + 'a trazos y saliendo del nudo (tracci\\\'on supuesta); la ya conocida, en trazo continuo con su color y su sentido real. '
-    + 'Los ejes $x$ e $y$ son los del plano; los pares se toman positivos en sentido antihorario.\n';
+    + '\\noindent{\\footnotesize $F > 0$: tracci\\\'on (T); $F < 0$: compresi\\\'on (C).\\quad '
+    + '\\textcolor{bsaAcc2}{\\rule[0.06cm]{0.45cm}{1.6pt}} tracci\\\'on, \\textcolor{bsaRoj}{\\rule[0.06cm]{0.45cm}{1.6pt}} compresi\\\'on, '
+    + '\\textcolor{bsaAcc}{\\rule[0.06cm]{0.45cm}{1.6pt}} cargas, \\textcolor{bsaVerde}{\\rule[0.06cm]{0.45cm}{1.6pt}} reacciones, '
+    + '\\tikz[baseline=-0.6ex]\\draw[bsaNeutro, line width=1.1pt, dash pattern=on 3.6pt off 2.2pt] (0,0) -- (0.55,0); inc\\\'ognita.}\\par\n';
 
   // ══ 2. Determinación ══
   tex += '\\seccion{2. Paso 1 --- Determinaci\\\'on est\\\'atica}\n';
   const veredictoDet = (m + r === 2*j)
-    ? '\\textbf{Armadura isost\\\'atica.} Hay tantas inc\\\'ognitas ($m$ fuerzas de barra m\\\'as $r$ reacciones) como ecuaciones ($2$ por nudo).'
-    : ((m + r < 2*j)
-        ? '\\textbf{Armadura inestable.} Faltan barras o apoyos.'
-        : '\\textbf{Armadura hiperest\\\'atica.} Sobran inc\\\'ognitas: la est\\\'atica sola no basta.');
+    ? '\\textbf{Armadura isost\\\'atica.}'
+    : ((m + r < 2*j) ? '\\textbf{Armadura inestable.}' : '\\textbf{Armadura hiperest\\\'atica.}');
   tex += '\\[ m + r = 2j \\qquad\\Longrightarrow\\qquad ' + m + ' + ' + r + ' = 2\\cdot' + j
     + ' \\qquad\\Longrightarrow\\qquad ' + (m+r) + ' = ' + (2*j) + ((m + r === 2*j) ? '\\;\\checkmark' : '') + ' \\]\n'
     + '\\veredicto{' + veredictoDet + '}\n';
-  const sim = analizarSimetria(resultado);
-  if(sim.simetrica)
-    tex += '\\noindent{\\footnotesize La geometr\\\'ia, las cargas y los apoyos son sim\\\'etricos respecto del eje '
-      + '$x = ' + dec(sim.eje,'len') + '$ ' + escLatex(uL) + ': las barras que se reflejan entre s\\\'i llevan la '
-      + 'misma fuerza, lo que servir\\\'a de comprobaci\\\'on.}\\\\[4pt]\n';
+  // Se dice SIEMPRE si hay simetría (2026-10-11, directriz del profesor): si la
+  // hay, el paso 4 resuelve solo la mitad.
+  const simR = simetriaResolucion(resultado);
+  const ejeSim = '$x = ' + dec(simR.eje,'len') + '$ ' + escLatex(uL);
+  tex += '\\noindent{\\footnotesize ' + (simR.tipo === 'simetrica' ? 'Sim\\\'etrica respecto de ' + ejeSim + '.'
+    : (simR.tipo === 'antisimetrica' ? 'Geometr\\\'ia sim\\\'etrica y carga antisim\\\'etrica respecto de ' + ejeSim + '.'
+    : 'Sin simetr\\\'ia.')) + '}\\\\[4pt]\n';
+  // Una línea por barra espejo: «$F_{EC} = F_{AD} = -12.02$ kN (C)».
+  const lineasEspejo = espejos => {
+    if(!espejos || !espejos.length) return '';
+    return '\\[' + espejos.map(e=>{
+      const v = resultado.fuerzas[e.barra];
+      return 'F_{' + nomB(barras.find(x=>x.id===e.barra)) + '} = ' + (e.sg < 0 ? '-' : '') + 'F_{' + nomB(barras.find(x=>x.id===e.de)) + '} = '
+        + dec(v,'f') + '\\ \\text{' + escLatex(uF) + '}' + (esCero(v) ? '' : (v > 0 ? '\\ \\text{(T)}' : '\\ \\text{(C)}'));
+    }).join('\\qquad ') + '\\]\n';
+  };
+  const avisoSim = simR.tipo ? '\\noindent{\\footnotesize Por ' + (simR.tipo === 'simetrica' ? 'simetr\\\'ia' : 'antisimetr\\\'ia')
+    + ' respecto de ' + ejeSim + ' se resuelve la mitad: cada barra espejo lleva la ' + (simR.tipo === 'simetrica' ? 'misma fuerza' : 'fuerza opuesta') + '.}\\\\[4pt]\n' : '';
 
   // ══ 3. Reacciones ══
   tex += '\\seccion{3. Paso 2 --- Reacciones en los apoyos}\n';
-  tex += porque('reacciones',
-    'Para aislar un nudo que est\\\'a sobre un apoyo hace falta conocer su reacci\\\'on, y en general el '
-    + 'primer nudo con dos inc\\\'ognitas suele ser un apoyo. Por eso se resuelven antes, con el equilibrio de '
-    + 'la armadura completa: en \\textbf{ese} cuerpo libre las fuerzas de las barras son internas y no aparecen.');
   const pines = nodos.filter(n=>n.apoyo==='fijo');
   const rodillos = nodos.filter(n=>n.apoyo==='movil');
   // Los momentos se toman en el pasador cuando hay pasador y rodillo; entonces
   // el DCL acota los brazos desde ahí en vez de repetir la geometría.
   const centroM = (pines.length===1 && rodillos.length===1) ? pines[0] : null;
   tex += figura(tikzArmaduraCompleta({cotas:!centroM, valores:false, reaccionesIncognita:true, brazosDesde:centroM, escala:ESC_GLOBAL}), ESC_GLOBAL,
-    'DCL global: cargas y reacciones inc\\\'ognita en su sentido positivo'
-    + (centroM ? ', con los brazos acotados desde ' + nomN(centroM) + ', el punto respecto al que se toman los momentos' : '')
-    + '.' + _angulosArm(_angulosFigura));
+    'DCL global.' + _angulosArm(_angulosFigura));
   const cargasN = nodos.filter(n=>!esCero(n.fx) || !esCero(n.fy));
   const sumFx = nodos.reduce((s,n)=>s+(n.fx||0),0), sumFy = nodos.reduce((s,n)=>s+(n.fy||0),0);
   const simbR = (n, comp) => 'R_{' + comp + nomN(n) + '}';
@@ -285,17 +265,10 @@ function construirLatex(){
     // ecuación de momentos aparecería como un número sin explicación.
     if(inclin){
       const dxR = Rn.x - P.x, dyR = Rn.y - P.y;
-      tex += '\\subpaso{La reacci\\\'on del rodillo est\\\'a inclinada}\n';
-      tex += '\\noindent{\\footnotesize El rodillo de ' + nomN(Rn) + ' apoya sobre un plano inclinado, as\\\'i que su '
-        + '\\\'unica reacci\\\'on no es vertical: forma $' + letraR + ' = ' + gradosR + '$ con la ' + ejeRefR
-        + ', el \\\'angulo acotado en la figura. Antes de sumar, se descompone; el signo de cada componente '
-        + 'es el del sentido de la flecha.}\\\\[2pt]\n';
       tex += _alineadaArm([
         'R_{x' + nomN(Rn) + '} &= ' + signoR('x') + nR + fnTrig('x') + letraR + ' = ' + signoR('x') + nR + trigR('x') + ' = ' + f4(ca) + '\\,' + nR,
         'R_{y' + nomN(Rn) + '} &= ' + signoR('y') + nR + fnTrig('y') + letraR + ' = ' + signoR('y') + nR + trigR('y') + ' = ' + f4(sa) + '\\,' + nR
       ]);
-      tex += '\\noindent{\\footnotesize Su momento respecto de ' + nomN(P) + ' es el de esas dos componentes, '
-        + 'cada una por su propia distancia:}\\\\[2pt]\n';
       tex += _alineadaArm([
         'M_{' + nomN(P) + '} &= (x_{' + nomN(Rn) + '} - x_{' + nomN(P) + '})\\,R_{y' + nomN(Rn) + '}'
           + ' - (y_{' + nomN(Rn) + '} - y_{' + nomN(P) + '})\\,R_{x' + nomN(Rn) + '}',
@@ -312,8 +285,9 @@ function construirLatex(){
     const filasM = [];
     filasM.push(_filaArm('\\circlearrowleft\\!+\\ \\sum M_{' + nomN(P) + '} = 0:\\quad',
       terms.concat([{v:coefR, tex:_coefAbs(coefR) + nR}]), ' = 0\\qquad(' + n1 + ')'));
-    filasM.push('& ' + nR + ' = \\dfrac{' + dec(-cte,'f') + '}{' + dec(coefR,'len') + '} = '
-      + dec(valR,'f') + '\\ \\text{' + escLatex(uF) + '}');
+    // Dos líneas por ecuación (2026-10-11, directriz del profesor): la suma y,
+    // debajo, la incógnita con su valor; sin la división ni la sustitución.
+    filasM.push('& ' + nR + ' = ' + dec(valR,'f') + '\\ \\text{' + escLatex(uF) + '}');
     tex += _alineadaArm(filasM);
     // ΣFy y ΣFx, citando (n1) al sustituir
     const otras = [['y', '+\\!\\uparrow\\ \\sum F_y = 0:\\quad', sumFy, dir.y, rp.ry],
@@ -328,13 +302,6 @@ function construirLatex(){
       const nk = ++eqN; numEqReac[comp + P.id] = nk;
       const f = [];
       f.push(_filaArm(etq, t, ' = 0\\qquad(' + nk + ')'));
-      if(Math.abs(dR) > 1e-9){
-        const t2 = [{v:1, tex:nP}];
-        if(inclin) t2.push({v:Math.sign(dR), tex:'(' + dec(valR,'f') + ')' + trigR(comp)});
-        else       t2.push({v:valR, tex:dec(Math.abs(valR),'f')});
-        if(!esCero(sumF)) t2.push({v:sumF, tex:dec(Math.abs(sumF),'f')});
-        f.push(_filaArm('{\\footnotesize\\text{de } (' + n1 + '):}\\quad', t2, ' = 0'));
-      }
       f.push('& ' + nP + ' = ' + dec(valP,'f') + '\\ \\text{' + escLatex(uF) + '}');
       tex += _alineadaArm(f);
       // Autocontrol: lo escrito debe reproducir la reacción que trae el motor.
@@ -343,8 +310,6 @@ function construirLatex(){
                      {informe:-(sumF + dR*valR), motor:valP});
     });
   } else {
-    tex += '\\noindent{\\footnotesize Esta configuraci\\\'on de apoyos no es la de pasador m\\\'as rodillo; '
-      + 'las tres ecuaciones de equilibrio global se resuelven como sistema:}\n';
     tex += '\\[ \\sum F_x = 0 \\qquad \\sum F_y = 0 \\qquad \\sum M = 0 \\]\n';
   }
   // Tabla de reacciones, con el sentido real en icono
@@ -365,9 +330,7 @@ function construirLatex(){
     if(rc.rx !== undefined) filasReac += '$' + simbR(n,'x') + '$ & $' + dec(rc.rx,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(rc.rx, 0) + ' \\\\\n';
     if(rc.ry !== undefined) filasReac += '$' + simbR(n,'y') + '$ & $' + dec(rc.ry,'f') + '$\\,' + escLatex(uF) + ' & ' + _iconoSentido(0, rc.ry) + ' \\\\\n';
   });
-  tex += tablaCaption('Reacciones en los apoyos, con su sentido real. Un valor negativo significa que la '
-    + 'reacci\\\'on act\\\'ua al rev\\\'es del sentido supuesto en el DCL.'
-    + (hayInclinado ? ' El rodillo inclinado aporta una sola inc\\\'ognita: se dan su magnitud, su direcci\\\'on y las dos componentes con las que entra en las sumas.' : ''));
+  tex += tablaCaption('Reacciones en los apoyos, con su sentido real.');
   tex += '\\resultado{\\centering\\small\\begin{tabular}{@{}crc@{}}\\hline\n'
     + '\\textbf{Reacci\\\'on} & \\textbf{Valor} & \\textbf{Sentido real} \\\\\\hline\n' + filasReac
     + '\\hline\\end{tabular}}\n';
@@ -375,35 +338,25 @@ function construirLatex(){
   // ══ 4. Fuerza cero ══
   tex += '\\seccion{4. Paso 3 --- Barras de fuerza cero}\n';
   const cero = miembrosCero();
-  tex += porque('fuerza-cero',
-    'Antes de calcular conviene mirar cada nudo \\emph{pobre}. Si en un nudo sin carga ni apoyo concurren solo '
-    + 'dos barras no colineales, la componente perpendicular a una de ellas solo puede equilibrarla la otra, '
-    + 'y viceversa: las dos son nulas. Si concurren tres y dos son colineales, la tercera es nula y las '
-    + 'colineales llevan la misma fuerza. La regla no vale si al nudo llega una carga o una reacci\\\'on.');
   if(cero.length){
     let f = '';
     cero.forEach(c=>{ const b = barras.find(x=>x.id===c.barra);
       f += '$F_{' + nomB(b) + '}$ & ' + escLatex(c.nudo) + ' & ' + (c.regla===2 ? 'dos barras no colineales, sin carga ni apoyo' : 'tres barras, dos colineales, sin carga') + ' \\\\\n'; });
-    tex += tablaCaption('Barras nulas por inspecci\\\'on, con el nudo desde el que se ve y la regla aplicada.');
+    tex += tablaCaption('Barras de fuerza cero por inspecci\\\'on.');
     tex += '{\\footnotesize\\begin{center}\\begin{tabular}{ccl}\\hline\nBarra & Nudo & Regla \\\\\\hline\n' + f + '\\hline\\end{tabular}\\end{center}}\n';
   } else {
-    tex += '\\noindent{\\footnotesize En esta armadura ning\\\'un nudo cumple las reglas de fuerza cero; alguna barra '
-      + 'puede resultar nula al calcular, pero no se ve por inspecci\\\'on.}\\\\[4pt]\n';
+    tex += '\\noindent{\\footnotesize Ninguna por inspecci\\\'on.}\\\\[4pt]\n';
   }
 
   // ══ 5. Método ══
   const deQuien = {};      // barraId -> [números de ecuación de los que salió]
   if(!usaSecciones){
     tex += '\\seccion{5. Paso 4 --- M\\\'etodo de nudos}\n';
-    tex += porque('nudos',
-      'Sobre un pasador act\\\'uan fuerzas coplanares y \\textbf{concurrentes}, as\\\'i que el momento se satisface '
-      + 'solo y quedan dos ecuaciones: $\\sum F_x = 0$ y $\\sum F_y = 0$. Dos ecuaciones resuelven a lo sumo dos '
-      + 'inc\\\'ognitas, y por eso el orden de los nudos importa: cada uno debe tener como m\\\'aximo dos barras '
-      + 'a\\\'un desconocidas. Las fuerzas ya halladas se llevan al nudo siguiente \\textbf{con su sentido real}: '
-      + 'una barra en tracci\\\'on tira de sus dos nudos; una en compresi\\\'on empuja a los dos.');
-    const orden = ordenNudos();
     const conocidas = {};   // barraId -> valor conocido
     cero.forEach(c=>{ conocidas[c.barra] = 0; deQuien[c.barra] = ['fuerza cero']; });
+    // Con simetría, los nudos que ya no despejan nada se omiten (planNudos, 06-).
+    const orden = planNudos(resultado).pasos.filter(p => !simR.tipo || p.nuevas.some(id=>conocidas[id] === undefined));
+    tex += avisoSim;
     tex += '\\noindent{\\footnotesize Orden de resoluci\\\'on: ' + orden.map(p=>nomN(p.nodo)).join(' $\\to$ ') + '.}\\\\[4pt]\n';
     orden.forEach((paso, i)=>{
       const n = paso.nodo;
@@ -440,59 +393,77 @@ function construirLatex(){
 
       tex += '\\subpaso{Nudo ' + nomN(n) + '\\quad{\\normalfont\\footnotesize\\color{bsaMuted}' + conec.length + ' barra(s) \\textperiodcentered\\ '
         + (nuevas.length ? nuevas.length + ' inc\\\'ognita(s)' : 'comprobaci\\\'on') + '}}\n';
-      // Por qué este nudo ahora, en una línea (propuesta C): le quedan como
-      // máximo dos barras desconocidas; si está sobre un apoyo, su reacción
-      // ya se conoce del paso 2, que es justo lo que permite empezar por él.
-      const conApoyo = !!n.apoyo;
-      const incSinReac = nuevas.length + (n.apoyo === 'fijo' ? 2 : (n.apoyo === 'movil' ? 1 : 0));
-      tex += '\\noindent{\\footnotesize ' + (nuevas.length
-        ? 'Se resuelve ' + nomN(n) + ' porque ' + (nuevas.length === 1 ? 'solo le queda una barra desconocida' : 'solo le quedan dos barras desconocidas')
-          + (conApoyo ? ' y su reacci\\\'on ya se conoce del paso 2' : '')
-          + (i === 0 && conApoyo && incSinReac > 2 ? ' (sin las reacciones tendr\\\'ia ' + incSinReac + ' inc\\\'ognitas, por eso se calcularon antes; ej. 6.3)' : '') + '.'
-        : 'En ' + nomN(n) + ' ya se conocen todas las barras: sus dos ecuaciones sirven de comprobaci\\\'on.') + '}\\\\[2pt]\n';
       const dclA = tikzDCLNudo(n, resultado, ESC_NUDO, nuevas);
       tex += figura(dclA.tikz, ESC_NUDO, 'DCL del nudo ' + nomN(n) + '.' + _angulosArm(dclA.angulos));
-      const nx = ++eqN, ny = ++eqN;
-      // La fila de sustitucion va si ALGUN termino cambio respecto de la
-      // ecuacion literal; se compara por posicion, porque tsX y txN se llenan
-      // en el mismo orden. Buscar por texto se saltaba la fila cuando el valor
-      // sustituido coincidia con otro termino (0.86 F_BC = 5.00 y R_yC = 5.00),
-      // y la comprobacion del ultimo nudo quedaba sin escribir.
-      const cambia = (ts, tx) => ts.some((t, i) => !tx[i] || t.tex !== tx[i].tex);
-      const filas = [];
-      filas.push(_filaArm('\\xrightarrow{+}\\ \\sum F_x = 0:\\quad', txN, ' = 0\\qquad(' + nx + ')'));
-      if(cambia(tsX, txN)) filas.push(_filaArm('{\\footnotesize\\text{de } ' + _refsArm(citasX, true) + ':}\\quad', tsX, ' = 0'));
-      filas.push(_filaArm('+\\!\\uparrow\\ \\sum F_y = 0:\\quad', txY, ' = 0\\qquad(' + ny + ')'));
-      if(cambia(tsY, txY)) filas.push(_filaArm('{\\footnotesize\\text{de } ' + _refsArm(citasY, true) + ':}\\quad', tsY, ' = 0'));
-      // Despeje. Una barra sale de UNA ecuación: de la que la tiene como única
-      // incógnita (y se muestra la división), o de aquella cuyas otras
-      // incógnitas ya se despejaron en este mismo nudo. Solo si de verdad hace
-      // falta el sistema se citan las dos. Esa ecuación es la que la barra
-      // arrastra después: en el nudo siguiente se cita ella, no las dos.
-      const solaDe = bid => (incogX.length === 1 && incogX[0].b.id === bid) ? {eq:nx, c:incogX[0].c, ts:tsX}
-                          : ((incogY.length === 1 && incogY[0].b.id === bid) ? {eq:ny, c:incogY[0].c, ts:tsY} : null);
+      // Dos líneas por ecuación (2026-10-11, directriz del profesor): la suma
+      // igualada a cero y, debajo, la barra que se despeja de ELLA con su valor.
+      // Una barra sale de la ecuación que la tiene como única incógnita, o de
+      // aquella cuyas otras incógnitas ya se despejaron en este nudo; si ninguna
+      // la deja sola, las dos forman un sistema: la segunda línea de cada una es
+      // la expresión reducida y los valores van juntos debajo. Una ecuación que no
+      // despeja nada es comprobación: lo ya hallado sustituido, igual a cero.
+      const eqs = [
+        {etq:'\\xrightarrow{+}\\ \\sum F_x = 0:\\quad', tx:txN, ts:tsX, inc:incogX, barras:[]},
+        {etq:'+\\!\\uparrow\\ \\sum F_y = 0:\\quad', tx:txY, ts:tsY, inc:incogY, barras:[]}
+      ];
+      const solaDe = bid => eqs.find(e => e.inc.length === 1 && e.inc[0].b.id === bid) || null;
       // Primero las que salen solas: las demás se apoyan en ellas.
       const ordenNuevas = nuevas.slice().sort((p, q) => (solaDe(q) ? 1 : 0) - (solaDe(p) ? 1 : 0));
-      const resueltoEn = (lista, bid) => lista.some(q => q.b.id === bid) && lista.every(q => q.b.id === bid || conocidas[q.b.id] !== undefined);
-      ordenNuevas.forEach(bid=>{
-        const b = barras.find(x=>x.id===bid);
-        const val = resultado.fuerzas[bid];
-        const tipo = esCero(val) ? '\\ \\text{(fuerza cero)}' : (val > 0 ? '\\ \\text{(T)}' : '\\ \\text{(C)}');
-        const sola = solaDe(bid);
-        let de;
-        if(sola){
-          const cte = sola.ts.filter(t=>t.tex.indexOf('F_') < 0).reduce((s,t)=>s+t.v, 0);
-          filas.push('{\\footnotesize\\text{de } (' + sola.eq + '):}\\quad & F_{' + nomB(b) + '} = \\dfrac{' + dec(-cte,'f') + '}{' + dec(sola.c,'f') + '} = '
-            + dec(val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo);
-          de = [sola.eq];
-        } else {
-          de = resueltoEn(incogX, bid) ? [nx] : (resueltoEn(incogY, bid) ? [ny] : [nx, ny]);
-          filas.push('{\\footnotesize\\text{de } ' + _refsArm(de, true) + ':}\\quad & F_{' + nomB(b) + '} = ' + dec(val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo);
+      const resueltoEn = (e, bid) => e.inc.some(q => q.b.id === bid) && e.inc.every(q => q.b.id === bid || conocidas[q.b.id] !== undefined);
+      // Se despeja mientras haya avance; lo que queda va junto, como sistema.
+      // Una barra del sistema no cuenta como conocida hasta el final: si no, la
+      // otra parecería salir sola de una ecuación que en realidad tiene dos.
+      const usadas = [];
+      let sistema = ordenNuevas.slice(), avanza = true;
+      while(sistema.length && avanza){
+        avanza = false;
+        sistema = sistema.filter(bid=>{
+          const e = solaDe(bid) || eqs.find(q => resueltoEn(q, bid));
+          if(!e) return true;
+          e.barras.push(bid); if(usadas.indexOf(e) < 0) usadas.push(e);
+          conocidas[bid] = resultado.fuerzas[bid]; avanza = true;
+          return false;
+        });
+      }
+      sistema.forEach(bid=>{ conocidas[bid] = resultado.fuerzas[bid]; });
+      eqs.forEach(e=>{ if(usadas.indexOf(e) < 0) usadas.push(e); });
+      const tipoDe = v => esCero(v) ? '\\ \\text{(fuerza cero)}' : (v > 0 ? '\\ \\text{(T)}' : '\\ \\text{(C)}');
+      const valorBarra = bid => 'F_{' + nomB(barras.find(x=>x.id===bid)) + '} = ' + dec(resultado.fuerzas[bid],'f')
+        + '\\ \\text{' + escLatex(uF) + '}' + tipoDe(resultado.fuerzas[bid]);
+      const cambia = (ts, tx) => ts.some((t, i) => !tx[i] || t.tex !== tx[i].tex);
+      const pares = [], numsSis = [];
+      usadas.forEach(e=>{
+        e.n = ++eqN;
+        const par = [_filaArm(e.etq, e.tx, ' = 0\\qquad(' + e.n + ')')];
+        e.barras.forEach(bid=>{ par.push('& ' + valorBarra(bid)); deQuien[bid] = [e.n]; });
+        if(!e.barras.length && e.tx.length){
+          const enSis = e.inc.filter(q => sistema.indexOf(q.b.id) >= 0);
+          if(enSis.length){
+            numsSis.push(e.n);
+            const cte = e.ts.filter(t => t.tex.indexOf('F_') < 0).reduce((s,t)=>s + t.v, 0);
+            par.push(_filaArm('', enSis.map(q=>({v:q.c, tex:_coefAbs(q.c) + 'F_{' + nomB(q.b) + '}'})), ' = ' + dec(-cte,'f') + '\\ \\text{' + escLatex(uF) + '}'));
+          } else if(cambia(e.ts, e.tx) || e.inc.length){
+            // Las barras halladas en este mismo nudo entran ya con su valor.
+            let k = 0;
+            const num = e.ts.map(t=>{
+              if(t.tex.indexOf('F_') < 0) return t;
+              const q = e.inc[k++], v = q.c*(resultado.fuerzas[q.b.id] || 0);
+              return {v, tex:dec(Math.abs(v),'f')};
+            }).filter(t => !esCero(t.v));
+            par.push(_filaArm('', num, ' = 0\\ \\checkmark'));
+          }
         }
-        conocidas[bid] = val; deQuien[bid] = de;
+        pares.push(par);
       });
-      if(!nuevas.length) filas.push('& \\text{\\footnotesize todas las barras ya se conoc\\\'ian: las dos ecuaciones cierran, el nudo comprueba el resultado}');
-      tex += _alineadaArm(filas);
+      tex += _ecuacionesArm(pares);
+      if(sistema.length){
+        sistema.forEach(bid=>{ deQuien[bid] = numsSis.slice(); });
+        tex += '\\[' + sistema.map(valorBarra).join('\\qquad ') + '\\]\n';
+      }
+      // Lo que da la simetría: las barras espejo, ya conocidas para lo que sigue.
+      const esp = paso.espejos.filter(e=>conocidas[e.barra] === undefined);
+      tex += lineasEspejo(esp);
+      esp.forEach(e=>{ conocidas[e.barra] = resultado.fuerzas[e.barra]; deQuien[e.barra] = ['simetr\\\'ia']; });
       // Autocontrol: el nudo dibujado debe cerrar con los valores del motor.
       let sx = (rc && rc.rx) || 0, sy = (rc && rc.ry) || 0; sx += n.fx || 0; sy += n.fy || 0;
       conec.forEach(b=>{ const o = nodos.find(z=>z.id === (b.a===n.id ? b.b : b.a));
@@ -504,15 +475,15 @@ function construirLatex(){
   } else {
     // ── Método de secciones (auto o manual) ──
     tex += '\\seccion{5. Paso 4 --- M\\\'etodo de secciones}\n';
-    tex += porque('secciones',
-      'Si toda la armadura est\\\'a en equilibrio, cualquier trozo lo est\\\'a. Un corte imaginario deja a la vista, como '
-      + 'fuerzas externas, las fuerzas de las barras cortadas; el trozo aporta \\textbf{tres} ecuaciones, as\\\'i que el '
-      + 'corte no debe atravesar m\\\'as de tres barras desconocidas. El arte est\\\'a en elegir la ecuaci\\\'on: momentos '
-      + 'respecto del punto donde se cruzan dos inc\\\'ognitas, o fuerzas perpendiculares a dos inc\\\'ognitas paralelas, '
-      + 'para que la tercera salga en un solo paso.');
-    const escribirPaso = (items, datos, externas, lado, titulo) => {
+    tex += avisoSim;
+    const escribirPaso = (items, datos, externas, lado, titulo, cortadas, ref, espejos) => {
       const nomLado = lado.map(id=>nomN(nodos.find(n=>n.id===id))).sort().join(', ');
       tex += '\\subpaso{' + titulo + '\\quad{\\normalfont\\footnotesize\\color{bsaMuted}porci\\\'on: ' + nomLado + '}}\n';
+      // El corte sobre la armadura entera, curvo y pasando por las barras que
+      // corta (trazoCorte, 15-; 2026-10-11, petición del profesor).
+      const tr = trazoCorte(cortadas, ref);
+      if(tr) tex += figura(tikzArmaduraCompleta({neutra:true, cotas:false, corte:tr.pts, cortadas:cortadas.map(x=>x.id), escala:ESC_VARIANTE}),
+        ESC_VARIANTE, titulo + ' (a--a).');
       const dcl = tikzSeccionPorcion(lado, datos, externas, items, ESC_PORCION);
       // Ecuaciones del corte: ΣM respecto del NUDO por el que pasan las otras
       // incógnitas (o de un punto O rotulado en su figura de brazos si no hay
@@ -520,7 +491,7 @@ function construirLatex(){
       // sustituidas y citadas. Nunca una suma en un eje inclinado (revisión del PDF).
       const etqC = etiquetasCentros(items);
       let filas = [];
-      const vaciar = () => { if(filas.length){ tex += _alineadaArm(filas); filas = []; } };
+      const vaciar = () => { if(filas.length){ tex += _ecuacionesArm(filas); filas = []; } };
       tex += figura(dcl.tikz, ESC_PORCION, 'Porci\\\'on aislada por el corte.' + _angulosArm(dcl.angulos));
       items.forEach((p, i)=>{
         const nk = ++eqN;
@@ -540,14 +511,15 @@ function construirLatex(){
         } else {
           etq = (p.eje === 'x') ? '\\xrightarrow{+}\\ \\sum F_x = 0:\\quad' : '+\\!\\uparrow\\ \\sum F_y = 0:\\quad';
         }
-        filas.push(_filaArm(etq, terms, ' = 0\\qquad(' + nk + ')'));
+        const par = [_filaArm(etq, terms, ' = 0\\qquad(' + nk + ')')];
         const tipo = esCero(p.val) ? '\\ \\text{(fuerza cero)}' : (p.val > 0 ? '\\ \\text{(T)}' : '\\ \\text{(C)}');
-        const citas = (p.citas || []).filter(id=>deQuien[id]).map(id=>'F_{' + nomB(barras.find(b=>b.id===id)) + '}\\text{ de }(' + deQuien[id][0] + ')');
-        filas.push('& F_{' + nomB(p.d.barra) + '} = ' + dec(p.val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo
-          + (citas.length ? '\\quad{\\footnotesize\\text{con } ' + citas.join(',\\ ') + '}' : ''));
+        par.push('& F_{' + nomB(p.d.barra) + '} = ' + dec(p.val,'f') + '\\ \\text{' + escLatex(uF) + '}' + tipo);
+        filas.push(par);
         deQuien[p.d.barra.id] = [nk];
       });
       vaciar();
+      tex += lineasEspejo(espejos);
+      (espejos || []).forEach(e=>{ deQuien[e.barra] = ['simetr\\\'ia']; });
     };
     if(modoCorte === 'auto'){
       const pasosAuto = buscarCortes();
@@ -559,8 +531,9 @@ function construirLatex(){
         cero.forEach(c=>{ previas[c.barra] = 0; });
         pasosAuto.forEach((paso, i)=>{
           const est = estrategiaPaso(paso, Object.assign({}, previas));
-          escribirPaso(est.items, est.datos, est.externas, paso.lado, 'Corte ' + (i+1));
+          escribirPaso(est.items, est.datos, est.externas, paso.lado, 'Corte ' + (i+1), paso.cortadas, null, paso.espejos);
           Object.keys(paso.sol.valores).forEach(id=>{ previas[id] = paso.sol.valores[id]; });
+          (paso.espejos || []).forEach(e=>{ previas[e.barra] = resultado.fuerzas[e.barra]; });
         });
         const faltan = barras.filter(b=>previas[b.id] === undefined);
         if(faltan.length)
@@ -575,7 +548,11 @@ function construirLatex(){
         tex += '\\noindent{\\footnotesize ' + (motivos[info.motivo] || 'El corte no es v\\\'alido.') + '}\\\\[4pt]\n';
       } else {
         const sol = resolverSeccion(info);
-        escribirPaso(sol.pasos, sol.datos, sol.externas, info.lado, 'Corte manual');
+        const esp = [], hallado = {};
+        sol.pasos.forEach(q=>{ hallado[q.d.barra.id] = true; });
+        if(simR.tipo) sol.pasos.forEach(q=>{ const e = simR.espejo[q.d.barra.id];
+          if(e && !hallado[e.otro]){ hallado[e.otro] = true; esp.push({barra:e.otro, de:q.d.barra.id, sg:e.sg}); } });
+        escribirPaso(sol.pasos, sol.datos, sol.externas, info.lado, 'Corte manual', info.cortadas, corte, esp);
       }
     }
   }
@@ -588,33 +565,18 @@ function construirLatex(){
     const f = resultado.fuerzas[b.id] || 0, L = Math.hypot(nb.x-na.x, nb.y-na.y);
     const nat = esCero(f) ? '---' : (f >= 0 ? 'T' : 'C');
     const util = (hayCap && !esCero(f)) ? dec((f >= 0 ? f/capT : Math.abs(f)/capC)*100,'f') + '\\%' : '';
-    const de = deQuien[b.id] ? _refsArm(deQuien[b.id].filter(q=>q !== 'fuerza cero')) || 'inspecci\\\'on' : '---';
+    const dq = deQuien[b.id];
+    const de = !dq ? '---' : (dq[0] === 'simetr\\\'ia' ? 'simetr\\\'ia' : (_refsArm(dq.filter(q=>q !== 'fuerza cero')) || 'inspecci\\\'on'));
     filasB += (i+1) + ' & $F_{' + nomB(b) + '}$ & ' + dec(L,'len') + ' & ' + dec(Math.abs(f),'f') + ' & ' + nat + ' & ' + de + (hayCap ? ' & ' + (util || '---') : '') + ' \\\\\n';
   });
-  tex += tablaCaption('Fuerza axial en cada barra, su naturaleza (T = tracci\\\'on, C = compresi\\\'on) y de qu\\\'e ecuaci\\\'on sali\\\'o'
-    + (hayCap ? '; \\\'ultima columna, aprovechamiento respecto de la capacidad admisible' : '') + '.');
+  tex += tablaCaption('Fuerza axial en cada barra.');
   tex += '{\\footnotesize\\begin{center}\\begin{tabular}{clcccl' + (hayCap ? 'c' : '') + '}\\hline\n'
     + 'N\\textsuperscript{o} & Barra & $L$ [' + escLatex(uL) + '] & $|F|$ [' + escLatex(uF) + '] & T/C & de' + (hayCap ? ' & Uso' : '') + ' \\\\\\hline\n'
     + filasB + '\\hline\\end{tabular}\\end{center}}\n';
-  tex += '\\noindent{\\footnotesize Comprobaci\\\'on: el \\\'ultimo nudo del recorrido no aporta inc\\\'ognitas nuevas, y sus dos '
-    + 'ecuaciones cierran con los valores hallados. Adem\\\'as, $\\sum F_x$ y $\\sum F_y$ de toda la armadura (cargas m\\\'as reacciones) dan '
-    + dec(sumFx + nodos.reduce((s,n)=>s + ((resultado.reacciones[n.id]||{}).rx||0),0),'f') + ' y '
-    + dec(sumFy + nodos.reduce((s,n)=>s + ((resultado.reacciones[n.id]||{}).ry||0),0),'f') + ' ' + escLatex(uF) + '.}\\\\[4pt]\n';
-  // Simetría como comprobación (propuesta D): cada pareja de barras espejo
-  // debe llevar la misma fuerza (o la opuesta, con carga antisimétrica).
-  if(sim.simetrica || sim.antisimetrica){
-    const pares = paresSimetricos(sim);
-    if(pares.length){
-      const sg = sim.simetrica ? 1 : -1;
-      const okTodo = pares.every(p=>Math.abs((resultado.fuerzas[p[0].id]||0) - sg*(resultado.fuerzas[p[1].id]||0)) < 1e-6*Math.max(1, escalaDelProblema()));
-      tex += '\\noindent{\\footnotesize\\textbf{Simetr\\\'ia.} '
-        + (sim.simetrica ? 'Las barras que se reflejan entre s\\\'i llevan la misma fuerza'
-                         : 'Con carga antisim\\\'etrica, las barras que se reflejan llevan fuerzas opuestas') + ': '
-        + pares.map(p=>'$F_{' + nomB(p[0]) + '} = ' + (sim.simetrica ? '' : '-') + 'F_{' + nomB(p[1]) + '} = ' + dec(resultado.fuerzas[p[0].id]||0,'f') + '$').join(', ')
-        + (okTodo ? ' $\\checkmark$' : ' (no coincide: revisa el modelo)') + '.}\\\\[4pt]\n';
-    }
-  }
-
+  // Comprobación global en una línea de ecuaciones, sin frase (2026-10-11).
+  tex += '\\[ \\textstyle\\sum F_x = ' + dec(sumFx + nodos.reduce((s,n)=>s + ((resultado.reacciones[n.id]||{}).rx||0),0),'f')
+    + '\\qquad \\sum F_y = ' + dec(sumFy + nodos.reduce((s,n)=>s + ((resultado.reacciones[n.id]||{}).ry||0),0),'f')
+    + '\\ \\text{' + escLatex(uF) + '}\\ \\checkmark \\]\n';
   // ══ 7. ¿Qué pasa si cambio la carga? ══
   const analizarConEscala = k => {
     const orig = nodos.map(n=>({n, fx:n.fx, fy:n.fy}));
@@ -628,9 +590,9 @@ function construirLatex(){
     tex += '\\seccion{7. \\textquestiondown Qu\\\'e pasa si cambio la carga?}\n';
     if(!resX2.error){
       tex += figura(tikzArmaduraCompleta({fuerzas:resultado.fuerzas, reacciones:resultado.reacciones, cotas:false, valores:true, factorCargas:1, escala:ESC_VARIANTE}),
-        ESC_VARIANTE, 'DCL con las cargas actuales: fuerza en cada barra.');
+        ESC_VARIANTE, 'Cargas actuales.');
       tex += figura(tikzArmaduraCompleta({fuerzas:resX2.fuerzas, reacciones:resX2.reacciones, cotas:false, valores:true, factorCargas:2, escala:ESC_VARIANTE}),
-        ESC_VARIANTE, 'DCL con todas las cargas duplicadas: mismas barras, fuerzas recalculadas.');
+        ESC_VARIANTE, 'Cargas duplicadas.');
     }
     let filasS = '', maxB = null, maxV = -1, cambia = 0;
     barras.forEach((b,i)=>{
@@ -640,17 +602,9 @@ function construirLatex(){
       if(Math.abs(base) > maxV){ maxV = Math.abs(base); maxB = b; }
       filasS += (i+1) + ' & $F_{' + nomB(b) + '}$ & ' + dec(base,'f') + ' & ' + (x2===null?'---':dec(x2,'f')) + ' & ' + (d2===null?'---':dec(d2,'f')) + ' \\\\\n';
     });
-    tex += tablaCaption('Fuerza en cada barra con la carga actual, con el doble y con la mitad (' + escLatex(uF) + ', signo seg\\\'un el convenio).');
+    tex += tablaCaption('Fuerza en cada barra (' + escLatex(uF) + ').');
     tex += '{\\footnotesize\\begin{center}\\begin{tabular}{clrrr}\\hline\n'
       + 'N\\textsuperscript{o} & Barra & Actual & Doble & Mitad \\\\\\hline\n' + filasS + '\\hline\\end{tabular}\\end{center}}\n';
-    tex += '\\noindent{\\footnotesize\\textbf{Comentario.} Las ecuaciones de equilibrio son lineales en las cargas: al '
-      + 'multiplicar \\textbf{todas} las cargas por un factor, cada fuerza de barra y cada reacci\\\'on se multiplican por '
-      + 'el mismo factor, y ninguna barra cambia de naturaleza'
-      + (cambia ? '' : ' (aqu\\\'i, ninguna)')
-      + '. La barra m\\\'as solicitada sigue siendo la misma ($F_{' + nomB(maxB) + '}$), y por eso el reparto de fuerzas '
-      + 'depende de la \\emph{geometr\\\'ia} y del \\emph{lugar} de las cargas, no de su magnitud. Cambiar solo una carga, '
-      + 'o su direcci\\\'on, s\\\'i altera el reparto: entonces algunas barras crecen m\\\'as que otras y alguna puede pasar de '
-      + 'tracci\\\'on a compresi\\\'on.}\\\\[4pt]\n';
   }
 
   // ══ 8. ¿Qué barra falla primero? ══
@@ -679,29 +633,19 @@ function construirLatex(){
       const enT = mejorLim > 0;
       filasF += nomN(n) + ' & ' + dec(mag0,'f') + ' & $F_{' + nomB(mejorB) + '}$ & ' + (enT ? 'T' : 'C') + ' & ' + dec(mejorP,'f') + ' & ' + dec(mejorP/mag0,'f') + ' \\\\\n';
       bloquesF += figura(tikzArmaduraCompleta({fuerzas:fF, reacciones:(rF.error ? resultado.reacciones : rF.reacciones), cotas:false, valores:true, factorCargas:(mejorP/mag0), resaltar:mejorB.id, escala:ESC_VARIANTE}),
-        ESC_VARIANTE, 'Carga de falla $P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ': $F_{' + nomB(mejorB) + '}$, resaltada, alcanza su capacidad en ' + (enT ? 'tracci\\\'on' : 'compresi\\\'on') + '.');
-      bloquesF += '\\noindent{\\footnotesize\\textbf{Por qu\\\'e falla esa barra.} Al subir la carga del nudo ' + nomN(n) + ', '
-        + 'la fuerza de todas las barras crece, pero no al mismo ritmo: la geometr\\\'ia manda m\\\'as carga a unas que a otras. '
-        + 'La primera en llegar a su l\\\'imite es $F_{' + nomB(mejorB) + '}$, que no es la que hoy lleva m\\\'as fuerza, sino la '
-        + 'que est\\\'a m\\\'as cerca de su tope y m\\\'as deprisa se acerca a \\\'el.}\\\\[3pt]\n'
-        + '\\noindent{\\footnotesize\\textbf{Por qu\\\'e no se puede subir m\\\'as.} La est\\\'atica dice cu\\\'anta fuerza lleva cada '
-        + 'barra, pero no si la aguanta: eso depende del material y del grosor de la barra. Pasada su capacidad, una barra '
-        + 'estirada se rompe, y una comprimida puede doblarse de golpe (\\emph{pandeo}) incluso antes. Por eso '
-        + '$P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ' es un techo: m\\\'as all\\\'a la estructura ya no sirve. Calcular '
-        + 'ese l\\\'imite ya es cosa de \\emph{Resistencia de Materiales}.}\\\\[4pt]\n';
+        ESC_VARIANTE, 'Carga de falla $P = ' + dec(mejorP,'f') + '$ ' + escLatex(uF) + ': $F_{' + nomB(mejorB) + '}$ en ' + (enT ? 'tracci\\\'on' : 'compresi\\\'on') + '.');
     });
     if(filasF){
       tex += '\\seccion{8. \\textquestiondown Qu\\\'e barra falla primero?}\n';
       tex += '\\noindent{\\footnotesize Capacidades admisibles: $F_{\\text{adm,T}} = ' + dec(capT,'f') + '$ y $F_{\\text{adm,C}} = ' + dec(capC,'f') + '$ ' + escLatex(uF) + '.}\\\\[3pt]\n';
-      tex += tablaCaption('Carga de falla: barra cr\\\'itica, modo (T/C), valor de la carga en el que la alcanza y factor respecto de la carga actual.');
+      tex += tablaCaption('Carga de falla.');
       tex += '{\\footnotesize\\begin{center}\\begin{tabular}{cccccc}\\hline\n'
         + 'Nudo & Carga actual & Barra cr\\\'itica & Modo & Falla en [' + escLatex(uF) + '] & Factor \\\\\\hline\n' + filasF + '\\hline\\end{tabular}\\end{center}}\n';
       tex += bloquesF;
     }
   }
 
-  // ══ Referencias y colofón ══
-  tex += bsaReferenciasLatex();
+  // ══ Colofón ══ (sin lista de referencias desde el 2026-10-11, decisión del profesor)
   // Colofón (R20): el mismo bloque en los cinco temas, desde core/comun.js.
   tex += colofonLatexBSA();
   tex += '\\end{document}\n';

@@ -23,7 +23,7 @@ function setModoCorte(m){
   if(h) h.textContent = (m==='auto')
     ? 'El programa busca por sí mismo la secuencia de cortes más corta y la muestra paso a paso.'
     : 'Traza tú el corte con la herramienta Corte y se resolverá esa sección.';
-  if(m==='manual') setTool('corte');
+  if(m==='manual'){ if(corte && corte.barras) corte = null; setTool('corte'); }
   if(resultado && metodo==='secciones') resolver();
 }
 
@@ -162,6 +162,9 @@ function buscarCortes(){
   const cero = miembrosCero().map(c=>c.barra);
   cero.forEach(id=>{ conocidas[id] = 0; });
 
+  // Con simetría (2026-10-11), cada barra hallada da también su espejo: los
+  // cortes que solo resolverían barras espejo ya no hacen falta.
+  const sim = simetriaResolucion(resultado);
   const pasos = [];
   let guard = 0;
   while(Object.keys(conocidas).length < barras.length && guard < 60){
@@ -190,6 +193,14 @@ function buscarCortes(){
     if(!mejor) break;
     Object.keys(mejor.sol.valores).forEach(id=>{
       conocidas[id] = mejor.sol.valores[id];
+    });
+    mejor.espejos = [];
+    if(sim.tipo) Object.keys(mejor.sol.valores).forEach(id=>{
+      const e = sim.espejo[id];
+      if(e && conocidas[e.otro] === undefined){
+        conocidas[e.otro] = e.sg*mejor.sol.valores[id];
+        mejor.espejos.push({barra:e.otro, de:+id, sg:e.sg});
+      }
     });
     pasos.push(mejor);
   }
@@ -220,7 +231,7 @@ function lineaDeCorte(paso){
   const L = Math.hypot(dx,dy) || 1;
   dx /= L; dy /= L;
   const ext = nodos.reduce((s,n)=>Math.max(s, Math.hypot(n.x-cx, n.y-cy)), 1)*1.35;
-  return {x1:cx-dx*ext, y1:cy-dy*ext, x2:cx+dx*ext, y2:cy+dy*ext};
+  return {x1:cx-dx*ext, y1:cy-dy*ext, x2:cx+dx*ext, y2:cy+dy*ext, barras:paso.cortadas.map(b=>b.id)};
 }
 
 // ── Resolución estratégica de un paso (una ecuación por incógnita) ──
@@ -272,10 +283,15 @@ function renderAutoCortes(){
 
   let h = '';
   const total = barras.length, porCortes = pasos.reduce((s,p)=>s+p.nuevas, 0);
+  const porSim = pasos.reduce((s,p)=>s + (p.espejos ? p.espejos.length : 0), 0);
   h += '<div class="verdict ok"><div class="verdict-t">Secuencia encontrada</div>'
     + '<b>' + porCortes + ' de ' + total + ' barras</b> con <b>' + pasos.length + ' corte(s)</b>'
+    + (porSim ? ', ' + porSim + ' por simetría' : '')
     + (cero.length ? ' (más ' + cero.length + ' de fuerza cero por inspección)' : '') + '.</div>';
 
+  // Una tarjeta por corte, como la de un nudo (2026-10-11, directriz del
+  // profesor): ecuaciones a la izquierda, dos líneas cada una, y la porción a la
+  // derecha con el corte curvo.
   pasos.forEach((paso, i)=>{
     const previas = Object.assign({}, resueltas);
     const est = estrategiaPaso(paso, previas);
@@ -283,46 +299,13 @@ function renderAutoCortes(){
     const info = {lado:paso.lado, cortadas:paso.cortadas,
                   incog:paso.sol.incog, cero:paso.cortadas.filter(b=>previas[b.id] !== undefined)};
     const nomLado = paso.lado.map(id=>nodos.find(n=>n.id===id).nombre).sort().join(', ');
-    const nomInc = paso.sol.incog.map(b=>nombreBarra(b)).join(', ');
-
-    h += '<div class="joint-card"><div class="joint-h"><div class="joint-n">' + (i+1) + '</div>'
-      + 'Corte ' + (i+1) + ' — resuelve <b>' + nomInc + '</b>'
-      + '<span style="color:var(--muted);font-weight:500;font-size:11px">porción ' + nomLado + '</span></div>';
-    h += '<div style="margin-bottom:8px">' + svgPorcion(info, {datos:est.datos, externas:est.externas,
-          pasos:est.items.map(x=>({tipo:x.tipo, centro:x.centro, val:x.val}))}) + '</div>';
-
-    est.items.forEach(p=>{
-      const d = p.d;
-      if(p.tipo === 'momento'){
-        const nomC = p.centro.nombre || 'O';
-        h += '<div class="hint-sm" style="margin:6px 0 2px">Momentos respecto de ' + nomC + ' (' + dec(p.centro.x,'len')
-          + ' ; ' + dec(p.centro.y,'len') + ') ' + unitLen
-          + (p.otros.length ? ', por donde pasan ' + p.otros.join(' y ') : '') + ':</div>'
-          + '<div class="eq-row"><div class="eq-body">'
-          + kx('\\sum M_{' + nomC + '} = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
-               + p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('') + ' = 0')
-          + '</div></div>';
-      } else {
-        h += '<div class="hint-sm" style="margin:6px 0 2px">Suma de fuerzas en ' + p.eje
-          + (p.citas && p.citas.length ? ', con las barras ya halladas en este corte sustituidas por su valor' : '') + ':</div>'
-          + '<div class="eq-row"><div class="eq-body">'
-          + kx('\\sum F_' + p.eje + ' = 0:\\quad ' + fmtNum2(p.coef) + '\\,F_{' + d.nombre + '}'
-               + p.detalle.map(x=>(x.val>=0?' + ':' - ')+dec(Math.abs(x.val),'f')).join('') + ' = 0')
-          + '</div></div>';
-      }
-      const real = resultado.fuerzas[d.barra.id];
-      const tipo = esCero(p.val) ? '\\text{(fuerza cero)}'
-                 : (p.val > 0 ? '\\text{(tracción)}' : '\\text{(compresión)}');
-      h += '<div class="eq-row"><div class="eq-body">'
-        + kx('F_{' + d.nombre + '} = ' + dec(Math.abs(p.val),'f') + '\\;\\text{' + unitFor + '}\\;' + tipo)
-        + '</div></div>';
-      const bien = Math.abs(p.val - real) < Math.max(1e-6, Math.abs(real)*1e-6);
-      h += '<div class="hint-sm" style="color:' + (bien?'#15803d':'#c0392b') + '">'
-        + (bien ? '✓ Verificado contra la solución global.'
-                : '⚠ Discrepa de la solución global (' + dec(Math.abs(real),'f') + ').') + '</div>';
-    });
-    h += '</div>';
+    h += '<div class="joint-card"><div class="joint-h"><div class="joint-n">' + (i+1) + '</div>Corte ' + (i+1)
+      + '<span style="color:var(--muted);font-weight:500;font-size:11px">porción ' + nomLado + '</span></div>'
+      + '<div class="joint-body corte-body"><div>' + ecuacionesCorteHtml(est.items, paso.espejos) + '</div>'
+      + '<div>' + svgPorcion(info, {datos:est.datos, externas:est.externas,
+          pasos:est.items.map(x=>({tipo:x.tipo, centro:x.centro, val:x.val}))}) + '</div></div></div>';
     Object.keys(paso.sol.valores).forEach(id=>{ resueltas[id] = paso.sol.valores[id]; });
+    (paso.espejos || []).forEach(e=>{ resueltas[e.barra] = resultado.fuerzas[e.barra]; });
   });
 
   const faltan = barras.filter(b=>resueltas[b.id] === undefined);
