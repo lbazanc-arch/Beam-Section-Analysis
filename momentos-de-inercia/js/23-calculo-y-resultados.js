@@ -571,7 +571,7 @@ function renderResults(res, u4, u2, u1){
         <svg viewBox="0 0 96 96" style="width:84px;height:84px;flex:none"><line x1="8" y1="48" x2="88" y2="48" stroke="#66727e" stroke-width="1.2"/><line x1="48" y1="8" x2="48" y2="88" stroke="#66727e" stroke-width="1.2"/>
           <text x="66" y="30" font-size="14" font-weight="800" fill="#0d3a8f" text-anchor="middle">+</text><text x="30" y="30" font-size="14" font-weight="800" fill="#c0392b" text-anchor="middle">−</text>
           <text x="30" y="76" font-size="14" font-weight="800" fill="#0d3a8f" text-anchor="middle">+</text><text x="66" y="76" font-size="14" font-weight="800" fill="#c0392b" text-anchor="middle">−</text>
-          <text x="90" y="45" font-size="8" fill="#66727e">x</text><text x="51" y="12" font-size="8" fill="#66727e">y</text></svg>
+          <text x="89" y="44" font-size="11" fill="#66727e">x</text><text x="52" y="13" font-size="11" fill="#66727e">y</text></svg>
         <div style="flex:1;min-width:220px;font-size:11.5px">P<sub>xy</sub> &gt; 0 con material en los cuadrantes 1 y 3; &lt; 0 en 2 y 4; 0 con un eje de simetría.
           Aquí P<sub>xyG</sub> = ${f(pxySec)} ${u4}${pxySec === 0 ? ': hay simetría' : (pxySec > 0 ? ': pesa más el material de los cuadrantes 1 y 3' : ': pesa más el material de los cuadrantes 2 y 4')}.</div>
       </div>

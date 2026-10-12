@@ -101,7 +101,9 @@ function generarPDFLatex(){
 function croquisFigura(fig, idx){
   const def=FIG_DEFS[fig.type]; if(!def) return '';
   let b; try{ b=def.bounds(fig.dims); }catch(e){ return ''; }
-  const W=190, H=150, M=30;                       // lienzo y margen para cotas
+  // Lienzo y márgenes: las cotas van abajo y a la derecha, así que ahí se deja
+  // sitio; arriba y a la izquierda, solo aire.
+  const W=190, H=150, ML=12, MR=34, MT=12, MB=30;
 
   // contorno de la figura mediante muestreo del trazado
   let path='';
@@ -155,9 +157,13 @@ function croquisFigura(fig, idx){
     };
   }
   const bw=Math.max(b.right-b.left,1e-9), bh=Math.max(b.top-b.bottom,1e-9);
-  const s=Math.min((W-2*M)/bw, (H-2*M)/bh);
-  const px = x => M + (x-b.left)*s;
-  const py = y => H-M - (y-b.bottom)*s;           // Y hacia arriba
+  const s=Math.min((W-ML-MR)/bw, (H-MT-MB)/bh);
+  // La figura se CENTRA en su zona y las cotas van pegadas a ella: con la figura
+  // arrimada a la izquierda y la cota vertical fija en el borde del lienzo, un
+  // rectángulo alto quedaba con la cota lejos, flotando (2026-10-11).
+  const x0 = ML + ((W-ML-MR) - bw*s)/2, y0 = H-MB - ((H-MT-MB) - bh*s)/2;
+  const px = x => x0 + (x-b.left)*s;
+  const py = y => y0 - (y-b.bottom)*s;            // Y hacia arriba
 
   cmds.forEach(c=>{
     if(c[0]==='Z'){ path+='Z'; return; }
@@ -191,15 +197,19 @@ function croquisFigura(fig, idx){
             stroke="${col}" stroke-width=".8" stroke-dasharray="3 2" opacity=".55"/>
       <circle cx="${gx}" cy="${gy}" r="3.4" fill="#e2aa1b" stroke="#fff" stroke-width="1"/>
       <text x="${gx+6}" y="${gy-5}" font-size="9" font-weight="700" fill="#b8860c">C${idx+1}</text>
-      <line x1="${px(b.left)}" y1="${H-16}" x2="${px(b.right)}" y2="${H-16}" stroke="#64748b" stroke-width=".9"/>
-      <line x1="${px(b.left)}" y1="${H-20}" x2="${px(b.left)}" y2="${H-12}" stroke="#64748b" stroke-width=".9"/>
-      <line x1="${px(b.right)}" y1="${H-20}" x2="${px(b.right)}" y2="${H-12}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${(px(b.left)+px(b.right))/2}" y="${H-6}" font-size="8.5" fill="#475569" text-anchor="middle">${decStr(bw,'len')} ${unit}</text>
-      <line x1="${W-16}" y1="${py(b.bottom)}" x2="${W-16}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
-      <line x1="${W-20}" y1="${py(b.bottom)}" x2="${W-12}" y2="${py(b.bottom)}" stroke="#64748b" stroke-width=".9"/>
-      <line x1="${W-20}" y1="${py(b.top)}" x2="${W-12}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
-      <text x="${W-8}" y="${(py(b.bottom)+py(b.top))/2}" font-size="8.5" fill="#475569"
-            text-anchor="middle" transform="rotate(-90 ${W-8} ${(py(b.bottom)+py(b.top))/2})">${decStr(bh,'len')} ${unit}</text>
+      <line x1="${px(b.left)}" y1="${py(b.bottom)+3}" x2="${px(b.left)}" y2="${py(b.bottom)+18}" stroke="#94a3b8" stroke-width=".6" stroke-dasharray="2 2"/>
+      <line x1="${px(b.right)}" y1="${py(b.bottom)+3}" x2="${px(b.right)}" y2="${py(b.bottom)+18}" stroke="#94a3b8" stroke-width=".6" stroke-dasharray="2 2"/>
+      <line x1="${px(b.left)}" y1="${py(b.bottom)+14}" x2="${px(b.right)}" y2="${py(b.bottom)+14}" stroke="#64748b" stroke-width=".9"/>
+      <line x1="${px(b.left)}" y1="${py(b.bottom)+10}" x2="${px(b.left)}" y2="${py(b.bottom)+18}" stroke="#64748b" stroke-width=".9"/>
+      <line x1="${px(b.right)}" y1="${py(b.bottom)+10}" x2="${px(b.right)}" y2="${py(b.bottom)+18}" stroke="#64748b" stroke-width=".9"/>
+      <text x="${(px(b.left)+px(b.right))/2}" y="${py(b.bottom)+26}" font-size="8.5" fill="#475569" text-anchor="middle">${decStr(bw,'len')} ${unit}</text>
+      <line x1="${px(b.right)+3}" y1="${py(b.bottom)}" x2="${px(b.right)+18}" y2="${py(b.bottom)}" stroke="#94a3b8" stroke-width=".6" stroke-dasharray="2 2"/>
+      <line x1="${px(b.right)+3}" y1="${py(b.top)}" x2="${px(b.right)+18}" y2="${py(b.top)}" stroke="#94a3b8" stroke-width=".6" stroke-dasharray="2 2"/>
+      <line x1="${px(b.right)+14}" y1="${py(b.bottom)}" x2="${px(b.right)+14}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
+      <line x1="${px(b.right)+10}" y1="${py(b.bottom)}" x2="${px(b.right)+18}" y2="${py(b.bottom)}" stroke="#64748b" stroke-width=".9"/>
+      <line x1="${px(b.right)+10}" y1="${py(b.top)}" x2="${px(b.right)+18}" y2="${py(b.top)}" stroke="#64748b" stroke-width=".9"/>
+      <text x="${px(b.right)+24}" y="${(py(b.bottom)+py(b.top))/2}" font-size="8.5" fill="#475569"
+            text-anchor="middle" transform="rotate(-90 ${px(b.right)+24} ${(py(b.bottom)+py(b.top))/2})">${decStr(bh,'len')} ${unit}</text>
     </svg>
     <div class="croq-d">
       <span>x̃ = ${decStr(fig.cx,'len')} ${unit}</span>

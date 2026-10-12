@@ -706,6 +706,7 @@ function construirLatex(){
     + '\\usepackage[T1]{fontenc}\n'
     + '\\usepackage[a4paper,margin=2.0cm]{geometry}\n'
     + '\\usepackage{amsmath,amssymb}\n'
+    + '\\usepackage{needspace}\n'
     + '\\usepackage{tikz}\n'
     + '\\usetikzlibrary{patterns,arrows.meta,calc}\n'
     + '\\usepackage{xcolor}\n\n'
@@ -736,7 +737,7 @@ function construirLatex(){
     + '\\newcommand{\\sen}{\\operatorname{sen}}\n'
     + '\\pagestyle{bsa}\n\n'
     + '\\newcommand{\\seccion}[1]{%\n'
-    + '  \\par\\addvspace{10pt}\\penalty-250\n'
+    + '  \\par\\addvspace{10pt}\\needspace{9\\baselineskip}\\penalty-250\n'
     + '  \\noindent{\\large\\bfseries\\color{bsaAcc}#1}\\par\\nopagebreak\n'
     + '  \\vspace{3pt}\\nopagebreak\\hrule\\nopagebreak\\vspace{7pt}\\nopagebreak}\n'
     + '\\newcommand{\\subpaso}[1]{\\par\\addvspace{6pt}\\noindent{\\bfseries\\color{bsaAcc2}#1}\\par\\nopagebreak\\vspace{3pt}\\nopagebreak}\n'
@@ -770,7 +771,9 @@ function construirLatex(){
       + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCaption = txt => { tablaN++;
     return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
-  const porque = (clave, txt) => _primeraVezPres(clave) ? '\\porque{' + txt + '}\n' : '';
+  // Sin «¿Por qué?» ni explicaciones de concepto (2026-10-11, directriz del profesor):
+  // el ayudante se conserva porque lo reciben 10- y 13-, pero ya no escribe nada.
+  const porque = () => '';
   const nombreZona = z => 'zona ' + z + ' (' + (z===1 ? 'izquierda' : 'derecha') + ')';
 
   let tex = preambulo;
@@ -782,7 +785,6 @@ function construirLatex(){
     // El problema inverso (13-), si se eligió un nivel: va antes de la resolución.
     if(typeof latexInverso === 'function') tex += latexInverso({lamina, tablaCaption, porque});
     tex += latexPresas({lamina, tablaCaption, porque}, 1);
-    tex += bsaReferenciasLatex();
     tex += colofonLatexBSA();
     tex += '\n\\end{document}\n';
     return tex;
@@ -797,25 +799,14 @@ function construirLatex(){
     tex += '\\begin{center}\n\\bsaFiguraLeyenda{\\begin{tikzpicture}\n' + tkpCompuerta({incognita:(typeof incognitaFiguraInv === 'function') ? incognitaFiguraInv() : null}) + '\\end{tikzpicture}}{' + leyendaTramosTex() + '}\\par\\nopagebreak\\vspace{4pt}\n'
       + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} Compuerta y l\\\'iquido. $b = ' + nl(b) + '$' + UL + '; cotas en ' + uL + '.}\n\\end{center}\n\\vspace{4pt}\n';
   }
-  const apoyosTxt = r.inc.map(u=>'$' + simbIncognita(u) + '$ (' + descIncognita(u) + ' en ' + escLatex(u.n.nombre) + ')');
-  tex += '\\noindent\\textbf{Objetivo.} Hallar la resultante del l\\\'iquido sobre cada tramo mojado de la compuerta, '
-    + 'su punto de aplicaci\\\'on (el centro de presi\\\'on) y, con ellas, las inc\\\'ognitas del equilibrio: '
-    + apoyosTxt.join(', ') + '.\\\\[3pt]\n';
-  tex += porque('presion', 'En un l\\\'iquido en reposo la presi\\\'on manom\\\'etrica crece con la profundidad, $p = \\gamma h$ '
-    + '(ley de Pascal; Hibbeler, 2027), y act\\\'ua siempre \\textbf{perpendicular} a la superficie que la recibe. '
-    + 'Por eso una compuerta inclinada o curva recibe la misma $p$ que una vertical a igual profundidad: lo que cambia es la direcci\\\'on. '
-    + (dosLados ? 'Con l\\\'iquido a los dos lados, cada zona empuja sobre su cara; son dos fuerzas distintas y se tratan por separado. ' : '')
-    + (hayCapas ? 'Con varias capas, la presi\\\'on se acumula capa a capa, $p = \\sum \\gamma_i h_i$: cada capa apoya su peso sobre la de abajo.' : ''));
-  tex += '\\noindent\\textbf{Procedimiento.} (1) Presi\\\'on en los puntos clave de cada tramo mojado; (2) resultante de cada tramo y su centro de presi\\\'on' + (r.resultante ? ', y la resultante \\\'unica de todo el l\\\'iquido' : '') + '; '
-    + '(3) diagrama de cuerpo libre de la compuerta; (4) ecuaciones de equilibrio en el orden en que se despejan; (5) comprobaciones.\\\\[4pt]\n';
-  tex += '\\noindent\\textbf{Convenio.} $x$ hacia la derecha, $y$ hacia arriba, momentos positivos en sentido antihorario. Las profundidades $h$ se miden desde la superficie libre de la zona correspondiente.\n';
 
+
+  tex += '\\noindent{\\footnotesize Convenio: $x$ a la derecha, $y$ hacia arriba, momentos antihorarios positivos; $h$ desde la superficie libre.}\n';
   // El problema inverso (13-), si se eligió un nivel: tras el planteamiento.
   if(typeof latexInverso === 'function') tex += latexInverso({lamina, tablaCaption, porque});
 
   // ═══ 2. Paso 1: presiones ═══
   tex += '\\seccion{2. Paso 1 --- Presi\\\'on en los puntos clave}\n';
-  tex += '\\noindent En cada extremo mojado de cada tramo, $p = \\gamma h$' + (hayCapas ? ' sumando las capas que quedan encima' : '') + '. La presi\\\'on es siempre positiva: el sentido lo lleva la fuerza, no el n\\\'umero.\\\\[3pt]\n';
   tex += tablaCaption('Presi\\\'on en los extremos de la parte mojada de cada tramo, en ' + uPresLatex() + '.');
   tex += '\\begin{tablacentrada}\\begin{tabular}{lllrr}\n\\hline\n'
     + 'Fuerza & Tramo \\textperiodcentered\\ zona & Punto & $h$ (' + uL + ') & $p$ \\\\\n\\hline\n';
@@ -854,7 +845,7 @@ function construirLatex(){
       : 'Bloque de presiones de $' + c.nombre + '$ (' + (d.bandas.some(bd=>bd.Fr > 1e-12) && d.bandas.some(bd=>bd.Ft > 1e-12) ? '$\\square$ + $\\triangle$' : (d.bandas.some(bd=>bd.Ft > 1e-12) ? '$\\triangle$' : '$\\square$')) + '). Cotas en ' + uL + '; $p$ en ' + escLatex(uPres()) + '.'), 0.95);
     if(d.tipo === 'recto'){
       const origen = d.T.nombre ? 'el nudo ' + escLatex(d.T.nombre) : 'el corte con la superficie libre';
-      tex += '\\noindent Placa ' + (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca-90) < 1e-6 ? 'vertical' : 'inclinada $' + dec(d.angPlaca,'ang') + '^\\circ$')) + ', longitud mojada $L = ' + nl(d.L) + '$' + UL + ', ancho $b = ' + nl(b) + '$' + UL + '. Las distancias $s$ se miden sobre la placa desde ' + origen + '.\n';
+      tex += '\\noindent Placa ' + (d.horizontal ? 'horizontal' : (Math.abs(d.angPlaca-90) < 1e-6 ? 'vertical' : 'inclinada $' + dec(d.angPlaca,'ang') + '^\\circ$')) + ', longitud mojada $L = ' + nl(d.L) + '$' + UL + ', ancho $b = ' + nl(b) + '$' + UL + '; $s$ desde ' + origen + '.\n';
       const filas = [];
       d.bandas.forEach((bd,i)=>{
         // Con varias capas, el rótulo de la capa va en SU PROPIA fila. Puesto
@@ -878,12 +869,14 @@ function construirLatex(){
       });
       const partes = [];
       d.bandas.forEach(bd=>{ if(bd.Fr>1e-12) partes.push({F:bd.Fr, s:bd.s0+bd.sR}); if(bd.Ft>1e-12) partes.push({F:bd.Ft, s:bd.s0+bd.sT}); });
+      if(partes.length > 1){
       filas.push(c.nombre + ' &= ' + partes.map(p=>f(p.F)).join(' + ') + ' = ' + f(d.F) + UF);
       // La fórmula y su sustitución, en dos filas: con varias capas o con más
       // decimales, el cociente con todos los términos del numerador no cabe de
       // una tirada y se salía del papel.
       filas.push('s_P &= \\frac{\\sum F_i\\,s_i}{' + c.nombre + '}');
       filas.push('&= \\frac{' + partes.map(p=>f(p.F) + '(' + nl(p.s) + ')').join(' + ') + '}{' + f(d.F) + '} = ' + nl(d.sP) + UL);
+      }
       tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
       tex += '\\resultado{$' + c.nombre + ' = ' + f(d.F) + '$' + UF + ', perpendicular a la placa, aplicada en $P$ a $s_P = ' + nl(d.sP) + '$' + UL + ' de ' + origen + ', es decir a $z_P = ' + nl(d.zP) + '$' + UL + ' bajo la superficie libre'
         + (d.gzA ? '. Comprobaci\\\'on: $\\gamma\\,\\bar z\\,A = ' + f(d.gzA.g) + '\\,(' + nl(d.gzA.zBar) + ')(' + nl(d.gzA.A) + ') = ' + f(d.gzA.F) + '$' + UF + (d.horizontal ? '' : ' y $z_P = ' + nl(d.zP) + ' > \\bar z = ' + nl(d.gzA.zBar) + '$') : '') + '.}\n';
@@ -906,8 +899,6 @@ function construirLatex(){
       filas.push('F_v &= b\\sum\\gamma_i A_i = ' + nl(b) + '\\,(' + d.areas.filter(a=>a.A>1e-12).map(a=>f(a.g) + '\\cdot' + nl(a.A)).join(' + ') + ') = ' + f(Math.abs(d.FvBloque)) + UF + '\\ (\\text{hacia ' + d.sentidoV + '})');
       filas.push(c.nombre + ' &= \\sqrt{F_h^2 + F_v^2} = \\sqrt{' + f(Math.abs(d.Fh)) + '^2 + ' + f(Math.abs(d.Fv)) + '^2} = ' + f(d.F) + UF + ',\\qquad \\tan\\theta = \\frac{F_v}{F_h}\\ \\Rightarrow\\ \\theta = ' + dec(d.theta,'ang') + '^\\circ');
       tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-      if(d.segmento) tex += '{\\footnotesize El segmento circular es el que queda entre la cuerda mojada ($' + nl(d.cuerda) + '$' + UL + ') y el arco, con $\\varphi = ' + dec(d.segmento.phi*180/Math.PI,'ang') + '^\\circ$.}\\\\[2pt]\n';
-      if(!d.monoX || !d.monoY) tex += '{\\footnotesize La parte mojada se repliega sobre s\\\'i misma en horizontal o en vertical: las componentes se han integrado directamente sobre el arco.}\\\\[2pt]\n';
       tex += '\\resultado{$' + c.nombre + ' = ' + f(d.F) + '$' + UF + ' a $' + dec(d.theta,'ang') + '^\\circ$ de la horizontal, por el centro del arco; corta la placa en $P$, a $z_P = ' + nl(d.zP) + '$' + UL + ' bajo la superficie libre.}\n';
     }
   });
@@ -921,11 +912,9 @@ function construirLatex(){
     tex += '$' + c.nombre + '$ & ' + escLatex(nomTramo(c.t)) + ' \\textperiodcentered\\ ' + c.z + ' & ' + nl(c.len) + ' & ' + f(c.pMax) + ' & ' + f(c.F) + ' & ' + nl(c.zP) + ' & ' + f(c.Fx) + ' & ' + f(c.Fy) + ' & ' + iconoSentidoTex(c.dir.x, c.dir.y) + ' \\\\\n';
   });
   tex += '\\hline\n\\multicolumn{6}{l}{$\\Sigma$ del l\\\'iquido} & ' + f(SX) + ' & ' + f(SY) + ' & \\\\\n\\hline\n\\end{tabular}\\end{tablacentrada}\n';
-  tex += '{\\footnotesize El programa integra la presi\\\'on punto a punto sobre cada tramo; el desarrollo de este paso reproduce esa integral.}\\\\[2pt]\n';
   // Peso propio de la compuerta: W = q b L en el centroide de cada tramo
   if(r.pesos && r.pesos.length){
     tex += '\\subpaso{Peso propio de la compuerta}\n';
-    tex += '\\noindent{\\footnotesize Cada tramo pesa $W = q\\,b\\,L$, vertical y hacia abajo, aplicado en el centroide $G$ de su l\\\'inea: el punto medio si es recto; en un arco de semi\\\'angulo $\\alpha$, a $\\bar r = R\\,\\sen\\alpha/\\alpha$ del centro, sobre la bisectriz.}\\\\[2pt]\n';
     const filasW = r.pesos.map(c=> c.nombre + ' &= q\\,b\\,L = ' + f(c.q) + '\\,(' + nl(c.b) + ')(' + nl(c.len) + ') = ' + f(c.F) + UF
       + '\\quad\\text{en } G_{' + c.k.slice(1) + '} = (' + nl(c.G.x) + ';\\ ' + nl(c.G.y) + ')'
       + (c.G.arc ? ',\\quad \\bar r = ' + nl(c.G.arc.R) + '\\,\\sen ' + dec(c.G.alfa*180/Math.PI,'ang') + '^\\circ/' + c.G.alfa.toFixed(4) + ' = ' + nl(c.G.rbar) + UL : ''));
@@ -976,7 +965,6 @@ function construirLatex(){
           filas.push('s &= \\frac{|\\sum M_{' + N + '}|}{R_n} = \\frac{' + f(Math.abs(ru.MN)) + '}{' + f(Math.abs(ru.Rn)) + '} = ' + nl(ru.s) + UL);
           tex += lamina(esquemaResultanteTikZ(r, false, letraR), 'Resultante \\\'unica $R$ en $P_R$. Cotas en ' + uL + '.' + (inclinada ? ' $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$.' : ''));
           tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-          tex += '{\\footnotesize $\\beta$ es el \\\'angulo agudo entre $R$ y el tramo ' + tr + '; los brazos se miden desde ' + N + ', perpendiculares a cada fuerza.}\\\\[2pt]\n';
           tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$ de la ' + ejeAng : '')
             + '. Su l\\\'inea de acci\\\'on corta el tramo ' + tr + ' en $P_R$, a $s = ' + nl(ru.s) + '$' + UL + ' de ' + N
             + (ru.zR !== null ? ' y a $z_R = ' + nl(ru.zR) + '$' + UL + ' bajo la superficie libre' : '') + '.}\n';
@@ -999,8 +987,6 @@ function construirLatex(){
 
   // ═══ 4. Paso 3: DCL ═══
   tex += '\\seccion{4. Paso 3 --- Diagrama de cuerpo libre de la compuerta}\n';
-  tex += '\\noindent Sobre la compuerta act\\\'uan las resultantes del l\\\'iquido, cada una en su centro de presi\\\'on, ' + (r.pesos && r.pesos.length ? 'el peso propio de cada tramo en su centroide ' : '') + 'y las inc\\\'ognitas de los apoyos'
-    + (r.inc.some(u=>u.tipo==='T') ? ' y del tope' : '') + '. Cada fuerza se dibuja en su sentido real y se rotula solo con su nombre; los valores est\\\'an en las tablas.\n';
   const letras = Object.values(_LETRAS_ANG);
   const listaAng = letras.map(e=>'$' + e.letra + ' = ' + dec(e.grados,'ang') + '^\\circ$');
   tex += lamina(tkpDCL(r, null), 'DCL de la compuerta.' + (listaAng.length ? ' ' + listaAng.join(', ') + '.' : ''));
@@ -1010,11 +996,6 @@ function construirLatex(){
   // ═══ 5. Paso 4: equilibrio ═══
   tex += '\\seccion{5. Paso 4 --- Ecuaciones de equilibrio}\n';
   const plan = r.plan;
-  tex += '\\noindent Hay ' + r.inc.length + ' inc\\\'ognita' + (r.inc.length>1?'s':'') + ' y ' + r.diag.eq + ' ecuaci' + (r.diag.eq>1?'ones':'\\\'on')
-    + (r.diag.rot ? ' (tres del conjunto y una por cada r\\\'otula, tomando momentos en ella con las fuerzas de un solo lado)' : '')
-    + ': el problema es est\\\'aticamente determinado. Los momentos se toman respecto de \\textbf{' + escLatex(plan.centro.nombre) + '}'
-    + (plan.ecs[0].us.length < r.inc.length ? ', por donde pasan las l\\\'ineas de acci\\\'on de ' + (r.inc.length - plan.ecs[0].us.length) + ' inc\\\'ognita' + ((r.inc.length - plan.ecs[0].us.length)>1?'s':'') + ', que as\\\'i no aparecen' : '')
-    + '. Cada ecuaci\\\'on se escribe con su convenio, se sustituye y se despeja la inc\\\'ognita que deja sola; las ya halladas se citan por su n\\\'umero.\n';
   const cita = ns => ns.length === 1 ? '(' + ns[0] + ')' : '(' + ns.slice(0,-1).join('), (') + ') y (' + ns[ns.length-1] + ')';
   const deQuien = {};
   const terminos = (q, clave) => {
@@ -1046,16 +1027,13 @@ function construirLatex(){
         tex += lamina(tkpBrazos(r, ec, ec.tipo === 'Mrot' ? {tramos: ec.lado.tramos} : null), 'Brazos de $\\sum M_{' + escLatex(ec.centro.nombre) + '}$.', 0.9);
       }
       if(paso.tipo === 'comprobacion'){ deQuien['comp' + paso.num] = paso; return; }
-      const previas = paso.previas.map(j=>deQuien[j]).filter(Boolean);
-      const filas = [];
-      filas.push(_filaPres(q.icono + ec.nombre.replace(' = 0','') + ':', terminos(q), ' = 0\\qquad(' + paso.num + ')', 4));
+      // Dos líneas por ecuación (2026-10-11, directriz del profesor): la suma con
+      // los números (fuerza × brazo en ΣM) igualada a cero y la incógnita con su valor.
       const sus = terminosSus(q, paso);
-      if(sus.length) filas.push(_filaPres('', sus, ' = 0' + (previas.length ? '\\qquad{\\footnotesize\\text{con ' + cita(previas) + '}}' : ''), 4));
       const dp = q.despeje;
-      const factor = dp.factor === '1' ? '' : '\\,' + dp.factor;
-      filas.push(' & ' + dp.simb + factor + ' = ' + f(-dp.sumaConocida) + '\\ \\Rightarrow\\ \\boxed{' + dp.simb + ' = ' + f(dp.valor) + UF + '}');
+      const filas = [_filaPres(q.icono + ec.nombre.replace(' = 0','') + ':', sus.length ? sus : terminos(q), ' = 0\\qquad(' + paso.num + ')', 4),
+                     ' & ' + dp.simb + ' = ' + f(dp.valor) + UF];
       tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-      if(dp.valor < 0 && Number(dec(dp.valor, 'f')) !== 0) tex += '{\\footnotesize El signo negativo indica que $' + dp.simb + '$ act\\\'ua en sentido contrario al supuesto' + (r.inc[paso.j].tipo === 'T' ? ': el tope no puede tirar, la compuerta se separa de \\\'el' : '') + '.}\\\\[2pt]\n';
       deQuien[paso.j] = paso.num;
     } else if(paso.tipo === 'sistema'){
       const filas = [];
@@ -1064,8 +1042,7 @@ function construirLatex(){
         filas.push(_filaPres(q.icono + q.ec.nombre.replace(' = 0','') + ':', terminosSus(q, {tipo:'sistema', libres:paso.libres}), ' = 0\\qquad(' + g.num + ')', 4));
       });
       tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-      tex += '\\noindent{\\footnotesize Las ecuaciones ' + cita(paso.grupo.map(g=>g.num)) + ' no se despejan por separado: forman un sistema. Resolvi\\\'endolo:}\\\\[2pt]\n';
-      tex += '$$' + paso.libres.map(j=>'\\boxed{' + simbIncognita(r.inc[j]) + ' = ' + f(r.val[j]) + UF + '}').join('\\qquad') + '$$\n';
+      tex += '$$' + paso.libres.map(j=>simbIncognita(r.inc[j]) + ' = ' + f(r.val[j]) + UF).join('\\qquad ') + '$$\n';
       paso.libres.forEach(j=>{ deQuien[j] = paso.grupo[paso.grupo.length-1].num; });
     }
   });
@@ -1079,7 +1056,7 @@ function construirLatex(){
       const dirTx = ((u.tipo === 'R' || u.tipo === 'T') && ag.grados >= 1e-6)
         ? ' (a ' + dec(ag.grados,'ang') + '$^\\circ$ de la ' + (ag.desdeV ? 'vertical' : 'horizontal') + ')' : '';
       return '$' + simbIncognita(u) + ' = ' + f(Math.abs(v)) + '$' + UF + (nulo ? '' : ' ' + iconoSentidoTex(sr.x, sr.y)) + dirTx;
-    }).join(', ') + '. La flecha es el sentido real; el valor, su magnitud.}\n';
+    }).join(', ') + '.}\n';
   if(r.topesSueltos.length)
     tex += '\\veredicto{\\textbf{Tope que no trabaja.} El equilibrio exige que ' + r.topesSueltos.map(u=>'$' + simbIncognita(u) + '$').join(', ') + ' tire de la compuerta, y un tope solo puede empujar: \\textbf{la compuerta se abre} (se separa del tope). Para que se mantenga cerrada hace falta otro apoyo o cambiar los niveles.}\n';
 
@@ -1091,28 +1068,23 @@ function construirLatex(){
       const q = ecuacionDelPaso(r, p);
       const sus = terminosSus(q, p);
       let suma = 0; sus.forEach(t=>{ suma += t.v; });
-      tex += '\\noindent La ecuaci\\\'on que no se us\\\'o para despejar debe cumplirse con los valores hallados:\n';
       tex += '\\begin{align*}\n' + _filaPres(q.icono + q.ec.nombre.replace(' = 0','') + ':', sus, ' = ' + (Math.abs(suma) < 1e-6*r.residuo.ref ? '0' : f(suma)) + '\\ \\checkmark', 4) + '\n\\end{align*}\n';
     });
   }
   const rs = r.residuo;
   const cero = v => (Math.abs(v) < 1e-6*rs.ref) ? '0' : f(v);
-  tex += '\\noindent Con todas las fuerzas (l\\\'iquido' + (r.pesos && r.pesos.length ? ', peso propio' : '') + ', reacciones' + (r.inc.some(u=>u.tipo==='T') ? ' y tope' : '') + '):\n'
-    + '$$\\sum F_x = ' + cero(rs.cx) + ' \\qquad \\sum F_y = ' + cero(rs.cy) + ' \\qquad \\sum M_O = ' + cero(rs.cm) + '$$\n';
+  tex += '$$\\sum F_x = ' + cero(rs.cx) + ' \\qquad \\sum F_y = ' + cero(rs.cy) + ' \\qquad \\sum M_O = ' + cero(rs.cm) + '$$\n';
   const planas = r.cargas.filter(c=>c.des && c.des.tipo==='recto' && !c.des.horizontal);
   if(planas.length)
-    tex += '\\noindent Sentido com\\\'un: en cada placa plana el centro de presi\\\'on est\\\'a por debajo del centro de la parte mojada, '
-      + planas.map(c=>'$z_{P' + c.k + '} = ' + nl(c.zP) + ' > \\bar z = ' + nl(c.des.zBar) + '$').join(', ') + '.\\\\[3pt]\n';
-  tex += '\\begin{center}{\\small\\color{' + (r.cierra ? 'bsaVerde' : 'bsaPres') + '}'
-    + (r.cierra ? 'Las tres sumas son nulas: la compuerta queda en equilibrio con estas reacciones.'
-                : 'El equilibrio no cierra; revisa los apoyos y las caras mojadas.')
-    + '}\\end{center}\n';
+    tex += '$$' + planas.map(c=>'z_{P' + c.k + '} = ' + nl(c.zP) + ' > \\bar z = ' + nl(c.des.zBar) + '\\ \\checkmark').join('\\qquad ') + '$$\n';
+    // Qué significa, en una línea (2026-10-11, petición del profesor).
+    tex += '\\begin{center}{\\footnotesize El centro de presi\\\'on queda por debajo del centroide de la parte mojada: la presi\\\'on crece con la profundidad.}\\end{center}\n';
+  if(!r.cierra) tex += '\\begin{center}{\\small\\color{bsaPres}El equilibrio no cierra; revisa los apoyos y las caras mojadas.}\\end{center}\n';
 
   // ═══ 7. Presas, si las hay (10-) ═══
   tex += latexPresas({lamina, tablaCaption, porque}, 7);
 
-  // ═══ Referencias y colofón ═══
-  tex += bsaReferenciasLatex();
+  // ═══ Colofón ═══ (sin lista de referencias desde el 2026-10-11)
   tex += colofonLatexBSA();
   tex += '\n\\end{document}\n';
   return tex;

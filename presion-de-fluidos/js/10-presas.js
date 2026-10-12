@@ -1393,7 +1393,7 @@ function latexPresas(h, numInicial){
       + 'Si $d$ cae fuera de la base, ninguna reacci\\\'on del terreno puede equilibrar la presa: \\textbf{vuelca}.');
     tex += h.lamina(tkpPresa(r), nom + ': pesos, empujes y reacciones $N$, $F$. Cotas en ' + uL + '.');
     tex += '\\subpaso{Peso de la presa}\n';
-    tex += '\\noindent{\\footnotesize Cada parte pesa $W = \\gamma\\,b\\,A$, con $\\gamma = ' + f(r.p.gamma) + '$\\,' + uF + '/' + uL + '$^3$ y $b = ' + nl(r.b) + '$' + UL + ', aplicado en su centroide' + (r.pesos.some(q=>q.tipo !== 'poli' && q.tipo !== 'rect') ? ' (un tri\\\'angulo rect\\\'angulo, a un tercio de su lado vertical y de su base)' : '') + '.}\\\\[2pt]\n';
+    tex += '\\noindent{\\footnotesize $W = \\gamma\\,b\\,A$, $\\gamma = ' + f(r.p.gamma) + '$\\,' + uF + '/' + uL + '$^3$, $b = ' + nl(r.b) + '$' + UL + '.}\\\\[2pt]\n';
     tex += h.tablaCaption('Peso por partes. \\\'Areas en ' + uL + '$^2$, coordenadas desde $O$ en ' + uL + ', pesos en ' + uF + '.');
     tex += '\\begin{tablacentrada}\\begin{tabular}{llrrrr}\n\\hline\nParte & Figura & $A$ & $\\bar x$ & $\\bar y$ & $W$ \\\\\n\\hline\n';
     r.pesos.forEach(q=>{ tex += '$W_{' + q.k + '}$ & ' + ({rect:'rect\\\'angulo', triSube:'tri\\\'angulo', triBaja:'tri\\\'angulo', poli:'pol\\\'igono'})[q.tipo] + ' & ' + nl(q.A) + ' & ' + nl(q.cx - r.O.x) + ' & ' + nl(q.cy - r.O.y) + ' & ' + f(q.W) + ' \\\\\n'; });
@@ -1402,7 +1402,6 @@ function latexPresas(h, numInicial){
       const pto = P => '(' + nl(P.x - r.O.x) + ';\\ ' + nl(P.y - r.O.y) + ')';
       // presión en los puntos clave de cada cara mojada
       tex += '\\subpaso{Presi\\\'on en los puntos clave}\n';
-      tex += '\\noindent{\\footnotesize En cada extremo de la parte mojada de cada cara, $p = \\gamma h$, con $h$ medida desde la superficie libre de su zona.}\\\\[2pt]\n';
       tex += h.tablaCaption('Presi\\\'on en los extremos de cada cara mojada. Coordenadas desde $O$ y $h$ en ' + uL + '; $p$ en ' + escLatex(uPres()) + '.');
       tex += '\\begin{tablacentrada}\\begin{tabular}{llllrr}\n\\hline\nEmpuje & Zona & Punto & $(x;\\,y)$ & $h$ & $p$ \\\\\n\\hline\n';
       r.agua.forEach(c=>{
@@ -1451,7 +1450,6 @@ function latexPresas(h, numInicial){
         }
         filas.push('P_{' + c.k + '} &= ' + pto(c.P) + UL + ',\\qquad z_P = ' + nl(c.zP) + UL);
         tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-        tex += '{\\footnotesize $s$ a lo largo de la cara, desde ' + (d.cortaSuperficie ? 'la superficie libre' : 'su extremo superior') + '.}\\\\[2pt]\n';
         if(!d.coincide) console.warn('Informe LaTeX: el desarrollo del empuje E' + c.k + ' de la presa no reproduce la integral');
       });
       tex += h.tablaCaption('Empuje en cada cara mojada. $z_P$ en ' + uL + '; fuerzas en ' + uF + '.');
@@ -1461,7 +1459,6 @@ function latexPresas(h, numInicial){
     } else tex += '\\subpaso{Empuje del l\\\'iquido}\n\\noindent Ninguna cara de la presa est\\\'a mojada.\n';
     tex += latexResultantePresa(r, h);
     tex += '\\subpaso{Momentos respecto de $O$}\n';
-    tex += '\\noindent{\\footnotesize Cada fuerza por su brazo $d$, la distancia perpendicular de $O$ a su l\\\'inea de acci\\\'on; antihorario positivo.}\\\\[2pt]\n';
     tex += h.tablaCaption('Momentos de las cargas respecto de $O$. Fuerzas en ' + uF + ', brazos en ' + uL + ', momentos en ' + uF + '$\\cdot$' + uL + '.');
     tex += '\\begin{tablacentrada}\\begin{tabular}{lrrrl}\n\\hline\nFuerza & Valor & Brazo $d$ & $M_O$ & Giro \\\\\n\\hline\n';
     const giro = m => Math.abs(m) < 1e-9 ? '---' : (m > 0 ? 'antihorario' : 'horario');
@@ -1470,13 +1467,15 @@ function latexPresas(h, numInicial){
     tex += '\\hline\n\\multicolumn{3}{l}{$\\Sigma M_O$ de las cargas} & $' + f(r.M) + '$ & ' + giro(r.M) + ' \\\\\n\\hline\n\\end{tabular}\\end{tablacentrada}\n';
     tex += '\\subpaso{Equilibrio}\n';
     const ex = r.agua.filter(c=>Math.abs(c.Fx) > 1e-9), ey = r.agua.filter(c=>Math.abs(c.Fy) > 1e-9);
-    const filas = [];
-    filas.push('\\xrightarrow{+}\\ \\sum F_x:\\ & F' + ex.map(c=>(c.Fx<0?' - ':' + ') + f(Math.abs(c.Fx))).join('') + ' = 0 \\ \\Rightarrow\\ \\boxed{F = ' + f(r.Fr) + UF + '}');
-    filas.push('+\\!\\uparrow\\ \\sum F_y:\\ & N' + r.pesos.map(q=>' - ' + f(q.W)).join('') + ey.map(c=>(c.Fy<0?' - ':' + ') + f(Math.abs(c.Fy))).join('') + ' = 0 \\ \\Rightarrow\\ \\boxed{N = ' + f(r.N) + UF + '}');
-    filas.push('\\circlearrowleft{+}\\ \\sum M_O:\\ & N\\,d ' + (r.M < 0 ? '- ' : '+ ') + f(Math.abs(r.M)) + ' = 0');
-    if(!r.levanta && isFinite(r.d)) filas.push(' & ' + f(r.N) + '\\,d = ' + f(-r.M) + '\\ \\Rightarrow\\ \\boxed{d = ' + nl(r.d) + UL + '}');
-    tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
-    tex += '{\\footnotesize $\\Sigma M_O$ de las cargas sale de la tabla de momentos; $F$ no aparece porque act\\\'ua a lo largo de la base.}\\\\[2pt]\n';
+    // Dos líneas por ecuación y aire entre ellas (2026-10-11, directriz del profesor).
+    const pares = [];
+    pares.push(['\\xrightarrow{+}\\ \\sum F_x:\\ & F' + ex.map(c=>(c.Fx<0?' - ':' + ') + f(Math.abs(c.Fx))).join('') + ' = 0',
+                ' & F = ' + f(r.Fr) + UF]);
+    pares.push(['+\\!\\uparrow\\ \\sum F_y:\\ & N' + r.pesos.map(q=>' - ' + f(q.W)).join('') + ey.map(c=>(c.Fy<0?' - ':' + ') + f(Math.abs(c.Fy))).join('') + ' = 0',
+                ' & N = ' + f(r.N) + UF]);
+    pares.push(['\\circlearrowleft{+}\\ \\sum M_O:\\ & ' + f(r.N) + '\\,d ' + (r.M < 0 ? '- ' : '+ ') + f(Math.abs(r.M)) + ' = 0']
+      .concat(!r.levanta && isFinite(r.d) ? [' & d = ' + nl(r.d) + UL] : []));
+    tex += '\\begin{align*}\n' + pares.map(q=>q.join(' \\\\\n')).join(' \\\\[10pt]\n') + '\n\\end{align*}\n';
     if(r.levanta) tex += '\\veredicto{$N \\le 0$: el empuje del l\\\'iquido levanta la presa, que no se apoya en su base.}\n';
     else tex += '\\resultado{$N = ' + f(r.N) + '$' + UF + ' $\\uparrow$, $F = ' + f(Math.abs(r.Fr)) + '$' + UF + ' ' + iconoSentidoTex(r.Fr >= 0 ? 1 : -1, 0)
       + ' y $N$ act\\\'ua a $d = ' + nl(r.d) + '$' + UL + ' de $O$, con una base de $B = ' + nl(r.B) + '$' + UL + ': '

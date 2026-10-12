@@ -161,8 +161,11 @@ function pintarSolido(c, fig, vistaId, proj, selected, numero){
     c.restore();
   }
   const sx = proj.px(fig.cx), sy = proj.py(vDe(fig, vistaId));
-  c.beginPath(); c.arc(sx, sy, 4, 0, Math.PI*2);
-  c.fillStyle = selected ? '#fff' : hexAlpha(color, 0.9); c.fill();
+  // El punto del centroide propio se oculta si el tema lo apaga (momentos: VIS.centrosFig).
+  if(VIS.centrosFig !== false){
+    c.beginPath(); c.arc(sx, sy, 4, 0, Math.PI*2);
+    c.fillStyle = selected ? '#fff' : hexAlpha(color, 0.9); c.fill();
+  }
   if(numero){
     c.beginPath(); c.arc(sx+9, sy-9, 7, 0, Math.PI*2);
     c.fillStyle = '#fff'; c.fill(); c.strokeStyle = hexAlpha(color, .9); c.lineWidth = 1; c.stroke();
@@ -1045,7 +1048,7 @@ function croquisSolido(fig, idx){
   <div class="croq">
     <div class="croq-h"><span class="croq-n">${idx+1}</span>
       <span class="croq-t">${esc(fig.etiqueta||fig.name||def.name)}${neg?' <i>(hueco)</i>':''}${fig.volteado?' · volteado':''}${textoGiros3d(fig)}</span></div>
-    <div style="display:flex;gap:4px;align-items:flex-start">
+    <div class="croq-3v" style="display:flex;gap:4px;align-items:flex-start">
       ${cel('Planta (X–Y)', vista('planta'))}
       ${cel('Alzado (X–Z)', vista('alzado'))}
       ${cel('Isométrica', iso())}

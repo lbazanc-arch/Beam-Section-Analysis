@@ -504,8 +504,9 @@ function construirLatexAlambre(){
       + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCaption = txt => { tablaN++;
     return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
-  const porque = (clave, txt) => _primeraVezCen(clave) ? '\\porque{' + txt + '}\n' : '';
-  const nota = (clave, txt) => _primeraVezCen(clave) ? '{\\footnotesize ' + txt + '}\\\\[3pt]\n' : '';
+  // Sin «¿Por qué?» ni notas de concepto (2026-10-11, directriz del profesor).
+  const porque = () => '';
+  const nota = () => '';
   const cab = (t, f, u) => '\\textbf{' + t + '}' + (f.cab ? ' $' + f.cab + '$' : '') + (u ? ' {\\scriptsize(' + u + ')}' : '');
   const listaNums = ns => ns.length === 1 ? String(ns[0]) : ns.slice(0,-1).join(', ') + ' y ' + ns[ns.length-1];
   const dt = new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
@@ -520,39 +521,11 @@ function construirLatexAlambre(){
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += lamina(tikzSeccionCompuesta({cotas:true, numerar:true}),
-    'Alambre compuesto con sus tramos numerados y las cotas generales, medidas entre los extremos y los puntos '
-    + 'más salientes de cada tramo.');
-  tex += '\\subpaso{Objetivo}\n'
-    + 'Localizar el centroide $C$ del alambre, es decir, sus coordenadas $\\bar{x}$ e $\\bar{y}$ medidas desde el origen '
-    + '$O$ de los ejes de referencia $X$ e $Y$.\n';
-  tex += porque('linea',
-    'Un alambre delgado de sección constante pesa en proporción a su \\emph{longitud}: el peso de cada tramo es '
-    + '$\\gamma A_s L_i$, con $A_s$ el área de la sección, igual en todos. El balance de momentos que localiza el centro '
-    + 'de gravedad se hace entonces con longitudes en lugar de áreas, y $\\gamma A_s$ se cancela en el cociente: el '
-    + 'resultado es el \\emph{centroide de la línea}, el punto por el que pasaría la resultante del peso. Casi nunca está '
-    + 'sobre el propio alambre.');
-  tex += '\\subpaso{Procedimiento de análisis}\n'
-    + '\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
-    + '\\item \\textbf{Tramos.} Se divide el alambre en segmentos rectos y arcos de circunferencia, que tienen el centroide '
-    + 'tabulado.\n'
-    + '\\item \\textbf{Propiedades de cada tramo.} Su longitud $L_i$, la posición de su centroide propio (el punto medio '
-    + 'en un segmento; sobre la bisectriz en un arco) y las coordenadas $\\tilde{x}_i$, $\\tilde{y}_i$ de ese centroide '
-    + 'medidas desde $O$.\n'
-    + '\\item \\textbf{Tabla.} Se tabulan $L_i$, $\\tilde{x}_i$, $\\tilde{y}_i$ y los momentos de primer orden '
-    + '$L_i\\tilde{x}_i$, $L_i\\tilde{y}_i$, y se suman las columnas.\n'
-    + '\\item \\textbf{Centroide.} $\\bar{x} = \\sum L_i\\tilde{x}_i / \\sum L_i$, $\\bar{y} = \\sum L_i\\tilde{y}_i / \\sum L_i$. '
-    + 'Después se comprueba.\n'
-    + '\\end{enumerate}\n';
-  tex += '\\subpaso{Convenio}\n'
-    + '\\noindent Todas las posiciones se miden desde el origen $O$ de los ejes $X$ e $Y$ del dibujo, positivas hacia la '
-    + 'derecha y hacia arriba. La tilde ($\\tilde{x}_i$, $\\tilde{y}_i$) señala el centroide de \\emph{un tramo}; la barra '
-    + '($\\bar{x}$, $\\bar{y}$), el de \\emph{todo el alambre}. Un tramo girado se describe por su orientación '
-    + '$\\alpha$ respecto del eje $X$; el giro cambia dónde queda su centroide, no su longitud.\n';
+    'Alambre compuesto con sus tramos numerados.');
 
+  tex += '\\noindent{\\footnotesize Posiciones desde $O$; $\\tilde{x}_i$, $\\tilde{y}_i$ de cada tramo y $\\bar{x}$, $\\bar{y}$ del alambre.}\n';
   // ══ 2. Paso 1: propiedades de cada tramo ══
   tex += '\\seccion{2. Paso 1 --- Propiedades de cada tramo}\n';
-  tex += '\\noindent Cada tramo se trata como una línea aislada: longitud, centroide propio y posición de ese centroide '
-    + 'desde $O$. El croquis acotado de cada uno va al costado de su desarrollo.\n';
   grupos.forEach((g, gi)=>{
     const i0 = g.idx[0], s0 = st[i0], f = s0.fig;
     const nums = g.idx.map(i=>i+1);
@@ -627,8 +600,7 @@ function construirLatexAlambre(){
     const fL  = factorColumna(st.map(s=>s.l));
     const fLX = factorColumna(st.map(s=>s.lx).concat([results.Qy]));
     const fLY = factorColumna(st.map(s=>s.ly).concat([results.Qx]));
-    tex += tablaCaption('Longitudes, posición del centroide de cada tramo y momentos de primer orden. Una columna con '
-      + 'factor $\\times 10^{n}$ lo anuncia en la cabecera.');
+    tex += tablaCaption('Longitudes y momentos de primer orden de cada tramo.');
     tNumL = tablaN;
     tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clccccc}\\hline\n'
       + '\\textbf{Tramo} & \\textbf{Tipo} & '
@@ -648,7 +620,6 @@ function construirLatexAlambre(){
 
   // ══ 4. Paso 3: centroide ══
   tex += '\\seccion{4. Paso 3 --- Centroide del alambre}\n';
-  tex += '\\noindent Con las sumas de la Tabla ' + tNumL + ':\n';
   tex += '\\[ L = \\sum L_i = ' + decP(results.L,'len') + U1 + ' \\]\n';
   tex += '\\[ \\bar{x} = \\dfrac{\\sum L_i\\tilde{x}_i}{\\sum L_i} = \\dfrac{' + ftex(results.Qy) + '}{' + decP(results.L,'len') + '} = '
     + decP(results.xbar,'len') + U1 + ' \\qquad '
@@ -668,8 +639,6 @@ function construirLatexAlambre(){
       + 'longitudes, no un punto de la pieza. Un alambre en forma de L o de arco tiene su centroide en el aire, y aun así, '
       + 'colgado de un hilo que pase por $C$, queda en equilibrio en cualquier orientación: respecto de cualquier eje que '
       + 'pase por $C$ el momento de primer orden total es nulo.');
-  tex += '\\veredicto{Alambre \\textbf{homogéneo} de sección constante: el peso de cada tramo es proporcional a su '
-    + 'longitud, así que el centroide de la línea, el centro de masa y el centro de gravedad son el mismo punto $C$.}\n';
 
   // ══ 5. Paso 4: comprobaciones ══
   tex += '\\seccion{5. Paso 4 --- Comprobaciones}\n';
@@ -684,37 +653,34 @@ function construirLatexAlambre(){
   if(sim.v || sim.h){
     tex += '\\item \\textbf{Simetría.} ';
     if(sim.v) tex += 'El alambre es simétrico respecto del eje vertical $x = ' + decP(env.x0,'len') + '$' + U1
-      + ', así que $\\bar{x}$ tenía que caer sobre él: $\\bar{x} = ' + decP(results.xbar,'len') + '$'
+      + ': $\\bar{x} = ' + decP(results.xbar,'len') + '$'
       + (okV ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
     if(sim.h) tex += 'El alambre es simétrico respecto del eje horizontal $y = ' + decP(env.y0,'len') + '$' + U1
-      + ', así que $\\bar{y}$ tenía que caer sobre él: $\\bar{y} = ' + decP(results.ybar,'len') + '$'
+      + ': $\\bar{y} = ' + decP(results.ybar,'len') + '$'
       + (okH ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
     tex += '\n';
   } else {
-    tex += '\\item \\textbf{Simetría.} El alambre no tiene un eje de simetría vertical ni horizontal, así que ninguna '
-      + 'coordenada se conoce de antemano: las dos salen de la tabla.\n';
+    tex += '\\item \\textbf{Simetría.} Sin eje de simetría.\n';
   }
   const dentro = results.xbar >= env.minX - env.tol && results.xbar <= env.maxX + env.tol
               && results.ybar >= env.minY - env.tol && results.ybar <= env.maxY + env.tol;
-  tex += '\\item \\textbf{Envolvente.} El alambre ocupa $' + decP(env.minX,'len') + ' \\le x \\le ' + decP(env.maxX,'len')
+  tex += '\\item \\textbf{Envolvente.} $' + decP(env.minX,'len') + ' \\le x \\le ' + decP(env.maxX,'len')
     + '$ y $' + decP(env.minY,'len') + ' \\le y \\le ' + decP(env.maxY,'len') + '$' + U1 + ', y $C\\,('
-    + decP(results.xbar,'len') + ';\\ ' + decP(results.ybar,'len') + ')$ queda dentro'
+    + decP(results.xbar,'len') + ';\\ ' + decP(results.ybar,'len') + ')$ dentro'
     + (dentro ? '\\ \\checkmark' : ' --- no queda dentro: revisar') + '.\n';
   {
     let mx = 0, my = 0;
     st.forEach(s=>{ mx += s.l*(s.xi - results.xbar); my += s.l*(s.yi - results.ybar); });
     const esc0 = Math.max(Math.abs(results.Qx), Math.abs(results.Qy), 1);
     const cero = v => (Math.abs(v) < 1e-9*esc0) ? '0' : ftex(v);
-    tex += '\\item \\textbf{Momento nulo respecto de $C$.} Trasladando el eje al centroide, los tramos de un lado '
-      + 'compensan a los del otro:\n'
+    tex += '\\item \\textbf{Momento nulo respecto de $C$.}\n'
       + '\\[ \\sum L_i\\left(\\tilde{x}_i - \\bar{x}\\right) = ' + cero(mx) + ' \\qquad '
       + '\\sum L_i\\left(\\tilde{y}_i - \\bar{y}\\right) = ' + cero(my) + ' \\qquad\\checkmark \\]\n';
   }
   tex += '\\end{itemize}\n';
   tex += '\\subpaso{Alambre resuelto}\n';
   tex += lamina(tikzSeccionCompuesta({cotas:false, marcarC:true, ejes:true, cotasC:true}),
-    'Alambre resuelto: posición del centroide $C$ medida desde los ejes $X$ e $Y$. Las cotas llevan la variable; los '
-    + 'valores están en la Tabla ' + (tablaN+1) + '.');
+    'Alambre resuelto.');
   tex += tablaCaption('Resultados.');
   tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{lcc}\\hline\n'
     + '\\textbf{Magnitud} & \\textbf{Valor} & \\textbf{Unidad} \\\\\\hline\n'
@@ -723,8 +689,7 @@ function construirLatexAlambre(){
     + 'Centroide $\\bar{y}$ & $' + decP(results.ybar,'len') + '$ & ' + uTxt + ' \\\\\n'
     + '\\hline\\end{tabular}\\end{tablacentrada}}\n';
 
-  tex += bsaReferenciasLatex();
-  tex += colofonLatexBSA();
+  tex += colofonLatexBSA();   // sin lista de referencias desde el 2026-10-11
   tex += '\\end{document}\n';
   return tex;
 }

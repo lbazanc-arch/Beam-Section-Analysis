@@ -558,8 +558,9 @@ function construirLatex(){
   // tabla en la siguiente.
   const tablaCaption = txt => { tablaN++;
     return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
-  const porque = (clave, txt) => _primeraVezCen(clave) ? '\\porque{' + txt + '}\n' : '';
-  const nota = (clave, txt) => _primeraVezCen(clave) ? '{\\footnotesize ' + txt + '}\\\\[3pt]\n' : '';
+  // Sin «¿Por qué?» ni notas de concepto (2026-10-11, directriz del profesor).
+  const porque = () => '';
+  const nota = () => '';
   const cab = (t, f, u) => '\\textbf{' + t + '}' + (f.cab ? ' $' + f.cab + '$' : '')
                          + (u ? ' {\\scriptsize(' + u + ')}' : '');
   const listaNums = ns => ns.length === 1 ? String(ns[0])
@@ -580,47 +581,16 @@ function construirLatex(){
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += lamina(tikzSeccionCompuesta({cotas:true, numerar:true}),
-    'Sección compuesta con sus partes numeradas y las cotas generales, medidas entre los '
-    + 'bordes de las figuras. Las partes rayadas son huecos.');
+    'Sección compuesta con sus partes numeradas. Las rayadas son huecos.');
   tex += '\\begin{center}\n\\begin{tabular}{@{}ll@{\\hspace{18pt}}ll@{}}\n'
     + '\\tikz{\\filldraw[fill=bsaAcc2, fill opacity=0.30, draw=bsaAcc2] (0,0) rectangle (0.35,0.22);} & {\\footnotesize Área que suma} & '
     + '\\tikz{\\filldraw[pattern=north east lines, pattern color=bsaAcc2, draw=bsaAcc2, dashed] (0,0) rectangle (0.35,0.22);} & {\\footnotesize Área que resta (hueco)} \\\\\n'
     + '\\end{tabular}\n\\end{center}\n\\vspace{4pt}\n';
 
-  tex += '\\subpaso{Objetivo}\n'
-    + 'Localizar el centroide $C$ de la sección' + (het ? ' y el centro de gravedad $G$ del cuerpo' : '')
-    + ', es decir, sus coordenadas $\\bar{x}$ e $\\bar{y}$ medidas desde el origen $O$ de los ejes de referencia $X$ e $Y$.\n';
-  tex += porque('centroide',
-    'El peso de un cuerpo es la resultante de los pesos de todas sus partículas: un sistema de fuerzas paralelas. '
-    + 'Esa resultante pasa siempre por el mismo punto del cuerpo, el \\emph{centro de gravedad} $G$, que se localiza '
-    + 'igualando el momento del peso total al momento de todos los pesos parciales. Si el material es homogéneo, el '
-    + 'peso específico se cancela en ese cociente y la posición depende solo de la geometría: es el \\emph{centroide} '
-    + '$C$ del área, el punto donde habría que apoyar la sección para que quedara en equilibrio.'
-    + (het ? ' Aquí el material cambia de una parte a otra, así que $G$ y $C$ no coinciden y hay que calcular los dos.' : ''));
 
-  tex += '\\subpaso{Procedimiento de análisis}\n'
-    + '\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
-    + '\\item \\textbf{Partes.} Se divide la sección en figuras de centroide conocido (rectángulos, triángulos, círculos y '
-    + 'sus fracciones). Un hueco es una parte más, con área \\textbf{negativa}.\n'
-    + '\\item \\textbf{Propiedades de cada parte.} Su área $A_i$, la posición de su centroide propio dentro de la figura '
-    + '(fórmula de la tabla de figuras) y las coordenadas $\\tilde{x}_i$, $\\tilde{y}_i$ de ese centroide medidas desde $O$.'
-    + (het ? ' En un cuerpo heterogéneo, además, ' + Wart + ' ' + Wnom + ' de cada parte, $' + Wsim + '_i = ' + simb + '_i A_i t_i$.' : '') + '\n'
-    + '\\item \\textbf{Tabla.} Se tabulan $A_i$, $\\tilde{x}_i$, $\\tilde{y}_i$ y los momentos estáticos $A_i\\tilde{x}_i$, '
-    + '$A_i\\tilde{y}_i$, y se suman las columnas.' + (het ? ' Y lo mismo con ' + Warts + ' ' + Wnoms + '.' : '') + '\n'
-    + '\\item \\textbf{Centroide.} $\\bar{x} = \\sum A_i\\tilde{x}_i / \\sum A_i$, $\\bar{y} = \\sum A_i\\tilde{y}_i / \\sum A_i$'
-    + (het ? ', y $G$ con ' + Warts + ' ' + Wnoms + ' en lugar de las áreas' : '') + '. Después se comprueba.\n'
-    + '\\end{enumerate}\n';
-
-  tex += '\\subpaso{Convenio}\n'
-    + '\\noindent Todas las posiciones se miden desde el origen $O$ de los ejes $X$ e $Y$ del dibujo, positivas hacia la '
-    + 'derecha y hacia arriba. La tilde ($\\tilde{x}_i$, $\\tilde{y}_i$) señala el centroide de \\emph{una parte}; la barra '
-    + '($\\bar{x}$, $\\bar{y}$), el de \\emph{toda la sección}. Los huecos entran en todas las sumas con su área cambiada de '
-    + 'signo y con su centroide en el sitio del hueco.\n';
-
+  tex += '\\noindent{\\footnotesize Posiciones desde $O$; $\\tilde{x}_i$, $\\tilde{y}_i$ de cada parte y $\\bar{x}$, $\\bar{y}$ de la sección; un hueco entra con área negativa.}\n';
   // ══ 2. Paso 1: propiedades de cada parte ══
   tex += '\\seccion{2. Paso 1 --- Propiedades de cada parte}\n';
-  tex += '\\noindent Cada parte se trata como una figura aislada: área, centroide propio y posición de ese centroide '
-    + 'desde $O$. El croquis acotado de cada una va al costado de su desarrollo.\n';
   grupos.forEach((g, gi)=>{
     const i0 = g.idx[0], s0 = st[i0], f = s0.fig;
     const nums = g.idx.map(i=>i+1);
@@ -872,8 +842,7 @@ function construirLatex(){
     const fA  = factorColumna(st.map(s=>s.a));
     const fAX = factorColumna(st.map(s=>s.ax).concat([results.Qy]));
     const fAY = factorColumna(st.map(s=>s.ay).concat([results.Qx]));
-    tex += tablaCaption('Áreas, posición del centroide de cada parte y momentos estáticos. Las áreas llevan ya el '
-      + 'signo de la parte; una columna con factor $\\times 10^{n}$ lo anuncia en la cabecera.');
+    tex += tablaCaption('Áreas y momentos estáticos de cada parte.');
     tNumA = tablaN;
     tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clccccc}\\hline\n'
       + '\\textbf{Parte} & \\textbf{Figura} & '
@@ -927,7 +896,7 @@ function construirLatex(){
     sumWy = _sumTex(results.Wy, fWY, dWY);
     tex += '\\vspace{4pt}\n';
     tex += tablaCaption((esMasa ? 'Densidades, espesores, masas' : 'Pesos específicos, espesores, pesos')
-      + ' y momentos estáticos de ' + Wnom + ', con $' + Wsim + '_i$ en ' + uWtxt + '. Es la tabla que localiza $G$.');
+      + ' y momentos estáticos de ' + Wnom + ', con $' + Wsim + '_i$ en ' + uWtxt + '.');
     tNumW = tablaN;
     tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{ccccccc}\\hline\n'
       + '\\textbf{Parte} & \\textbf{Material} & '
@@ -953,7 +922,6 @@ function construirLatex(){
 
   // ══ 4. Paso 3: centroide ══
   tex += '\\seccion{4. Paso 3 --- ' + (het ? 'Centroide y centro de gravedad' : 'Centroide de la sección') + '}\n';
-  tex += '\\noindent Con las sumas de la Tabla ' + tNumA + ':\n';
   tex += '\\[ A = \\sum A_i = ' + ftex(results.A) + U2 + ' \\]\n';
   tex += '\\[ \\bar{x} = \\dfrac{\\sum A_i\\tilde{x}_i}{\\sum A_i} = \\dfrac{' + ftex(results.Qy) + '}{' + ftex(results.A) + '} = '
     + decP(results.xbar,'len') + U1 + ' \\qquad '
@@ -982,7 +950,6 @@ function construirLatex(){
       + 'una carga repartida por su resultante para calcular reacciones.');
   if(het){
     tex += '\\subpaso{Centro de gravedad $G$}\n';
-    tex += '\\noindent Con las sumas de la Tabla ' + tNumW + ', el mismo cociente pero con ' + Wnoms + ':\n';
     tex += '\\[ \\bar{x}_G = \\dfrac{\\sum ' + Wsim + '_i\\tilde{x}_i}{\\sum ' + Wsim + '_i} = \\dfrac{' + (sumWx || ftexPeso(results.Wx)) + '}{' + (sumW || ftexPeso(results.W)) + '} = '
       + decP(results.xg,'len') + U1 + ' \\qquad '
       + '\\bar{y}_G = \\dfrac{\\sum ' + Wsim + '_i\\tilde{y}_i}{\\sum ' + Wsim + '_i} = \\dfrac{' + (sumWy || ftexPeso(results.Wy)) + '}{' + (sumW || ftexPeso(results.W)) + '} = '
@@ -990,14 +957,6 @@ function construirLatex(){
     tex += '\\resultado{\\centering $G\\,(\\bar{x}_G;\\ \\bar{y}_G) = (' + decP(results.xg,'len') + ';\\ '
       + decP(results.yg,'len') + ')' + U1 + '$, a ' + decP(results.sep,'len') + '\\,' + uTxt + ' de $C$.}\n';
   }
-  tex += '\\veredicto{'
-    + (het
-      ? 'Cuerpo \\textbf{heterogéneo}: el centro de gravedad $G$ no coincide con el centroide $C$ '
-        + '(distan ' + decP(results.sep,'len') + '\\,' + uTxt + '). $G$ se desplaza hacia el material más '
-        + (esMasa ? 'denso' : 'pesado') + ', y es $G$, no $C$, por donde pasa la resultante del peso.'
-      : 'Cuerpo \\textbf{homogéneo}: el peso específico se cancela en el cociente, de modo que el centroide, el centro '
-        + 'de masa y el centro de gravedad son el mismo punto $C$.')
-    + '}\n';
 
   // ══ 5. Paso 4: comprobaciones ══
   tex += '\\seccion{5. Paso 4 --- Comprobaciones}\n';
@@ -1014,22 +973,21 @@ function construirLatex(){
   if(simSec.v || simSec.h){
     tex += '\\item \\textbf{Simetría.} ';
     if(simSec.v) tex += 'La sección es simétrica respecto del eje vertical $x = ' + decP(env.x0,'len') + '$'
-      + U1 + ', así que $\\bar{x}$ tenía que caer sobre él: $\\bar{x} = ' + decP(results.xbar,'len') + '$'
+      + U1 + ': $\\bar{x} = ' + decP(results.xbar,'len') + '$'
       + (okV ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
     if(simSec.h) tex += 'La sección es simétrica respecto del eje horizontal $y = ' + decP(env.y0,'len') + '$'
-      + U1 + ', así que $\\bar{y}$ tenía que caer sobre él: $\\bar{y} = ' + decP(results.ybar,'len') + '$'
+      + U1 + ': $\\bar{y} = ' + decP(results.ybar,'len') + '$'
       + (okH ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
     tex += '\n';
   } else {
-    tex += '\\item \\textbf{Simetría.} La sección no tiene un eje de simetría vertical ni horizontal, así que ninguna '
-      + 'coordenada se conoce de antemano: las dos salen de la tabla.\n';
+    tex += '\\item \\textbf{Simetría.} Sin eje de simetría.\n';
   }
   // (b) envolvente
   const dentro = results.xbar >= env.minX - env.tol && results.xbar <= env.maxX + env.tol
               && results.ybar >= env.minY - env.tol && results.ybar <= env.maxY + env.tol;
-  tex += '\\item \\textbf{Envolvente.} La sección ocupa $' + decP(env.minX,'len') + ' \\le x \\le ' + decP(env.maxX,'len')
+  tex += '\\item \\textbf{Envolvente.} $' + decP(env.minX,'len') + ' \\le x \\le ' + decP(env.maxX,'len')
     + '$ y $' + decP(env.minY,'len') + ' \\le y \\le ' + decP(env.maxY,'len') + '$' + U1 + ', y $C\\,('
-    + decP(results.xbar,'len') + ';\\ ' + decP(results.ybar,'len') + ')$ queda dentro'
+    + decP(results.xbar,'len') + ';\\ ' + decP(results.ybar,'len') + ')$ dentro'
     + (dentro ? '\\ \\checkmark' : ' --- no queda dentro: revisar') + '.\n';
   // (c) momento estático nulo respecto de C
   {
@@ -1037,8 +995,7 @@ function construirLatex(){
     st.forEach(s=>{ mx += s.a*(s.xi - results.xbar); my += s.a*(s.yi - results.ybar); });
     const esc0 = Math.max(Math.abs(results.Qx), Math.abs(results.Qy), 1);
     const cero = v => (Math.abs(v) < 1e-9*esc0) ? '0' : ftex(v);
-    tex += '\\item \\textbf{Momento nulo respecto de $C$.} Trasladando el eje al centroide, las partes de un lado '
-      + 'compensan a las del otro:\n'
+    tex += '\\item \\textbf{Momento nulo respecto de $C$.}\n'
       + '\\[ \\sum A_i\\left(\\tilde{x}_i - \\bar{x}\\right) = ' + cero(mx) + ' \\qquad '
       + '\\sum A_i\\left(\\tilde{y}_i - \\bar{y}\\right) = ' + cero(my) + ' \\qquad\\checkmark \\]\n';
   }
@@ -1047,8 +1004,7 @@ function construirLatex(){
   // Lámina final: la sección resuelta, acotando solo C (y G).
   tex += '\\subpaso{Sección resuelta}\n';
   tex += lamina(tikzSeccionCompuesta({cotas:false, marcarC:true, ejes:true, cotasC:true}),
-    'Sección resuelta: posición del centroide $C$' + (het ? ' y del centro de gravedad $G$' : '')
-    + ' medida desde los ejes $X$ e $Y$. Las cotas llevan la variable; los valores están en la Tabla ' + (tablaN+1) + '.');
+    'Sección resuelta.');
   tex += tablaCaption('Resultados.');
   tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{lcc}\\hline\n'
     + '\\textbf{Magnitud} & \\textbf{Valor} & \\textbf{Unidad} \\\\\\hline\n'
@@ -1062,8 +1018,7 @@ function construirLatex(){
   }
   tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
 
-  // ══ Referencias y colofón ══
-  tex += bsaReferenciasLatex({materiales:true});
+  // ══ Colofón ══ (sin lista de referencias desde el 2026-10-11)
   tex += colofonLatexBSA();
   tex += '\\end{document}\n';
   return tex;

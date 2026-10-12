@@ -163,6 +163,13 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 .croq-t{font-size:10px;font-weight:700;color:var(--text);line-height:1.25;}
 .croq-t i{color:#c0392b;font-style:normal;font-size:9px;}
 .croq-svg{width:100%;height:auto;display:block;}
+/* En el teléfono las tres vistas de un sólido van una debajo de otra: en fila,
+   cada una medía ~105 px y sus cotas se leían a 5 px (2026-10-11). */
+@media (max-width:640px){
+  .croq-3v{flex-wrap:wrap;justify-content:center;}
+  .croq-3v > div{flex:0 0 100% !important;max-width:240px;}
+}
+
 .croq-d{display:flex;justify-content:space-between;gap:6px;font-size:9px;color:var(--muted);
   border-top:1px solid var(--border);padding-top:5px;margin-top:3px;}
 @media (max-width:900px){

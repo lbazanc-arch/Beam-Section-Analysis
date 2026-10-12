@@ -42,7 +42,8 @@ function aviso(msg, tipo){
 
 // ── Visibilidad de capas del dibujo ──
 // Solo afecta a lo que se ve; el cálculo usa siempre el modelo completo.
-const VIS = {grilla:true, ejes:true, cotas:true, centroide:true, radios:true, iso:false};   // iso: recuadro isométrico, solo en 3D
+// radios y centrosFig apagados por defecto (2026-10-11, decisión del profesor).
+const VIS = {grilla:true, ejes:true, cotas:true, centroide:true, radios:false, centrosFig:false, iso:false};   // iso: recuadro isométrico, solo en 3D
 // Giro interactivo de los ejes u, v (propuesta 1, 2026-09-08): en grados, lo
 // mueve el deslizador bajo el círculo de Mohr y lo dibujan la sección y el
 // círculo a la vez.

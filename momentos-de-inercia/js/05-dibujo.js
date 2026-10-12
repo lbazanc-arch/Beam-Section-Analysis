@@ -131,10 +131,12 @@ function drawFigure(fig, selected){
 
   ctx.restore();
 
-  // Centroid dot + label (in screen space)
-  ctx.beginPath(); ctx.arc(sp.x,sp.y,4,0,Math.PI*2);
-  ctx.fillStyle = selected?'#fff':hexAlpha(color,0.9);
-  ctx.fill();
+  // Punto del centroide de la figura: solo con «Centroides de figuras» (apagado por defecto).
+  if(VIS.centrosFig){
+    ctx.beginPath(); ctx.arc(sp.x,sp.y,4,0,Math.PI*2);
+    ctx.fillStyle = selected?'#fff':hexAlpha(color,0.9);
+    ctx.fill();
+  }
 
   // Anchor handles — always show on selected figures
   if(selected){

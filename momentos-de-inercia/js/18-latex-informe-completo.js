@@ -331,8 +331,9 @@ function construirLatex(){
       + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCaption = txt => { tablaN++;
     return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
-  const porque = (clave, txt) => _primeraVezIn(clave) ? '\\porque{' + txt + '}\n' : '';
-  const nota = (clave, txt) => _primeraVezIn(clave) ? '{\\footnotesize ' + txt + '}\\\\[3pt]\n' : '';
+  // Sin «¿Por qué?» ni notas de concepto (2026-10-11, directriz del profesor).
+  const porque = () => '';
+  const nota = () => '';
   const cab = (t, f, u) => '\\textbf{' + t + '}' + (f.cab ? ' {\\scriptsize$' + f.cab + '$}' : '')
                          + (u ? ' {\\scriptsize(' + u + ')}' : '');
   const listaNums = ns => ns.length === 1 ? String(ns[0])
@@ -376,43 +377,10 @@ function construirLatex(){
     + '{\\footnotesize Área que resta (hueco)}\\\\\n'
     + '\\end{tabular}\n\\end{center}\n\\vspace{4pt}\n';
 
-  tex += '\\subpaso{Objetivo}\n'
-    + 'Hallar los momentos de inercia $\\bar{I}_x$, $\\bar{I}_y$ y el producto de inercia $\\bar{P}_{xy}$ de la sección '
-    + 'respecto de los ejes que pasan por su centroide $C$; a partir de ellos, el momento polar, los radios de giro, '
-    + 'la orientación de los ejes principales y las inercias máxima y mínima, y representar todo en el círculo de Mohr.\n';
-  tex += porque('inercia',
-    'El momento de inercia de un área, $I_x = \\int y^{2}\\,dA$, aparece al calcular el momento de una carga que crece '
-    + 'con la distancia al eje: la presión del agua sobre una compuerta o los esfuerzos de flexión en una viga. Cada '
-    + 'elemento de área contribuye con su área por el \\emph{cuadrado} de su distancia, así que el material alejado del '
-    + 'eje cuenta mucho más que el cercano: por eso una viga en I es rígida con poco material. Es siempre positivo y '
-    + 'se mide en longitud a la cuarta. El producto de inercia, $P_{xy} = \\int xy\\,dA$, mide en cambio la '
-    + '\\emph{asimetría} del área respecto de los ejes y puede ser positivo, negativo o nulo.');
 
-  tex += '\\subpaso{Procedimiento de análisis}\n'
-    + '\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
-    + '\\item \\textbf{Partes.} Se divide la sección en figuras de inercia conocida; un hueco es una parte más, que se '
-    + 'resta entera.\n'
-    + '\\item \\textbf{Propiedades de cada parte.} Área, centroide propio, inercias propias respecto de sus ejes '
-    + 'centroidales (fórmulas de la tabla de figuras) y posición $\\tilde{x}_i$, $\\tilde{y}_i$ desde $O$.\n'
-    + '\\item \\textbf{Centroide de la sección.} Con la tabla de áreas y momentos estáticos, como en el tema de centroides.\n'
-    + '\\item \\textbf{Teorema de los ejes paralelos.} Cada inercia propia se traslada al centroide de la sección '
-    + 'sumando $A_i d^{2}$, y se suman las partes.\n'
-    + '\\item \\textbf{Ejes principales.} El ángulo $\\theta_p$ que anula el producto de inercia y las inercias '
-    + 'máxima y mínima; el círculo de Mohr los reúne en un solo dibujo.\n'
-    + '\\item \\textbf{Comprobaciones.} Invariantes, orden de las inercias y simetría.\n'
-    + '\\end{enumerate}\n';
-
-  tex += '\\subpaso{Convenio}\n'
-    + '\\noindent Las posiciones se miden desde el origen $O$ de los ejes $X$ e $Y$ del dibujo, positivas hacia la '
-    + 'derecha y hacia arriba. La tilde ($\\tilde{x}_i$) señala el centroide de una parte; la barra ($\\bar{x}$, '
-    + '$\\bar{I}_x$), magnitudes referidas al centroide de \\emph{toda} la sección. Los ángulos se miden desde el eje '
-    + '$x$, positivos en sentido antihorario. En el círculo de Mohr el eje $x$ de la sección es el punto '
-    + '$A(\\bar{I}_x,\\ \\bar{P}_{xy})$ y el eje $y$ el punto $B(\\bar{I}_y,\\ -\\bar{P}_{xy})$.\n';
-
+  tex += '\\noindent{\\footnotesize Posiciones desde $O$; la barra ($\\bar{x}$, $\\bar{I}_x$) se refiere al centroide de la sección; ángulos desde $x$, antihorarios positivos; un hueco se resta entero.}\n';
   // ══ 2. Paso 1: propiedades de cada parte ══
   tex += '\\seccion{2. Paso 1 --- Propiedades de cada parte}\n';
-  tex += '\\noindent Cada parte se trata como una figura aislada: área, centroide propio, inercias propias y '
-    + 'posición desde $O$. El croquis acotado va al costado de su desarrollo.\n';
   grupos.forEach((g, gi)=>{
     const i0 = g.idx[0], s0 = st[i0], f = s0.fig;
     const nums = g.idx.map(i=>i+1);
@@ -670,8 +638,7 @@ function construirLatex(){
     const fAX = factorColumna(st.map(s=>s.a*s.fig.sign*s.fig.cx));
     const fAY = factorColumna(st.map(s=>s.a*s.fig.sign*s.fig.cy));
     let sQx = 0, sQy = 0;
-    tex += tablaCaption('Áreas, posición del centroide de cada parte y momentos estáticos. Las áreas llevan ya el '
-      + 'signo de la parte; una columna con factor $\\times 10^{n}$ lo anuncia en la cabecera.');
+    tex += tablaCaption('Áreas y momentos estáticos de cada parte.');
     tNumA = tablaN;
     tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clccccc}\\hline\n'
       + '\\textbf{Parte} & \\textbf{Figura} & '
@@ -692,25 +659,16 @@ function construirLatex(){
       + celdaCol(results.A, fA, DEC.area) + ' & --- & --- & '
       + celdaCol(sQx, fAX, DEC.area) + ' & ' + celdaCol(sQy, fAY, DEC.area) + ' \\\\\n'
       + '\\hline\\end{tabular}\\end{tablacentrada}}\n';
-    tex += '\\noindent Con las sumas de la Tabla ' + tNumA + ':\n'
-      + '\\[ A = \\sum A_i = ' + ftex(results.A) + U2 + ' \\]\n'
+    tex += '\\[ A = \\sum A_i = ' + ftex(results.A) + U2 + ' \\]\n'
       + '\\[ \\bar{x} = \\dfrac{\\sum A_i \\tilde{x}_i}{\\sum A_i} = \\dfrac{' + ftex(sQx) + '}{' + ftex(results.A) + '} = '
       + decP(results.xbar,'len') + U1
       + ' \\qquad \\bar{y} = \\dfrac{\\sum A_i \\tilde{y}_i}{\\sum A_i} = \\dfrac{' + ftex(sQy) + '}{' + ftex(results.A) + '} = '
       + decP(results.ybar,'len') + U1 + ' \\]\n';
     tex += '\\resultado{\\centering $C\\,(\\bar{x};\\ \\bar{y}) = (' + decP(results.xbar,'len') + ';\\ '
-      + decP(results.ybar,'len') + ')' + U1 + '$, medido desde $O$. Todas las inercias que siguen se refieren a los '
-      + 'ejes $x$ e $y$ que pasan por $C$.}\n';
+      + decP(results.ybar,'len') + ')' + U1 + '$, medido desde $O$.}\n';
     if(cEnOrigen){
-      tex += '{\\footnotesize El centroide cae sobre el origen $O$ de los ejes del dibujo: $\\bar{x} = \\bar{y} = 0$. '
-        + 'Por eso las láminas que siguen no acotan $\\bar{x}_C$ ni $\\bar{y}_C$, que no tienen longitud, y los ejes '
-        + 'centroidales $x$-$y$ coinciden con los $X$-$Y$ del dibujo.}\\\\[3pt]\n';
     }
     if(simSec.v || simSec.h){
-      tex += '{\\footnotesize La sección es simétrica respecto de'
-        + (simSec.v ? ' un eje vertical' : '') + (simSec.v && simSec.h ? ' y de' : '') + (simSec.h ? ' un eje horizontal' : '')
-        + ', así que ' + (simSec.v && simSec.h ? 'las dos coordenadas del centroide se conocían' : 'una coordenada del centroide se conocía')
-        + ' de antemano: el centroide está sobre todo eje de simetría. Se comprueba al final.}\\\\[3pt]\n';
     }
   }
 
@@ -723,8 +681,7 @@ function construirLatex(){
     + '$I_x = \\bar{I}_{x\'} + A\\,d_y^{2}$: la inercia propia más el área por el cuadrado de la distancia. Vale igual '
     + 'para $I_y$ con $d_x$ y para el producto, $P_{xy} = \\bar{P}_{x\'y\'} + A\\,d_x d_y$, que conserva los signos '
     + 'de $d_x$ y $d_y$. Solo funciona \\emph{desde} un eje centroidal: por eso se calculó $C$ antes.');
-  tex += '\\noindent Las distancias van de cada centroide propio al de la sección: $d_{x_i} = \\tilde{x}_i - \\bar{x}$, '
-    + '$d_{y_i} = \\tilde{y}_i - \\bar{y}$. Un hueco resta su aporte completo.\n';
+  tex += '\\[ d_{x_i} = \\tilde{x}_i - \\bar{x} \\qquad d_{y_i} = \\tilde{y}_i - \\bar{y} \\]\n';
   // Desarrollo escrito: la primera parte con la fórmula literal; las demás,
   // solo la sustitución. Las partes en espejo de otra ya desarrollada se
   // despachan en una línea: mismas Ix e Iy, producto opuesto.
@@ -796,9 +753,7 @@ function construirLatex(){
     const fTy  = factorColumna(st.map(s=>s.Iy_f));
     const fTxy = factorColumna(st.map(s=>ceroIn(s.Ixy_f)));
     tex += '\\vspace{4pt}\n';
-    tex += tablaCaption('Inercias por parte, en ' + utexto(u4) + '. Las tres primeras columnas son las propias '
-      + '(ya giradas a ejes paralelos a $x$ e $y$ si la parte está girada); las tres siguientes, los términos de '
-      + 'traslado; las tres últimas, el aporte de cada parte con su signo, cuya suma es la inercia de la sección.');
+    tex += tablaCaption('Inercias por parte: propias, traslado y aporte, en ' + utexto(u4) + '.');
     tNumI = tablaN;
     // Diez columnas con su cabecera no caben con la separacion normal: se
     // aprieta SOLO en esta tabla (6 pt por lado x 20 huecos son 120 pt).
@@ -838,9 +793,7 @@ function construirLatex(){
       sPropIy  += g*s.Iyc;   sStIy  += g*s.a*s.dx*s.dx;
       sPropIxy += g*s.Ixyc;  sStIxy += g*s.a*s.dx*s.dy;
     });
-    tex += '\\subpaso{Inercias de la sección}\n'
-      + '\\noindent Sumando las últimas columnas de la Tabla ' + tNumI + ' (o, lo que es lo mismo, las propias más '
-      + 'los traslados):\n';
+    tex += '\\subpaso{Inercias de la sección}\n';
     tex += '\\[ \\bar{I}_x = \\sum \\left(\\bar{I}_{x}\' + A_i\\,d_{y_i}^{2}\\right) = '
       + ftex(sPropIx) + ' + ' + ftex(sStIx) + ' = ' + ftex(results.Ix) + U4 + ' \\]\n';
     tex += '\\[ \\bar{I}_y = \\sum \\left(\\bar{I}_{y}\' + A_i\\,d_{x_i}^{2}\\right) = '
@@ -864,12 +817,6 @@ function construirLatex(){
     // El signo del producto de inercia no es un detalle: dice si hace falta
     // girar los ejes y hacia dónde.
     const pxy = pxySec;
-    tex += '\\veredicto{' + ((Math.abs(pxy) < 1e-9*Math.max(1, mR))
-      ? 'El producto de inercia es \\textbf{nulo}: los ejes $x$ e $y$ que pasan por $C$ ya son los ejes principales '
-        + 'de la sección, y $\\bar{I}_x$ e $\\bar{I}_y$ son sus inercias máxima y mínima. El paso siguiente lo confirma.'
-      : 'El producto de inercia es ' + (pxy > 0 ? '\\textbf{positivo}' : '\\textbf{negativo}')
-        + ': los ejes $x$ e $y$ \\textbf{no} son principales. Existe un giro $\\theta_p$ que anula el producto, y es '
-        + 'el que se calcula a continuación.') + '}\n';
   }
 
   // ══ 5. Paso 4: ejes principales ══
@@ -891,21 +838,13 @@ function construirLatex(){
     tex += '\\[ \\tan 2\\theta_p = \\dfrac{-2\\bar{P}_{xy}}{\\bar{I}_x - \\bar{I}_y} = \\dfrac{0}{0} '
       + '\\qquad\\Longrightarrow\\qquad \\text{indeterminado} \\quad (\\bar{I}_x = \\bar{I}_y '
       + '\\text{ y } \\bar{P}_{xy} = 0) \\]\n';
-    tex += '{\\footnotesize El cociente no se va a infinito: es $0/0$. Y que el ángulo quede indeterminado no '
-      + 'significa que la sección no tenga ejes principales, sino que los tiene \\textbf{todos}. Sustituyendo '
-      + '$\\bar{I}_x = \\bar{I}_y$ y $\\bar{P}_{xy} = 0$ en las ecuaciones de giro queda $I_u = \\bar{I}_x$ y '
-      + '$P_{uv} = 0$ para \\emph{cualquier} $\\theta$: la inercia vale lo mismo respecto de todo eje que pase por '
-      + '$C$ y cualquiera de ellos es principal, con $I_{\\max} = I_{\\min}$. Le ocurre al círculo, al anillo y al '
-      + 'cuadrado. Los resultados se dan con $\\theta_p = 0^\\circ$, un representante tan válido como otro '
-      + 'cualquiera.}\\\\[3pt]\n';
+    tex += '{\\footnotesize Todo eje por $C$ es principal: $I_{\\max} = I_{\\min}$; se toma $\\theta_p = 0^\\circ$.}\\\\[3pt]\n';
   } else if(ixIgualIy){
     // Ix = Iy con producto NO nulo: ahora el denominador sí se anula solo y la
     // tangente diverge de verdad, luego 2*theta_p = ±90° y theta_p = ±45°.
     tex += '\\[ \\tan 2\\theta_p = \\dfrac{-2\\bar{P}_{xy}}{\\bar{I}_x - \\bar{I}_y} \\longrightarrow \\infty '
       + '\\quad (\\bar{I}_x = \\bar{I}_y,\\ \\bar{P}_{xy} \\neq 0) \\qquad\\Longrightarrow\\qquad 2\\theta_p = '
       + decP(dosTh,'ang') + '^\\circ \\qquad \\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ \\]\n';
-    tex += '{\\footnotesize Con el denominador nulo y el numerador no, la tangente diverge: $2\\theta_p = '
-      + '\\pm 90^\\circ$ y los ejes principales quedan a $45^\\circ$ de $x$ e $y$.}\\\\[3pt]\n';
   } else {
     // La tangente con su sustitucion ya llena el renglon: el despeje de los dos
     // angulos baja al siguiente, o la linea se sale del papel.
@@ -913,9 +852,6 @@ function construirLatex(){
       + ftex(pxySec) + ')}{' + ftex(results.Ix) + ' - ' + ftex(results.Iy) + '} = ' + decP(-2*pxySec/dI,'iner')
       + ' \\\\ &\\Longrightarrow\\quad 2\\theta_p = ' + decP(dosTh,'ang') + '^\\circ \\qquad \\theta_p = '
       + decP(results.thetaP,'ang') + '^\\circ \\end{aligned} \\]\n';
-    tex += '{\\footnotesize El arco tangente tiene dos soluciones que distan $180^\\circ$ en $2\\theta_p$, es decir '
-      + '$90^\\circ$ en $\\theta_p$: son los dos ejes principales. Se toma la que cae en el cuadrante que marcan los '
-      + 'signos del numerador y del denominador, y el otro eje es su perpendicular.}\\\\[3pt]\n';
   }
   tex += '\\[ I_{\\max,\\min} = \\dfrac{\\bar{I}_x + \\bar{I}_y}{2} \\pm \\sqrt{\\left(\\dfrac{\\bar{I}_x - \\bar{I}_y}{2}\\right)^{2} '
     + '+ \\bar{P}_{xy}^{\\,2}} = ' + ftex(mAvg) + ' \\pm ' + ftex(mR) + U4 + ' \\]\n';
@@ -927,26 +863,13 @@ function construirLatex(){
   // de x-y. Se dibujan los ejes centroidales y el pie dice lo que ocurre.
   tex += isotropa
     ? lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, marcarC:true}),
-        'Ejes centroidales $x$-$y$. Con $\\bar{I}_x = \\bar{I}_y$ y $\\bar{P}_{xy} = 0$, \\emph{todo} eje que pase '
-        + 'por $C$ es principal: no hay un par $u$-$v$ que dibujar.')
+        'Ejes centroidales $x$-$y$: todo eje por $C$ es principal.')
     : lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, ejesPrincipales:true}),
         'Ejes centroidales $x$-$y$ y ejes principales $u$-$v$, girados $\\theta_p$.');
   tex += '\\resultado{\\centering $\\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ$ \\quad $I_{\\max} = '
     + ftex(results.Imax) + U4 + '$ \\quad $I_{\\min} = ' + ftex(results.Imin) + U4 + '$}\n';
   const yaPrinc = Math.abs(results.thetaP) < 0.005;
   const mayorX = results.Ix >= results.Iy;
-  tex += '\\veredicto{' + (isotropa
-    ? 'Todo eje que pasa por $C$ es principal, y en todos la inercia vale lo mismo: $I_{\\max} = I_{\\min} = '
-      + ftex(results.Imax) + U4 + '$. La sección no distingue ninguna dirección, así que el $\\theta_p = '
-      + decP(results.thetaP,'ang') + '^\\circ$ del resultado es un representante cualquiera, no una orientación '
-      + 'privilegiada.'
-    : yaPrinc
-    ? 'El giro es nulo: los ejes $x$ e $y$ ya coinciden con los principales, $u \\equiv x$ y $v \\equiv y$, y '
-      + (mayorX ? '$I_{\\max} = \\bar{I}_x$, $I_{\\min} = \\bar{I}_y$.' : '$I_{\\max} = \\bar{I}_y$, $I_{\\min} = \\bar{I}_x$.')
-    : 'Un giro de $' + decP(Math.abs(results.thetaP),'ang') + '^\\circ$ en sentido '
-      + (results.thetaP > 0 ? 'antihorario' : 'horario') + ' lleva los ejes $x$-$y$ sobre los principales $u$-$v$. '
-      + 'Regla de sentido común: $I_{\\max}$ corresponde al eje principal más cercano al de mayor inercia entre $x$ e '
-      + '$y$, que aquí es ' + (mayorX ? '$x$' : '$y$') + '.') + '}\n';
 
   // ══ 6. Paso 5: círculo de Mohr ══
   tex += '\\seccion{6. Paso 5 --- Círculo de Mohr de inercia}\n';
@@ -963,16 +886,11 @@ function construirLatex(){
     + 'pares $(I_u, P_{uv})$ están sobre una circunferencia. Cada eje de la sección es un punto del círculo, y girar '
     + 'los ejes $\\theta$ en la sección es recorrer $2\\theta$ sobre el círculo. Es el mismo cálculo del paso 4, pero '
     + 'dibujado: los cortes con el eje horizontal son $I_{\\max}$ e $I_{\\min}$, porque allí el producto es cero.');
-  tex += '\\noindent El círculo se construye con dos datos: su centro, sobre el eje de las inercias, y su radio.\n';
   tex += '\\[ \\bar{I}_{avg} = \\dfrac{\\bar{I}_x + \\bar{I}_y}{2} = \\dfrac{'
     + ftex(results.Ix) + ' + ' + ftex(results.Iy) + '}{2} = ' + ftex(mAvg) + U4 + ' \\]\n';
   tex += '\\[ R = \\sqrt{\\left(\\dfrac{\\bar{I}_x - \\bar{I}_y}{2}\\right)^{2} + \\bar{P}_{xy}^{\\,2}} = '
     + '\\sqrt{\\left(' + ftex((results.Ix - results.Iy) / 2) + '\\right)^{2} + \\left(' + ftex(pxySec)
     + '\\right)^{2}} = ' + ftex(mR) + U4 + ' \\]\n';
-  tex += '\\noindent El eje $x$ da el punto $A(\\bar{I}_x,\\ \\bar{P}_{xy})$ y el eje $y$ el punto '
-    + '$B(\\bar{I}_y,\\ -\\bar{P}_{xy})$; con ordenadas opuestas, $A$ y $B$ quedan en extremos de un diámetro y el '
-    + 'centro cae en $\\bar{I}_{avg}$. Los cortes con el eje horizontal son $I_{\\max} = \\bar{I}_{avg} + R$ e '
-    + '$I_{\\min} = \\bar{I}_{avg} - R$.\n';
   tex += '\\[ A(' + ftex(results.Ix) + ',\\ ' + ftex(pxySec) + ') \\qquad '
     + 'B(' + ftex(results.Iy) + ',\\ ' + ftex(-pxySec) + ') \\]\n';
   // Si el círculo degenera en un punto, tikzMohr devuelve cadena vacía: se
@@ -980,16 +898,9 @@ function construirLatex(){
   const laminaMohr = (typeof tikzMohr === 'function') ? tikzMohr(results, u4) : '';
   if(laminaMohr){
     tex += lamina(laminaMohr,
-      'Círculo de Mohr de inercia: el giro $2\\theta_p$ sobre el círculo es el $\\theta_p$ de los ejes.');
-    tex += '\\veredicto{' + (yaPrinc
-      ? '$A$ y $B$ caen sobre el eje horizontal, que es donde el producto de inercia se anula: los ejes $x$-$y$ ya '
-        + 'son los principales ($\\theta_p = 0^\\circ$).'
-      : 'El giro se lee duplicado sobre el círculo: $2\\theta_p = ' + decP(dosTh,'ang') + '^\\circ$ en el círculo son '
-        + '$\\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ$ en la sección, en el mismo sentido.') + '}\n';
+      'Círculo de Mohr de inercia.');
   } else {
-    tex += '\\noindent El círculo se reduce a un punto: $\\bar{I}_x = \\bar{I}_y$ y $\\bar{P}_{xy} = 0$. La inercia '
-      + 'vale lo mismo respecto de cualquier eje que pase por el centroide, así que no hay una dirección principal '
-      + 'privilegiada y no hay círculo que dibujar.\n';
+    tex += '\\noindent El círculo se reduce a un punto ($\\bar{I}_x = \\bar{I}_y$, $\\bar{P}_{xy} = 0$).\n';
   }
 
   // ══ 7. Paso 6: inercia en un punto P (solo si el usuario lo pidió) ══
@@ -1018,7 +929,6 @@ function construirLatex(){
       + '\\left(' + decP(epLat.dx,'len') + '\\right)\\left(' + decP(epLat.dy,'len') + '\\right) = ' + ftex(pxyP) + U4 + ' \\]\n';
 
     tex += '\\subpaso{Ejes principales en $P$}\n';
-    tex += '\\noindent Con estas tres inercias se repiten los pasos 4 y 5, ahora en $P$:\n';
     tex += '\\[ I_{avgP} = \\dfrac{I_{xP} + I_{yP}}{2} = ' + ftex(epLat.avg) + U4
       + ' \\qquad R_P = \\sqrt{\\left(\\dfrac{I_{xP} - I_{yP}}{2}\\right)^{2} + P_{xyP}^{\\,2}} = ' + ftex(epLat.R) + U4 + ' \\]\n';
     tex += '\\[ \\theta_{pP} = ' + decP(epLat.thetaP,'ang') + '^\\circ \\qquad I_{\\max P} = ' + ftex(epLat.Imax) + U4
@@ -1026,10 +936,9 @@ function construirLatex(){
 
     if(rotLat){
       tex += '\\subpaso{Ejes girados $\\theta = ' + decP(rotLat.ang,'ang') + '^\\circ$ en $P$}\n';
-      tex += '\\noindent Los ejes $x$-$y$ en $P$ se giran un ángulo $\\theta$ (positivo antihorario). Las inercias '
-        + 'respecto de los nuevos ejes $u$-$v$ salen de las ecuaciones de transformación, con $2\\theta = '
+      tex += '\\noindent $2\\theta = '
         + decP(2*rotLat.ang,'ang') + '^\\circ$, $\\cos 2\\theta = ' + decP(rotLat.c2,'ang') + '$ y $\\sen 2\\theta = '
-        + decP(rotLat.s2,'ang') + '$:\n';
+        + decP(rotLat.s2,'ang') + '$.\n';
       const difP = (epLat.IxP - epLat.IyP) / 2;
       tex += '\\[ I_u = \\dfrac{I_{xP}+I_{yP}}{2} + \\dfrac{I_{xP}-I_{yP}}{2}\\cos 2\\theta - P_{xyP}\\,\\sen 2\\theta = '
         + ftex(epLat.avg) + ' + ' + ftex(difP) + '(' + decP(rotLat.c2,'ang') + ') - ' + ftex(epLat.IxyP) + '('
@@ -1037,10 +946,6 @@ function construirLatex(){
       tex += '\\[ I_v = \\dfrac{I_{xP}+I_{yP}}{2} - \\dfrac{I_{xP}-I_{yP}}{2}\\cos 2\\theta + P_{xyP}\\,\\sen 2\\theta = '
         + ftex(rotLat.Iv) + U4 + ' \\qquad P_{uv} = \\dfrac{I_{xP}-I_{yP}}{2}\\sen 2\\theta + P_{xyP}\\cos 2\\theta = '
         + ftex(rotLat.Iuv) + U4 + ' \\]\n';
-      tex += '\\veredicto{$I_u + I_v = ' + ftex(rotLat.Iu + rotLat.Iv) + U4 + ' = I_{xP} + I_{yP}$: girar los ejes '
-        + 'reparte la inercia entre ellos, pero no la crea ni la destruye. Por eso $U$ y $V$ caen sobre el mismo '
-        + 'círculo, en un diámetro girado $2\\theta$.'
-        + (rotLat.swapped ? ' Con $\\theta = 90^\\circ$ los ejes quedan intercambiados: $I_u \\equiv I_{yP}$.' : '') + '}\n';
     }
     // El círculo en P se dibuja UNA sola vez, con los puntos U y V encima si
     // hay giro: es el mismo diámetro girado, no un círculo nuevo.
@@ -1068,11 +973,9 @@ function construirLatex(){
   const okInv = !rel(results.Imax + results.Imin, results.Jo);
   const okOrd = results.Imin <= Math.min(results.Ix, results.Iy) + 1e-9*mR && results.Imax >= Math.max(results.Ix, results.Iy) - 1e-9*mR;
   tex += '\\begin{itemize}\\setlength{\\itemsep}{2pt}\n';
-  tex += '\\item \\textbf{Invariante.} La suma de inercias no depende del giro de los ejes: '
-    + '$I_{\\max} + I_{\\min} = ' + ftex(results.Imax) + ' + ' + ftex(results.Imin) + ' = ' + ftex(results.Imax + results.Imin)
+  tex += '\\item \\textbf{Invariante.} $I_{\\max} + I_{\\min} = ' + ftex(results.Imax) + ' + ' + ftex(results.Imin) + ' = ' + ftex(results.Imax + results.Imin)
     + U4 + ' = \\bar{I}_x + \\bar{I}_y = J_O$' + (okInv ? '\\ \\checkmark' : ' (no coincide: revisar)') + '.\n';
-  tex += '\\item \\textbf{Orden.} Las inercias principales encierran a las de cualquier otro eje: '
-    + '$I_{\\min} \\le \\bar{I}_x,\\ \\bar{I}_y \\le I_{\\max}$, es decir $' + ftex(results.Imin) + ' \\le '
+  tex += '\\item \\textbf{Orden.} $' + ftex(results.Imin) + ' \\le '
     + ftex(Math.min(results.Ix, results.Iy)) + ',\\ ' + ftex(Math.max(results.Ix, results.Iy)) + ' \\le ' + ftex(results.Imax) + '$'
     + (okOrd ? '\\ \\checkmark' : ' (no se cumple: revisar)') + '.\n';
   if(simSec.v || simSec.h){
@@ -1081,23 +984,20 @@ function construirLatex(){
     const okP = pxySec === 0;
     tex += '\\item \\textbf{Simetría.} ';
     if(simSec.v) tex += 'La sección es simétrica respecto del eje vertical $x = ' + decP(env.x0,'len') + '$' + U1
-      + ', así que $\\bar{x}$ tenía que caer sobre él: $\\bar{x} = ' + decP(results.xbar,'len') + '$'
+      + ': $\\bar{x} = ' + decP(results.xbar,'len') + '$'
       + (okV ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
     if(simSec.h) tex += 'La sección es simétrica respecto del eje horizontal $y = ' + decP(env.y0,'len') + '$' + U1
-      + ', así que $\\bar{y}$ tenía que caer sobre él: $\\bar{y} = ' + decP(results.ybar,'len') + '$'
+      + ': $\\bar{y} = ' + decP(results.ybar,'len') + '$'
       + (okH ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
-    tex += 'Y un eje de simetría es principal, así que el producto de inercia tenía que anularse: $\\bar{P}_{xy} = '
+    tex += '$\\bar{P}_{xy} = '
       + ftex(pxySec) + '$' + (okP ? '\\ \\checkmark' : ' (no se anula: revisar)') + '.\n';
   } else {
-    tex += '\\item \\textbf{Simetría.} La sección no tiene eje de simetría vertical ni horizontal, así que el producto '
-      + 'de inercia no tenía por qué anularse y los ejes principales hay que calcularlos, como se hizo.\n';
+    tex += '\\item \\textbf{Simetría.} Sin eje de simetría.\n';
   }
   {
     const IxO = results.Ix + results.A*results.ybar*results.ybar;
     const IyO = results.Iy + results.A*results.xbar*results.xbar;
-    tex += '\\item \\textbf{Mínimo en el centroide.} Como todo término $A d^{2}$ es positivo, la inercia centroidal es '
-      + 'la menor de todas las inercias respecto de ejes paralelos. Respecto de los ejes $X$-$Y$ del dibujo, por $O$: '
-      + '$I_{X} = \\bar{I}_x + A\\bar{y}^{2} = ' + ftex(IxO) + U4 + ' \\ge \\bar{I}_x$ e '
+    tex += '\\item \\textbf{Mínimo en el centroide.} $I_{X} = \\bar{I}_x + A\\bar{y}^{2} = ' + ftex(IxO) + U4 + ' \\ge \\bar{I}_x$ e '
       + '$I_{Y} = \\bar{I}_y + A\\bar{x}^{2} = ' + ftex(IyO) + U4 + ' \\ge \\bar{I}_y$\\ \\checkmark.\n';
   }
   tex += '\\end{itemize}\n';
@@ -1121,8 +1021,7 @@ function construirLatex(){
   }
   tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
 
-  // ══ Referencias y colofón ══
-  tex += bsaReferenciasLatex({materiales:true});
+  // ══ Colofón ══ (sin lista de referencias desde el 2026-10-11)
   tex += colofonLatexBSA();
   tex += '\\end{document}\n';
   return tex;

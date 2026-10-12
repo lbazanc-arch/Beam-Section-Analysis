@@ -268,7 +268,8 @@ function construirLatex3dMasa(){
   let figN = 0, tablaN = 0, ecN = 0;
   const figCap = txt => { figN++; return '\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCap = txt => { tablaN++; return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
-  const porque = (clave, txt) => _primeraVezIn(clave) ? '\\porque{' + txt + '}\n' : '';
+  // Sin «¿Por qué?» (2026-10-11, directriz del profesor).
+  const porque = () => '';
   const ec = () => '\\tag{' + (++ecN) + '}';
 
   // ¿Hay algo que obligue a hablar de giros o de productos? Si no, no se
@@ -319,31 +320,9 @@ function construirLatex3dMasa(){
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += _laminasVistas3d({cotas:true, numerar:true, ancho:4.9, alto:5.6},
-    figCap('Las tres vistas del cuerpo, con las partes numeradas' + (hayHueco ? '. Las rayadas son huecos.' : '.')));
-  tex += '\\subpaso{Objetivo}\n'
-    + 'Determinar el tensor de inercia de masa del cuerpo respecto de los ejes del origen $O$ y de los '
-    + 'ejes paralelos que pasan por su centro de masa $G$, los radios de giro y los ejes principales.\n';
-  tex += porque('inercia-masa',
-    'El momento de inercia de masa mide la resistencia de un cuerpo a la \\emph{aceleración angular}, '
-    + 'igual que la masa mide su resistencia a la aceleración lineal. Se define como '
-    + '$I=\\int_m r^{2}\\,dm$, con $r$ la distancia de cada partícula al eje, y se da en kg$\\cdot$m$^{2}$. '
-    + 'No es el momento de inercia de área: aquel es geométrico, en unidades de longitud a la cuarta. '
-    + 'En un cuerpo compuesto la integral se convierte en una suma sobre partes de inercia conocida, y '
-    + 'un agujero es una parte más con masa \\textbf{negativa}.');
-  tex += '\\subpaso{Procedimiento de análisis}\n'
-    + '\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
-    + '\\item \\textbf{Partes.} Se divide el cuerpo en sólidos de inercia conocida y se toma la masa de cada uno, $m_i=\\rho_i V_i$.\n'
-    + '\\item \\textbf{Tensor propio.} De la tabla, los momentos $\\bar{I}_{xx}$, $\\bar{I}_{yy}$, $\\bar{I}_{zz}$ de cada parte respecto de '
-    + 'sus \\emph{propios} ejes centroidales.\n'
-    + (hayGiro ? '\\item \\textbf{Orientación.} La parte que no está en su postura de tabla lleva su tensor girado a los ejes del dibujo.\n' : '')
-    + '\\item \\textbf{Traslado.} Cada tensor se lleva a los ejes de $O$ con el teorema de los ejes paralelos y se suman.\n'
-    + '\\item \\textbf{Centro de masa} y traslado de vuelta, para obtener el tensor centroidal del conjunto.\n'
-    + '\\item \\textbf{Ejes principales} y radios de giro.\n'
-    + '\\end{enumerate}\n';
-  tex += '\\subpaso{Datos}\n'
-    + 'El modelo está acotado en ' + uTxt + '. Todo el desarrollo numérico se hace en \\textbf{metros y kilogramos}, '
-    + 'que es lo que pide la unidad del resultado, kg$\\cdot$m$^{2}$.\n';
+    figCap('Cuerpo compuesto con sus partes numeradas' + (hayHueco ? '. Las rayadas son huecos.' : '.')));
 
+  tex += '\\noindent{\\footnotesize Modelo acotado en ' + uTxt + '; el desarrollo, en m y kg. Posiciones desde $O$; un hueco entra con masa negativa.}\n';
   // ══ 2. Las partes ══
   tex += '\\seccion{2. Masa y tensor propio de cada parte}\n';
   grupos.forEach((g, gi)=>{
@@ -405,8 +384,7 @@ function construirLatex3dMasa(){
     + 'esa distancia se mide en el plano $y$--$z$, de ahí $d_y^{2}+d_z^{2}$; y análogamente para los otros dos:\n'
     + '\\[ I_{xx} = \\bar{I}_{xx} + m\\,(d_y^{2}+d_z^{2}), \\qquad I_{yy} = \\bar{I}_{yy} + m\\,(d_x^{2}+d_z^{2}), \\qquad '
     + 'I_{zz} = \\bar{I}_{zz} + m\\,(d_x^{2}+d_y^{2}) \\]');
-  tex += tablaCap('Masa, posición del centroide de cada parte y su momento de inercia respecto de los ejes de $O$. '
-    + 'Longitudes en m, masas en kg e inercias en kg$\\cdot$m$^{2}$.');
+  tex += tablaCap('Masas e inercias de cada parte respecto de los ejes de $O$, en m, kg y kg$\\cdot$m$^{2}$.');
   tex += '\\begingroup\\setlength{\\tabcolsep}{3pt}\\footnotesize\\begin{center}\n'
     + '\\begin{tabular}{@{}l r r r r r r r@{}}\n\\hline\n'
     + 'Parte & $m$ & $\\tilde{x}$ & $\\tilde{y}$ & $\\tilde{z}$ & $I_{xx}$ & $I_{yy}$ & $I_{zz}$ \\\\\n\\hline\n';
@@ -429,15 +407,12 @@ function construirLatex3dMasa(){
 
   // ══ 5. Tensor en el centro de masa ══
   tex += '\\seccion{5. Tensor de inercia en el centro de masa}\n';
-  tex += 'El mismo traslado, ahora al revés: de los ejes de $O$ a los paralelos por $G$ se \\emph{resta} el término de masa '
-       + 'por distancia al cuadrado, con las distancias de (2).\n';
   tex += '\\begin{align*}\n'
     + '\\bar{I}_{xx} &= I_{xx} - m(\\bar{y}^{2}+\\bar{z}^{2}) = ' + I4(R.O.xx) + ' - ' + I4(R.m*(R.cg.y*R.cg.y + R.cg.z*R.cg.z))
     + ' = ' + I4(R.G.xx) + ' \\\\\n'
     + '\\bar{I}_{yy} &= I_{yy} - m(\\bar{x}^{2}+\\bar{z}^{2}) = ' + I4(R.G.yy) + ', \\qquad '
     + '\\bar{I}_{zz} = I_{zz} - m(\\bar{x}^{2}+\\bar{y}^{2}) = ' + I4(R.G.zz) + '\n'
-    + '\\end{align*}\n'
-    + '\\noindent{\\small Todo en kg$\\cdot$m$^{2}$.}\\par\n';
+    + '\\end{align*}\n';
   if(hayProd){
     tex += porque('productos',
       'Los productos de inercia $P_{xy}=\\int xy\\,dm$ miden la \\emph{asimetría} del cuerpo respecto de cada par de planos. '
@@ -448,8 +423,7 @@ function construirLatex3dMasa(){
       + ', \\qquad \\bar{P}_{xz} = ' + I4(R.G.xz) + '\\ \\text{kg}\\cdot\\text{m}^{2}\n'
       + '\\end{align*}\n';
   } else {
-    tex += '\\noindent Los tres productos de inercia se anulan: el cuerpo es simétrico respecto de los planos coordenados '
-         + 'que pasan por $G$, así que los ejes del dibujo \\textbf{ya son los principales}.\\par\n';
+    tex += '\\[ \\bar{P}_{xy} = \\bar{P}_{yz} = \\bar{P}_{xz} = 0 \\]\n';
   }
   tex += '\\subpaso{Radios de giro}\n';
   tex += porque('radio-giro',
@@ -468,7 +442,7 @@ function construirLatex3dMasa(){
     + 'anulan: son los \\emph{ejes principales}, y sus momentos, los \\emph{momentos principales}, son el mayor y el menor '
     + 'posibles en ese punto. Se obtienen resolviendo $\\det(\\mathbf{I}-\\lambda\\mathbf{1})=0$; en el plano, este mismo '
     + 'cálculo es el que da $\\theta_p$ y el círculo de Mohr.');
-  tex += tablaCap('Momentos principales de inercia en $G$ y la dirección de cada eje, en componentes sobre $x$, $y$, $z$.');
+  tex += tablaCap('Momentos principales en $G$ y dirección de cada eje.');
   tex += '\\begingroup\\footnotesize\\begin{center}\n'
     + '\\begin{tabular}{@{}l r r r r@{}}\n\\hline\n'
     + ' & $I$ (kg$\\cdot$m$^{2}$) & $u_x$ & $u_y$ & $u_z$ \\\\\n\\hline\n';
@@ -478,12 +452,10 @@ function construirLatex3dMasa(){
   });
   tex += '\\hline\n\\end{tabular}\\end{center}\\endgroup\n\\vspace{6pt}\n';
   tex += '\\subpaso{Comprobación}\n'
-    + 'La suma de los tres momentos principales tiene que coincidir con la de la diagonal del tensor, porque girar los '
-    + 'ejes no cambia la traza:\n'
     + '\\[ I_1+I_2+I_3 = ' + I4(R.principales.reduce((s,e)=>s+e.I,0))
     + ' = \\bar{I}_{xx}+\\bar{I}_{yy}+\\bar{I}_{zz} = ' + I4(R.G.xx+R.G.yy+R.G.zz) + '\\ \\text{kg}\\cdot\\text{m}^{2} \\]\n';
 
-  tex += bsaReferenciasLatex({});
+  // Sin lista de referencias desde el 2026-10-11.
   tex += colofonLatexBSA();
   tex += '\\end{document}\n';
   return tex;

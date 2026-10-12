@@ -227,7 +227,8 @@ function construirLatex3d(){
   let figN = 0, tablaN = 0;
   const figCap = txt => { figN++; return '\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCaption = txt => { tablaN++; return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
-  const porque = (clave, txt) => _primeraVezCen(clave) ? '\\porque{' + txt + '}\n' : '';
+  // Sin «¿Por qué?» (2026-10-11, directriz del profesor).
+  const porque = () => '';
   const cab = (t, f, u) => '\\textbf{' + t + '}' + (f.cab ? ' $' + f.cab + '$' : '') + (u ? ' {\\scriptsize(' + u + ')}' : '');
   const listaNums = ns => ns.length === 1 ? String(ns[0]) : ns.slice(0,-1).join(', ') + ' y ' + ns[ns.length-1];
 
@@ -276,42 +277,13 @@ function construirLatex3d(){
   // ══ 1. Planteamiento ══
   tex += '\\seccion{1. Planteamiento del problema}\n';
   tex += _laminasVistas3d({cotas:true, numerar:true, ancho:4.9, alto:5.6},
-    figCap('Las tres vistas del cuerpo compuesto, con los sólidos numerados y las cotas generales. Los sólidos rayados son huecos.'));
-  tex += '\\subpaso{Objetivo}\n'
-    + 'Localizar el centroide $C$ del cuerpo' + (het ? ' y su centro de gravedad $G$' : '')
-    + ': sus tres coordenadas $\\bar{x}$, $\\bar{y}$, $\\bar{z}$ medidas desde el origen $O$.\n';
-  tex += porque('centroide',
-    'El peso de un cuerpo es la resultante de los pesos de todas sus partículas, un sistema de fuerzas paralelas que pasa '
-    + 'siempre por el mismo punto del cuerpo: el \\emph{centro de gravedad} $G$. Se localiza igualando el momento del peso '
-    + 'total al de todos los pesos parciales. Con material homogéneo el peso específico se cancela y queda solo la '
-    + 'geometría: el \\emph{centroide} $C$ del volumen. En un cuerpo compuesto, la integral se convierte en una suma sobre '
-    + 'partes de centroide conocido, y un agujero es una parte más con volumen negativo.');
-  tex += '\\subpaso{Procedimiento de análisis}\n'
-    + '\\begin{enumerate}\\setlength{\\itemsep}{1pt}\n'
-    + '\\item \\textbf{Partes.} Se divide el cuerpo en sólidos de centroide conocido (prismas, cilindros, conos y conos truncados, esferas, '
-    + 'semiesferas, paraboloides, pirámides, cuñas, medios cilindros). Un agujero es una parte con volumen \\textbf{negativo}.\n'
-    + '\\item \\textbf{Propiedades de cada parte.} Su volumen $V_i$, la posición de su centroide sobre su eje (fórmula de '
-    + 'la tabla) y las coordenadas $\\tilde{x}_i$, $\\tilde{y}_i$, $\\tilde{z}_i$ de ese centroide desde $O$.'
-    + (het ? ' En un cuerpo heterogéneo, además, ' + Wnom + ' de cada parte, $' + Wsim + '_i = ' + simb + '_i V_i$.' : '') + '\n'
-    + '\\item \\textbf{Tabla.} $V_i$, $\\tilde{x}_i$, $\\tilde{y}_i$, $\\tilde{z}_i$ y los momentos estáticos $V_i\\tilde{x}_i$, '
-    + '$V_i\\tilde{y}_i$, $V_i\\tilde{z}_i$, con sus sumas.\n'
-    + '\\item \\textbf{Centroide.} $\\bar{x} = \\sum V_i\\tilde{x}_i/\\sum V_i$ y lo mismo en $y$ y en $z$'
-    + (het ? '; $G$ con ' + Wnoms : '') + '. Después se comprueba.\n'
-    + '\\end{enumerate}\n';
+    figCap('Cuerpo compuesto con sus sólidos numerados. Los rayados son huecos.'));
   const hayVolteo = figures.some(f=>f.volteado && f.type !== 's_esfera');
   const hayGiro = figures.some(f=>SOLID_DEFS[f.type].vertices && Math.abs(f.rotation||0) > 1e-9);
   const hayCuna = figures.some(f=>SOLID_DEFS[f.type].cLocal);
   const hayTumbado = figures.some(f=>giroFueraDePlanta(f));
-  tex += '\\subpaso{Convenio}\n'
-    + '\\noindent ' + (hayTumbado
-      ? 'Cada sólido se coloca por el \\textbf{centro de su base}, con su eje vertical, y desde ahí se \\emph{gira}: el ángulo de cada plano se mide desde el primer eje hacia el segundo --- en $X$--$Y$ desde $+X$ hacia $+Y$, en $X$--$Z$ desde $+X$ hacia $+Z$ y en $Y$--$Z$ desde $+Z$ hacia $+Y$---, y se aplican en ese orden inverso ($Y$--$Z$, $X$--$Z$, $X$--$Y$). El centroide propio se mide a lo largo del eje de la pieza, que gira con ella. '
-      : 'Cada sólido se coloca por el \\textbf{centro de su base} y tiene su eje vertical (paralelo a $Z$). ')
-    + 'Las posiciones se miden desde $O$: $x$ hacia la derecha, $y$ hacia el fondo de la planta, $z$ hacia arriba. '
-    + 'La tilde señala el centroide de una parte; la barra, el de todo el cuerpo. Los huecos entran con volumen negativo.'
-    + (hayVolteo ? ' Un sólido \\emph{volteado} crece hacia el lado contrario de su eje: con el eje vertical, cuelga por debajo del punto donde se colocó y su base queda arriba.' : '')
-    + (hayGiro && !hayTumbado ? ' El giro $\\alpha$ en el plano $X$--$Y$ se mide desde $+X$ hacia $+Y$; en un sólido de revolución no se nota, y en un prisma, pirámide, cuña o medio cilindro se ve su silueta girada.' : '')
-    + '\n';
 
+  tex += '\\noindent{\\footnotesize Posiciones desde $O$: $x$ a la derecha, $y$ al fondo, $z$ hacia arriba. Cada sólido se coloca por el centro de su base; un hueco entra con volumen negativo.}\n';
   // ══ 2. Paso 1: cada parte ══
   tex += '\\seccion{2. Paso 1 --- Propiedades de cada parte}\n';
   grupos.forEach((g, gi)=>{
@@ -426,7 +398,7 @@ function construirLatex3d(){
     + 'de la definición. Lo mismo en $y$ y en $z$.');
   const fV = factorColumna(st.map(s=>s.v)), fVX = factorColumna(st.map(s=>s.vx).concat([results.Qx])),
         fVY = factorColumna(st.map(s=>s.vy).concat([results.Qy])), fVZ = factorColumna(st.map(s=>s.vz).concat([results.Qz]));
-  tex += tablaCaption('Volúmenes, posición del centroide de cada parte y momentos estáticos. Los volúmenes llevan ya el signo de la parte.');
+  tex += tablaCaption('Volúmenes y momentos estáticos de cada parte.');
   const tNumV = tablaN;
   // Nueve columnas con el nombre del sólido no caben con la separación normal.
   tex += '{\\small\\setlength{\\tabcolsep}{4pt}\\begin{tablacentrada}\\begin{tabular}{clccccccc}\\hline\n'
@@ -453,7 +425,7 @@ function construirLatex3d(){
 
   // ══ 4. Paso 3: centroide ══
   tex += '\\seccion{4. Paso 3 --- ' + (het ? 'Centroide y centro de gravedad' : 'Centroide del cuerpo') + '}\n';
-  tex += '\\noindent Con las sumas de la Tabla ' + tNumV + ':\n\\[ V = \\sum V_i = ' + ftex(results.V) + U3 + ' \\]\n';
+  tex += '\\[ V = \\sum V_i = ' + ftex(results.V) + U3 + ' \\]\n';
   const coc = (n, num) => '\\bar{' + n + '} = \\dfrac{\\sum V_i\\tilde{' + n + '}_i}{\\sum V_i} = \\dfrac{' + ftex(num) + '}{' + ftex(results.V) + '}';
   tex += '\\[ ' + coc('x', results.Qx) + ' = ' + decP(results.xbar,'len') + U1 + ' \\qquad ' + coc('y', results.Qy) + ' = ' + decP(results.ybar,'len') + U1 + ' \\]\n';
   tex += '\\[ ' + coc('z', results.Qz) + ' = ' + decP(results.zbar,'len') + U1 + ' \\]\n';
@@ -461,15 +433,12 @@ function construirLatex3d(){
     + 'concentrar todo el volumen para producir el mismo momento: la definición del centroide, coordenada a coordenada.');
   tex += '\\resultado{\\centering $C\\,(\\bar{x};\\ \\bar{y};\\ \\bar{z}) = (' + decP(results.xbar,'len') + ';\\ ' + decP(results.ybar,'len') + ';\\ ' + decP(results.zbar,'len') + ')' + U1 + '$, medido desde $O$.}\n';
   if(het){
-    tex += '\\subpaso{Centro de gravedad $G$}\n\\noindent Con las sumas de la Tabla ' + tNumW + ', el mismo cociente con ' + Wnoms + ':\n';
+    tex += '\\subpaso{Centro de gravedad $G$}\n';
     const cw = (n, num) => '\\bar{' + n + '}_G = \\dfrac{\\sum ' + Wsim + '_i\\tilde{' + n + '}_i}{\\sum ' + Wsim + '_i} = \\dfrac{' + ftex(num) + '}{' + ftex(results.W) + '}';
     tex += '\\[ ' + cw('x', results.Wx) + ' = ' + decP(results.xg,'len') + U1 + ' \\qquad ' + cw('y', results.Wy) + ' = ' + decP(results.yg,'len') + U1 + ' \\]\n';
     tex += '\\[ ' + cw('z', results.Wz) + ' = ' + decP(results.zg,'len') + U1 + ' \\]\n';
     tex += '\\resultado{\\centering $G\\,(' + decP(results.xg,'len') + ';\\ ' + decP(results.yg,'len') + ';\\ ' + decP(results.zg,'len') + ')' + U1 + '$, a ' + decP(results.sep,'len') + '\\,' + uTxt + ' de $C$.}\n';
   }
-  tex += '\\veredicto{' + (het
-    ? 'Cuerpo \\textbf{heterogéneo}: $G$ no coincide con $C$ (distan ' + decP(results.sep,'len') + '\\,' + uTxt + '); se desplaza hacia el material más ' + (esMasa?'denso':'pesado') + '.'
-    : 'Cuerpo \\textbf{homogéneo}: el peso específico se cancela en el cociente; centroide, centro de masa y centro de gravedad son el mismo punto $C$.') + '}\n';
 
   // ══ 5. Paso 4: comprobaciones ══
   tex += '\\seccion{5. Paso 4 --- Comprobaciones}\n';
@@ -479,17 +448,17 @@ function construirLatex3d(){
   tex += '\\begin{itemize}\\setlength{\\itemsep}{2pt}\n';
   if(simX || simY){
     tex += '\\item \\textbf{Simetría.} ';
-    if(simX) tex += 'Todos los ejes están en el plano $x = ' + decP(x0e,'len') + '$' + U1 + ', así que $\\bar{x}$ tenía que caer en él: $\\bar{x} = ' + decP(results.xbar,'len') + '$'
+    if(simX) tex += 'Todos los ejes están en el plano $x = ' + decP(x0e,'len') + '$' + U1 + ': $\\bar{x} = ' + decP(results.xbar,'len') + '$'
       + (Math.abs(results.xbar-x0e) < tol ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
-    if(simY) tex += 'Todos los ejes están en el plano $y = ' + decP(y0e,'len') + '$' + U1 + ', así que $\\bar{y}$ tenía que caer en él: $\\bar{y} = ' + decP(results.ybar,'len') + '$'
+    if(simY) tex += 'Todos los ejes están en el plano $y = ' + decP(y0e,'len') + '$' + U1 + ': $\\bar{y} = ' + decP(results.ybar,'len') + '$'
       + (Math.abs(results.ybar-y0e) < tol ? '\\ \\checkmark' : ' (no coincide: revisar)') + '. ';
     tex += '\n';
   } else {
-    tex += '\\item \\textbf{Simetría.} Los ejes de los sólidos no comparten un plano vertical: ninguna coordenada se conoce de antemano.\n';
+    tex += '\\item \\textbf{Simetría.} Sin plano de simetría.\n';
   }
   const dentro = results.xbar >= bb.x0-tol && results.xbar <= bb.x1+tol && results.ybar >= minY-tol && results.ybar <= maxY+tol && results.zbar >= minZ-tol && results.zbar <= maxZ+tol;
-  tex += '\\item \\textbf{Envolvente.} El cuerpo ocupa $' + decP(bb.x0,'len') + ' \\le x \\le ' + decP(bb.x1,'len') + '$, $' + decP(minY,'len') + ' \\le y \\le ' + decP(maxY,'len') + '$ y $'
-    + decP(minZ,'len') + ' \\le z \\le ' + decP(maxZ,'len') + '$' + U1 + ', y $C$ queda dentro' + (dentro ? '\\ \\checkmark' : ' --- no queda dentro: revisar') + '.\n';
+  tex += '\\item \\textbf{Envolvente.} $' + decP(bb.x0,'len') + ' \\le x \\le ' + decP(bb.x1,'len') + '$, $' + decP(minY,'len') + ' \\le y \\le ' + decP(maxY,'len') + '$ y $'
+    + decP(minZ,'len') + ' \\le z \\le ' + decP(maxZ,'len') + '$' + U1 + ', $C$ dentro' + (dentro ? '\\ \\checkmark' : ' --- no queda dentro: revisar') + '.\n';
   {
     let mx=0,my=0,mz=0; st.forEach(s=>{ mx+=s.v*(s.xi-results.xbar); my+=s.v*(s.yi-results.ybar); mz+=s.v*(s.zi-results.zbar); });
     const esc0 = Math.max(Math.abs(results.Qx),Math.abs(results.Qy),Math.abs(results.Qz),1);
@@ -502,8 +471,7 @@ function construirLatex3d(){
   const pap = (typeof datosPappus === 'function') ? datosPappus() : null;
   if(pap){
     tex += '\\subpaso{Pappus y Guldinus}\n';
-    tex += '\\noindent Todos los sólidos son de revolución alrededor del mismo eje vertical ($x = ' + decP(pap.eje.x,'len') + '$, $y = ' + decP(pap.eje.y,'len') + '$' + U1 + '). '
-      + 'Cada volumen debe ser entonces el de girar $360^{\\circ}$ su media sección alrededor del eje: $V_i = 2\\pi\\,\\bar{r}_i\\,A_i$, con $A_i$ el área generatriz y $\\bar{r}_i$ la distancia de su centroide al eje.\n';
+    tex += '\\noindent Eje común $x = ' + decP(pap.eje.x,'len') + '$, $y = ' + decP(pap.eje.y,'len') + '$' + U1 + ': $V_i = 2\\pi\\,\\bar{r}_i\\,A_i$.\n';
     tex += porque('pappus', 'Segundo teorema de Pappus y Guldinus: el volumen de un sólido de revolución es igual al área generatriz por la '
       + 'longitud del camino que recorre su centroide, $2\\pi\\bar{r}$. Vale para el cuerpo entero porque su media sección es la suma '
       + 'de las medias secciones de las partes (los huecos, con área negativa). Es una comprobación independiente de las fórmulas de la tabla.');
@@ -513,7 +481,7 @@ function construirLatex3d(){
     const lineas = pap.filas.filter(r=>{ if(vistos[r.fig.type]) return false; vistos[r.fig.type] = true; return true; })
       .map(r=>SOLID_DEFS[r.fig.type].name.toLowerCase() + ': $' + r.p.texA + '$, $' + r.p.texR + '$');
     tex += '\\noindent{\\footnotesize Media sección de cada sólido (Hibbeler, 2027) --- ' + lineas.join('; ') + '.}\\par\\vspace{3pt}\n';
-    tex += tablaCaption('Comprobación por Pappus y Guldinus: área generatriz, brazo de su centroide y volumen $2\\pi\\bar{r}_iA_i$ frente al de la Tabla ' + tNumV + '. Las áreas de los huecos van con signo negativo.');
+    tex += tablaCaption('Pappus y Guldinus frente a la Tabla ' + tNumV + '.');
     tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{clcccc}\\hline\n\\textbf{Parte} & \\textbf{Sólido} & ' + cab('$A_i$', fA, escLatex(unit) + '\\textsuperscript{2}')
       + ' & \\textbf{$\\bar{r}_i$} {\\scriptsize(' + uTxt + ')} & ' + cab('$2\\pi\\bar{r}_iA_i$', fVp, u3Txt) + ' & \\textbf{$V_i$} {\\scriptsize(Tabla ' + tNumV + ')}\\\\\\hline\n';
     pap.filas.forEach((r,i)=>{
@@ -526,7 +494,7 @@ function construirLatex3d(){
   }
   tex += '\\subpaso{Cuerpo resuelto}\n';
   tex += _laminasVistas3d({cotas:false, ejes:true, marcarC:true, ancho:6.0, alto:6.5},
-    figCap('Cuerpo resuelto: posición de $C$' + (het ? ' y de $G$' : '') + ' en planta y en alzado, medida desde los ejes. Los valores están en la Tabla ' + (tablaN+1) + '.'));
+    figCap('Cuerpo resuelto.'));
   tex += tablaCaption('Resultados.');
   tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{lcc}\\hline\n\\textbf{Magnitud} & \\textbf{Valor} & \\textbf{Unidad} \\\\\\hline\n'
     + 'Volumen total $V$ & $' + ftex(results.V) + '$ & ' + u3Txt + ' \\\\\n'
@@ -535,8 +503,7 @@ function construirLatex3d(){
     + 'Centro de gravedad $\\bar{x}_G$, $\\bar{y}_G$, $\\bar{z}_G$ & $' + decP(results.xg,'len') + '$, $' + decP(results.yg,'len') + '$, $' + decP(results.zg,'len') + '$ & ' + uTxt + ' \\\\\n';
   tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
 
-  tex += bsaReferenciasLatex();
-  tex += colofonLatexBSA();
+  tex += colofonLatexBSA();   // sin lista de referencias desde el 2026-10-11
   tex += '\\end{document}\n';
   return tex;
 }
