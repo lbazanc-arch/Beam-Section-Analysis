@@ -18,7 +18,7 @@
 //  de una cota en carril va SOBRE su línea, derecho y con fondo blanco, en el
 //  primer punto de ella que no pisa a los ya escritos.
 // ═══════════════════════════════════════════════════════════
-function _esqNuevo(){ return {polys:[], polis:[], flechas:[], textos:[], puntos:[], cotas:[], arcos:[]}; }
+function _esqNuevo(){ return {polys:[], polis:[], flechas:[], textos:[], puntos:[], cotas:[], arcos:[], leyenda:[]}; }
 
 // ── Cara recta: de T (el extremo menos profundo, ya en la superficie si la cara
 //    asoma) a D, con la normal w hacia el líquido. `o`: {cuerpo (franja del
@@ -42,13 +42,13 @@ function esquemaCaraRecta(d, w, o){
     if(bd.Fr > 1e-12){
       g.polys.push({pts:[P(s0,0), P(s1,0), P(s1,hm), P(s0,hm)], est:'rect'});
       g.textos.push({p:P(s0 + (crece ? 0.2 : 0.8)*l, hm/2), txt:'□' + sub, tex:'\\square' + (sub ? '_{' + sub + '}' : ''), tipo:'region', tam:[0.3*l, hm]});
-      comps.push({s:s0 + bd.sR, F:bd.Fr, txt:'F□' + sub, tex:'F_{\\square' + (sub ? ',' + sub : '') + '}'});
+      comps.push({s:s0 + bd.sR, F:bd.Fr, txt:'F□' + sub, tex:'F_{\\square' + (sub ? ',' + sub : '') + '}', ns:'s□' + sub, nt:'s_{\\square' + (sub ? ',' + sub : '') + '}'});
     }
     if(bd.Ft > 1e-12){
       g.polys.push({pts: crece ? [P(s0,hm), P(s1,hm), P(s1,h1)] : [P(s0,h0), P(s0,hm), P(s1,hm)], est:'tri'});
       const t = crece ? 0.88 : 0.12, alto = dh*(crece ? t : 1 - t);
       g.textos.push({p:P(s0 + t*l, hm + 0.4*alto), txt:'△' + sub, tex:'\\triangle' + (sub ? '_{' + sub + '}' : ''), tipo:'region', tam:[0.2*l, 0.8*alto]});
-      comps.push({s:s0 + bd.sT, F:bd.Ft, txt:'F△' + sub, tex:'F_{\\triangle' + (sub ? ',' + sub : '') + '}'});
+      comps.push({s:s0 + bd.sT, F:bd.Ft, txt:'F△' + sub, tex:'F_{\\triangle' + (sub ? ',' + sub : '') + '}', ns:'s△' + sub, nt:'s_{\\triangle' + (sub ? ',' + sub : '') + '}'});
     }
     if(bd.Fr > 1e-12 && bd.Ft > 1e-12) g.polis.push({pts:[P(s0,hm), P(s1,hm)], est:'division'});
     // la presión de cada extremo, acotada más allá de la cara
@@ -65,13 +65,22 @@ function esquemaCaraRecta(d, w, o){
   g.puntos.push({p:P(d.sP, 0), est:'P', txt:'P', dir:{x:-w.x, y:-w.y}});
   if(o.nomT) g.puntos.push({p:P(0,0), est:'nudo', txt:o.nomT, dir:{x:-u.x - w.x, y:-u.y - w.y}});
   if(o.nomD) g.puntos.push({p:P(L,0), est:'nudo', txt:o.nomD, dir:{x:u.x - w.x, y:u.y - w.y}});
-  // del lado seco, en carriles: L y la s de cada fuerza y de P, desde T
+  // Del lado seco, un NIVEL por cota (L y la s de cada fuerza y de P, desde T),
+  // de la más corta, junto a la cara, a la más larga, por fuera: así ninguna
+  // línea de extensión cruza una línea de cota. Cada nivel lleva solo su NOMBRE
+  // (s□, s△, s_P, L), que dice qué es, y los valores van en una leyenda bajo la
+  // figura (2026-10-11, corrección del profesor: con «s = …» en cuatro carriles
+  // juntos no se sabía cuál era cuál y los valores se pisaban; con los valores
+  // en cada nivel, separados lo bastante, el dibujo quedaba diminuto).
   const lado = {x:-w.x, y:-w.y};
-  let nivel = 0;
-  const cota = (s, txt, tex) => g.cotas.push({a:P(0,0), b:P(s,0), w:lado, base:e, nivel:nivel++, txt, tex});
-  cota(L, 'L = ' + dec(L,'len'), 'L = ' + dec(L,'len'));
-  comps.forEach(q=>cota(q.s, 's = ' + dec(q.s,'len'), 's = ' + dec(q.s,'len')));
-  if(comps.length > 1) cota(d.sP, 'sP = ' + dec(d.sP,'len'), 's_P = ' + dec(d.sP,'len'));
+  const lista = comps.map(q=>({s:q.s, txt:q.ns, tex:q.nt}));
+  if(comps.length > 1) lista.push({s:d.sP, txt:'sP', tex:'s_P'});
+  lista.push({s:L, txt:'L', tex:'L'});
+  lista.sort((a1, a2)=>a1.s - a2.s);
+  lista.forEach((q, nivel)=>{
+    g.cotas.push({a:P(0,0), b:P(q.s,0), w:lado, base:e, nivel, txt:q.txt, tex:q.tex});
+    g.leyenda.push({txt:q.txt + ' = ' + dec(q.s,'len'), tex:q.tex + ' = ' + dec(q.s,'len')});
+  });
   return g;
 }
 
@@ -227,12 +236,15 @@ function _disposicionEsquema(g, o){
   g.puntos.forEach(q=>nucleo.push(q.p));
   const caja = pts => ({x0:Math.min(...pts.map(p=>p.x)), x1:Math.max(...pts.map(p=>p.x)), y0:Math.min(...pts.map(p=>p.y)), y1:Math.max(...pts.map(p=>p.y))});
   const escala = b => Math.min((o.ancho - 2*o.margen)/Math.max(b.x1-b.x0,1e-9), (o.alto - 2*o.margen)/Math.max(b.y1-b.y0,1e-9));
-  let k = escala(caja(nucleo)), dist = [], frac = [], b;
+  let k = escala(caja(nucleo)), dist = [], frac = [], b, off = [];
   const enCarril = g.cotas.filter(q=>q.nivel !== undefined);
-  for(let it=0; it<6; it++){            // los textos no escalan: unas pasadas hasta que el encaje se asienta
+  for(let it=0; it<14; it++){           // los textos no escalan: unas pasadas hasta que el encaje se asienta
     // los carriles empiezan pasada su base y medio texto: el valor va centrado en su línea
     const medio = Math.max(0, ...enCarril.map(q=>{ const m = o.medir(q.txt, q.tex); return Math.abs(q.w.x)*m[0]/2 + Math.abs(q.w.y)*m[1]/2; }));
-    dist = g.cotas.map(q=>q.nivel !== undefined ? q.base*k + o.gap + medio + q.nivel*o.carril : (q.fuera ? 0 : q.dist*k));
+    // Entre niveles, medio valor y un hueco: el valor centrado en su línea no
+    // llega a la del nivel vecino (2026-10-11; con el carril fijo se pisaban).
+    const paso = Math.max(o.carril, 2*medio + 2*o.sep);
+    dist = g.cotas.map(q=>q.nivel !== undefined ? q.base*k + o.gap + medio + q.nivel*paso : (q.fuera ? 0 : q.dist*k));
     // carril «fuera»: más allá de todo lo dibujado y de los rótulos, en la dirección w;
     // las cotas del mismo grupo (una cadena) comparten carril
     const grupos = {};
@@ -268,7 +280,7 @@ function _disposicionEsquema(g, o){
         const cx = (A.x + B.x)/2 + q.w.x*sep, cy = (A.y + B.y)/2 + q.w.y*sep;
         c = {x0:cx-hw, x1:cx+hw, y0:cy-hh, y1:cy+hh};
       } else {
-        for(const f of [0.5, 0.3, 0.7, 0.18, 0.82, 0.4, 0.6]){
+        for(const f of [0.5, 0.65, 0.35, 0.8, 0.2, 0.9, 0.1, 0.72, 0.28]){
           const cx = A.x + (B.x-A.x)*f, cy = A.y + (B.y-A.y)*f;
           c = {x0:cx-hw, x1:cx+hw, y0:cy-hh, y1:cy+hh};
           frac[i] = f;
@@ -278,20 +290,46 @@ function _disposicionEsquema(g, o){
       puestas.push(c);
       pts.push({x:c.x0, y:c.y0}, {x:c.x1, y:c.y1});
     });
-    g.textos.concat(g.puntos.map(q=>({p:q.p, txt:q.txt, tex:q.tex, tipo:'fuerza', dir:q.dir}))).forEach(t=>{
+    // Rótulos de fuerza: si dos se pisan (fuerzas muy juntas), el segundo se aparta
+    // de lado, perpendicular a su fuerza, lo justo (2026-10-11).
+    off = g.textos.map(()=>({x:0, y:0}));
+    const cajasF = [];
+    g.textos.forEach((t, i)=>{
+      if(t.tipo !== 'fuerza') return;
+      const m = o.medir(t.txt, t.tex), n = Math.hypot(t.dir.x, t.dir.y) || 1;
+      const hw = m[0]/2/k + o.sep/2/k, hh = m[1]/2/k + o.sep/2/k;
+      const c0 = {x:t.p.x + t.dir.x/n*(m[0]/2 + o.sep)/k, y:t.p.y + t.dir.y/n*(m[1]/2 + o.sep)/k};
+      const px = -t.dir.y/n, py = t.dir.x/n;
+      let dx = 0, dy = 0;
+      for(let r=0; r<8; r++){
+        const c = {x:c0.x + dx, y:c0.y + dy};
+        const ch = cajasF.find(q=>Math.abs(q.x - c.x) < q.hw + hw && Math.abs(q.y - c.y) < q.hh + hh);
+        if(!ch) break;
+        const sg = ((c.x - ch.x)*px + (c.y - ch.y)*py) >= 0 ? 1 : -1;
+        const paso = (Math.abs(px)*(ch.hw + hw - Math.abs(c.x - ch.x)) + Math.abs(py)*(ch.hh + hh - Math.abs(c.y - ch.y))) + 0.5/k;
+        dx += sg*px*paso; dy += sg*py*paso;
+      }
+      off[i] = {x:dx, y:dy};
+      cajasF.push({x:c0.x + dx, y:c0.y + dy, hw, hh});
+    });
+    g.textos.concat(g.puntos.map(q=>({p:q.p, txt:q.txt, tex:q.tex, tipo:'fuerza', dir:q.dir}))).forEach((t, i)=>{
       const m = o.medir(t.txt, t.tex);
       let cx = t.p.x, cy = t.p.y;
       if(t.tipo === 'fuerza'){
         const n = Math.hypot(t.dir.x, t.dir.y) || 1;
         cx += t.dir.x/n*(m[0]/2 + o.sep)/k; cy += t.dir.y/n*(m[1]/2 + o.sep)/k;
+        if(i < off.length){ cx += off[i].x; cy += off[i].y; }
       }
       pts.push({x:cx - m[0]/2/k, y:cy - m[1]/2/k}, {x:cx + m[0]/2/k, y:cy + m[1]/2/k});
     });
     g.arcos.forEach(a=>{ const r = o.carril*2.4/k; pts.push({x:a.p.x - r, y:a.p.y - r}, {x:a.p.x + r, y:a.p.y + r}); });
     b = caja(pts);
-    k = escala(b);
+    const k2 = escala(b);
+    // sin cambio de escala, las distancias ya son las de esta escala: se acaba
+    if(Math.abs(k2 - k) <= 1e-4*k) break;
+    k = k2;
   }
-  return {k, dist, frac, b};
+  return {k, dist, frac, b, off};
 }
 
 // ── Dibujante SVG (pantalla) ──
@@ -309,14 +347,24 @@ const _ESQ_SVG = {
 };
 function esquemaSVG(g, o){
   o = o || {};
-  const Wv = o.ancho || 300, Hv = o.alto || 230, m = 8;
-  const medir = txt => [String(txt).length*5.9 + 4, 12];
+  const Wv = o.ancho || 300, m = 8;
+  // Leyenda de valores bajo la figura, partida en filas que quepan
+  const filasLey = [];
+  (g.leyenda || []).forEach(it=>{
+    const f = filasLey[filasLey.length-1];
+    if(f && (f.join('   ·   ') + '   ·   ' + it.txt).length*6.3 < Wv - 2*m) f.push(it.txt); else filasLey.push([it.txt]);
+  });
+  const Hv = o.alto || 230, HL = filasLey.length ? filasLey.length*15 + 6 : 0;
+  const medir = txt => [String(txt).length*6.3 + 4, 13];
   const lay = _disposicionEsquema(g, {ancho:Wv, alto:Hv, margen:m, medir, gap:16, sep:4, carril:15});
   const k = lay.k, bb = lay.b;
   const X = x => m + (x-bb.x0)*k + ((Wv-2*m) - (bb.x1-bb.x0)*k)/2, Y = y => Hv - m - (y-bb.y0)*k - ((Hv-2*m) - (bb.y1-bb.y0)*k)/2;
   const F = v => v.toFixed(1);
   const S = _ESQ_SVG;
-  let s = '<svg class="croq-svg" viewBox="0 0 ' + Wv + ' ' + Hv + '" xmlns="http://www.w3.org/2000/svg">';
+  let s = '<svg class="croq-svg" viewBox="0 0 ' + Wv + ' ' + (Hv + HL) + '" xmlns="http://www.w3.org/2000/svg">';
+  filasLey.forEach((f, i)=>{
+    s += '<text x="' + Wv/2 + '" y="' + (Hv + 10 + i*15) + '" font-size="10.2" font-weight="600" text-anchor="middle" dominant-baseline="middle" fill="#1b1f24">' + f.join('   ·   ') + '</text>';
+  });
   g.polys.forEach(q=>{ s += '<polygon points="' + q.pts.map(p=>F(X(p.x)) + ',' + F(Y(p.y))).join(' ') + '" ' + S.poly[q.est] + '/>'; });
   g.polis.forEach(q=>{ s += '<polyline points="' + q.pts.map(p=>F(X(p.x)) + ',' + F(Y(p.y))).join(' ') + '" fill="none" ' + S.poli[q.est] + '/>'; });
   const flecha = (a, b, col, w) => {
@@ -354,18 +402,19 @@ function esquemaSVG(g, o){
     let tx, ty;
     if(lay.frac[i] !== null){ tx = D1[0] + (D2[0]-D1[0])*lay.frac[i]; ty = D1[1] + (D2[1]-D1[1])*lay.frac[i]; }
     else { const sep = 4 + Math.abs(wx)*mm[0]/2 + Math.abs(wy)*mm[1]/2; tx = (D1[0]+D2[0])/2 + wx*sep; ty = (D1[1]+D2[1])/2 + wy*sep; }
-    s += '<text x="' + F(tx) + '" y="' + F(ty) + '" font-size="9.5" font-weight="600" text-anchor="middle" dominant-baseline="middle" fill="#1b1f24" stroke="#fff" stroke-width="4" paint-order="stroke">' + q.txt + '</text>';
+    s += '<text x="' + F(tx) + '" y="' + F(ty) + '" font-size="10.2" font-weight="600" text-anchor="middle" dominant-baseline="middle" fill="#1b1f24" stroke="#fff" stroke-width="4" paint-order="stroke">' + q.txt + '</text>';
   });
-  g.textos.forEach(t=>{
+  g.textos.forEach((t, it)=>{
     if(t.tipo === 'region'){
       if(Math.min(t.tam[0], t.tam[1])*k < 10) return;          // demasiado pequeña para su marca
       s += '<text x="' + F(X(t.p.x)) + '" y="' + F(Y(t.p.y)) + '" font-size="11" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#8f1d12">' + t.txt + '</text>';
     } else if(t.tipo === 'fuerza'){
       const n = Math.hypot(t.dir.x, t.dir.y) || 1, ax = t.dir.x/n, ay = -t.dir.y/n, mm = medir(t.txt);
-      const cx = X(t.p.x) + ax*(mm[0]/2 + 4), cy = Y(t.p.y) + ay*(mm[1]/2 + 4);
-      s += '<text x="' + F(cx) + '" y="' + F(cy) + '" font-size="9.5" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="' + (S.texto[t.est] || '#8f1d12') + '" stroke="#fff" stroke-width="3" paint-order="stroke">' + t.txt + '</text>';
+      const ofs = lay.off[it] || {x:0, y:0};
+      const cx = X(t.p.x + ofs.x) + ax*(mm[0]/2 + 4), cy = Y(t.p.y + ofs.y) + ay*(mm[1]/2 + 4);
+      s += '<text x="' + F(cx) + '" y="' + F(cy) + '" font-size="10.2" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="' + (S.texto[t.est] || '#8f1d12') + '" stroke="#fff" stroke-width="3" paint-order="stroke">' + t.txt + '</text>';
     } else {
-      s += '<text x="' + F(X(t.p.x)) + '" y="' + F(Y(t.p.y)) + '" font-size="9" text-anchor="middle" dominant-baseline="middle" fill="#c0392b" stroke="#fff" stroke-width="3" paint-order="stroke">' + t.txt + '</text>';
+      s += '<text x="' + F(X(t.p.x)) + '" y="' + F(Y(t.p.y)) + '" font-size="9.8" text-anchor="middle" dominant-baseline="middle" fill="#c0392b" stroke="#fff" stroke-width="3" paint-order="stroke">' + t.txt + '</text>';
     }
   });
   g.puntos.forEach(q=>{
@@ -374,7 +423,7 @@ function esquemaSVG(g, o){
     else s += '<circle cx="' + F(px) + '" cy="' + F(py) + '" r="2.6" fill="' + col + '"/>';
     const n = Math.hypot(q.dir.x, q.dir.y) || 1, mm = medir(q.txt);
     const cx = px + q.dir.x/n*(mm[0]/2 + 5), cy = py - q.dir.y/n*(mm[1]/2 + 5);
-    s += '<text x="' + F(cx) + '" y="' + F(cy) + '" font-size="9.5" font-weight="700"' + (q.est === 'P' || q.est === 'PR' ? ' font-style="italic"' : '') + ' text-anchor="middle" dominant-baseline="middle" fill="' + col + '" stroke="#fff" stroke-width="3" paint-order="stroke">' + q.txt + '</text>';
+    s += '<text x="' + F(cx) + '" y="' + F(cy) + '" font-size="10.2" font-weight="700"' + (q.est === 'P' || q.est === 'PR' ? ' font-style="italic"' : '') + ' text-anchor="middle" dominant-baseline="middle" fill="' + col + '" stroke="#fff" stroke-width="3" paint-order="stroke">' + q.txt + '</text>';
   });
   return s + '</svg>';
 }
@@ -418,13 +467,14 @@ function esquemaTikZ(g, o){
     else { const sep = 0.08 + Math.abs(wx)*mm[0]/2 + Math.abs(wy)*mm[1]/2; tx = (D1[0]+D2[0])/2 + wx*sep; ty = (D1[1]+D2[1])/2 + wy*sep; }
     out += '\\node[font=\\tiny, fill=white, inner sep=.8pt] at (' + F(tx) + ',' + F(ty) + ') {$' + q.tex + '$};\n';
   });
-  g.textos.forEach(t=>{
+  g.textos.forEach((t, it)=>{
     if(t.tipo === 'region'){
       if(Math.min(t.tam[0], t.tam[1])*k < 0.28) return;
       out += '\\node[font=\\scriptsize, text=bsaPres!80!black] at ' + P(t.p) + ' {$' + t.tex + '$};\n';
     } else if(t.tipo === 'fuerza'){
       const n = Math.hypot(t.dir.x, t.dir.y) || 1, mm = medir(t.txt, t.tex);
-      const cx = X(t.p.x) + t.dir.x/n*(mm[0]/2 + 0.08), cy = Y(t.p.y) + t.dir.y/n*(mm[1]/2 + 0.08);
+      const ofs = lay.off[it] || {x:0, y:0};
+      const cx = X(t.p.x + ofs.x) + t.dir.x/n*(mm[0]/2 + 0.08), cy = Y(t.p.y + ofs.y) + t.dir.y/n*(mm[1]/2 + 0.08);
       out += '\\node[font=\\tiny, text=' + (T.texto[t.est] || 'bsaPres') + ', fill=white, inner sep=.8pt] at (' + F(cx) + ',' + F(cy) + ') {$' + t.tex + '$};\n';
     } else {
       out += '\\node[font=\\tiny, text=bsaPres, fill=white, inner sep=.8pt] at ' + P(t.p) + ' {$' + (t.tex || t.txt) + '$};\n';
@@ -439,6 +489,9 @@ function esquemaTikZ(g, o){
     const txt = q.est === 'nudo' ? '\\textbf{' + escLatex(q.txt) + '}' : '$' + (q.tex || q.txt) + '$';
     out += '\\node[font=\\scriptsize, text=' + col + ', fill=white, inner sep=.6pt] at (' + F(cx) + ',' + F(cy) + ') {' + txt + '};\n';
   });
+  if(g.leyenda && g.leyenda.length)
+    out += '\\node[font=\\scriptsize, anchor=north] at (' + F((bb.x1 - bb.x0)*k/2) + ',-0.22) {'
+         + g.leyenda.map(it=>'$' + it.tex + '$').join('\\quad ') + '};\n';
   return out;
 }
 

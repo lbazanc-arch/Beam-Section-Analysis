@@ -765,10 +765,12 @@ function construirLatex(){
     + '\\begin{document}\n\n';
 
   let figN = 0, tablaN = 0;
+  // Figura y pie en una caja indivisible: con \\nopagebreak solo, el pie podía
+  // quedarse solo al principio de la página siguiente (2026-10-11).
   const lamina = (cuerpo, txt, escala) => { figN++;
-    return '\\begin{center}\n\\begin{tikzpicture}[scale=' + (escala || 1) + ']\n' + cuerpo
-      + '\\end{tikzpicture}\\par\\nopagebreak\\vspace{4pt}\n'
-      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{center}\n\\vspace{4pt}\n'; };
+    return '\\begin{center}\\begin{minipage}{\\linewidth}\\centering\n\\begin{tikzpicture}[scale=' + (escala || 1) + ']\n' + cuerpo
+      + '\\end{tikzpicture}\\par\\vspace{4pt}\n'
+      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{minipage}\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCaption = txt => { tablaN++;
     return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
   // Sin «¿Por qué?» ni explicaciones de concepto (2026-10-11, directriz del profesor):
