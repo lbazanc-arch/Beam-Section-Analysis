@@ -265,6 +265,16 @@ function construirLatex3dMasa(){
   const celdaNombre = f => { const s = nombreDe(f);
     return s.length > 26 ? '\\parbox[t]{3.6cm}{\\raggedright ' + s + '}' : s; };
 
+  // Sustituye en una fórmula de tabla las letras de las medidas y la masa por sus
+  // valores entre paréntesis (2026-10-15, petición del profesor: «solo fórmula y
+  // resultado» no se podía seguir). Las órdenes de LaTeX (\tfrac, \left…) no se tocan.
+  const sustituir = (form, vals) => form.replace(/\\[a-zA-Z]+|[A-Za-z](_\{?\d\}?)?/g,
+    t => (t.charAt(0) === '\\' || vals[t] === undefined) ? t : '(' + vals[t] + ')');
+  // Una ecuación larga en dos renglones: la fórmula y, debajo, la sustitución y el valor.
+  const dosRenglones = (izq, form, sus, valor) =>
+    izq + ' &= ' + form + ' \\\\\n&= ' + sus + ' = ' + valor;
+  const kgm2 = '\\ \\text{kg}\\cdot\\text{m}^{2}';
+
   let figN = 0, tablaN = 0, ecN = 0;
   const figCap = txt => { figN++; return '\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCap = txt => { tablaN++; return '\\par\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\par\\nopagebreak\\vspace{2pt}\n'; };
@@ -338,13 +348,31 @@ function construirLatex3dMasa(){
     tex += '\\subpaso{' + (varios ? 'Partes ' : 'Parte ') + listaNums(nums) + ' — ' + nombreDe(f)
          + (p.signo === -1 ? ' (hueco)' : '') + posturaTex + '}\n';
     tex += _vistasSolido3(f, uTxt);
-    // Volumen y masa
-    const dimsTxt = def.dims.map(d=>'$' + d.id.replace('r2','R_2').replace(/^r$/,'R').replace(/^L$/,'L') + ' = '
-                     + L(f.dims[d.id]) + '$ m').join(',\\; ');
+    // Medidas con su nombre: «h» sola no decía qué distancia era (2026-10-15).
+    const simDim = d => { const m = /\(([^)]+)\)\s*$/.exec(d.label || '');
+      const s = m ? m[1] : (d.id === 'r' ? 'R' : d.id);
+      return s.replace('\u2081', '_1').replace('\u2082', '_2'); };
+    const nomDim = d => (d.label || '').replace(/\s*\([^)]*\)\s*$/, '').toLowerCase();
+    tex += '\\noindent{\\small Medidas: ' + def.dims.map(d => '$' + simDim(d) + ' = ' + L(f.dims[d.id]) + '$ m (' + nomDim(d) + ')').join(', ')
+         + (giroFueraDePlanta(f) ? '; la altura se mide a lo largo del eje de la pieza' : '') + '.}\\par\n';
+    // Volumen y masa, con la sustitución
+    const Vm3 = Math.abs(p.V)*M*M*M, rhoSI = Math.abs(p.m)/Vm3;
+    const enKgM3 = /kg\s*\/\s*m/.test(f.rhoU || densUnidad || '');
+    const susV = def.formula && def.formula.sust ? def.formula.sust(f.dims, L) : '';
+    const fV = def.formula && def.formula.V ? def.formula.V.replace(/^V = /, '') : '';
+    const valV = V3(Math.abs(p.V)) + '\\ \\text{m}^{3}';
+    // Con la sustitución larga (cono truncado), en dos renglones.
+    const filaV = !fV ? 'V &= ' + valV
+      : !susV ? 'V &= ' + fV + ' = ' + valV
+      : (fV + susV).length > 90 ? dosRenglones('V', fV, susV, valV)
+      : 'V &= ' + fV + ' = ' + susV + ' = ' + valV;
+    const rhoSus = enKgM3 ? rhoTxt(f.rho) : ftex(rhoSI);
     tex += '\\begin{align*}\n'
-      + 'V &= ' + V3(p.V) + '\\ \\text{m}^{3}, \\qquad '
-      + '\\rho = ' + rhoTxt(f.rho) + '\\ \\text{' + escLatex(f.rhoU || densUnidad) + '} \\\\\n'
-      + 'm &= \\rho V = ' + (p.signo === -1 ? '-' : '') + m4(Math.abs(p.m)) + '\\ \\text{kg}\n'
+      + filaV + ' \\\\\n'
+      + '\\rho &= ' + rhoTxt(f.rho) + '\\ \\text{' + escLatex(f.rhoU || densUnidad) + '}'
+      + (enKgM3 ? '' : ' = ' + ftex(rhoSI) + '\\ \\text{kg/m}^{3}') + ' \\\\\n'
+      + 'm &= ' + (p.signo === -1 ? '-' : '') + '\\rho V = ' + (p.signo === -1 ? '-' : '') + '(' + rhoSus + ')(' + V3(Math.abs(p.V)) + ') = '
+      + (p.signo === -1 ? '-' : '') + m4(Math.abs(p.m)) + '\\ \\text{kg}\n'
       + '\\end{align*}\n';
     if(p.signo === -1) tex += porque('hueco',
       'Un agujero se resta: se calcula como si fuese material y su masa entra con signo negativo, igual que en las secciones planas.');
@@ -352,15 +380,25 @@ function construirLatex3dMasa(){
     tex += porque('tensor-propio',
       'Los tres momentos de la tabla están referidos a los ejes que pasan por el \\emph{centroide de la propia pieza} y son '
       + 'paralelos a sus aristas o a su eje de revolución. Son los valores que después se trasladan.');
-    const filaF = (sub, form, val) => '\\bar{I}_{' + sub + '} &= ' + form + ' = ' + I4(val) + '\\ \\text{kg}\\cdot\\text{m}^{2}';
+    // Valores para la sustitución, en metros y kilogramos. En las piezas con e
+    // (los medios cilindros) también e = 4R/3π.
+    const vals = {m: m4(p.m)};
+    def.dims.forEach(d=>{ vals[simDim(d)] = L(f.dims[d.id]); });
+    if(f.dims.r !== undefined) vals.e = L(4*f.dims.r/(3*Math.PI));
+    const sinSust = f.type === 's_conotrunc';            // sus integrales no se sustituyen
+    const filaF = (sub, form, val) => sinSust
+      ? '\\bar{I}_{' + sub + '} &= ' + form + ' = ' + I4(val) + kgm2
+      : dosRenglones('\\bar{I}_{' + sub + '}', form, sustituir(form, vals), I4(val) + kgm2);
     const locNoGirado = tensorLocalMasa(f);
     const lineas = [];
     if(F.xx) lineas.push(filaF('xx', F.xx, p.m*locNoGirado.xx));
-    if(F.yy) lineas.push(filaF('yy', F.yy === '=\\bar{I}_{xx}' ? '\\bar{I}_{xx}' : F.yy, p.m*locNoGirado.yy));
+    if(F.yy) lineas.push(F.yy === '=\\bar{I}_{xx}' ? '\\bar{I}_{yy} &= \\bar{I}_{xx} = ' + I4(p.m*locNoGirado.yy) + kgm2
+                                                   : filaF('yy', F.yy, p.m*locNoGirado.yy));
     if(F.zz) lineas.push(filaF('zz', F.zz, p.m*locNoGirado.zz));
     if(F.xz) lineas.push(filaF('xz', F.xz, p.m*locNoGirado.xz));
     if(lineas.length) tex += '\\begin{align*}\n' + lineas.join(' \\\\\n') + '\n\\end{align*}\n';
-    if(F.nota) tex += '\\noindent{\\small ' + F.nota.charAt(0).toUpperCase() + F.nota.slice(1) + '.}\\par\n';
+    if(F.nota) tex += '\\noindent{\\small ' + F.nota.charAt(0).toUpperCase() + F.nota.slice(1)
+      + (vals.e !== undefined && /e = 4R/.test(F.nota) ? ': $e = ' + vals.e + '$ m' : '') + '.}\\par\n';
     // Giro, solo si esta pieza lo lleva
     if(giroFueraDePlanta(f) || Math.abs(anguloPlano(f,'xy')) > 1e-9){
       tex += porque('giro-tensor',
@@ -384,6 +422,23 @@ function construirLatex3dMasa(){
     + 'esa distancia se mide en el plano $y$--$z$, de ahí $d_y^{2}+d_z^{2}$; y análogamente para los otros dos:\n'
     + '\\[ I_{xx} = \\bar{I}_{xx} + m\\,(d_y^{2}+d_z^{2}), \\qquad I_{yy} = \\bar{I}_{yy} + m\\,(d_x^{2}+d_z^{2}), \\qquad '
     + 'I_{zz} = \\bar{I}_{zz} + m\\,(d_x^{2}+d_y^{2}) \\]');
+  // Cada parte con su Steiner sustituido (2026-10-15): d = posición de su
+  // centroide, porque los ejes de llegada pasan por O.
+  P.forEach((p, i)=>{
+    const k = i + 1, c = p.centroidal, o = p.enOrigen;
+    const dx = L(p.g.x), dy = L(p.g.y), dz = L(p.g.z), mm = '(' + m4(p.m) + ')';
+    tex += '\\par\\vspace{3pt}\\noindent{\\bfseries\\color{bsaAcc2} Parte ' + k + '}\\quad{\\small $d_x = ' + dx
+         + '$, $d_y = ' + dy + '$, $d_z = ' + dz + '$ m (su centroide desde $O$)}\n';
+    const filas = [
+      dosRenglones('I_{xx}', '\\bar{I}_{xx} + m\\,(d_y^{2}+d_z^{2})', I4(c.xx) + ' + ' + mm + '\\left((' + dy + ')^{2}+(' + dz + ')^{2}\\right)', I4(o.xx)),
+      dosRenglones('I_{yy}', '\\bar{I}_{yy} + m\\,(d_x^{2}+d_z^{2})', I4(c.yy) + ' + ' + mm + '\\left((' + dx + ')^{2}+(' + dz + ')^{2}\\right)', I4(o.yy)),
+      dosRenglones('I_{zz}', '\\bar{I}_{zz} + m\\,(d_x^{2}+d_y^{2})', I4(c.zz) + ' + ' + mm + '\\left((' + dx + ')^{2}+(' + dy + ')^{2}\\right)', I4(o.zz) + kgm2)];
+    if(hayProd) filas.push(
+      'P_{xy} &= \\bar{P}_{xy} + m\\,d_x d_y = ' + I4(c.xy||0) + ' + ' + mm + '(' + dx + ')(' + dy + ') = ' + I4(o.xy||0),
+      'P_{yz} &= \\bar{P}_{yz} + m\\,d_y d_z = ' + I4(c.yz||0) + ' + ' + mm + '(' + dy + ')(' + dz + ') = ' + I4(o.yz||0),
+      'P_{xz} &= \\bar{P}_{xz} + m\\,d_x d_z = ' + I4(c.xz||0) + ' + ' + mm + '(' + dx + ')(' + dz + ') = ' + I4(o.xz||0) + kgm2);
+    tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
+  });
   tex += tablaCap('Masas e inercias de cada parte respecto de los ejes de $O$, en m, kg y kg$\\cdot$m$^{2}$.');
   tex += '\\begingroup\\setlength{\\tabcolsep}{3pt}\\footnotesize\\begin{center}\n'
     + '\\begin{tabular}{@{}l r r r r r r r@{}}\n\\hline\n'
@@ -399,28 +454,39 @@ function construirLatex3dMasa(){
 
   // ══ 4. Centro de masa ══
   tex += '\\seccion{4. Centro de masa}\n';
-  tex += '\\begin{align}\n'
-    + 'm &= \\sum m_i = ' + m4(R.m) + '\\ \\text{kg} ' + ec() + ' \\\\\n'
-    + '\\bar{x} &= \\frac{\\sum m_i\\tilde{x}_i}{\\sum m_i} = ' + L(R.cg.x) + '\\ \\text{m}, \\qquad '
-    + '\\bar{y} = ' + L(R.cg.y) + '\\ \\text{m}, \\qquad \\bar{z} = ' + L(R.cg.z) + '\\ \\text{m} ' + ec() + '\n'
-    + '\\end{align}\n';
+  {
+    let Sx = 0, Sy = 0, Sz = 0;
+    P.forEach(p=>{ Sx += p.m*p.g.x*M; Sy += p.m*p.g.y*M; Sz += p.m*p.g.z*M; });
+    const fila = (c, S, v) => '\\bar{' + c + '} &= \\frac{\\sum m_i\\tilde{' + c + '}_i}{\\sum m_i} = \\frac{' + ftex(S) + '}{'
+      + m4(R.m) + '} = ' + L(v) + '\\ \\text{m}';
+    tex += '\\begin{align}\n'
+      + 'm &= \\sum m_i = ' + m4(R.m) + '\\ \\text{kg} ' + ec() + ' \\\\\n'
+      + fila('x', Sx, R.cg.x) + ' ' + ec() + ' \\\\\n'
+      + fila('y', Sy, R.cg.y) + ' ' + ec() + ' \\\\\n'
+      + fila('z', Sz, R.cg.z) + ' ' + ec() + '\n'
+      + '\\end{align}\n';
+  }
 
   // ══ 5. Tensor en el centro de masa ══
   tex += '\\seccion{5. Tensor de inercia en el centro de masa}\n';
-  tex += '\\begin{align*}\n'
-    + '\\bar{I}_{xx} &= I_{xx} - m(\\bar{y}^{2}+\\bar{z}^{2}) = ' + I4(R.O.xx) + ' - ' + I4(R.m*(R.cg.y*R.cg.y + R.cg.z*R.cg.z))
-    + ' = ' + I4(R.G.xx) + ' \\\\\n'
-    + '\\bar{I}_{yy} &= I_{yy} - m(\\bar{x}^{2}+\\bar{z}^{2}) = ' + I4(R.G.yy) + ', \\qquad '
-    + '\\bar{I}_{zz} = I_{zz} - m(\\bar{x}^{2}+\\bar{y}^{2}) = ' + I4(R.G.zz) + '\n'
-    + '\\end{align*}\n';
+  {
+    const xg = L(R.cg.x), yg = L(R.cg.y), zg = L(R.cg.z), mm = '(' + m4(R.m) + ')';
+    tex += '\\begin{align*}\n'
+      + dosRenglones('\\bar{I}_{xx}', 'I_{xx} - m(\\bar{y}^{2}+\\bar{z}^{2})', I4(R.O.xx) + ' - ' + mm + '\\left((' + yg + ')^{2}+(' + zg + ')^{2}\\right)', I4(R.G.xx)) + ' \\\\\n'
+      + dosRenglones('\\bar{I}_{yy}', 'I_{yy} - m(\\bar{x}^{2}+\\bar{z}^{2})', I4(R.O.yy) + ' - ' + mm + '\\left((' + xg + ')^{2}+(' + zg + ')^{2}\\right)', I4(R.G.yy)) + ' \\\\\n'
+      + dosRenglones('\\bar{I}_{zz}', 'I_{zz} - m(\\bar{x}^{2}+\\bar{y}^{2})', I4(R.O.zz) + ' - ' + mm + '\\left((' + xg + ')^{2}+(' + yg + ')^{2}\\right)', I4(R.G.zz) + kgm2) + '\n'
+      + '\\end{align*}\n';
+  }
   if(hayProd){
     tex += porque('productos',
       'Los productos de inercia $P_{xy}=\\int xy\\,dm$ miden la \\emph{asimetría} del cuerpo respecto de cada par de planos. '
       + 'Se anulan cuando hay un plano de simetría perpendicular a uno de los dos ejes, y son los que obligan a buscar los '
       + 'ejes principales. Se trasladan con $P_{xy} = \\bar{P}_{xy} + m\\,d_x d_y$, sin elevar al cuadrado y \\textbf{con su signo}.');
+    const xg = L(R.cg.x), yg = L(R.cg.y), zg = L(R.cg.z), mm = '(' + m4(R.m) + ')';
     tex += '\\begin{align*}\n'
-      + '\\bar{P}_{xy} &= ' + I4(R.G.xy) + ', \\qquad \\bar{P}_{yz} = ' + I4(R.G.yz)
-      + ', \\qquad \\bar{P}_{xz} = ' + I4(R.G.xz) + '\\ \\text{kg}\\cdot\\text{m}^{2}\n'
+      + '\\bar{P}_{xy} &= P_{xy} - m\\,\\bar{x}\\bar{y} = ' + I4(R.O.xy||0) + ' - ' + mm + '(' + xg + ')(' + yg + ') = ' + I4(R.G.xy) + ' \\\\\n'
+      + '\\bar{P}_{yz} &= P_{yz} - m\\,\\bar{y}\\bar{z} = ' + I4(R.O.yz||0) + ' - ' + mm + '(' + yg + ')(' + zg + ') = ' + I4(R.G.yz) + ' \\\\\n'
+      + '\\bar{P}_{xz} &= P_{xz} - m\\,\\bar{x}\\bar{z} = ' + I4(R.O.xz||0) + ' - ' + mm + '(' + xg + ')(' + zg + ') = ' + I4(R.G.xz) + kgm2 + '\n'
       + '\\end{align*}\n';
   } else {
     tex += '\\[ \\bar{P}_{xy} = \\bar{P}_{yz} = \\bar{P}_{xz} = 0 \\]\n';
@@ -434,9 +500,9 @@ function construirLatex3dMasa(){
     'El radio de giro $k=\\sqrt{I/m}$ es la distancia a la que habría que concentrar toda la masa, en un punto, para que '
     + 'diese el mismo momento de inercia. Sirve para comparar cuerpos de masas distintas.');
   tex += '\\begin{align*}\n'
-    + 'k_x &= \\sqrt{\\bar{I}_{xx}/m} = ' + L(R.kG.x) + '\\ \\text{m}, \\qquad '
-    + 'k_y = ' + L(R.kG.y) + '\\ \\text{m}, \\qquad '
-    + 'k_z = ' + L(R.kG.z) + '\\ \\text{m}\n'
+    + 'k_x &= \\sqrt{\\bar{I}_{xx}/m} = \\sqrt{' + I4(R.G.xx) + '/' + m4(R.m) + '} = ' + L(R.kG.x) + '\\ \\text{m} \\\\\n'
+    + 'k_y &= \\sqrt{\\bar{I}_{yy}/m} = \\sqrt{' + I4(R.G.yy) + '/' + m4(R.m) + '} = ' + L(R.kG.y) + '\\ \\text{m} \\\\\n'
+    + 'k_z &= \\sqrt{\\bar{I}_{zz}/m} = \\sqrt{' + I4(R.G.zz) + '/' + m4(R.m) + '} = ' + L(R.kG.z) + '\\ \\text{m}\n'
     + '\\end{align*}\n';
   }
 
