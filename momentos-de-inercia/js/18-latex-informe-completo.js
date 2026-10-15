@@ -210,6 +210,9 @@ function _preambuloLatexIn(){
   // 2·theta_p se lea igual en la app y en el PDF.
   + '\\definecolor{bsaRojo}{HTML}{C0392B}\n\n'
   + '\\setlength{\\parskip}{2pt}\n'
+  // Más aire entre las filas de una ecuación partida (2026-10-12, petición del
+  // profesor: las ecuaciones iban muy pegadas).
+  + '\\setlength{\\jot}{6pt}\n'
   // Deja que TeX estire los espacios SOLO en el parrafo que no cierra de otro
   // modo (cifras y unidades pegadas, que no se pueden partir).
   + '\\setlength{\\emergencystretch}{3em}\n'
@@ -329,8 +332,11 @@ function construirLatex(){
     return '\\begin{center}\n\\bsaEncajar{\\begin{tikzpicture}[scale=1]\n' + cuerpo
       + '\\end{tikzpicture}}\\par\\nopagebreak\\vspace{4pt}\n'
       + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{center}\n\\vspace{4pt}\n'; };
+  // El pie cierra su párrafo ANTES del \nopagebreak: dentro del párrafo
+  // (tras \\) solo impedía el salto de línea, y el pie se quedaba solo al
+  // final de la página con su tabla en la siguiente (2026-10-15).
   const tablaCaption = txt => { tablaN++;
-    return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
+    return '\\par\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\par\\nopagebreak\\vspace{2pt}\n'; };
   // Sin «¿Por qué?» ni notas de concepto (2026-10-11, directriz del profesor).
   const porque = () => '';
   const nota = () => '';
@@ -391,7 +397,7 @@ function construirLatex(){
     const girada = Math.abs(giro) >= 0.005;
     const varios = g.idx.length > 1;
 
-    if(gi > 0) tex += '\\vspace{10pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{10pt}\n\n';
+    if(gi > 0) tex += '\\vspace{6pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{6pt}\n\n';
     // Todo el bloque de la parte (título, nota, desarrollo y croquis) va en una
     // minipage de ancho completo: es indivisible, así que si no cabe pasa
     // entero a la página siguiente y, si cabe, la página se llena con
@@ -401,18 +407,10 @@ function construirLatex(){
          + nombreDe(f) + '}\\ \\ {\\small\\color{bsaMuted}('
          + (f.sign > 0 ? (varios ? 'se suman' : 'se suma') : (varios ? 'se restan' : 'se resta')) + ')}\\\\[3pt]\n';
     if(varios){
-      tex += '{\\footnotesize ' + (g.simetria === 'vertical'
-          ? 'Las ' + g.idx.length + ' partes son iguales y están en \\textbf{espejo respecto del eje vertical} que parte la '
-            + 'sección por la mitad: comparten área, centroide propio, inercias propias y $\\tilde{y}$; solo cambia '
-            + '$\\tilde{x}$. Se desarrollan una sola vez, y en el paso 3 se verá que aportan las mismas $\\bar{I}_x$ e '
-            + '$\\bar{I}_y$ y productos de inercia opuestos.'
-          : g.simetria === 'horizontal'
-          ? 'Las ' + g.idx.length + ' partes son iguales y están en \\textbf{espejo respecto del eje horizontal} que parte la '
-            + 'sección por la mitad: comparten área, centroide propio, inercias propias y $\\tilde{x}$; solo cambia '
-            + '$\\tilde{y}$. Se desarrollan una sola vez, y en el paso 3 se verá que aportan las mismas $\\bar{I}_x$ e '
-            + '$\\bar{I}_y$ y productos de inercia opuestos.'
-          : 'Las ' + g.idx.length + ' partes son iguales (mismo tipo y dimensiones): área, centroide e inercias propias '
-            + 'se calculan una sola vez; cada una entra en las tablas con su propia posición.') + '}\\\\[4pt]\n';
+      // Una línea (2026-10-15): qué comparten y qué cambia.
+      tex += '{\\footnotesize ' + (g.simetria === 'vertical' ? 'Iguales y en espejo respecto del eje vertical: solo cambia $\\tilde{x}$.'
+          : g.simetria === 'horizontal' ? 'Iguales y en espejo respecto del eje horizontal: solo cambia $\\tilde{y}$.'
+          : 'Iguales: se desarrollan una vez; cada una con su posición.') + '}\\\\[4pt]\n';
     }
 
     // Un perfil laminado es UNA parte con propiedades tabuladas: antes del
@@ -426,7 +424,7 @@ function construirLatex(){
     // Ecuaciones en display con menos aire: dentro del bloque de una parte hay
     // seis o siete seguidas y con el espaciado normal el bloque no cabe.
     tex += '\\noindent\\begin{minipage}[t]{0.60\\textwidth}\n\\small\n'
-         + '\\abovedisplayskip=3pt\\belowdisplayskip=3pt\\abovedisplayshortskip=2pt\\belowdisplayshortskip=2pt\n';
+         + '\\abovedisplayskip=7pt\\belowdisplayskip=7pt\\abovedisplayshortskip=5pt\\belowdisplayshortskip=5pt\n';
 
     if(tb){
       // Valores tabulados, convertidos a la unidad del aplicativo.
@@ -459,8 +457,7 @@ function construirLatex(){
         tex += '{\\footnotesize El centroide del ángulo está a $\\bar{x} = ' + decP(tb.xb,'len') + U1 + '$ y $\\bar{y} = '
              + decP(tb.yb !== undefined ? tb.yb : tb.xb,'len') + U1 + '$ del vértice (tabulados); el dibujo los respeta.}\\\\[2pt]\n';
     } else {
-    // Área
-    tex += '\\textbf{Área}\n';
+    // Área (sin subtítulos en la parte desde el 2026-10-15: cada símbolo dice qué es)
     if(fa.sim.indexOf('\\quad') >= 0)
       // La sustitución del segmento circular no cabe de una tirada en la columna
       // del desarrollo: si es larga, el resultado baja a un renglón propio.
@@ -479,7 +476,6 @@ function construirLatex(){
 
     // Centroide propio, con la razón de la fórmula la primera vez (R1).
     if(cl){
-      tex += '\\textbf{Centroide propio}\n';
       tex += '\\[ ' + cl + ' \\]\n';
       if(f.type === 'rtriangle' || f.type === 'rtriangle2')
         tex += porque('tri', 'El centroide de un triángulo está a un tercio de la altura desde la base y a un tercio '
@@ -530,7 +526,6 @@ function construirLatex(){
     // dónde mira la hipotenusa.
     const sg = (f.type === 'rtriangle') ? '-' : '';
     const simP = fi.ixy.sim.replace('\\pm', sg), susP = (fi.ixy.sus || '').replace('\\pm', sg);
-    tex += '\\textbf{Inercias propias' + (girada ? ' (ejes de la figura)' : '') + '}\n';
     tex += lineaFormula(fi.ix.sim, fi.ix.sus, ftex(s0.Ixc0), U4);
     tex += lineaFormula(fi.iy.sim, fi.iy.sus, ftex(s0.Iyc0), U4);
     // Cuando el producto es nulo por simetría, la propia fórmula ya lo dice y
@@ -568,7 +563,6 @@ function construirLatex(){
     // Giro a ejes paralelos a x-y
     if(girada){
       const c2 = Math.cos(2*giro*Math.PI/180).toFixed(4), s2 = Math.sin(2*giro*Math.PI/180).toFixed(4);
-      tex += '\\textbf{Giro a ejes paralelos a $x$ e $y$}\n';
       tex += porque('giro',
         'Las inercias propias de la tabla están referidas a los ejes de la figura. Si la figura está colocada '
         + 'girada un ángulo $\\beta$, antes de trasladarlas hay que llevarlas a ejes paralelos a $x$ e $y$ con las '
@@ -592,7 +586,6 @@ function construirLatex(){
     }
 
     // Posición desde O, una línea por parte del grupo.
-    tex += '\\textbf{Posición desde $O$}\n';
     tex += porque('posicion',
       '$\\tilde{x}_i$ e $\\tilde{y}_i$ son las coordenadas del centroide de la parte medidas desde $O$. Sirven para '
       + 'dos cosas: localizar el centroide de la sección (paso 2) y, restándoles $\\bar{x}$ e $\\bar{y}$, obtener '
@@ -682,63 +675,27 @@ function construirLatex(){
     + 'para $I_y$ con $d_x$ y para el producto, $P_{xy} = \\bar{P}_{x\'y\'} + A\\,d_x d_y$, que conserva los signos '
     + 'de $d_x$ y $d_y$. Solo funciona \\emph{desde} un eje centroidal: por eso se calculó $C$ antes.');
   tex += '\\[ d_{x_i} = \\tilde{x}_i - \\bar{x} \\qquad d_{y_i} = \\tilde{y}_i - \\bar{y} \\]\n';
-  // Desarrollo escrito: la primera parte con la fórmula literal; las demás,
-  // solo la sustitución. Las partes en espejo de otra ya desarrollada se
-  // despachan en una línea: mismas Ix e Iy, producto opuesto.
-  const espejoDe = {};
-  grupos.forEach(g=>{ if(g.simetria) g.idx.slice(1).forEach(i=>{ espejoDe[i] = {de:g.idx[0], eje:g.simetria}; }); });
-  // Partes iguales a otra ya desarrollada (mismo grupo, sin espejo): una sola
-  // línea con sus distancias y su aporte, que la tabla detalla (propuesta 3,
-  // 2026-09-08: el informe de 18 figuras pasaba de 17 páginas).
-  const repetidaDe = {};
-  grupos.forEach(g=>{ if(!g.simetria) g.idx.slice(1).forEach(i=>{ repetidaDe[i] = g.idx[0]; }); });
-  // Y, con seis o más partes, el desarrollo completo solo la PRIMERA vez que
-  // aparece cada situación (parte normal, parte girada, hueco): las demás
-  // repiten la misma sustitución y la tabla las detalla (R1).
-  const situacionVista = {};
-  let primera = true;
-  st.forEach((s,i)=>{
-    const k = i+1, f = s.fig;
+  // Solo la PRIMERA parte se desarrolla; las demás, con la misma sustitución,
+  // van en la tabla (2026-10-15, decisión del profesor: el párrafo de cada parte
+  // repetía los números de la tabla).
+  {
+    const s = st[0], k = 1, f = s.fig;
     const girada = Math.abs(f.rotation||0) >= 0.005, pr = girada ? '\'' : '';
     const marca = f.sign > 0 ? '' : '-';
     const dxS = decP(s.dx,'len'), dyS = decP(s.dy,'len');
-    // \par delante: sin él, «Parte 1» seguía en la misma línea que el párrafo
-    // anterior.
     tex += '\\par\\vspace{3pt}\\noindent{\\bfseries\\color{bsaAcc2} Parte ' + k + '}';
-    if(espejoDe[i]){
-      const e = espejoDe[i], k0 = e.de + 1;
-      tex += '\\quad{\\small en espejo de la parte ' + k0 + ' respecto del eje ' + e.eje + ': '
-        + (e.eje === 'vertical' ? '$d_{x_' + k + '} = -d_{x_' + k0 + '} = ' + dxS + '$ y el mismo $d_{y}$'
-                                 : '$d_{y_' + k + '} = -d_{y_' + k0 + '} = ' + dyS + '$ y el mismo $d_{x}$')
-        + ', así que $\\bar{I}_{x_' + k + '} = \\bar{I}_{x_' + k0 + '}$, $\\bar{I}_{y_' + k + '} = \\bar{I}_{y_' + k0
-        + '}$ y $\\bar{P}_{xy_' + k + '} = -\\bar{P}_{xy_' + k0 + '} = ' + ftex(ceroIn(s.Ixy_f)) + U4 + '$.}\\\\[2pt]\n';
-      return;
-    }
-    const situacion = (girada ? 'girada' : 'normal') + (f.sign > 0 ? '' : '-hueco');
-    const compacta = (repetidaDe[i] !== undefined) || (st.length >= 6 && situacionVista[situacion] !== undefined);
-    if(compacta){
-      const k0 = (repetidaDe[i] !== undefined ? repetidaDe[i] : situacionVista[situacion]) + 1;
-      tex += '\\quad{\\small ' + (repetidaDe[i] !== undefined ? 'igual que la parte ' + k0 : 'como la parte ' + k0)
-        + ', con $d_{x_' + k + '} = ' + dxS + '$ y $d_{y_' + k + '} = ' + dyS + U1
-        + '$; la misma sustituci\\\'on da $\\bar{I}_{x_' + k + '} = ' + ftex(s.Ix_f) + '$, $\\bar{I}_{y_' + k + '} = ' + ftex(s.Iy_f)
-        + '$ y $\\bar{P}_{xy_' + k + '} = ' + ftex(ceroIn(s.Ixy_f)) + U4 + '$ (detalle en la tabla).}\\\\[2pt]\n';
-      return;
-    }
-    situacionVista[situacion] = i;
     tex += '\\quad{\\small $d_{x_' + k + '} = ' + decP(f.cx,'len') + ' - ' + decP(results.xbar,'len') + ' = ' + dxS + U1
       + '$, \\ $d_{y_' + k + '} = ' + decP(f.cy,'len') + ' - ' + decP(results.ybar,'len') + ' = ' + dyS + U1 + '$}\\\\[2pt]\n';
-    // Cada línea empieza diciendo QUÉ se calcula: tres paréntesis seguidos no
-    // dicen cuál es cuál.
-    const lit = primera;
-    tex += '\\[ \\bar{I}_{x_' + k + '} = ' + (lit ? marca + '\\left(\\bar{I}_{x}' + pr + ' + A_' + k + ' d_{y_' + k + '}^{2}\\right) = ' : '')
+    tex += '\\[ \\bar{I}_{x_' + k + '} = ' + marca + '\\left(\\bar{I}_{x}' + pr + ' + A_' + k + ' d_{y_' + k + '}^{2}\\right) = '
       + marca + '\\left(' + ftex(s.Ixc) + ' + (' + ftex(s.a) + ')(' + dyS + ')^{2}\\right) = ' + ftex(s.Ix_f) + U4 + ' \\]\n';
-    tex += '\\[ \\bar{I}_{y_' + k + '} = ' + (lit ? marca + '\\left(\\bar{I}_{y}' + pr + ' + A_' + k + ' d_{x_' + k + '}^{2}\\right) = ' : '')
+    tex += '\\[ \\bar{I}_{y_' + k + '} = ' + marca + '\\left(\\bar{I}_{y}' + pr + ' + A_' + k + ' d_{x_' + k + '}^{2}\\right) = '
       + marca + '\\left(' + ftex(s.Iyc) + ' + (' + ftex(s.a) + ')(' + dxS + ')^{2}\\right) = ' + ftex(s.Iy_f) + U4 + ' \\]\n';
-    tex += '\\[ \\bar{P}_{xy_' + k + '} = ' + (lit ? marca + '\\left(\\bar{P}_{xy}' + pr + ' + A_' + k + ' d_{x_' + k + '} d_{y_' + k + '}\\right) = ' : '')
+    tex += '\\[ \\bar{P}_{xy_' + k + '} = ' + marca + '\\left(\\bar{P}_{xy}' + pr + ' + A_' + k + ' d_{x_' + k + '} d_{y_' + k + '}\\right) = '
       + marca + '\\left(' + ftex(ceroIn(s.Ixyc)) + ' + (' + ftex(s.a) + ')(' + dxS + ')(' + dyS + ')\\right) = '
       + ftex(ceroIn(s.Ixy_f)) + U4 + ' \\]\n';
-    primera = false;
-  });
+    if(st.length > 1)
+      tex += '{\\footnotesize Las demás partes, con la misma sustitución, en la Tabla ' + (tablaN + 1) + '; un hueco resta su aporte.}\\\\[2pt]\n';
+  }
 
   // Tabla de inercias: propias giradas, traslado y aporte de cada parte.
   let tNumI;
@@ -800,7 +757,10 @@ function construirLatex(){
       + ftex(sPropIy) + ' + ' + ftex(sStIy) + ' = ' + ftex(results.Iy) + U4 + ' \\]\n';
     tex += '\\[ \\bar{P}_{xy} = \\sum \\left(\\bar{P}_{xy}\' + A_i\\,d_{x_i}d_{y_i}\\right) = '
       + ftex(ceroIn(sPropIxy)) + ' + ' + ftex(ceroIn(sStIxy)) + ' = ' + ftex(pxySec) + U4 + ' \\]\n';
-    tex += '\\subpaso{Momento polar y radios de giro}\n';
+    // Los radios de giro, solo si el alumno los tiene encendidos (VIS.radios,
+    // apagados por defecto; 2026-10-15).
+    const conRadios = (typeof VIS !== 'undefined') && !!VIS.radios;
+    tex += '\\subpaso{Momento polar' + (conRadios ? ' y radios de giro' : '') + '}\n';
     tex += porque('polar',
       'El momento polar $J_O = \\int r^{2}dA$ mide la inercia respecto del eje perpendicular al plano por $C$; como '
       + '$r^{2} = x^{2} + y^{2}$, vale simplemente $\\bar{I}_x + \\bar{I}_y$. El radio de giro $k = \\sqrt{I/A}$ es la '
@@ -808,7 +768,7 @@ function construirLatex(){
       + 'diseño de columnas para medir la esbeltez.');
     tex += '\\[ J_O = \\bar{I}_x + \\bar{I}_y = ' + ftex(results.Ix) + ' + ' + ftex(results.Iy)
       + ' = ' + ftex(results.Jo) + U4 + ' \\]\n';
-    tex += '\\[ k_x = \\sqrt{\\dfrac{\\bar{I}_x}{A}} = \\sqrt{\\dfrac{' + ftex(results.Ix) + '}{'
+    if(conRadios) tex += '\\[ k_x = \\sqrt{\\dfrac{\\bar{I}_x}{A}} = \\sqrt{\\dfrac{' + ftex(results.Ix) + '}{'
       + ftex(results.A) + '}} = ' + decP(results.kx,'len') + U1
       + ' \\qquad k_y = \\sqrt{\\dfrac{\\bar{I}_y}{A}} = \\sqrt{\\dfrac{' + ftex(results.Iy) + '}{'
       + ftex(results.A) + '}} = ' + decP(results.ky,'len') + U1 + ' \\]\n';
@@ -820,7 +780,7 @@ function construirLatex(){
   }
 
   // ══ 5. Paso 4: ejes principales ══
-  tex += '\\seccion{5. Paso 4 --- Ejes principales de inercia}\n';
+  tex += '\\seccion{5. Paso 4 --- Ejes principales y círculo de Mohr}\n';
   tex += porque('principales',
     'Al girar los ejes un ángulo $\\theta$, las inercias cambian según $I_u = \\tfrac{\\bar{I}_x+\\bar{I}_y}{2} + '
     + '\\tfrac{\\bar{I}_x-\\bar{I}_y}{2}\\cos 2\\theta - \\bar{P}_{xy}\\sen 2\\theta$ y '
@@ -853,64 +813,45 @@ function construirLatex(){
       + ' \\\\ &\\Longrightarrow\\quad 2\\theta_p = ' + decP(dosTh,'ang') + '^\\circ \\qquad \\theta_p = '
       + decP(results.thetaP,'ang') + '^\\circ \\end{aligned} \\]\n';
   }
-  tex += '\\[ I_{\\max,\\min} = \\dfrac{\\bar{I}_x + \\bar{I}_y}{2} \\pm \\sqrt{\\left(\\dfrac{\\bar{I}_x - \\bar{I}_y}{2}\\right)^{2} '
-    + '+ \\bar{P}_{xy}^{\\,2}} = ' + ftex(mAvg) + ' \\pm ' + ftex(mR) + U4 + ' \\]\n';
-  tex += '\\[ I_{\\max} = ' + ftex(results.Imax) + U4 + ' \\qquad I_{\\min} = ' + ftex(results.Imin) + U4 + ' \\]\n';
-  // La lámina repite la sección SIN la cadena de cotas: lo único acotado es el
-  // centroide, y como variables.
-  // En una sección isótropa dibujar un par u-v señalaría dos direcciones
-  // cuando todas son equivalentes, y además sus rótulos caerían encima de los
-  // de x-y. Se dibujan los ejes centroidales y el pie dice lo que ocurre.
-  tex += isotropa
-    ? lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, marcarC:true}),
-        'Ejes centroidales $x$-$y$: todo eje por $C$ es principal.')
-    : lamina(tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, ejesPrincipales:true}),
-        'Ejes centroidales $x$-$y$ y ejes principales $u$-$v$, girados $\\theta_p$.');
-  tex += '\\resultado{\\centering $\\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ$ \\quad $I_{\\max} = '
-    + ftex(results.Imax) + U4 + '$ \\quad $I_{\\min} = ' + ftex(results.Imin) + U4 + '$}\n';
-  const yaPrinc = Math.abs(results.thetaP) < 0.005;
-  const mayorX = results.Ix >= results.Iy;
-
-  // ══ 6. Paso 5: círculo de Mohr ══
-  tex += '\\seccion{6. Paso 5 --- Círculo de Mohr de inercia}\n';
-  // Por qué el círculo gira el doble (propuesta 1, 2026-09-08): una sola vez.
-  tex += porque('dos-theta',
-    'El \\\'angulo que se lee en el c\\\'irculo es $2\\theta$, el doble del giro de los ejes en la secci\\\'on, porque '
-    + '$I_u$ y $P_{uv}$ dependen de $\\cos 2\\theta$ y $\\sen 2\\theta$, no de $\\theta$: $I_u = \\tfrac{I_x+I_y}{2} + '
-    + '\\tfrac{I_x-I_y}{2}\\cos 2\\theta - P_{xy}\\sen 2\\theta$. Girar los ejes $\\theta$ en la secci\\\'on recorre '
-    + '$2\\theta$ sobre el c\\\'irculo, en el mismo sentido; y en $\\theta_p$ el punto cae sobre el eje horizontal, donde '
-    + '$P_{uv} = 0$: por eso los principales son los ejes sin producto de inercia.');
-  tex += porque('mohr',
-    'Elevando al cuadrado y sumando las ecuaciones de $I_u$ y $P_{uv}$ del paso 4 desaparece $\\theta$ y queda '
-    + '$\\left(I_u - \\tfrac{\\bar{I}_x+\\bar{I}_y}{2}\\right)^{2} + P_{uv}^{2} = R^{2}$: en el plano $(I, P)$, todos los '
-    + 'pares $(I_u, P_{uv})$ están sobre una circunferencia. Cada eje de la sección es un punto del círculo, y girar '
-    + 'los ejes $\\theta$ en la sección es recorrer $2\\theta$ sobre el círculo. Es el mismo cálculo del paso 4, pero '
-    + 'dibujado: los cortes con el eje horizontal son $I_{\\max}$ e $I_{\\min}$, porque allí el producto es cero.');
+  // Pasos 4 y 5 en uno (2026-10-15, decisión del profesor): el círculo de Mohr es
+  // el mismo cálculo de los ejes principales, dibujado. Centro y radio una vez.
   tex += '\\[ \\bar{I}_{avg} = \\dfrac{\\bar{I}_x + \\bar{I}_y}{2} = \\dfrac{'
     + ftex(results.Ix) + ' + ' + ftex(results.Iy) + '}{2} = ' + ftex(mAvg) + U4 + ' \\]\n';
   tex += '\\[ R = \\sqrt{\\left(\\dfrac{\\bar{I}_x - \\bar{I}_y}{2}\\right)^{2} + \\bar{P}_{xy}^{\\,2}} = '
     + '\\sqrt{\\left(' + ftex((results.Ix - results.Iy) / 2) + '\\right)^{2} + \\left(' + ftex(pxySec)
     + '\\right)^{2}} = ' + ftex(mR) + U4 + ' \\]\n';
+  tex += '\\[ I_{\\max} = \\bar{I}_{avg} + R = ' + ftex(results.Imax) + U4 + ' \\qquad I_{\\min} = \\bar{I}_{avg} - R = '
+    + ftex(results.Imin) + U4 + ' \\]\n';
   tex += '\\[ A(' + ftex(results.Ix) + ',\\ ' + ftex(pxySec) + ') \\qquad '
     + 'B(' + ftex(results.Iy) + ',\\ ' + ftex(-pxySec) + ') \\]\n';
-  // Si el círculo degenera en un punto, tikzMohr devuelve cadena vacía: se
-  // emite el párrafo explicativo en su lugar y NO un tikzpicture vacío.
+  // La sección con sus ejes principales y el círculo, lado a lado en UNA figura.
+  const figEjes = isotropa
+    ? tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, marcarC:true})
+    : tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, ejesPrincipales:true});
   const laminaMohr = (typeof tikzMohr === 'function') ? tikzMohr(results, u4) : '';
   if(laminaMohr){
-    tex += lamina(laminaMohr,
-      'Círculo de Mohr de inercia.');
+    figN++;
+    tex += '\\begin{center}\n'
+      + '\\begin{minipage}[c]{0.50\\linewidth}\\centering\\bsaEncajar{\\begin{tikzpicture}[scale=1]\n' + figEjes
+      + '\\end{tikzpicture}}\\end{minipage}\\hfill\n'
+      + '\\begin{minipage}[c]{0.48\\linewidth}\\centering\\bsaEncajar{\\begin{tikzpicture}[scale=1]\n' + laminaMohr
+      + '\\end{tikzpicture}}\\end{minipage}\\par\\nopagebreak\\vspace{4pt}\n'
+      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} Ejes principales $u$-$v$, girados $\\theta_p$, y círculo de Mohr.}\n'
+      + '\\end{center}\n\\vspace{4pt}\n';
   } else {
-    tex += '\\noindent El círculo se reduce a un punto ($\\bar{I}_x = \\bar{I}_y$, $\\bar{P}_{xy} = 0$).\n';
+    tex += lamina(figEjes, 'Ejes centroidales $x$-$y$: todo eje por $C$ es principal; el círculo de Mohr se reduce a un punto.');
   }
+  tex += '\\resultado{\\centering $\\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ$ \\quad $I_{\\max} = '
+    + ftex(results.Imax) + U4 + '$ \\quad $I_{\\min} = ' + ftex(results.Imin) + U4 + '$}\n';
 
   // ══ 7. Paso 6: inercia en un punto P (solo si el usuario lo pidió) ══
   // Toda la sección es condicional: sin punto insertado no se imprime nada, ni
   // el título. Un apartado vacío se lee como un fallo del programa.
   const epLat = (typeof computeExtraPoint === 'function') ? computeExtraPoint(results) : null;
-  let numSec = 7;
+  let numSec = 6;
   if(epLat){
     const rotLat = epLat.rot;
-    tex += '\\seccion{' + numSec + '. Paso 6 --- Inercia en el punto $P$' + (rotLat ? ' y ejes girados' : '') + '}\n';
+    tex += '\\seccion{' + numSec + '. Paso 5 --- Inercia en el punto $P$' + (rotLat ? ' y ejes girados' : '') + '}\n';
     numSec++;
     tex += porque('puntoP',
       'Las inercias calculadas hasta aquí son centroidales. Para referirlas a otro punto $P$ se aplica otra vez el '
@@ -965,7 +906,7 @@ function construirLatex(){
   }
 
   // ══ 8. Comprobaciones ══
-  tex += '\\seccion{' + numSec + '. Paso ' + (epLat ? 7 : 6) + ' --- Comprobaciones}\n';
+  tex += '\\seccion{' + numSec + '. Paso ' + (epLat ? 6 : 5) + ' --- Comprobaciones}\n';
   tex += porque('comprobar',
     'Ninguna de estas comprobaciones exige rehacer el cálculo: son propiedades que se cumplen siempre y que un error '
     + 'de signo o de brazo rompe. La suma de las inercias no cambia al girar los ejes; las principales encierran a '
@@ -1001,25 +942,6 @@ function construirLatex(){
       + '$I_{Y} = \\bar{I}_y + A\\bar{x}^{2} = ' + ftex(IyO) + U4 + ' \\ge \\bar{I}_y$\\ \\checkmark.\n';
   }
   tex += '\\end{itemize}\n';
-
-  // Resultados en tabla (R4)
-  tex += tablaCaption('Resultados de la sección, referidos a su centroide $C$.');
-  tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{lcc}\\hline\n'
-    + '\\textbf{Magnitud} & \\textbf{Valor} & \\textbf{Unidad} \\\\\\hline\n'
-    + 'Área $A$ & $' + ftex(results.A) + '$ & ' + utexto(u2) + ' \\\\\n'
-    + 'Centroide $\\bar{x}$, $\\bar{y}$ & $' + decP(results.xbar,'len') + '$, $' + decP(results.ybar,'len') + '$ & ' + utexto(u1) + ' \\\\\n'
-    + '$\\bar{I}_x$ & $' + ftex(results.Ix) + '$ & ' + utexto(u4) + ' \\\\\n'
-    + '$\\bar{I}_y$ & $' + ftex(results.Iy) + '$ & ' + utexto(u4) + ' \\\\\n'
-    + '$\\bar{P}_{xy}$ & $' + ftex(pxySec) + '$ & ' + utexto(u4) + ' \\\\\n'
-    + '$J_O$ & $' + ftex(results.Jo) + '$ & ' + utexto(u4) + ' \\\\\n'
-    + '$k_x$, $k_y$ & $' + decP(results.kx,'len') + '$, $' + decP(results.ky,'len') + '$ & ' + utexto(u1) + ' \\\\\n'
-    + '$\\theta_p$ & $' + decP(results.thetaP,'ang') + '$ & grados \\\\\n'
-    + '$I_{\\max}$ & $' + ftex(results.Imax) + '$ & ' + utexto(u4) + ' \\\\\n'
-    + '$I_{\\min}$ & $' + ftex(results.Imin) + '$ & ' + utexto(u4) + ' \\\\\n';
-  if(epLat){
-    tex += '$I_{xP}$, $I_{yP}$, $P_{xyP}$ & $' + ftex(epLat.IxP) + '$, $' + ftex(epLat.IyP) + '$, $' + ftex(epLat.IxyP) + '$ & ' + utexto(u4) + ' \\\\\n';
-  }
-  tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
 
   // ══ Colofón ══ (sin lista de referencias desde el 2026-10-11)
   tex += colofonLatexBSA();
