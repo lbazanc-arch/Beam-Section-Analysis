@@ -503,7 +503,7 @@ function construirLatexAlambre(){
       + '\\end{tikzpicture}\\par\\nopagebreak\\vspace{4pt}\n'
       + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\n\\end{center}\n\\vspace{4pt}\n'; };
   const tablaCaption = txt => { tablaN++;
-    return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
+    return '\\par\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\par\\nopagebreak\\vspace{2pt}\n'; };
   // Sin «¿Por qué?» ni notas de concepto (2026-10-11, directriz del profesor).
   const porque = () => '';
   const nota = () => '';
@@ -532,7 +532,7 @@ function construirLatexAlambre(){
     const fr = formulaLinea(f, true);
     const giro = f.rotation || 0;
     const varios = g.idx.length > 1;
-    if(gi > 0) tex += '\\vspace{10pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{10pt}\n\n';
+    if(gi > 0) tex += '\\vspace{6pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{6pt}\n\n';
     tex += '\\par\\noindent\\begin{minipage}{\\textwidth}\n';
     tex += '\\noindent{\\bfseries\\color{bsaAcc} ' + (varios ? 'Tramos ' + listaNums(nums) : 'Tramo ' + nums[0]) + ': '
          + nombreDe(f) + '}\\\\[3pt]\n';
@@ -541,8 +541,7 @@ function construirLatexAlambre(){
            + 'propio se calculan una sola vez, y cada uno entra en la tabla con su propia posición.}\\\\[4pt]\n';
     }
     tex += '\\noindent\\begin{minipage}[t]{0.60\\textwidth}\n\\small\n'
-         + '\\abovedisplayskip=3pt\\belowdisplayskip=3pt\\abovedisplayshortskip=2pt\\belowdisplayshortskip=2pt\n';
-    tex += '\\textbf{Longitud}\n';
+         + '\\abovedisplayskip=7pt\\belowdisplayskip=7pt\\abovedisplayshortskip=5pt\\belowdisplayshortskip=5pt\n';
     if(!fr.sus) tex += '\\[ L_{' + nums[0] + '} = ' + decP(s0.l,'len') + U1 + ' \\quad\\text{(dato)} \\]\n';
     else if(fr.sim.indexOf('\\quad') >= 0) tex += '\\[ ' + fr.sim + ' \\]\n\\[ L_i = ' + fr.sus + ' = ' + decP(s0.l,'len') + U1 + ' \\]\n';
     else tex += '\\[ ' + fr.sim + ' = ' + fr.sus + ' = ' + decP(s0.l,'len') + U1 + ' \\]\n';
@@ -550,7 +549,6 @@ function construirLatexAlambre(){
       tex += porque('long-arco', 'La longitud de un arco es radio por ángulo, con el ángulo en radianes: cada elemento '
         + '$dL = R\\,d\\theta$ y al integrar en todo el abanico queda $L = R\\,\\varphi = 2\\alpha R$.');
     if(fr.c){
-      tex += '\\textbf{Centroide propio}\n';
       tex += '\\[ ' + fr.c + ' = ' + decP(fr.cVal,'len') + U1 + ' \\]\n';
       if(f.type === 'l_semi')
         tex += porque('semi-l', 'En una semicircunferencia el centroide está sobre el eje de simetría, a $2R/\\pi \\approx 0.64\\,R$ '
@@ -569,7 +567,6 @@ function construirLatexAlambre(){
     } else if(f.type === 'l_segmento'){
       tex += nota('medio', 'El centroide de un segmento recto es su punto medio, a $L/2$ de cada extremo.');
     }
-    tex += '\\textbf{Posición desde $O$}\n';
     tex += porque('posicion',
       '$\\tilde{x}_i$ e $\\tilde{y}_i$ son las coordenadas del centroide del tramo medidas desde $O$: son los '
       + '\\emph{brazos} con los que su longitud entra en la suma de momentos. Se obtienen sumando, a la posición del '
@@ -681,13 +678,7 @@ function construirLatexAlambre(){
   tex += '\\subpaso{Alambre resuelto}\n';
   tex += lamina(tikzSeccionCompuesta({cotas:false, marcarC:true, ejes:true, cotasC:true}),
     'Alambre resuelto.');
-  tex += tablaCaption('Resultados.');
-  tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{lcc}\\hline\n'
-    + '\\textbf{Magnitud} & \\textbf{Valor} & \\textbf{Unidad} \\\\\\hline\n'
-    + 'Longitud total $L$ & $' + decP(results.L,'len') + '$ & ' + uTxt + ' \\\\\n'
-    + 'Centroide $\\bar{x}$ & $' + decP(results.xbar,'len') + '$ & ' + uTxt + ' \\\\\n'
-    + 'Centroide $\\bar{y}$ & $' + decP(results.ybar,'len') + '$ & ' + uTxt + ' \\\\\n'
-    + '\\hline\\end{tabular}\\end{tablacentrada}}\n';
+  // Sin tabla final de resultados (2026-10-15): repetía la caja del centroide.
 
   tex += colofonLatexBSA();   // sin lista de referencias desde el 2026-10-11
   tex += '\\end{document}\n';

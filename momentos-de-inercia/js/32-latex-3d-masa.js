@@ -267,7 +267,7 @@ function construirLatex3dMasa(){
 
   let figN = 0, tablaN = 0, ecN = 0;
   const figCap = txt => { figN++; return '\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n'; };
-  const tablaCap = txt => { tablaN++; return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
+  const tablaCap = txt => { tablaN++; return '\\par\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\par\\nopagebreak\\vspace{2pt}\n'; };
   // Sin «¿Por qué?» (2026-10-11, directriz del profesor).
   const porque = () => '';
   const ec = () => '\\tag{' + (++ecN) + '}';
@@ -425,6 +425,10 @@ function construirLatex3dMasa(){
   } else {
     tex += '\\[ \\bar{P}_{xy} = \\bar{P}_{yz} = \\bar{P}_{xz} = 0 \\]\n';
   }
+  // Los radios de giro, solo si el alumno los tiene encendidos (VIS.radios,
+  // apagados por defecto; 2026-10-15, como en el 2D).
+  const conRadios = (typeof VIS !== 'undefined') && !!VIS.radios;
+  if(conRadios){
   tex += '\\subpaso{Radios de giro}\n';
   tex += porque('radio-giro',
     'El radio de giro $k=\\sqrt{I/m}$ es la distancia a la que habría que concentrar toda la masa, en un punto, para que '
@@ -434,6 +438,7 @@ function construirLatex3dMasa(){
     + 'k_y = ' + L(R.kG.y) + '\\ \\text{m}, \\qquad '
     + 'k_z = ' + L(R.kG.z) + '\\ \\text{m}\n'
     + '\\end{align*}\n';
+  }
 
   // ══ 6. Ejes principales ══
   tex += '\\seccion{6. Ejes principales de inercia}\n';

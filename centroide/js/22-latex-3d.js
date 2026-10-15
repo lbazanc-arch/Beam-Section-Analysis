@@ -226,7 +226,7 @@ function construirLatex3d(){
 
   let figN = 0, tablaN = 0;
   const figCap = txt => { figN++; return '\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n'; };
-  const tablaCaption = txt => { tablaN++; return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
+  const tablaCaption = txt => { tablaN++; return '\\par\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\par\\nopagebreak\\vspace{2pt}\n'; };
   // Sin «¿Por qué?» (2026-10-11, directriz del profesor).
   const porque = () => '';
   const cab = (t, f, u) => '\\textbf{' + t + '}' + (f.cab ? ' $' + f.cab + '$' : '') + (u ? ' {\\scriptsize(' + u + ')}' : '');
@@ -308,18 +308,18 @@ function construirLatex3d(){
     const sentidoTex = giroFueraDePlanta(f)
       ? ', a lo largo de su eje' + (f.volteado ? ', hacia el lado de la base (volteado)' : '')
       : (f.volteado ? ', hacia abajo (volteado)' : '');
-    if(gi > 0) tex += '\\vspace{10pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{10pt}\n\n';
+    if(gi > 0) tex += '\\vspace{6pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{6pt}\n\n';
     tex += '\\par\\noindent\\begin{minipage}{\\textwidth}\n';
     tex += '\\noindent{\\bfseries\\color{bsaAcc} ' + (varios ? 'Partes ' + listaNums(nums) : 'Parte ' + nums[0]) + ': ' + nombreDe(f)
       + '}\\ \\ {\\small\\color{bsaMuted}(' + (f.sign > 0 ? (varios?'se suman':'se suma') : (varios?'se restan':'se resta')) + ')}' + posturaTex + '\\\\[3pt]\n';
-    if(varios) tex += '{\\footnotesize Las ' + g.idx.length + ' partes son iguales: volumen y centroide propio se calculan una vez; cada una entra en la tabla con su posición.}\\\\[4pt]\n';
+    if(varios) tex += '{\\footnotesize Iguales: se desarrollan una vez; cada una con su posición.}\\\\[4pt]\n';
     // Primero las tres vistas de la pieza y después su desarrollo, a todo lo
     // ancho: antes solo se veía el alzado, en una columna estrecha al costado.
     tex += _vistasSolido3(f, uTxt);
-    tex += '\\noindent\\begin{minipage}[t]{\\textwidth}\n\\small\n\\abovedisplayskip=3pt\\belowdisplayskip=3pt\\abovedisplayshortskip=2pt\\belowdisplayshortskip=2pt\n';
+    tex += '\\noindent\\begin{minipage}[t]{\\textwidth}\n\\small\n\\abovedisplayskip=7pt\\belowdisplayskip=7pt\\abovedisplayshortskip=5pt\\belowdisplayshortskip=5pt\n';
     // Volumen: fórmula literal y sustituida
     const sust = def.formula.sust(d, D);
-    tex += '\\textbf{Volumen}\n\\[ ' + def.formula.V + ' = ' + sust + ' = ' + decP(Math.abs(s0.v),'area') + U3 + ' \\]\n';
+    tex += '\\[ ' + def.formula.V + ' = ' + sust + ' = ' + decP(Math.abs(s0.v),'area') + U3 + ' \\]\n';
     if(f.sign < 0){
       tex += porque('hueco', 'Un agujero es material que falta: se calcula como si el cuerpo estuviera lleno y se le resta '
         + 'el volumen del hueco, con su centroide en el sitio del hueco. La fórmula de compuestos sigue valiendo, con un '
@@ -328,7 +328,7 @@ function construirLatex3d(){
     }
     // Centroide propio
     const cb = def.cBase(d);
-    tex += '\\textbf{Centroide propio}\n\\[ ' + def.formula.c + ' = ' + D(cb) + U1 + ' \\quad\\text{' + (def.cLocal ? 'desde la base' : 'sobre el eje, desde el centro de la base') + sentidoTex + '} \\]\n';
+    tex += '\\[ ' + def.formula.c + ' = ' + D(cb) + U1 + ' \\quad\\text{' + (def.cLocal ? 'desde la base' : 'sobre el eje, desde el centro de la base') + sentidoTex + '} \\]\n';
     if(def.cLocal){
       const cl = def.cLocal(d), esCuna = (f.type === 's_cuna');
       // Ojo: el número que acompaña a la fórmula NO siempre es la separación
@@ -370,7 +370,6 @@ function construirLatex3d(){
       tex += porque('simetrico', 'Un prisma o un cilindro tienen un plano de simetría a media altura y un eje de simetría '
         + 'vertical: el centroide está sobre el eje, a $h/2$ de la base, sin integrar nada.');
     // Posición
-    tex += '\\textbf{Posición desde $O$}\n';
     tex += porque('posicion', 'El centroide de cada parte se obtiene sumando, al centro de su base (que es donde se colocó), la '
       + 'distancia del centroide propio a lo largo de su eje' + (hayTumbado ? ', que en una pieza girada ya no es el vertical: gira con ella' : '')
       + (hayCuna ? ' (y, en la cuña y en el medio cilindro de eje vertical, su desalineación horizontal, girada con la pieza)' : '')
@@ -495,13 +494,7 @@ function construirLatex3d(){
   tex += '\\subpaso{Cuerpo resuelto}\n';
   tex += _laminasVistas3d({cotas:false, ejes:true, marcarC:true, ancho:6.0, alto:6.5},
     figCap('Cuerpo resuelto.'));
-  tex += tablaCaption('Resultados.');
-  tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{lcc}\\hline\n\\textbf{Magnitud} & \\textbf{Valor} & \\textbf{Unidad} \\\\\\hline\n'
-    + 'Volumen total $V$ & $' + ftex(results.V) + '$ & ' + u3Txt + ' \\\\\n'
-    + 'Centroide $\\bar{x}$, $\\bar{y}$, $\\bar{z}$ & $' + decP(results.xbar,'len') + '$, $' + decP(results.ybar,'len') + '$, $' + decP(results.zbar,'len') + '$ & ' + uTxt + ' \\\\\n';
-  if(het) tex += (esMasa?'Masa':'Peso') + ' total $' + Wsim + '$ & $' + ftex(results.W) + '$ & ' + uWtxt + ' \\\\\n'
-    + 'Centro de gravedad $\\bar{x}_G$, $\\bar{y}_G$, $\\bar{z}_G$ & $' + decP(results.xg,'len') + '$, $' + decP(results.yg,'len') + '$, $' + decP(results.zg,'len') + '$ & ' + uTxt + ' \\\\\n';
-  tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
+  // Sin tabla final de resultados (2026-10-15): repetía la caja del centroide.
 
   tex += colofonLatexBSA();   // sin lista de referencias desde el 2026-10-11
   tex += '\\end{document}\n';

@@ -452,6 +452,8 @@ function _preambuloLatexCen(subcabecera){
     + '\\definecolor{bsaLogoS}{HTML}{8AB4CA}\n'
     + '\\definecolor{bsaLogoA}{HTML}{22584B}\n\n'
     + '\\setlength{\\parskip}{2pt}\n'
+    // Más aire entre las filas de una ecuación partida (2026-10-15).
+    + '\\setlength{\\jot}{6pt}\n'
     // Un parrafo con cifras y unidades pegadas («512.55 mm») deja trozos que no
     // se pueden partir y alguna linea se salia al margen. emergencystretch deja
     // que TeX estire los espacios SOLO en los parrafos que no cierran de otro
@@ -557,7 +559,7 @@ function construirLatex(){
   // \nopagebreak: el rótulo no se queda huérfano al pie de una página con la
   // tabla en la siguiente.
   const tablaCaption = txt => { tablaN++;
-    return '\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\\\[2pt]\\nopagebreak\n'; };
+    return '\\par\\noindent{\\footnotesize\\textbf{Tabla ' + tablaN + '.} ' + txt + '}\\par\\nopagebreak\\vspace{2pt}\n'; };
   // Sin «¿Por qué?» ni notas de concepto (2026-10-11, directriz del profesor).
   const porque = () => '';
   const nota = () => '';
@@ -602,7 +604,7 @@ function construirLatex(){
 
     // Cada parte arranca con una regla fina y aire: sin eso los desarrollos se
     // leen como un único bloque continuo.
-    if(gi > 0) tex += '\\vspace{10pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{10pt}\n\n';
+    if(gi > 0) tex += '\\vspace{6pt}\\noindent\\textcolor{black!20}{\\rule{\\textwidth}{0.4pt}}\\vspace{6pt}\n\n';
     // Todo el bloque de la parte (título, nota, desarrollo y croquis) va en una
     // minipage de ancho completo: es indivisible, así que si no cabe pasa
     // entero a la página siguiente y, si cabe, la página se llena con
@@ -613,15 +615,10 @@ function construirLatex(){
          + (f.sign > 0 ? (varios ? 'se suman' : 'se suma') : (varios ? 'se restan' : 'se resta')) + ')}\\\\[3pt]\n';
     if(varios){
       tex += '{\\footnotesize ' + (g.simetria === 'vertical'
-          ? 'Las ' + g.idx.length + ' partes son iguales y están en \\textbf{espejo respecto del eje vertical} que parte la '
-            + 'sección por la mitad: comparten área, centroide propio y $\\tilde{y}$; solo cambia $\\tilde{x}$, que queda a '
-            + 'la misma distancia de ese eje a uno y otro lado. Se desarrollan una sola vez.'
+          ? 'Iguales y en espejo respecto del eje vertical: solo cambia $\\tilde{x}$.'
           : g.simetria === 'horizontal'
-          ? 'Las ' + g.idx.length + ' partes son iguales y están en \\textbf{espejo respecto del eje horizontal} que parte la '
-            + 'sección por la mitad: comparten área, centroide propio y $\\tilde{x}$; solo cambia $\\tilde{y}$, que queda a '
-            + 'la misma distancia de ese eje arriba y abajo. Se desarrollan una sola vez.'
-          : 'Las ' + g.idx.length + ' partes son iguales (mismo tipo y dimensiones): área y centroide propio se calculan '
-            + 'una sola vez, y cada una entra en la tabla con su propia posición.') + '}\\\\[4pt]\n';
+          ? 'Iguales y en espejo respecto del eje horizontal: solo cambia $\\tilde{y}$.'
+          : 'Iguales: se desarrollan una vez; cada una con su posición.') + '}\\\\[4pt]\n';
     }
 
     // Un perfil laminado es UNA parte con propiedades tabuladas: antes del
@@ -635,7 +632,7 @@ function construirLatex(){
     // Ecuaciones en display con menos aire: dentro del bloque de una parte hay
     // varias seguidas y con el espaciado normal el bloque crece sin necesidad.
     tex += '\\noindent\\begin{minipage}[t]{0.60\\textwidth}\n\\small\n'
-         + '\\abovedisplayskip=3pt\\belowdisplayskip=3pt\\abovedisplayshortskip=2pt\\belowdisplayshortskip=2pt\n';
+         + '\\abovedisplayskip=7pt\\belowdisplayskip=7pt\\abovedisplayshortskip=5pt\\belowdisplayshortskip=5pt\n';
 
     if(tb){
       const conv = fam && fam.u !== unit;
@@ -644,7 +641,6 @@ function construirLatex(){
       tex += '\\[ A_i = ' + decP(Math.abs(s0.a),'area') + U2 + ' \\]\n';
       if(f.sign < 0)
         tex += '{\\footnotesize En las sumas: $A_{' + nums[0] + '} = -' + decP(Math.abs(s0.a),'area') + U2 + '$.}\\\\[3pt]\n';
-      tex += '\\textbf{Centroide propio}\n';
       if(f.type === 'wshape')
         tex += '{\\footnotesize En el centro del perfil: doble simetría.}\\\\[3pt]\n';
       else if(f.type === 'channel')
@@ -655,7 +651,6 @@ function construirLatex(){
              + decP(tb.yb !== undefined ? tb.yb : tb.xb,'len') + U1 + '$ del vértice del ángulo (tabulados).}\\\\[3pt]\n';
     } else {
     // Área
-    tex += '\\textbf{Área}\n';
     // Fórmula literal, sustituida y resultado en una sola línea; en dos si la
     // literal lleva una aclaración (el sector avisa de que θ va en radianes).
     if(fa.sim.indexOf('\\quad') >= 0)
@@ -676,7 +671,6 @@ function construirLatex(){
     // Centroide propio: solo donde no está en el centro de la caja, y con la
     // razón de la fórmula la primera vez que aparece cada tipo (R1).
     if(cl){
-      tex += '\\textbf{Centroide propio}\n';
       tex += '\\[ ' + cl + ' \\]\n';
       if(f.type === 'rtriangle' || f.type === 'rtriangle2')
         tex += porque('tri',
@@ -770,7 +764,6 @@ function construirLatex(){
     }   // fin de la rama «no es perfil»
 
     // Posición desde O, una línea por parte del grupo.
-    tex += '\\textbf{Posición desde $O$}\n';
     tex += porque('posicion',
       '$\\tilde{x}_i$ e $\\tilde{y}_i$ son las coordenadas del centroide de la parte medidas desde $O$: son los '
       + '\\emph{brazos} con los que su área entra en la suma de momentos. Se obtienen sumando, a la posición de la '
@@ -1005,18 +998,7 @@ function construirLatex(){
   tex += '\\subpaso{Sección resuelta}\n';
   tex += lamina(tikzSeccionCompuesta({cotas:false, marcarC:true, ejes:true, cotasC:true}),
     'Sección resuelta.');
-  tex += tablaCaption('Resultados.');
-  tex += '{\\small\\begin{tablacentrada}\\begin{tabular}{lcc}\\hline\n'
-    + '\\textbf{Magnitud} & \\textbf{Valor} & \\textbf{Unidad} \\\\\\hline\n'
-    + 'Área total $A$ & $' + ftex(results.A) + '$ & ' + u2Txt + ' \\\\\n'
-    + 'Centroide $\\bar{x}$ & $' + decP(results.xbar,'len') + '$ & ' + uTxt + ' \\\\\n'
-    + 'Centroide $\\bar{y}$ & $' + decP(results.ybar,'len') + '$ & ' + uTxt + ' \\\\\n';
-  if(het){
-    tex += (esMasa ? 'Masa' : 'Peso') + ' total $' + Wsim + '$ & $' + ftexPeso(results.W) + '$ & ' + uWtxt + ' \\\\\n'
-      + 'Centro de gravedad $\\bar{x}_G$ & $' + decP(results.xg,'len') + '$ & ' + uTxt + ' \\\\\n'
-      + 'Centro de gravedad $\\bar{y}_G$ & $' + decP(results.yg,'len') + '$ & ' + uTxt + ' \\\\\n';
-  }
-  tex += '\\hline\\end{tabular}\\end{tablacentrada}}\n';
+  // Sin tabla final de resultados (2026-10-15): repetía la caja del centroide.
 
   // ══ Colofón ══ (sin lista de referencias desde el 2026-10-11)
   tex += colofonLatexBSA();
