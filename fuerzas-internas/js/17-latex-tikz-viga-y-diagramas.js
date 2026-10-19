@@ -62,6 +62,12 @@ function tikzViga(conReacciones, sel){
     out += '\\draw[line width=1.6pt, color=bsaAcc2] (' + F(Xn(a.x)) + ',' + F(Yn(a.y)) + ') -- (' + F(Xn(b.x)) + ',' + F(Yn(b.y)) + ');\n';
     tzOcuparTrazo(Xn(a.x), Yn(a.y), Xn(b.x), Yn(b.y), 0.06);
   });
+  // Cuerdas, bielas y topes (22-): en el modelo, todos con su símbolo; en un DCL,
+  // solo los que unen dos nudos del trozo, como barra (los anclados son ya su
+  // fuerza). Sus nombres se colocan con los demás rótulos.
+  const _vin = tikzVinculos(Xn, Yn, !!conReacciones, _idsVis ? _ndIds : null, F);
+  out += _vin.tikz;
+  const pendVin = _vin.pend.map(p=>({x:p.x, y:p.y, txt:p.txt, opts:'font=\\tiny, color=' + p.col, dir:[p.dx, p.dy]}));
   // Reserva el rectángulo local [x0,x1]×[y0,y1] de un símbolo girado `ang`
   // grados alrededor del nudo (px,py), troceado en celdas: la caja envolvente
   // de un símbolo girado (el cuadrado de antes) tapaba también las esquinas
@@ -332,7 +338,19 @@ function tikzViga(conReacciones, sel){
   });
   // Reacciones incógnita, dibujadas en su sentido positivo supuesto.
   if(conReacciones && R && !R.error){
-    R.inc.filter(u=>_incVis(u)).forEach(u=>{
+    // Una cuerda o biela entre dos nudos es interna en el DCL global. En el de una
+    // rótula, si solo uno de sus nudos cae en el trozo, su fuerza actúa ahí:
+    // saliendo del nudo hacia el otro extremo (tracción supuesta), con su nombre.
+    if(sel && sel.incNodos) R.inc.filter(u=>u.tipo === 'V' && u.n2).forEach(u=>{
+      const fs = fuerzasUnitarias(u), dentro = fs.filter(f=>sel.incNodos.indexOf(f.n.id) >= 0);
+      if(dentro.length !== 1) return;
+      const f = dentro[0], x = Xn(f.n.x), y = Yn(f.n.y);
+      out += '\\draw[-{Latex[length=2mm]}, color=bsaReac, line width=1.1pt] (' + F(x + f.fx*0.12) + ',' + F(y + f.fy*0.12)
+           + ') -- (' + F(x + f.fx*1.05) + ',' + F(y + f.fy*1.05) + ');\n';
+      tzOcuparTrazo(x + f.fx*0.12, y + f.fy*0.12, x + f.fx*1.05, y + f.fy*1.05, 0.07);
+      pendReac.push({x:x + f.fx*1.3, y:y + f.fy*1.3, txt:'$' + simbReaccion(u) + '$', opts:'font=\\tiny, color=bsaReac', dir:[f.fx, f.fy]});
+    });
+    R.inc.filter(u=>_incVis(u) && !(u.tipo === 'V' && u.n2)).forEach(u=>{
       const x = Xn(u.n.x), y = Yn(u.n.y);
       const d = (u.ang !== undefined) ? {x:Math.cos(u.ang), y:Math.sin(u.ang)}
               : (u.tipo==='Rx' ? {x:1,y:0} : (u.tipo==='Ry' ? {x:0,y:1} : null));
@@ -385,7 +403,7 @@ function tikzViga(conReacciones, sel){
   // repartidas antes, su valor ocupaba la cola de la puntual. Se colocan AQUÍ,
   // antes de las cotas, porque las cotas arrancan más allá de todo lo reservado.
   let rotulos = '';
-  pendNudos.concat(pendPares, pendPuntuales, pendW, pendRepartidas, pendReac).forEach(r=>{
+  pendNudos.concat(pendVin, pendPares, pendPuntuales, pendW, pendRepartidas, pendReac).forEach(r=>{
     rotulos += r.candidatos
       ? tzTextoEn(r.candidatos, r.txt, r.opts, r.dir[0], r.dir[1], r.origen)
       : tzTexto(r.x, r.y, r.txt, r.opts, r.dir[0], r.dir[1]);
@@ -425,7 +443,12 @@ function tikzViga(conReacciones, sel){
       }
       anota(a.x, a.y, a.fx, a.fy);
     });
-    R.inc.filter(u=>!_idsVis || _ndIds.has(u.n.id)).forEach(u=>{
+    // Brazos: de un vínculo entre dos nudos, solo el extremo que actúa en el trozo.
+    if(sel && sel.incNodos) R.inc.filter(u=>u.tipo === 'V' && u.n2).forEach(u=>{
+      const dentro = fuerzasUnitarias(u).filter(f=>sel.incNodos.indexOf(f.n.id) >= 0);
+      if(dentro.length === 1) anota(dentro[0].n.x, dentro[0].n.y, dentro[0].fx, dentro[0].fy);
+    });
+    R.inc.filter(u=>(!_idsVis || _ndIds.has(u.n.id)) && !(u.tipo === 'V' && u.n2)).forEach(u=>{
       if(u.tipo === 'M' && u.ang === undefined) return;
       const d = (u.ang !== undefined) ? {x:Math.cos(u.ang), y:Math.sin(u.ang)}
               : (u.tipo==='Rx' ? {x:1,y:0} : {x:0,y:1});
@@ -667,6 +690,14 @@ function construirLatex(){
   R.inc.forEach((u,j)=>{
     const esMom = (u.tipo === 'M' && u.ang === undefined);
     const v = R.val[j];
+    // Cuerda, biela o tope (22-): su fuerza axial y cómo trabaja, con ✓ o ✗.
+    if(u.tipo === 'V'){
+      const tr = trabajoVinculo(u, v);
+      tex += '$' + simbReaccion(u) + '$ {\\footnotesize(' + VIN_TIPOS[u.vin.tipo].nom.toLowerCase() + ')} & $'
+        + dec(Math.abs(v),'fuerza') + '$\\,' + escLatex(unitFor) + ' & {\\footnotesize ' + tr.txt
+        + (tr.ok ? ' $\\checkmark$' : ' \\textcolor{red!70!black}{$\\times$}') + '} \\\\\n';
+      return;
+    }
     // La dirección del rodillo inclinado, con el mismo ángulo agudo que la figura
     // y el desarrollo (2026-09-14): nunca el de 0 a 360 del modelo.
     let dirR = '';
@@ -679,6 +710,8 @@ function construirLatex(){
       + ' & ' + iconoReaccion(u, v) + ' \\\\\n';
   });
   tex += '\\hline\n\\end{tabular}\\par}\n';
+  // Una cuerda comprimida o un tope traccionado, en rojo (22-).
+  tex += avisosVinculosTex(R);
 
   // ══ 3. Paso 2: el método elegido ══
   // El PDF sigue el método que el alumno escogió en la columna de control

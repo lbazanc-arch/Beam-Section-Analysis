@@ -150,6 +150,11 @@ function applyTransformar(){
       if(n.apoyo === 'movil')       n.apAng    = norm(anguloApoyo(n) + t.ang);
       else if(n.apoyo === 'simple') n.apAngDib = norm(anguloApoyo(n) + t.ang);
     });
+    // Un vínculo anclado gira con su nudo, como un apoyo (22-); uno entre dos
+    // nudos ya sigue a sus nudos.
+    vinculos.forEach(v=>{
+      if((v.b === null || v.b === undefined) && movidos.has(v.a)) v.ang = norm((+v.ang || 0) + t.ang);
+    });
     // Y las cargas giran con la estructura, igual que los apoyos: una vertical
     // sobre una viga girada 90° pasa a horizontal. Aquí las de dirección del
     // PLANO ('y', 'x', 'ang'); las 'perp' y 'axial' siguen al eje del tramo y se

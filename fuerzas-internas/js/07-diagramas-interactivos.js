@@ -236,6 +236,17 @@ function svgDCLGlobal(r){
     const g = geoTramo(t); if(!g) return;
     sv += linea(SX(g.a.x), SY(g.a.y), SX(g.b.x), SY(g.b.y), '#26415e', 4.6);
   });
+  // Una cuerda o biela entre dos nudos es parte del cuerpo: se dibuja como barra,
+  // con su fuerza; las ancladas salen abajo como reacción, en su dirección (22-).
+  r.inc.forEach((u,j)=>{
+    if(u.tipo !== 'V' || !u.n2) return;
+    const T = VIN_TIPOS[u.vin.tipo], v = r.val[j], tr = trabajoVinculo(u, v);
+    const x1 = SX(u.n.x), y1 = SY(u.n.y), x2 = SX(u.n2.x), y2 = SY(u.n2.y);
+    sv += linea(x1, y1, x2, y2, T.col, u.vin.tipo === 'cuerda' ? 2 : 3.2);
+    const L = Math.hypot(x2 - x1, y2 - y1) || 1, nx = -(y2 - y1)/L, ny = (x2 - x1)/L;
+    sv += texto((x1 + x2)/2 + nx*12, (y1 + y2)/2 + ny*12 + 3, nombreVinculoPlano(u.vin) + ' = ' + dec(Math.abs(v),'f')
+      + ' (' + tr.txt + ')', tr.ok ? T.col : '#c0392b', 10, 800, 'middle');
+  });
 
   // ── nudos con su nombre (la rótula se distingue con círculo abierto)
   nodos.forEach(n=>{
@@ -268,6 +279,7 @@ function svgDCLGlobal(r){
   r.inc.forEach((u,j)=>{
     const v = r.val[j];
     if(Math.abs(v) < 5e-9) return;   // una reacción nula solo añade ruido
+    if(u.tipo === 'V' && u.n2) return;   // interna: ya va como barra
     const X = SX(u.n.x), Y = SY(u.n.y);
     if(u.tipo === 'M'){
       sv += arcoM(X, Y, 19, '#1a7f37', v < 0);

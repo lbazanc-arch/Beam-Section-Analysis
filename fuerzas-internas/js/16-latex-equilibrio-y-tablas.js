@@ -603,8 +603,11 @@ function bloqueQuiebre(R, grupos, gg, info){
   else if(ang.modo === 'recto') angTex = '\\theta = ' + ang.grados.toFixed(0) + '^\\circ';
   else angTex = '\\theta_1 = ' + dec(ang.phi1,'ang') + '^\\circ,\\ \\theta_2 = ' + dec(ang.phi2,'ang') + '^\\circ,\\ '
               + '\\theta = ' + (D < 0 ? '-' : '') + (ang.rel ? '(' + ang.rel + ') = ' : '') + g + '^\\circ';
+  // En una cumbrera (dos barras inclinadas) los ángulos van en su propia línea:
+  // en la misma se salían del papel (2026-10-18).
   out += '$$N^- = ' + dec(Nm,'fuerza') + '\\ \\text{' + uF + '},\\quad V^- = ' + dec(Vm,'fuerza') + '\\ \\text{' + uF
-    + '},\\quad M^- = ' + dec(Mm,'momento') + '\\ \\text{' + uM + '}\\qquad ' + angTex + '$$\n';
+    + '},\\quad M^- = ' + dec(Mm,'momento') + '\\ \\text{' + uM + '}'
+    + (ang.modo === 'dos' ? '$$\n$$' : '\\qquad ') + angTex + '$$\n';
   const extraN = enNudo.filter(e=>Math.abs(e.Fpar) > EPS).map(e=>(e.Fpar > 0 ? ' - ' : ' + ') + dec(Math.abs(e.Fpar),'fuerza')).join('');
   const extraV = enNudo.filter(e=>Math.abs(e.Fper) > EPS).map(e=>(e.Fper < 0 ? ' - ' : ' + ') + dec(Math.abs(e.Fper),'fuerza')).join('');
   const extraM = enNudo.filter(e=>Math.abs(e.m) > EPS).map(e=>(e.m > 0 ? ' - ' : ' + ') + dec(Math.abs(e.m),'momento')).join('');

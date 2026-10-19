@@ -116,6 +116,8 @@ function dibujar(){
     _cargasVis.filter(c=>!_reps(c)).forEach(dibujarCarga);
   }
   nodos.forEach(n=>{ if(VIS.apoyos || edApoyo === n.id) dibujarApoyo(n); });
+  // Cuerdas, bielas y topes, con su nombre y, calculado, su fuerza (22-).
+  dibujarVinculos();
 
   // nudos
   nodos.forEach(n=>{
@@ -144,6 +146,7 @@ function dibujar(){
     R.inc.forEach((u,j)=>{
       const v = R.val[j];
       if(Math.abs(v) < 1e-9) return;
+      if(u.tipo === 'V') return;        // su fuerza va rotulada en el propio vínculo (22-)
       const [px,py] = aPantalla(u.n.x, u.n.y);
       const nom = u.n.nombre;
       if(u.tipo === 'M' && u.ang === undefined){

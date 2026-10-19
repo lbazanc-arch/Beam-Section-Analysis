@@ -150,6 +150,9 @@ function elementoEn(mx,my){
   if(tl) return {tipo:'tramo', id:tl.id};
   const c = cargaEn(mx,my);
   if(c) return {tipo:'carga', id:c.id};
+  // Una cuerda, biela o tope (22-), antes que el tramo con su tolerancia amplia.
+  const vi = vinculoEn(mx,my);
+  if(vi) return {tipo:'vinculo', id:vi.id};
   const t = tramoEn(mx,my);
   return t ? {tipo:'tramo', id:t.id} : null;
 }
@@ -215,6 +218,8 @@ function onDown(e){
     primerNodo = nn.id; invalidarResultados(); refrescar(); return;
   }
   if(tool==='apoyo'){ if(n) abrirApoyo(n.id); return; }
+  // Cuerda, biela o tope (22-): el segundo clic de un doble clic no cuenta.
+  if(tool==='vinculo'){ if(e.detail >= 2) return; toqueVinculo(mx, my); return; }
   if(tool==='sel' || tool==='borrar'){
     // Botón unificado "Mover / editar" (o "Eliminar" interactivo): aún no se
     // decide si será un toque (alterna selección / borra), un arrastre sobre
@@ -236,6 +241,8 @@ function onMove(e){
   const mx=e.clientX-r.left, my=e.clientY-r.top;
   if(panDrag){ vx=panDrag.vx-(mx-panDrag.mx)/escala; vy=panDrag.vy+(my-panDrag.my)/escala; dibujar(); return; }
   mouseW=aMundo(mx,my);
+  // Trazando una cuerda o una biela: la línea sigue al puntero (22-).
+  if(tool==='vinculo' && vinculoPrimerNudo!==null){ dibujar(); return; }
 
   // ── Botón unificado "Mover / editar" (criterio cap9) ──
   if(gesto){
@@ -319,6 +326,13 @@ function onUp(){
       // todo lo que el recuadro haya abarcado. Se permanece en modo borrar
       // para seguir eliminando sin tener que volver a pulsar el botón.
       let bN=[], bT=[], bC=[];
+      // Un toque sobre un vínculo lo borra a él solo (22-).
+      if(!gesto.moved && gesto.hit && gesto.hit.tipo==='vinculo'){
+        const idV = gesto.hit.id;
+        gesto = null;
+        borrarVinculo(idV);
+        return;
+      }
       if(!gesto.moved){
         if(gesto.hit){
           if(gesto.hit.tipo==='nodo') bN=[gesto.hit.id];
@@ -336,6 +350,7 @@ function onUp(){
         tramos = tramos.filter(t=>!marcado(bT,t.id) && !marcado(bN,t.a) && !marcado(bN,t.b));
         nodos  = nodos.filter(n=>!marcado(bN,n.id));
         cargas = cargas.filter(cargaSigueAnclada);
+        depurarVinculos();
         selNodos = selNodos.filter(id=>!marcado(bN,id));
         selTramos = selTramos.filter(id=>!marcado(bT,id));
         selCargas = selCargas.filter(id=>!marcado(bC,id));
@@ -562,10 +577,18 @@ function onDbl(e){
   // En modo borrar el doble toque (puente táctil) no abre ventanas: el primer
   // toque ya borró, y lo que quede debajo no se edita sin pedirlo.
   if(tool==='borrar') return;
+  // Con la herramienta de vínculos, el doble clic solo edita un vínculo (22-).
+  if(tool==='vinculo'){
+    if(ventanaModalAbierta()) return;
+    const vi = vinculoEn(mx, my);
+    if(vi){ cancelarTrazoVinculo(); editarVinculo(vi.id); }
+    return;
+  }
   const h=elementoEn(mx,my);
   if(!h) return;
   if(h.tipo==='nodo') abrirNudo(h.id);
   else if(h.tipo==='carga') editarCarga(h.id);
+  else if(h.tipo==='vinculo') editarVinculo(h.id);
   else abrirTramo(h.id);
 }
 
@@ -576,7 +599,10 @@ function setTool(t){
   tool=t; if(t!=='nudo') primerNodo=null;
   // El tipo de carga elegido en el menú solo vive mientras dura su herramienta.
   if(t!=='carga') tipoCargaPendiente=null;
-  ['pan','nudo','apoyo','sel','corte','carga'].forEach(k=>{
+  // Igual el del vínculo; y un trazo a medias no sobrevive a ningún cambio.
+  if(t!=='vinculo') tipoVinculoPendiente=null;
+  vinculoPrimerNudo=null;
+  ['pan','nudo','apoyo','sel','corte','carga','vinculo'].forEach(k=>{
     const el=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active', k===t);
   });
@@ -590,6 +616,8 @@ function setTool(t){
   // propia rejilla para no borrar la marca de otros grupos.
   document.querySelectorAll('#menuCargas .menu-btn').forEach(b=>
     b.classList.toggle('active', t==='carga' && b.dataset.tipo===tipoCargaPendiente));
+  document.querySelectorAll('#menuVinculos .menu-btn').forEach(b=>
+    b.classList.toggle('active', t==='vinculo' && b.dataset.tipo===tipoVinculoPendiente));
   const hints={pan:'Arrastra el lienzo para desplazar la vista.',
     carga:((tipoCargaPendiente==='U' || tipoCargaPendiente==='T')
       ? 'Toca el tramo donde va la carga.'
@@ -597,6 +625,7 @@ function setTool(t){
       + ' · Doble toque sobre una carga para editarla.',
     nudo:'Haz clic para colocar nudos; se van uniendo formando la viga.',
     apoyo:'Haz clic en un nudo para asignarle apoyo o rótula.',
+    vinculo:textoHerramientaVinculo(),
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
     peso:'Toca los tramos a los que quieras asignar el peso elegido; tócalos de nuevo para quitárselo.',
     corte:'Toca un punto de la viga (ya calculada): se aísla el trozo a la izquierda del corte y se muestra su DCL con N, V y M en la sección.',
@@ -610,7 +639,7 @@ function menuViga(ev){ abrirMenu('menuViga', ev); }
 function menuCargas(ev){ abrirMenu('menuCargas', ev); }
 function abrirMenu(id, ev){
   const m=document.getElementById(id); if(!m) return;
-  ['menuViga','menuCargas'].forEach(k=>{ if(k!==id) document.getElementById(k).classList.remove('abierto'); });
+  ['menuViga','menuCargas','menuVinculos'].forEach(k=>{ const mk=document.getElementById(k); if(k!==id && mk) mk.classList.remove('abierto'); });
   const abre=!m.classList.contains('abierto');
   m.classList.toggle('abierto', abre);
   if(!abre) return;
@@ -620,7 +649,7 @@ function abrirMenu(id, ev){
   m.style.left=Math.max(8, Math.min(bt.left, window.innerWidth-m.offsetWidth-8))+'px';
 }
 document.addEventListener('click', ev=>{
-  ['menuViga','menuCargas'].forEach(id=>{
+  ['menuViga','menuCargas','menuVinculos'].forEach(id=>{
     const m=document.getElementById(id);
     if(!m||!m.classList.contains('abierto')) return;
     const dentro=m.contains(ev.target);

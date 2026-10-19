@@ -46,6 +46,10 @@ let nodos = [];
 let tramos = [];   // {id,a,b}
 let cargas = [];   // {id,tipo,tramo,pos,pos2,mag,mag2}
 let nodoSeq = 0, tramoSeq = 0, cargaSeq = 0;
+// Cuerdas, bielas y topes (22-, 2026-10-18): {id, tipo, a, b|null, ang}. Se
+// declaran aquí porque los usan piezas que se cargan antes (deshacer, dibujo).
+let vinculos = [], vinculoSeq = 0;
+let tipoVinculoPendiente = null, vinculoPrimerNudo = null;
 let tool = 'pan', modoConstr = 'nudos', modoEdic = 'nudos';
 let selNodos = [], selTramos = [], selCargas = [];
 let selNodo = null, selTramo = null, primerNodo = null;

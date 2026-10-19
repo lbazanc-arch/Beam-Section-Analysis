@@ -24,10 +24,13 @@ function renderError(r){
   else if(r.error==='anillo') t = 'Los tramos forman un <b>anillo cerrado</b>: este tema resuelve vigas y pórticos abiertos, sin anillos.';
   else if(r.error==='determinacion'){
     const d=r.diag, g=d.inc-d.eq;
-    t = 'Hay <b>'+d.inc+' reacción(es)</b> y <b>'+d.eq+' ecuación(es)</b> de equilibrio'
+    t = 'Hay <b>'+d.inc+' incógnita(s)</b>'
+      + (d.vin ? ' ('+(d.inc-d.vin)+' reacción(es) y '+d.vin+' de cuerdas, bielas o topes)' : '')
+      + ' y <b>'+d.eq+' ecuación(es)</b> de equilibrio'
       + (d.rot? ' (3 más '+d.rot+' por las rótulas)':'') + '. '
       + (g<0 ? 'Faltan '+(-g)+': la viga no está sujeta y se movería.'
-             : 'Sobran '+g+': el problema es hiperestático y no se resuelve solo con la estática.');
+             : 'Sobran '+g+': el problema es hiperestático y no se resuelve solo con la estática.'
+               + (vinculos.some(v=>v.b !== null && v.b !== undefined) ? ' Una cuerda o una biela entre dos nudos necesita una rótula que la compense.' : ''));
   }
   else t = 'La disposición de apoyos no impide el movimiento. Revisa sus tipos.';
   return '<div class="res-section"><div class="res-title"><div class="num">!</div>No se puede resolver</div>'

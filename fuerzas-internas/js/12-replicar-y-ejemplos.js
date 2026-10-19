@@ -110,8 +110,9 @@ function planReplicar(dx, dy, nrep){
   const escala = Math.max(nodos.length ? Math.max(xmax-xmin, ymax-ymin) : 0,
                           Math.abs(dx)*nrep, Math.abs(dy)*nrep);
   const tol = 1e-6*(escala > 0 ? escala : 1);
-  const p = {nodos:[], tramos:[], cargas:[], unidos:0,
-             selNodos:[], selTramos:[], selCargas:[], nodoSeq, tramoSeq, cargaSeq};
+  const p = {nodos:[], tramos:[], cargas:[], vinculos:[], unidos:0,
+             selNodos:[], selTramos:[], selCargas:[], nodoSeq, tramoSeq, cargaSeq, vinculoSeq};
+  const todosV = vinculos.slice();
   const todosN = nodos.slice(), todosT = tramos.slice();   // modelo + copias del plan
   const nodoDe = id=>todosN.find(n=>n.id===id);
   const nudoEn = (x, y)=>{
@@ -163,6 +164,20 @@ function planReplicar(dx, dy, nrep){
         if(gc) nc = _cargaAlTramoInvertido(nc, gc, ge);
         p.cargas.push(nc); marcar(p.selCargas, nc.id);
       });
+    });
+    // Cuerdas, bielas y topes (22-) se copian con sus nudos, como un apoyo: el
+    // anclado si su nudo se replica; el que une dos, si se replican los dos. Uno
+    // que ya existe entre los mismos nudos no se repite.
+    vinculos.filter(vinculoValido).forEach(v=>{
+      const dos = (v.b !== null && v.b !== undefined);
+      const a = mapaNodo[v.a], b = dos ? mapaNodo[v.b] : null;
+      if(a === undefined || (dos && (b === undefined || a === b))) return;
+      const igual = todosV.some(w=>w.tipo === v.tipo && (dos
+        ? (w.b !== null && w.b !== undefined && ((w.a === a && w.b === b) || (w.a === b && w.b === a)))
+        : (w.a === a && (w.b === null || w.b === undefined) && Math.abs((+w.ang||0) - (+v.ang||0)) < 1e-9)));
+      if(igual) return;
+      const nv = Object.assign({}, v, {id:++p.vinculoSeq, a, b});
+      todosV.push(nv); p.vinculos.push(nv);
     });
     // Las de nudo, una vez por réplica y ya con mapaNodo completo.
     cargasNudo.forEach(c=>{
@@ -219,7 +234,7 @@ function actualizarPrevRep(){
   let t = '<b>' + nrep + (nrep === 1 ? ' copia' : ' copias') + '</b> · desde ('
         + dec(base.x,'len')+' ; '+dec(base.y,'len')+') '+unitLen+' → '
         + q.join(', ') + (nrep>3 ? ' …' : '');
-  if(!p.nodos.length && !p.tramos.length && !p.cargas.length) t += ' · ya existe todo: no hay nada que añadir';
+  if(!p.nodos.length && !p.tramos.length && !p.cargas.length && !p.vinculos.length) t += ' · ya existe todo: no hay nada que añadir';
   else if(p.unidos) t += ' · se unirán ' + p.unidos + (p.unidos === 1 ? ' nudo' : ' nudos') + ' a nudos existentes';
   el.innerHTML = t;
 }
@@ -229,13 +244,13 @@ function applyReplicar(){
   if(quitarSeleccionInexistente()) refrescar();
   if(!nodosDeSeleccion().length){ aviso('No hay nada que replicar.', 'error'); return; }
   const p = planReplicar(campos.dx, campos.dy, campos.nrep);
-  if(!p.nodos.length && !p.tramos.length && !p.cargas.length){
+  if(!p.nodos.length && !p.tramos.length && !p.cargas.length && !p.vinculos.length){
     aviso('Las copias caen sobre nudos y tramos que ya existen: no hay nada que añadir.');
     return;
   }
   registrarCambio();                 // un solo paso de deshacer para toda la réplica
-  nodos.push(...p.nodos); tramos.push(...p.tramos); cargas.push(...p.cargas);
-  nodoSeq = p.nodoSeq; tramoSeq = p.tramoSeq; cargaSeq = p.cargaSeq;
+  nodos.push(...p.nodos); tramos.push(...p.tramos); cargas.push(...p.cargas); vinculos.push(...p.vinculos);
+  nodoSeq = p.nodoSeq; tramoSeq = p.tramoSeq; cargaSeq = p.cargaSeq; vinculoSeq = p.vinculoSeq;
   reNombrar();
   selNodos = p.selNodos; selTramos = p.selTramos; selCargas = p.selCargas;
   selNodo = selNodos.length ? selNodos[selNodos.length-1] : null;
@@ -250,11 +265,12 @@ function limpiarTodo(){
   // por lo que el botón parecía no hacer nada. Lo guardado no se toca.
   // La comprobación va ANTES de registrarCambio: sin nada que limpiar no hay
   // paso de deshacer.
-  if(!nodos.length && !tramos.length && !cargas.length){
+  if(!nodos.length && !tramos.length && !cargas.length && !vinculos.length){
     aviso('No hay nada que limpiar todavía.'); return;
   }
   registrarCambio();
   nodos=[]; tramos=[]; cargas=[]; nodoSeq=0; tramoSeq=0; cargaSeq=0;
+  vinculos=[]; vinculoSeq=0;
   selNodo=null; selTramo=null; primerNodo=null;
   selNodos=[]; selTramos=[]; selCargas=[];
   invalidarResultados();
@@ -341,6 +357,40 @@ const EJEMPLOS = [
       cargas.push({id:++cargaSeq, tipo:'M', destino:'nudo', nudo:G.id, mag:-10, mag2:0});
       cargas.push({id:++cargaSeq, tipo:'U', destino:'tramo', tramo:tramos[3].id, pos:5, posFin:12, mag:6, mag2:6});
     }
+  },
+  // Cuerdas, bielas y topes (22-, 2026-10-18), resueltos a mano.
+  // Tirante: con la carga en la rótula y el pórtico simétrico, R_yA = R_yE = 10 y
+  // R_xA = 0 (el móvil de E es vertical). En ΣM_C del lado C–D–E: el móvil da
+  // 4·10 = 40 y el tirante tira de D hacia B, (−T, 0) a 2 m por debajo de C: −2T.
+  // 40 − 2T = 0 ⇒ T = 20 kN, tracción: la cuerda trabaja como debe.
+  {
+    id:'tirante',
+    nom:'Pórtico triarticulado con tirante',
+    desc:'A fijo, E móvil, rótula en C · cuerda B–D · P = 20 kN en C.',
+    esperado:'R<sub>yA</sub> = R<sub>yE</sub> = 10 kN · T<sub>BD</sub> = 20 kN (tracción)',
+    armar(N){
+      const A=N(0,0), B=N(0,4), C=N(4,6), D=N(8,4), E=N(8,0);
+      addTramo(A.id,B.id); addTramo(B.id,C.id); addTramo(C.id,D.id); addTramo(D.id,E.id);
+      A.apoyo='simple'; E.apoyo='movil'; C.rotula=true;
+      cargas.push({id:++cargaSeq, tipo:'P', destino:'nudo', nudo:C.id, tramo:null, mag:20, mag2:0});
+      vinculos.push({id:++vinculoSeq, tipo:'cuerda', a:B.id, b:D.id, ang:null});
+    }
+  },
+  // Cuerda anclada: viga A–B de 6 m, articulada en A, colgada en B de una cuerda
+  // que va a 135° (arriba a la izquierda), P = 10 kN a 3 m. ΣM_A: 6·T sen 45° −
+  // 10·3 = 0 ⇒ T = 7.0711 kN; ΣFx: R_xA − T cos 45° = 0 ⇒ R_xA = 5; ΣFy: R_yA = 5.
+  {
+    id:'cuerda',
+    nom:'Viga colgada de una cuerda',
+    desc:'A fijo · cuerda en B anclada a 135° · P = 10 kN a 3 m.',
+    esperado:'T<sub>B</sub> = 7.07 kN (tracción) · R<sub>xA</sub> = 5 kN · R<sub>yA</sub> = 5 kN',
+    armar(N){
+      const A=N(0,0), B=N(6,0);
+      addTramo(A.id,B.id);
+      A.apoyo='simple';
+      cargas.push({id:++cargaSeq, tipo:'P', destino:'tramo', tramo:tramos[0].id, pos:3, mag:10, mag2:0});
+      vinculos.push({id:++vinculoSeq, tipo:'cuerda', a:B.id, b:null, ang:135});
+    }
   }
 ];
 
@@ -364,6 +414,11 @@ function cerrarEjemplos(){ document.getElementById('ejModal').classList.remove('
 // tramo inclinado. Si alguna se desvía más del 0.1 %, avisa por consola.
 function _reaccionDe(r, nombre, tipo){
   for(let j=0;j<r.inc.length;j++){ const u = r.inc[j]; if(u.n.nombre === nombre && u.tipo === tipo) return r.val[j]; }
+  return null;
+}
+// La fuerza de una cuerda, biela o tope por su nombre plano (T_BD → 'TBD').
+function _vinculoDe(r, nombre){
+  for(let j=0;j<r.inc.length;j++){ const u = r.inc[j]; if(u.tipo === 'V' && nombreVinculoPlano(u.vin) === nombre) return r.val[j]; }
   return null;
 }
 function _momentoEnNudo(r, nombre){
@@ -416,6 +471,23 @@ const VERIFICACIONES = {
       {q:'M en E (apoyo movil, extremo)', esp:0, obt:_momentoEnNudo(r,'E'), abs:1e-6},
       {q:'N no nula en el tramo inclinado', esp:'>0', obt:inclinado ? _maxAbsSerie(inclinado,'N') : null}
     ];
+  },
+  tirante(r){
+    return [
+      {q:'R_yA', esp:10, obt:_reaccionDe(r,'A','Ry')},
+      {q:'R_xA', esp:0, obt:_reaccionDe(r,'A','Rx'), abs:1e-6},
+      {q:'R_yE', esp:10, obt:_reaccionDe(r,'E','Ry')},
+      {q:'T_BD (traccion)', esp:20, obt:_vinculoDe(r,'TBD')},
+      {q:'M en la rotula C', esp:0, obt:_momentoEnNudo(r,'C'), abs:1e-6}
+    ];
+  },
+  cuerda(r){
+    return [
+      {q:'T_B (traccion)', esp:7.0711, obt:_vinculoDe(r,'TB')},
+      {q:'R_xA', esp:5, obt:_reaccionDe(r,'A','Rx')},
+      {q:'R_yA', esp:5, obt:_reaccionDe(r,'A','Ry')},
+      {q:'M en B (extremo colgado)', esp:0, obt:_momentoEnNudo(r,'B'), abs:1e-6}
+    ];
   }
 };
 function comprobarEjemploFI(id, r){
@@ -438,7 +510,7 @@ function cargarEjemplo(id){
   const ej = EJEMPLOS.find(e=>e.id === id) || EJEMPLOS[0];
   registrarCambio();
   nodos=[]; tramos=[]; cargas=[]; pesos=[]; nodoSeq=0; tramoSeq=0; cargaSeq=0;
-  pesoSeq=0; pesoActivo=null; R=null;
+  pesoSeq=0; pesoActivo=null; R=null; vinculos=[]; vinculoSeq=0;
   selNodos=[]; selTramos=[]; selCargas=[]; selNodo=null; selTramo=null; primerNodo=null;
   // Nudo en coordenada EXACTA: addNodo engancha a la rejilla, y su paso
   // depende del zoom, así que un ejemplo cargado con la vista alejada se

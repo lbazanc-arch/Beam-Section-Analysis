@@ -49,6 +49,8 @@ function pintarListas(){
       + '<label style="font-size:9px;display:flex;align-items:center;gap:3px">'
       + '<input type="checkbox" '+(n.rotula?'checked':'')+' onchange="editRotula('+n.id+',this.checked)"> rótula</label>'
       + '</div>').join('') : '<div class="list-empty">Sin nudos.</div>';
+    // Debajo, las cuerdas, bielas y topes, con editar y borrar (22-).
+    la.innerHTML += htmlListaVinculos();
   }
   // cargas
   const lc=document.getElementById('listaCargas');
@@ -218,8 +220,10 @@ function borrarNodo(id){
   registrarCambio();
   tramos=tramos.filter(t=>t.a!==id && t.b!==id);
   nodos=nodos.filter(n=>n.id!==id);
-  // Con el nudo caen sus cargas de nudo y las de los tramos que llegaban a él.
+  // Con el nudo caen sus cargas de nudo y las de los tramos que llegaban a él,
+  // y sus cuerdas, bielas y topes (22-).
   cargas=cargas.filter(cargaSigueAnclada);
+  depurarVinculos();
   // Lo borrado sale también de la selección (12-): un id fantasma hacía que
   // Replicar contara nudos que ya no están y registrara un paso vacío.
   quitarSeleccionInexistente();

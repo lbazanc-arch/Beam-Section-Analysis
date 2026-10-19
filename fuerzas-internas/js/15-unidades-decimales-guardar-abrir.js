@@ -269,6 +269,8 @@ function cargarEstadoDesdeArchivo(e, nombreArchivo, version){
     tramos=(e.tramos||[]).slice();
     cargas=normalizarCargas((e.cargas||[]).map(c=>Object.assign({}, c)));
     pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
+    // Cuerdas, bielas y topes (22-, 2026-10-18); un archivo anterior no los trae.
+    vinculos=(e.vinculos||[]).map(v=>Object.assign({}, v));
     // Cada contador queda en el mayor id del archivo, para que un nudo, tramo o
     // carga nuevos (o las copias de Replicar) nunca repitan uno. Un id que no
     // sea número no cuenta: con Math.max a secas dejaba el contador en NaN.
@@ -277,6 +279,7 @@ function cargarEstadoDesdeArchivo(e, nombreArchivo, version){
     }, 0);
     nodoSeq=mayorId(nodos); tramoSeq=mayorId(tramos);
     cargaSeq=mayorId(cargas); pesoSeq=mayorId(pesos);
+    depurarVinculos(); vinculoSeq=mayorId(vinculos);
     pesoActivo=null;
     // La selección y el nudo inicial eran del ejercicio anterior: con ellos,
     // Replicar copiaba los nudos del abierto que tuvieran esos mismos ids.
@@ -309,6 +312,7 @@ function estadoActual(){
           tramos:tramos.map(t=>({id:t.id,a:t.a,b:t.b,pesoId:t.pesoId})),
           cargas:cargas.slice(),
           pesos:pesos.map(p=>({id:p.id,nom:p.nom,val:p.val})),
+          vinculos:vinculos.map(v=>({id:v.id,tipo:v.tipo,a:v.a,b:(v.b === undefined ? null : v.b),ang:v.ang})),
           unidades:{len:unitLen,fuerza:unitFor}, decimales:DEC};
 }
 // ═══════════════════════════════════════════════════════════
@@ -813,6 +817,7 @@ function tikzArcoReaccionFI(ox, oy, ux, uy, gen, pend, col){
 // $R_{yD}$, $R_{xD}$, $R_A$, $M_D$: el mismo símbolo en el desarrollo, en el
 // resumen y en los DCL, para que el alumno siga una sola nomenclatura.
 function simbReaccion(u){
+  if(u.tipo === 'V') return nombreVinculoTex(u.vin);     // T_{BD}, F_{A}, R_{tA} (22-)
   const b = escLatex(u.n.nombre);
   if(u.ang !== undefined) return 'R_{' + b + '}';
   return (u.tipo==='Rx' ? 'R_{x' : (u.tipo==='Ry' ? 'R_{y' : 'M_{')) + b + '}';
@@ -878,13 +883,17 @@ function pasoAPasoReacciones(R){
     const fn = comp => (((comp === 'x') !== ag.desdeV) ? '\\cos' : '\\operatorname{sen}');
     const sg = comp => ((comp === 'x' ? ca : sa) < 0 ? '-' : '');
     const f4 = v => (Math.round(v*10000)/10000).toFixed(4);
+    // Las componentes de una cuerda, biela o tope anclados (22-) llevan su nombre:
+    // T_{A,x}, no R_{xA}, que podría ser la del apoyo del mismo nudo.
+    const cX = (u.tipo === 'V') ? _arComp(nR, 'x') : 'R_{x' + nn + '}';
+    const cY = (u.tipo === 'V') ? _arComp(nR, 'y') : 'R_{y' + nn + '}';
     preGlobal += _alineada([
-      'R_{x' + nn + '} &= ' + sg('x') + nR + fn('x') + letra + ' = ' + sg('x') + nR + fn('x') + ' ' + g + ' = ' + f4(ca) + '\\,' + nR,
-      'R_{y' + nn + '} &= ' + sg('y') + nR + fn('y') + letra + ' = ' + sg('y') + nR + fn('y') + ' ' + g + ' = ' + f4(sa) + '\\,' + nR
+      cX + ' &= ' + sg('x') + nR + fn('x') + letra + ' = ' + sg('x') + nR + fn('x') + ' ' + g + ' = ' + f4(ca) + '\\,' + nR,
+      cY + ' &= ' + sg('y') + nR + fn('y') + letra + ' = ' + sg('y') + nR + fn('y') + ' ' + g + ' = ' + f4(sa) + '\\,' + nR
     ]);
     const O = nombreOrigen(), coefM = R.A[2][j];
     preGlobal += _alineada([
-      'M_{' + O + '} &= x_{' + nn + '}\\,R_{y' + nn + '} - y_{' + nn + '}\\,R_{x' + nn + '}',
+      'M_{' + O + '} &= x_{' + nn + '}\\,' + cY + ' - y_{' + nn + '}\\,' + cX,
       '&= (' + dec(u.n.x,'len') + ')\\,(' + f4(sa) + '\\,' + nR + ') - (' + dec(u.n.y,'len') + ')\\,(' + f4(ca) + '\\,' + nR + ')',
       '&= ' + dec(coefM,'len') + '\\,' + nR
     ]);
@@ -924,7 +933,7 @@ function pasoAPasoReacciones(R){
         if(Math.abs(v) < 1e-9) return;
         t.push({v, tex: dec(Math.abs(v), dtEq(e))});
       } else {
-        t.push({v:a, tex: termInc(u, a, e)});
+        t.push({v:a, tex: termInc(u, a, e), inc:true});
       }
     });
     return t;
@@ -1002,8 +1011,9 @@ function pasoAPasoReacciones(R){
         // Sin cargas ni valores ya hallados, la segunda línea repetiría la primera.
         const reduce = carg[e].length || izqTerms(e, false).length > pe.length;
         if(pe.length && reduce){
+          // Fuera las incógnitas que quedan: marcadas (`inc`), y por su nombre.
           const c = izqTerms(e, true).concat(carg[e])
-                      .filter(t=>t.tex.indexOf('R_') < 0 && t.tex.indexOf('M_') < 0)
+                      .filter(t=>!t.inc && t.tex.indexOf('R_') < 0 && t.tex.indexOf('M_') < 0)
                       .reduce((s,t)=>s + t.v, 0);
           par.push(_fila('', pe.map(p=>({v:p.a, tex:termInc(p.u, p.a, e)})),
                          ' = ' + dec(-c, dtEq(e)) + '\\ \\text{' + unEq(e) + '}', 5, ' & '));

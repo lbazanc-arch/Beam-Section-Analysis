@@ -240,7 +240,7 @@ function manejarEsc(){
     tramoNuevoModal:'cerrarTramoNuevo', apoyoModal:'cerrarApoyo',
     cargaModal:'cerrarCarga', unitsModal:'closeUnitsModal',
     decModal:'closeDecModal', guardarModal:'cerrarGuardar', histModal:'cerrarHistorial', ejModal:'cerrarEjemplos', pesoModal:'cerrarPeso',
-    corteModal:'cerrarCorte', selTramosModal:'cerrarSeleccionTramos',
+    corteModal:'cerrarCorte', selTramosModal:'cerrarSeleccionTramos', vinculoModal:'cerrarVinculo',
     transModal:'closeTransformar', repModal:'closeReplicar'};
   for(const id in cierres){
     const m = document.getElementById(id);
@@ -256,6 +256,8 @@ function manejarEsc(){
   if(panDrag || gesto || pinchDist!==null){ cancelarGestoEnCurso(); dibujar(); return; }
   // 4) La cadena de dibujo por nudos pendiente
   if(primerNodo!==null){ primerNodo=null; dibujar(); return; }
+  // …o el trazo de una cuerda o biela a medias (22-)
+  if(vinculoPrimerNudo!==null){ cancelarTrazoVinculo(); return; }
   // 5) La selección actual
   if(selNodos.length || selTramos.length || selCargas.length || selNodo!==null || selTramo!==null){
     selNodos=[]; selTramos=[]; selCargas=[]; selNodo=null; selTramo=null; refrescar(); return;
@@ -263,7 +265,7 @@ function manejarEsc(){
   // 6) La herramienta de borrado, para no dejarla armada sin darse cuenta
   if(tool==='borrar'){ setTool('sel'); return; }
   // 7) La herramienta de cargas con su tipo armado: se vuelve a desplazar
-  if(tool==='carga'){ setTool('pan'); }
+  if(tool==='carga' || tool==='vinculo'){ setTool('pan'); }
 }
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape'){ manejarEsc(); return; }

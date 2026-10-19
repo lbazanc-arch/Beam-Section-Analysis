@@ -44,22 +44,24 @@ function analizar(){
     if(g >= 2) inc.push({n, tipo:'Rx'});
     if(g >= 3) inc.push({n, tipo:'M'});
   });
+  // Cuerdas, bielas y topes (22-): una incógnita cada uno, su fuerza axial.
+  incognitasDeVinculos().forEach(u=>inc.push(u));
+  const nVin = inc.filter(u=>u.tipo === 'V').length;
   const rotulas = ecuacionesDeRotula(cad);
   const nEq = 3 + rotulas.length;
-  const diag = {inc:inc.length, eq:nEq, rot:rotulas.length};
+  const diag = {inc:inc.length, eq:nEq, rot:rotulas.length, vin:nVin};
   if(inc.length !== nEq) return {error:'determinacion', diag, acc, inc};
 
   const A = Array.from({length:nEq}, ()=>new Array(inc.length).fill(0));
   const b = new Array(nEq).fill(0);
-  const dir = u => {
-    // Una reacción orientada actúa a lo largo de su ángulo, no según los ejes.
-    if(u.ang !== undefined) return {x:Math.cos(u.ang), y:Math.sin(u.ang), m:0};
-    return u.tipo==='Rx' ? {x:1,y:0,m:0} : (u.tipo==='Ry' ? {x:0,y:1,m:0} : {x:0,y:0,m:1});
-  };
+  // Cada incógnita, como las fuerzas que hace con valor unidad y su nudo
+  // (`fuerzasUnitarias`, 22-): una reacción, una sola; un vínculo entre dos nudos,
+  // dos iguales y opuestas, que se anulan en el equilibrio global.
   inc.forEach((u,j)=>{
-    const d = dir(u);
-    A[0][j] = d.x; A[1][j] = d.y;
-    A[2][j] = u.n.x*d.y - u.n.y*d.x + d.m;
+    fuerzasUnitarias(u).forEach(f=>{
+      A[0][j] += f.fx; A[1][j] += f.fy;
+      A[2][j] += f.n.x*f.fy - f.n.y*f.fx + f.m;
+    });
   });
   let sx=0, sy=0, sm=0;
   acc.forEach(a=>{ sx+=a.fx; sy+=a.fy; sm += a.x*a.fy - a.y*a.fx + a.m; });
@@ -69,9 +71,12 @@ function analizar(){
   rotulas.forEach((rt,k)=>{
     const lado = ladoDeRotula(rt, cad);
     inc.forEach((u,j)=>{
-      if(lado.nodos.indexOf(u.n.id) < 0) return;
-      const d = dir(u);
-      A[3+k][j] = (u.n.x-rt.x)*d.y - (u.n.y-rt.y)*d.x + d.m;
+      // Solo las fuerzas aplicadas en un nudo de ese lado: de un vínculo entre
+      // dos nudos, la del extremo que cae en él.
+      fuerzasUnitarias(u).forEach(f=>{
+        if(lado.nodos.indexOf(f.n.id) < 0) return;
+        A[3+k][j] += (f.n.x-rt.x)*f.fy - (f.n.y-rt.y)*f.fx + f.m;
+      });
     });
     let m = 0;
     acc.forEach(a=>{
@@ -85,7 +90,9 @@ function analizar(){
   if(!x) return {error:'singular', diag, acc, inc};
   const val = {};
   inc.forEach((u,j)=>{ val[j] = x[j]; });
-  return {acc, inc, val, diag, cad, rotulas, A, b, estructura:est};
+  const res = {acc, inc, val, diag, cad, rotulas, A, b, estructura:est};
+  res.avisosVin = avisosDeVinculos(res);     // cuerda comprimida, tope traccionado (22-)
+  return res;
 }
 
 // Una ecuación de momento nulo por cada tramo que sale de una rótula, menos el
@@ -172,6 +179,13 @@ function fuerzasInternas(res){
   const puntuales = res.acc.filter(a => a.carga.tipo !== 'U' && a.carga.tipo !== 'T');
   res.inc.forEach((u,j)=>{
     const v = res.val[j];
+    // Un vínculo (22-) actúa en su nudo, o en sus dos nudos con fuerzas iguales y
+    // opuestas; cada fuerza va a la cadena de su nudo y se nombra igual.
+    if(u.tipo === 'V'){
+      fuerzasUnitarias(u).forEach(f=>puntuales.push({x:f.n.x, y:f.n.y, fx:v*f.fx, fy:v*f.fy, m:0,
+                                                     reac:true, nodo:f.n, inc:u}));
+      return;
+    }
     // Se adjunta la incógnita (inc:u) para que el informe pueda nombrar la
     // reacción igual en todas partes: un apoyo móvil orientado es R_A, no
     // R_{yA}, y sin este dato no hay forma de distinguirlo desde la acción.

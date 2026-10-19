@@ -908,10 +908,11 @@ function instantanea(){
     tramos: tramos.map(t=>Object.assign({}, t)),
     cargas: cargas.map(c=>Object.assign({}, c)),
     pesos: pesos.map(p=>Object.assign({}, p)),
+    vinculos: vinculos.map(v=>Object.assign({}, v)),
     // Las unidades van con el modelo: sus números solo valen en ellas, y deshacer
     // un cambio de unidades tiene que devolver las dos cosas juntas.
     unidades: {len:unitLen, fuerza:unitFor},
-    nodoSeq, tramoSeq, cargaSeq, pesoSeq
+    nodoSeq, tramoSeq, cargaSeq, pesoSeq, vinculoSeq
   });
 }
 // Llamar ANTES de modificar el modelo.
@@ -927,6 +928,8 @@ function restaurarInstantanea(txt){
   tramos = e.tramos.map(t=>Object.assign({}, t));
   cargas = normalizarCargas(e.cargas.map(c=>Object.assign({}, c)));
   pesos  = (e.pesos || []).map(p=>Object.assign({}, p));
+  vinculos = (e.vinculos || []).map(v=>Object.assign({}, v));
+  vinculoSeq = e.vinculoSeq || vinculoSeq;
   nodoSeq = e.nodoSeq; tramoSeq = e.tramoSeq; cargaSeq = e.cargaSeq;
   pesoSeq = e.pesoSeq || pesoSeq;
   if(!pesos.some(p=>p.id === pesoActivo)) pesoActivo = null;
@@ -983,6 +986,7 @@ function eliminarSeleccion(){
                         && !marcado(selNodos, t.a) && !marcado(selNodos, t.b));
   nodos  = nodos.filter(n=>!marcado(selNodos, n.id));
   cargas = cargas.filter(cargaSigueAnclada);   // cada carga cae con su nudo o su tramo
+  depurarVinculos();                           // y cada vínculo, con su nudo (22-)
   selNodos=[]; selTramos=[]; selCargas=[]; selNodo=null; selTramo=null;
   reNombrar(); invalidarResultados(); refrescar();
 }

@@ -102,7 +102,8 @@ function renderResultados(r){
   h += '<div class="res-section"><div class="res-title"><div class="num">1</div>'
     + 'Determinación estática</div>'
     + '<div class="verdict ok"><div class="verdict-t">Resultado</div>'
-    + 'Viga isostática: <b>'+r.diag.inc+' reacciones</b> y <b>'+r.diag.eq+' ecuaciones</b> de equilibrio'
+    + 'Viga isostática: <b>'+r.diag.inc+(r.diag.vin ? ' incógnitas</b> ('+(r.diag.inc-r.diag.vin)+' reacciones y '
+       +r.diag.vin+' de cuerdas, bielas o topes)' : ' reacciones</b>')+' y <b>'+r.diag.eq+' ecuaciones</b> de equilibrio'
     + (r.diag.rot ? ', incluyendo '+r.diag.rot+' por rótula interna.' : '.') + '</div>'
     + '<div class="proc-block"><div class="eq-row"><div class="eq-body">'
     + kx('\\sum F_x = 0 \\qquad \\sum F_y = 0 \\qquad \\sum M = 0'
@@ -116,6 +117,16 @@ function renderResultados(r){
     + '<th class="r">Valor</th><th>Unidad</th></tr></thead><tbody>';
   r.inc.forEach((u,j)=>{
     const v = r.val[j];
+    // Cuerda, biela o tope (22-): su fuerza axial, con cómo trabaja.
+    if(u.tipo === 'V'){
+      const T = VIN_TIPOS[u.vin.tipo], tr = trabajoVinculo(u, v);
+      const donde = u.n2 ? u.n.nombre + '–' + u.n2.nombre : u.n.nombre;
+      const dir = u.n2 ? 'entre los nudos' : 'anclaje a ' + dec(+u.vin.ang,'ang') + '°';
+      h += '<tr><td><b>'+donde+'</b></td><td>'+T.nom+' ('+dir+')</td><td>'+kx(nombreVinculoTex(u.vin))+' · '
+        + '<span style="color:'+(tr.ok ? '#15803d' : '#c0392b')+';font-weight:700">'+tr.txt+(tr.ok ? ' ✓' : ' ✗')+'</span></td>'
+        + '<td class="r"><b>'+f(Math.abs(v))+'</b></td><td>'+unitFor+'</td></tr>';
+      return;
+    }
     // Un apoyo MOVIL puede estar orientado: tiene UNA reaccion, en la direccion
     // `u.ang` (radianes, la que monto 03-). Llamarla «Vertical R_y» solo es
     // cierto a 90°; el informe LaTeX ya lo hacia bien y la tabla no.
@@ -135,7 +146,7 @@ function renderResultados(r){
       + '<td class="r"><b>'+(u.tipo==='M'?fm(v):f(v))+'</b></td>'
       + '<td>'+(u.tipo==='M'?uMom():unitFor)+'</td></tr>';
   });
-  h += '</tbody></table></div>';
+  h += '</tbody></table>' + avisosVinculosHtml(r) + '</div>';
 
   // 3 · Procedimiento con el método elegido
   h += '<div class="res-section"><div class="res-title"><div class="num">3</div>'
