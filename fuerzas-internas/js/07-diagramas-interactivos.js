@@ -1,18 +1,42 @@
 function vdGiro(campo, valor){
   const c = cargas.find(z=>z.id === _vdCarga);
   if(!c) return;
-  const v = parseFloat(valor);
+  let v = parseFloat(valor);
   if(!isFinite(v)) return;
+  // La rueda avanza de paso en paso desde su ancla (2026-10-18): 45, 45.05,
+  // 45.10… sin el ruido de coma flotante del control.
+  const lim = _vdLim[c.id], paso = (campo === 'mag' ? lim.paso : lim.paso2) || 0;
+  const ancla = (_vdAncla && _vdAncla[campo] !== undefined) ? _vdAncla[campo] : v;
+  if(paso > 0) v = +(ancla + Math.round((v - ancla)/paso)*paso).toFixed(10);
   if(campo === 'mag') c.mag = v; else c.mag2 = v;
-  const u = (c.tipo==='M') ? uMom() : (c.tipo==='U'||c.tipo==='T') ? uDist() : unitFor;
-  const et = document.getElementById('vdVal_' + campo);
-  if(et) et.textContent = dec(v, c.tipo==='M'?'mom':'f') + ' ' + u;
   const nn = document.getElementById('vdN_' + campo);
-  if(nn) nn.value = +v.toFixed(4);
+  if(nn) nn.value = v.toFixed(Math.max(_vdDecPaso(paso), 2));
   // Un giro rápido dispara decenas de eventos: el recálculo se agrupa por
   // frame para que la ventana siga fluida también en móvil.
   if(_vdRaf) return;
   _vdRaf = requestAnimationFrame(()=>{ _vdRaf = 0; vdRender(); });
+}
+// Botones − y +: un paso, sin salirse del rango.
+function vdPaso(campo, signo){
+  const c = cargas.find(z=>z.id === _vdCarga);
+  if(!c) return;
+  const lim = _vdLim[c.id];
+  const paso = (campo === 'mag' ? lim.paso : lim.paso2) || 0;
+  const mn = campo === 'mag' ? lim.min : lim.min2, mx = campo === 'mag' ? lim.max : lim.max2;
+  const actual = campo === 'mag' ? c.mag : (c.mag2 || 0);
+  const v = +Math.min(mx, Math.max(mn, actual + signo*paso)).toFixed(10);
+  const rg = document.getElementById('vdR_' + campo);
+  if(rg) rg.value = v;
+  vdGiro(campo, v);
+}
+// El paso lo escribe el alumno; la rejilla se apoya en el valor vigente.
+function vdCambiarPaso(campo, valor){
+  const c = cargas.find(z=>z.id === _vdCarga);
+  const p = parseFloat(valor);
+  if(!c) return;
+  if(!isFinite(p) || p <= 0){ aviso('El paso tiene que ser un número mayor que cero.', 'error'); vdPintarRuedas(); return; }
+  _vdLim[c.id][campo === 'mag' ? 'paso' : 'paso2'] = p;
+  vdPintarRuedas();
 }
 
 function vdValorExacto(campo, valor){
@@ -78,12 +102,12 @@ function extremosSerie(gg, clave){
 
 // Recuadro de máximos y mínimos, uno por diagrama, con la posición en la
 // abscisa del grupo (x en los rectos, r en los inclinados).
-function htmlExtremosGrupo(r, gg){
+function htmlExtremosGrupo(r, gg, claves){
   const series = [
     {k:'N', col:'#0e9f6e', nom:'DFN', tU:()=>unitFor},
     {k:'V', col:'#d94f5c', nom:'DFC', tU:()=>unitFor},
     {k:'M', col:'#8b5cf6', nom:'DMF', tU:()=>uMom()}
-  ];
+  ].filter(se=>!claves || claves.indexOf(se.k) >= 0);
   const sb = gg.simbolo;
   return '<div class="vd-stats">' + series.map(se=>{
     const e = extremosSerie(gg, se.k);
@@ -311,13 +335,22 @@ function vdRender(){
   }
   r.internas = fuerzasInternas(r);
   const gs = gruposDireccion(r);
-  if(_vdGrupo >= gs.length) _vdGrupo = 0;
-  const g = gs[_vdGrupo];
+  if(_vdGrupo !== 'todo' && _vdGrupo >= gs.length) _vdGrupo = 0;
   dclW.innerHTML = svgDCLGlobal(r);
-  const estW = document.getElementById('vdEstr');
-  if(estW) estW.innerHTML = htmlDiagramasEstructura(r);
-  diagW.innerHTML = (g.inclinado ? htmlDiagramasOrientados(r, g) : '<div class="proc-block">' + svgDiagramas(r, g) + '</div>')
-                  + htmlExtremosGrupo(r, g);
+  // Solo los diagramas elegidos con DFN, DFC y DMF (2026-10-18), del tramo o de
+  // toda la estructura.
+  const claves = ['N','V','M'].filter(k=>!_vdSeries || _vdSeries[k]);
+  if(!claves.length){
+    diagW.innerHTML = '<div class="hint-sm" style="padding:12px;text-align:center">Elige al menos un diagrama: DFN, DFC o DMF.</div>';
+    return;
+  }
+  if(_vdGrupo === 'todo'){
+    diagW.innerHTML = htmlDiagramasEstructura(r, claves);
+    return;
+  }
+  const g = gs[_vdGrupo];
+  diagW.innerHTML = (g.inclinado ? htmlDiagramasOrientados(r, g, claves) : '<div class="proc-block">' + svgDiagramas(r, g, claves) + '</div>')
+                  + htmlExtremosGrupo(r, g, claves);
 }
 
 
@@ -409,11 +442,14 @@ function fiHoverMover(ev, gid){
   const lx = document.getElementById('fiHoverX-' + gid);
   if(lx){ lx.setAttribute('x1', X.toFixed(1)); lx.setAttribute('x2', X.toFixed(1)); }
   const delta = 0.05*d.total;
+  // V y M se leen siempre, aunque su diagrama no esté a la vista (2026-10-18).
   const vals = {};
+  ['N','V','M'].forEach(k=>{
+    const c = sub[{N:'cN', V:'cV', M:'cM'}[k]];
+    vals[k] = {v:polyVal(c, xl), dv:polyDerVal(c, xl)};
+  });
   d.series.forEach(se=>{
-    const c = sub[{N:'cN', V:'cV', M:'cM'}[se.k]];
-    const v = polyVal(c, xl), dv = polyDerVal(c, xl);
-    vals[se.k] = {v, dv};
+    const {v, dv} = vals[se.k];
     const PY = y => se.yc - y*se.esc;
     const ln = document.getElementById('fiHoverT-' + gid + '-' + se.k);
     if(ln){
@@ -432,23 +468,24 @@ function fiHoverMover(ev, gid){
   if(tx) tx.textContent = txt;
 }
 
-function svgDiagramas(r, grupo){
+// `claves` (opcional, 2026-10-18): solo esos diagramas, apilados; sin ella, los tres.
+function svgDiagramas(r, grupo, claves){
   const gid = ++_fiSeq;
   const _reg = {series:[]};
   const lista = grupo ? grupo.tramos : r.internas;
   const base0 = grupo ? grupo.s0 : 0;
   const simb  = grupo ? grupo.simbolo : 'x';
   const total = lista.reduce((s,t)=>s+t.L, 0) || 1;
-  const W2 = 700, alto = 118, sep = 34, M = 58;
-  const H = 3*alto + 2*sep + 56;
-  let s = '<svg viewBox="0 0 '+W2+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">';
-  s += '<rect width="'+W2+'" height="'+H+'" fill="#fff"/>';
-  const anchoUtil = W2 - 2*M;
   const series = [
     {k:'N', col:'#0e9f6e', tit:'DFN — Fuerza normal',   u:'f'},
     {k:'V', col:'#d94f5c', tit:'DFC — Fuerza cortante', u:'f'},
     {k:'M', col:'#8b5cf6', tit:'DMF — Momento flector', u:'mom'}
-  ];
+  ].filter(se=>!claves || claves.indexOf(se.k) >= 0);
+  const W2 = 700, alto = 118, sep = 34, M = 58;
+  const H = series.length*alto + (series.length - 1)*sep + 56;
+  let s = '<svg viewBox="0 0 '+W2+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">';
+  s += '<rect width="'+W2+'" height="'+H+'" fill="#fff"/>';
+  const anchoUtil = W2 - 2*M;
   const PX = x => M + x/total*anchoUtil;
   Object.assign(_reg, {lista, base0, total, M, anchoUtil, simb});
 
@@ -769,14 +806,16 @@ function svgDiagramaOrientado(r, clave, lista){
   return s + '</svg>';
 }
 // Los tres diagramas de la estructura entera, uno debajo del otro.
-function htmlDiagramasEstructura(r){
+// `claves` (opcional): solo esos diagramas (los botones DFN, DFC, DMF de «Ver
+// diagramas»); sin ella, como siempre.
+function htmlDiagramasEstructura(r, claves){
   const hayN = r.internas.some(t=>t.subs.some(su=>su.cN.some(v=>Math.abs(v) > 5e-9)));
-  return (hayN ? ['N','V','M'] : ['V','M']).map(k=>'<div class="proc-block" style="margin-bottom:8px">'
+  return (claves || (hayN ? ['N','V','M'] : ['V','M'])).map(k=>'<div class="proc-block" style="margin-bottom:8px">'
     + svgDiagramaOrientado(r, k, r.internas) + '</div>').join('');
 }
 // Los de un tramo inclinado o vertical, con su inclinación.
-function htmlDiagramasOrientados(r, g){
-  return ['N','V','M'].map(k=>'<div class="proc-block" style="margin-bottom:8px">'
+function htmlDiagramasOrientados(r, g, claves){
+  return (claves || ['N','V','M']).map(k=>'<div class="proc-block" style="margin-bottom:8px">'
     + svgDiagramaOrientado(r, k, g.tramos) + '</div>').join('');
 }
 

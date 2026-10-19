@@ -304,9 +304,20 @@ function generarDiagramas(){
 // ═══════════════════════════════════════════════════════════
 let _vdOrig = null;     // valores originales de las cargas, para restaurar
 let _vdLim  = {};       // límites de cada rueda {id:{min,max,min2,max2}}
-let _vdGrupo = 0;       // grupo de dirección elegido
+let _vdGrupo = 0;       // grupo de dirección elegido; 'todo' = toda la estructura
 let _vdCarga = null;    // carga seleccionada para variar
 let _vdRaf = 0;         // recálculo agrupado por frame: giros rápidos no se apilan
+let _vdSeries = null;   // diagramas a la vista: {N, V, M} (2026-10-18)
+let _vdAncla = {};      // valor en el que se apoya la rejilla de cada rueda
+
+// Paso por defecto de una rueda: un número redondo (1, 2 o 5 por una potencia
+// de 10) cerca de 1/200 del recorrido. El alumno lo cambia en «paso».
+function _vdPasoDefecto(min, max){
+  const bruto = Math.max(1e-6, (max - min)/200);
+  const p10 = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const m = bruto/p10;
+  return +((m < 1.5 ? 1 : (m < 3.5 ? 2 : (m < 7.5 ? 5 : 10)))*p10).toPrecision(6);
+}
 
 function _vdLimDefecto(v){
   // ±200 % del valor original. Con valor nulo la rueda quedaría muerta,
@@ -326,23 +337,25 @@ function _vdModal(){
       '<div class="modal vd">'
     +   '<div class="vd-cab">'
     +     '<div><h3>Diagramas interactivos</h3>'
-    +     '<p class="sub" style="margin-bottom:0">Gira la rueda de una carga y observa al instante '
-    +     'cómo cambian las reacciones y los tres diagramas.</p></div>'
+    +     '<p class="sub" style="margin-bottom:0">Mueve la rueda de una carga y mira cómo cambian '
+    +     'las reacciones y los diagramas elegidos.</p></div>'
     +     '<button class="vd-x" onclick="cerrarVerDiagramas(false)" title="Cerrar" aria-label="Cerrar">&#10005;</button>'
     +   '</div>'
+    // El control de la carga va arriba, compacto y fijo al desplazar la ventana
+    // (2026-10-18, petición del profesor): así el DCL y los diagramas elegidos
+    // se ven mientras se mueve la rueda.
     +   '<div class="vd-cuerpo">'
+    +     '<div class="vd-control">'
+    +       '<div class="vd-carga-fila"><span class="vd-mini-tit">Carga a variar</span>'
+    +         '<select id="vdSelCarga" onchange="vdCambioCarga(this.value)"></select>'
+    +       '</div>'
+    +       '<div id="vdRuedas"></div>'
+    +     '</div>'
     +     '<div class="vd-sec-tit">DCL de la estructura</div>'
     +     '<div id="vdDCL" class="vd-dcl"></div>'
     +     '<div class="vd-sec-tit">Tramo a analizar</div>'
     +     '<div id="vdGrupos" class="vd-grupos"></div>'
-    +     '<div class="vd-sec-tit">Carga a variar</div>'
-    +     '<div class="vd-carga-fila">'
-    +       '<select id="vdSelCarga" onchange="vdCambioCarga(this.value)"></select>'
-    +     '</div>'
-    +     '<div id="vdRuedas"></div>'
-    +     '<div class="vd-sec-tit">Diagramas de la estructura</div>'
-    +     '<div id="vdEstr"></div>'
-    +     '<div class="vd-sec-tit">Diagramas del tramo</div>'
+    +     '<div id="vdSeries" class="vd-grupos vd-series"></div>'
     +     '<div id="vdDiag"></div>'
     +   '</div>'
     +   '<div class="vd-pie">'
@@ -362,16 +375,20 @@ function abrirVerDiagramas(){
   _vdOrig = {};
   cargas.forEach(c=>{ _vdOrig[c.id] = {mag:c.mag, mag2:c.mag2}; });
   _vdLim = {};
+  _vdAncla = {};
   cargas.forEach(c=>{
     const L1 = _vdLimDefecto(c.mag);
-    _vdLim[c.id] = {min:L1.min, max:L1.max};
+    _vdLim[c.id] = {min:L1.min, max:L1.max, paso:_vdPasoDefecto(L1.min, L1.max)};
     if(c.tipo === 'T'){
       const L2 = _vdLimDefecto(c.mag2 || 0);
-      _vdLim[c.id].min2 = L2.min; _vdLim[c.id].max2 = L2.max;
+      Object.assign(_vdLim[c.id], {min2:L2.min, max2:L2.max, paso2:_vdPasoDefecto(L2.min, L2.max)});
     }
   });
   _vdGrupo = 0;
   _vdCarga = cargas[0].id;
+  // DFC y DMF a la vista; el DFN solo si la estructura tiene fuerza normal.
+  const hayN = R.internas && R.internas.some(t=>t.subs.some(su=>su.cN.some(v=>Math.abs(v) > 5e-9)));
+  _vdSeries = {N:!!hayN, V:true, M:true};
   const ov = _vdModal();
   ov.classList.add('show');
   vdPintarSelectores();
@@ -413,14 +430,22 @@ function vdNombreCarga(c){
 
 function vdPintarSelectores(){
   const gs = gruposDireccion(R);
-  if(_vdGrupo >= gs.length) _vdGrupo = 0;
+  if(_vdGrupo !== 'todo' && _vdGrupo >= gs.length) _vdGrupo = 0;
   const gw = document.getElementById('vdGrupos');
-  gw.innerHTML = gs.map((g,i)=>
-      '<label class="vd-radio' + (i===_vdGrupo ? ' on' : '') + '">'
-    + '<input type="radio" name="vdG" value="' + i + '"' + (i===_vdGrupo ? ' checked' : '')
-    + ' onchange="vdCambioGrupo(' + i + ')">'
-    + '<span>' + g.recorrido + (g.oblicuo ? ' · ' + dec(g.ang,'ang') + '°' : (g.vertical ? ' · vertical' : ' · recto'))
-    + '</span></label>').join('');
+  const radio = (val, on, txt) => '<label class="vd-radio' + (on ? ' on' : '') + '">'
+    + '<input type="radio" name="vdG"' + (on ? ' checked' : '')
+    + ' onchange="vdCambioGrupo(' + (val === 'todo' ? '\'todo\'' : val) + ')"><span>' + txt + '</span></label>';
+  // Cada tramo por cambio de dirección y, al final, toda la estructura (2026-10-18).
+  gw.innerHTML = gs.map((g,i)=>radio(i, i === _vdGrupo, g.recorrido
+      + (g.oblicuo ? ' · ' + dec(g.ang,'ang') + '°' : (g.vertical ? ' · vertical' : ' · recto')))).join('')
+    + (gs.length > 1 ? radio('todo', _vdGrupo === 'todo', 'Toda la estructura') : '');
+  // Qué diagramas se ven: uno, dos o los tres.
+  const sw = document.getElementById('vdSeries');
+  if(sw) sw.innerHTML = '<span class="vd-mini-tit">Ver</span>' + ['N','V','M'].map(k=>{
+    const se = SERIES_DIAG[k], on = _vdSeries && _vdSeries[k];
+    return '<button type="button" class="vd-serie' + (on ? ' on' : '') + '" style="--sc:' + se.col + '" '
+      + 'onclick="vdAlternarSerie(\'' + k + '\')" title="' + se.tit + '">' + se.tit.split(' ')[0] + '</button>';
+  }).join('');
   const sel = document.getElementById('vdSelCarga');
   sel.innerHTML = cargas.map(c=>
     '<option value="' + c.id + '"' + (c.id===_vdCarga ? ' selected' : '') + '>'
@@ -432,6 +457,12 @@ function vdCambioGrupo(i){
   vdPintarSelectores();
   vdRender();
 }
+function vdAlternarSerie(k){
+  if(!_vdSeries) _vdSeries = {N:true, V:true, M:true};
+  _vdSeries[k] = !_vdSeries[k];
+  vdPintarSelectores();
+  vdRender();
+}
 function vdCambioCarga(id){
   _vdCarga = parseInt(id);
   vdPintarRuedas();
@@ -440,32 +471,48 @@ function vdCambioCarga(id){
 // ── Ruedas de la carga elegida ──
 // Una rueda por valor; la carga variable lleva dos, una por extremo.
 // Debajo de cada rueda, sus límites editables.
+// Rueda compacta (2026-10-18, petición del profesor): en una fila el valor con
+// sus botones − y + y el paso; en la otra, mín, la rueda y máx. La rueda avanza
+// de paso en paso a partir del valor vigente (45 → 45.05 → 45.10 con paso 0.05):
+// su rejilla se apoya en ese valor (`_vdAncla`) y no en el mínimo.
+function _vdDecPaso(p){ const s = String(+(+p).toPrecision(8)); const i = s.indexOf('.'); return i < 0 ? 0 : s.length - i - 1; }
+function _vdRejilla(v, mn, mx, paso){
+  const nAb = Math.max(0, Math.floor((v - mn)/paso + 1e-9)), nAr = Math.max(0, Math.floor((mx - v)/paso + 1e-9));
+  return {min:+(v - nAb*paso).toFixed(10), max:+(v + nAr*paso).toFixed(10)};
+}
 function vdPintarRuedas(){
   const c = cargas.find(z=>z.id === _vdCarga);
   const w = document.getElementById('vdRuedas');
   if(!c){ w.innerHTML = ''; return; }
   const lim = _vdLim[c.id];
   const u = (c.tipo==='M') ? uMom() : (c.tipo==='U'||c.tipo==='T') ? uDist() : unitFor;
-  const fila = (campo, titulo, v, mn, mx)=>{
-    const paso = Math.max(1e-6, (mx-mn)/400);
+  const fila = (campo, titulo, v, mn, mx, paso)=>{
+    _vdAncla[campo] = v;
+    const rj = _vdRejilla(v, mn, mx, paso);
+    const nd = Math.max(_vdDecPaso(paso), 2);
+    const a = '\'' + campo + '\'';
     return '<div class="vd-rueda">'
-      + '<div class="vd-rueda-cab"><span>' + titulo + '</span>'
-      + '<span class="vd-val" id="vdVal_' + campo + '">' + dec(v, c.tipo==='M'?'mom':'f') + ' ' + u + '</span></div>'
-      + '<input type="range" class="vd-range" id="vdR_' + campo + '" min="' + mn + '" max="' + mx
-      + '" step="' + paso + '" value="' + v + '" oninput="vdGiro(\'' + campo + '\', this.value)">'
-      + '<div class="vd-lims">'
-      + '<label>mín <input type="number" step="any" value="' + mn
-      + '" onchange="vdLimite(\'' + campo + '\', \'min\', this.value)"></label>'
-      + '<label>valor <input type="number" step="any" id="vdN_' + campo + '" value="' + (+v.toFixed(4))
-      + '" onchange="vdValorExacto(\'' + campo + '\', this.value)"></label>'
-      + '<label>máx <input type="number" step="any" value="' + mx
-      + '" onchange="vdLimite(\'' + campo + '\', \'max\', this.value)"></label>'
+      + '<div class="vd-fila">'
+      +   '<span class="vd-nom">' + titulo + '</span>'
+      +   '<button type="button" class="vd-paso-btn" onclick="vdPaso(' + a + ', -1)" aria-label="Restar un paso">−</button>'
+      +   '<input type="number" step="any" class="vd-num vd-valor" id="vdN_' + campo + '" value="' + v.toFixed(nd)
+      +     '" onchange="vdValorExacto(' + a + ', this.value)">'
+      +   '<button type="button" class="vd-paso-btn" onclick="vdPaso(' + a + ', 1)" aria-label="Sumar un paso">+</button>'
+      +   '<span class="vd-u">' + u + '</span>'
+      +   '<label class="vd-paso">paso <input type="number" step="any" min="0" class="vd-num" value="' + paso
+      +     '" onchange="vdCambiarPaso(' + a + ', this.value)"></label>'
+      + '</div>'
+      + '<div class="vd-fila">'
+      +   '<input type="number" step="any" class="vd-num vd-lim" value="' + mn + '" title="Mínimo" aria-label="Mínimo"'
+      +     ' onchange="vdLimite(' + a + ', \'min\', this.value)">'
+      +   '<input type="range" class="vd-range" id="vdR_' + campo + '" min="' + rj.min + '" max="' + rj.max
+      +     '" step="' + paso + '" value="' + v + '" oninput="vdGiro(' + a + ', this.value)">'
+      +   '<input type="number" step="any" class="vd-num vd-lim" value="' + mx + '" title="Máximo" aria-label="Máximo"'
+      +     ' onchange="vdLimite(' + a + ', \'max\', this.value)">'
       + '</div></div>';
   };
-  let h = fila('mag', (c.tipo==='T' ? 'Extremo inicial w₁' : 'Magnitud'), c.mag, lim.min, lim.max);
+  let h = fila('mag', (c.tipo==='T' ? 'w₁' : 'Valor'), c.mag, lim.min, lim.max, lim.paso);
   if(c.tipo === 'T')
-    h += fila('mag2', 'Extremo final w₂', c.mag2 || 0, lim.min2, lim.max2);
-  h += '<div class="hint-sm" style="margin:2px 0 8px">Límites por defecto: ±200 % del valor '
-     + 'original. Puedes escribir tus propios mín/máx o un valor exacto.</div>';
+    h += fila('mag2', 'w₂', c.mag2 || 0, lim.min2, lim.max2, lim.paso2);
   w.innerHTML = h;
 }
