@@ -894,55 +894,8 @@ function tablaSingulares(R, gg){
   return out;
 }
 
-// ── Comprobación por el método de las áreas ──
-function tablaAreasGrupo(R, gg){
-  const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
-  let out = '';
-  // Una sola vez (R1): la relación diferencial que sostiene el método.
-  // Los extremos de M se sitúan como raíz de V ANTES de dar el valor: es la
-  // maniobra del método, no un dato leído del diagrama.
-  const extremos = [];
-  gg.tramos.forEach(t2=>{
-    const off = t2.s0 - gg.s0;
-    t2.subs.forEach(su=>{
-      const der = [su.cM[1]||0, 2*(su.cM[2]||0), 3*(su.cM[3]||0)];
-      raicesEn(der, su.sa, su.sb).forEach(v=>{
-        if(v <= su.sa + 1e-9 || v >= su.sb - 1e-9) return;
-        extremos.push('$V = 0$ en $' + gg.simbolo + ' = ' + dec(off+v,'len') + '$, $M = ' + dec(polyVal(su.cM, v),'momento') + '$ ' + uM);
-      });
-    });
-  });
-  if(extremos.length)
-    out += '\\noindent{\\footnotesize Extremos interiores de $M$: ' + extremos.join('; ') + '.}\\\\[2pt]\n';
-  out += tablaCaption('Tramo ' + escLatex(gg.recorrido) + '. Valores en ' + uF + ' y ' + uM + '.');
-  out += '{\\footnotesize\\begin{center}\\begin{tabular}{crrrrrr}\n\\hline\n'
-    + 'Intervalo & $V_{\\text{ini}}$ & $V_{\\text{fin}}$ & $\\Delta V = -\\!\\int w$ & '
-    + '$M_{\\text{ini}}$ & $M_{\\text{fin}}$ & $\\Delta M = \\int V$ \\\\\n\\hline\n';
-  const saltos = [];
-  let prev = null;
-  gg.tramos.forEach(t2=>{
-    const off = t2.s0 - gg.s0;
-    t2.subs.forEach(su=>{
-      const Vi = polyVal(su.cV,su.sa), Vf = polyVal(su.cV,su.sb);
-      const Mi = polyVal(su.cM,su.sa), Mf = polyVal(su.cM,su.sb);
-      if(prev){
-        const dV = Vi - prev.V, dM = Mi - prev.M;
-        const partes = [];
-        if(Math.abs(dV) > 1e-7) partes.push('$\\Delta V = ' + dec(dV,'fuerza') + '$ ' + uF);
-        if(Math.abs(dM) > 1e-7) partes.push('$\\Delta M = ' + dec(dM,'momento') + '$ ' + uM);
-        if(partes.length) saltos.push('En $' + gg.simbolo + ' = ' + dec(off+su.sa,'len') + '$: ' + partes.join(' y ') + '.');
-      }
-      out += dec(off+su.sa,'len') + '--' + dec(off+su.sb,'len') + ' & ' + dec(Vi,'fuerza') + ' & ' + dec(Vf,'fuerza')
-        + ' & ' + dec(Vf-Vi,'fuerza') + ' & ' + dec(Mi,'momento') + ' & ' + dec(Mf,'momento')
-        + ' & ' + dec(polyIntDef(su.cV,su.sa,su.sb),'momento') + ' \\\\\n';
-      prev = {V:Vf, M:Mf};
-    });
-  });
-  out += '\\hline\n\\end{tabular}\\end{center}}\n';
-  if(saltos.length)
-    out += '\\noindent{\\footnotesize ' + saltos.join(' ') + '}\\\\[2pt]\n';
-  return out;
-}
+// El método de las áreas (`areasTex`) vive en 21-metodo-de-areas.js desde el
+// 2026-10-18: con figuras conocidas, sin integrales.
 
 // ── Ramas (2026-10-04): una rama se desarrolla antes que la cadena a la que se
 // une, desde su extremo; al acabar, lo que transmite a su nudo de unión entra en

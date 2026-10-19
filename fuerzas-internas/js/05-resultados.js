@@ -107,7 +107,7 @@ function svgDCL(r, ti, sub){
   _dclW = 0; _dclH = 0;        // se fijan en cuanto se conoce el viewBox
   // Ley de la carga variable de este subtramo, en la abscisa del grupo.
   const _seg = r.internas[ti];
-  const _gg  = gruposDireccion(r).find(g=>g.tramos.indexOf(_seg) >= 0);
+  const _gg  = gruposSolucion(r).find(g=>g.tramos.indexOf(_seg) >= 0);
   const _simDCL = _gg ? _gg.simbolo : 'x';
   const _off = _gg ? (_seg.s0 - _gg.s0) : 0;
   const _leyes = _seg ? leyesDeCarga(_seg, sub, _off) : [];
@@ -343,7 +343,7 @@ function svgDCL(r, ti, sub){
   // reparten en escalones para que ninguna etiqueta pise a otra, y la
   // abscisa (r o x) va SIEMPRE en el nivel más exterior, porque es la que
   // resume todo el subtramo.
-  const _g = gruposDireccion(r).find(g=>g.tramos.indexOf(t) >= 0);
+  const _g = gruposSolucion(r).find(g=>g.tramos.indexOf(t) >= 0);
   const orig = _g ? _g.desde : t.desde;
   const D0 = {x:SX(orig.x), y:SY(orig.y)};
   const dxU = PX - D0.x, dyU = PY - D0.y;

@@ -622,7 +622,8 @@ function construirLatex(){
     figN++;
     return '\n\\begin{center}{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} ' + txt + '}\\end{center}\n\\vspace{4pt}\n';
   }
-  const grupos = gruposDireccion(R);
+  // Solo los tramos elegidos al calcular (20-); las reacciones, completas.
+  const grupos = gruposSolucion(R);
   const hayN = R.internas.some(seg=>seg.subs.some(su=>su.cN.some(v=>Math.abs(v)>5e-9)));
 
   let tex = preambulo;
@@ -692,8 +693,8 @@ function construirLatex(){
         + (gg.oblicuo ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : (gg.vertical ? 'vertical' : 'horizontal'))
         + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL + '}\n';
       tex += textoRama(R, grupos, gg, 'inicio');
-      tex += tablaAreasGrupo(R, gg);
-      tex += tablaSingulares(R, gg);
+      // Con figuras conocidas, sin integrales (2026-10-18, 21-).
+      tex += areasTex(R, grupos, gg, figCaption);
       tex += textoRama(R, grupos, gg, 'fin');
     });
   } else {
@@ -708,6 +709,8 @@ function construirLatex(){
       + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL
       + '\\quad abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + '}\n';
     tex += textoRama(R, grupos, gg, 'inicio');
+    // El tramo anterior no se eligió: N, V y M de su nudo de arranque, como dato.
+    tex += bloqueArranque(R, gg);
     gg.tramos.forEach(seg=>{
       seg.subs.forEach(sub=>{
         tex += desarrolloCorte(R, grupos, gg, seg, sub, figCaption);

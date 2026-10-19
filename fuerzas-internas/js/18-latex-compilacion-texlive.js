@@ -240,7 +240,7 @@ function manejarEsc(){
     tramoNuevoModal:'cerrarTramoNuevo', apoyoModal:'cerrarApoyo',
     cargaModal:'cerrarCarga', unitsModal:'closeUnitsModal',
     decModal:'closeDecModal', guardarModal:'cerrarGuardar', histModal:'cerrarHistorial', ejModal:'cerrarEjemplos', pesoModal:'cerrarPeso',
-    corteModal:'cerrarCorte',
+    corteModal:'cerrarCorte', selTramosModal:'cerrarSeleccionTramos',
     transModal:'closeTransformar', repModal:'closeReplicar'};
   for(const id in cierres){
     const m = document.getElementById(id);

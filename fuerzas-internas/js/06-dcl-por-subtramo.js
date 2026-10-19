@@ -32,8 +32,9 @@ function leyesDeCarga(seg, sub, off){
 
 function renderMetodoEcuaciones(r){
   let h = '<div class="hint-sm" style="margin-bottom:8px">Corte en una sección genérica de cada subtramo; la abscisa (<i>x</i> en tramos rectos, <i>r</i> en inclinados) se mide desde el último quiebre. El desarrollo completo va en el PDF.</div>';
-  const _grupos = gruposDireccion(r);
+  const _grupos = gruposSolucion(r);
   r.internas.forEach((t,ti)=>{
+    if(!tramoEnSolucion(t)) return;      // solo los tramos elegidos (20-)
     // Grupo (recta continua) al que pertenece este tramo: de él salen el
     // origen de la abscisa y su símbolo.
     const gt = _grupos.find(g=>g.tramos.indexOf(t) >= 0) || _grupos[0];
@@ -90,41 +91,8 @@ function renderMetodoEcuaciones(r){
   return h;
 }
 
-function renderMetodoAreas(r){
-  let h = '<div class="hint-sm" style="margin-bottom:8px">' + kx('\\Delta V = -\\int w\\,dx') + ' &nbsp;·&nbsp; ' + kx('\\Delta M = \\int V\\,dx')
-    + '; V salta en cada carga puntual y M en cada momento aplicado. El desarrollo completo va en el PDF.</div>';
-  r.internas.forEach(t=>{
-    h += '<div class="sub-tramo-cab">Tramo '+t.nombre+'</div>'
-      + '<table class="tabla"><thead><tr><th>Intervalo ['+unitLen+']</th>'
-      + '<th class="r">V inicio</th><th class="r">V fin</th>'
-      + '<th class="r">ΔV = −∫w·dx</th>'
-      + '<th class="r">M inicio</th><th class="r">M fin</th>'
-      + '<th class="r">ΔM = ∫V·dx</th></tr></thead><tbody>';
-    t.subs.forEach(sub=>{
-      const Vi=polyVal(sub.cV,sub.sa), Vf=polyVal(sub.cV,sub.sb);
-      const Mi=polyVal(sub.cM,sub.sa), Mf=polyVal(sub.cM,sub.sb);
-      h += '<tr><td>'+dec(sub.sa,'len')+' — '+dec(sub.sb,'len')+'</td>'
-        + '<td class="r">'+dec(Vi,'f')+'</td><td class="r">'+dec(Vf,'f')+'</td>'
-        + '<td class="r">'+dec(Vf-Vi,'f')+'</td>'
-        + '<td class="r">'+dec(Mi,'mom')+'</td><td class="r">'+dec(Mf,'mom')+'</td>'
-        + '<td class="r"><b>'+dec(polyIntDef(sub.cV,sub.sa,sub.sb),'mom')+'</b></td></tr>';
-    });
-    h += '</tbody></table>';
-    const saltos = [];
-    for(let k2=0;k2<t.subs.length-1;k2++){
-      const s1=t.subs[k2], s2=t.subs[k2+1];
-      const dV = polyVal(s2.cV,s2.sa) - polyVal(s1.cV,s1.sb);
-      const dM = polyVal(s2.cM,s2.sa) - polyVal(s1.cM,s1.sb);
-      const partes = [];
-      if(Math.abs(dV) > 1e-7) partes.push('ΔV = <b>'+dec(dV,'f')+'</b> '+unitFor+' por la acción puntual');
-      if(Math.abs(dM) > 1e-7) partes.push('ΔM = <b>'+dec(dM,'mom')+'</b> '+uMom()+' por el momento aplicado');
-      if(partes.length) saltos.push('En x = '+dec(s2.sa,'len')+' '+unitLen+': '+partes.join(' y ')+'.');
-    }
-    if(saltos.length)
-      h += '<div class="dcl-saltos">'+saltos.map(z=>'<div>· '+z+'</div>').join('')+'</div>';
-  });
-  return h;
-}
+// El método de las áreas (`renderMetodoAreas`) vive en 21-metodo-de-areas.js
+// desde el 2026-10-18: con figuras conocidas, sin integrales.
 
 function renderResultados(r){
   const f=v=>dec(v,'f'), nl=v=>dec(v,'len'), fm=v=>dec(v,'mom');
@@ -185,6 +153,7 @@ function renderResultados(r){
     + '<th class="r">Inclinación</th><th class="r">N máx</th><th class="r">V máx</th>'
     + '<th class="r">M máx</th></tr></thead><tbody>';
   r.internas.forEach(t=>{
+    if(!tramoEnSolucion(t)) return;
     const mx = arr => arr.reduce((m,p)=>Math.abs(p)>Math.abs(m)?p:m, 0);
     h += '<tr><td><b>'+t.nombre+'</b></td><td class="r">'+nl(t.L)+' '+unitLen+'</td>'
       + '<td class="r">'+dec(t.ang,'ang')+'°</td>'
@@ -194,8 +163,8 @@ function renderResultados(r){
   });
   h += '</tbody></table></div>';
 
-  // 5 · Diagramas, agrupados por cambio de dirección
-  const grupos = gruposDireccion(r);
+  // 5 · Diagramas, agrupados por cambio de dirección (solo los tramos elegidos)
+  const grupos = gruposSolucion(r);
   h += '<div class="res-section"><div class="res-title"><div class="num">5</div>'
     + 'Diagramas DFN · DFC · DMF</div>'
     + '<div class="hint-sm" style="margin-bottom:8px">La viga tiene <b>' + grupos.length
@@ -290,9 +259,10 @@ function etiquetasSerie(ramas){
 
 // Dibuja los grupos pedidos, cada uno con su encabezado.
 function htmlDiagramasGrupos(r, idxs){
-  const grupos = gruposDireccion(r);
-  // Primero la estructura entera, con cada diagrama sobre su barra (2026-10-11).
-  const estr = '<div style="margin-bottom:16px">'
+  const grupos = gruposSolucion(r);
+  // Primero la estructura entera, con cada diagrama sobre su barra (2026-10-11);
+  // solo si se eligió toda la estructura (2026-10-18).
+  const estr = solucionParcial() ? '' : '<div style="margin-bottom:16px">'
     + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">Estructura completa</div>'
     + htmlDiagramasEstructura(r) + '</div>';
   if(!idxs || !idxs.length)

@@ -328,9 +328,14 @@ function vdRender(){
 // diagramas con su propia abscisa medida desde el punto de quiebre.
 const TOL_ANG_GRUPO = 0.5;   // grados; por debajo se considera la misma recta
 
-function gruposDireccion(r){
+// `soloSol` (2026-10-18): solo los tramos elegidos para la solución (20-). Dos
+// elegidos seguidos y en la misma recta siguen formando un grupo; uno que no se
+// eligió corta la recta en dos.
+function gruposDireccion(r, soloSol){
   const g = [];
-  r.internas.forEach(t=>{
+  const lista = (soloSol && typeof tramoEnSolucion === 'function')
+    ? r.internas.filter(t=>tramoEnSolucion(t)) : r.internas;
+  lista.forEach(t=>{
     const ult = g[g.length-1];
     // Diferencia de ángulos normalizada a (-180, 180]. Dos tramos siguen la
     // misma recta si esa diferencia es casi nula.
@@ -349,9 +354,15 @@ function gruposDireccion(r){
     gr.idx = i;
     // El grupo anterior DE SU CADENA (null en el primero): es el que le entrega
     // N, V y M por el nudo de quiebre. Con una sola cadena, el de índice i − 1.
+    // Tiene que acabar donde empieza este: con solo algunos tramos elegidos, el
+    // anterior de la lista puede no ser el contiguo.
     const prev = g[i-1];
-    gr.anterior = (prev && prev.cadena === gr.cadena) ? prev : null;
-    gr.primero = !gr.anterior;
+    gr.anterior = (prev && prev.cadena === gr.cadena && prev.hasta === gr.desde) ? prev : null;
+    // `primero`: arranca en el extremo de su cadena, así que sus acciones salen de
+    // cero. Con toda la estructura equivale a no tener anterior; si no se eligió
+    // el tramo previo, el grupo no es el primero y tampoco tiene anterior: N, V y
+    // M le llegan por su nudo de arranque (`bloqueArranque`, 21-).
+    gr.primero = (gr.tramos[0].idx === undefined) ? !gr.anterior : gr.tramos[0].idx === 0;
     gr.inclinado = Math.abs(gr.ang) > TOL_ANG_GRUPO;
     // Un eje a 90°, 180° o 270° no es «inclinado» para el alumno: es vertical u
     // horizontal y no lleva ángulo θ ni proyecciones con senos y cosenos
