@@ -377,7 +377,7 @@ const FORMULAS_FICHA = {
   semicircle:  {A:'π·R²/2', x:'0', y:'4R/3π',
                 Ix:'0.1098·R⁴', Iy:'π·R⁴/8', Pxy:'0'},
   quarter:     {A:'π·R²/4', x:'4R/3π', y:'4R/3π',
-                Ix:'0.0549·R⁴', Iy:'0.0549·R⁴', Pxy:'−0.01647·R⁴'},
+                Ix:'(π/16 − 4/9π)·R⁴', Iy:'(π/16 − 4/9π)·R⁴', Pxy:'(1/8 − 4/9π)·R⁴'},
   sector:      {A:'θ·R²', x:'0', y:'2R·sen θ/3θ',
                 Ix:'R⁴(θ − ½·sen 2θ)/4', Iy:'R⁴(θ + ½·sen 2θ)/4 − A·ȳ²', Pxy:'0',
                 notas:['θ es el <b>semiángulo</b>: el ángulo total del sector es 2θ.',

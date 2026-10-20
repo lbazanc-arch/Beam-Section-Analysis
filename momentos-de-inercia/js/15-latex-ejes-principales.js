@@ -52,3 +52,40 @@ function tikzEjesPrincipales(caja, tx, ty){
      + n(cx) + ',' + n(cy) + ') {$C$};\n';
   return s;
 }
+
+// ══════════════════════════════════════════════════════════════════════
+//  EJES GIRADOS theta EN EL CENTROIDE (theta sin punto P; ventana de Calcular, 33-)
+// ══════════════════════════════════════════════════════════════════════
+// En el azul de U y V del circulo de Mohr, como los girados en P (16-): son el
+// mismo par de ejes, visto en la seccion. Algo mas cortos que los principales,
+// para que sus rotulos no caigan en la misma punta.
+function tikzEjesGiradosC(caja, tx, ty, ang){
+  if(!results || !isFinite(ang)) return '';
+  const n = v => (Math.abs(v) < 1e-12 ? 0 : v).toFixed(3);
+  const px = x => parseFloat(tx(x));
+  const py = y => parseFloat(ty(y));
+  const cx = px(results.xbar), cy = py(results.ybar);
+  const ancho = px(caja.right) - px(caja.left);
+  const alto  = py(caja.top)   - py(caja.bottom);
+  const L = 0.82 * 0.62 * Math.max(ancho, alto, 1);
+  const a0 = ang * Math.PI / 180;
+  let s = '';
+  for(const e of [{a: a0, et: 'u'}, {a: a0 + Math.PI / 2, et: 'v'}]){
+    const dx = L * Math.cos(e.a), dy = L * Math.sin(e.a);
+    s += '\\draw[bsaAcc2, line width=0.9pt, dash pattern=on 4pt off 2pt, ->, >=stealth] ('
+       + n(cx - dx) + ',' + n(cy - dy) + ') -- (' + n(cx + dx) + ',' + n(cy + dy) + ')\n'
+       + '      node[' + (Math.cos(e.a) >= 0 ? 'right' : 'left')
+       + ', font=\\scriptsize\\bfseries, text=bsaAcc2, fill=white, inner sep=1.5pt] {$' + e.et + '$};\n';
+  }
+  if(Math.abs(ang % 360) >= 0.5){
+    const rr = 1.75 * Math.min(0.30 * L / 0.82, 1.1);
+    s += '\\draw[black, line width=1.1pt, dash pattern=on 5pt off 3pt] ('
+       + n(cx) + ',' + n(cy) + ') -- (' + n(cx + 1.35*rr) + ',' + n(cy) + ');\n';
+    s += '\\draw[bsaAcc2, line width=0.9pt, ->, >=stealth] (' + n(cx + rr) + ',' + n(cy) + ')\n'
+       + '      arc (0:' + n(ang) + ':' + n(rr) + ');\n';
+    const am = a0 / 2, rl = rr + 0.36;
+    s += '\\node[font=\\tiny\\bfseries, text=bsaAcc2, fill=white, inner sep=1.5pt] at ('
+       + n(cx + rl*Math.cos(am)) + ',' + n(cy + rl*Math.sin(am)) + ') {$\\theta$};\n';
+  }
+  return s;
+}

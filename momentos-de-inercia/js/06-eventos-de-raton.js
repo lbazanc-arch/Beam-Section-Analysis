@@ -629,6 +629,20 @@ function hitTest(sx,sy){
     const def = FIG_DEFS[fig.type];
     if(!def) continue;
     const d = fig.dims;
+    // 6 px de tolerancia, en unidades del MUNDO (2026-10-20). Se sumaban 6 a
+    // secas: con la unidad en m eran 6 m, y un toque o un recuadro de selección
+    // lejos de una figura la agarraba y la arrastraba. Mismo arreglo que
+    // centroide/js/05-.
+    const tolPx = 6/viewScale;
+    // La caja REAL de la figura en el mundo, ya girada (figuraBoundsMundo, 11-).
+    // Queda la caja aproximada de antes por si esa pieza aún no está (§5.3).
+    let caja = null;
+    if(typeof figuraBoundsMundo === 'function'){ try{ caja = figuraBoundsMundo(fig); }catch(e){ caja = null; } }
+    if(caja){
+      const w = screenToWorld(sx, sy);
+      if(w.x >= caja.left-tolPx && w.x <= caja.right+tolPx && w.y >= caja.bottom-tolPx && w.y <= caja.top+tolPx) return fig;
+      continue;
+    }
     let hw=50, hh=50;
     if(d.b !== undefined && d.h !== undefined){ hw=d.b/2; hh=d.h/2; }
     else if(d.r !== undefined){ hw=hh=d.r; }
@@ -636,7 +650,7 @@ function hitTest(sx,sy){
     else if(d.a !== undefined && d.b !== undefined){ hw=d.a; hh=d.b; }
     else if(d.B !== undefined && d.H !== undefined){ hw=d.B/2; hh=d.H/2; }
     const dx=(sx-sp.x)/viewScale, dy=(sy-sp.y)/viewScale;
-    if(Math.abs(dx)<=hw+6 && Math.abs(dy)<=hh+6) return fig;
+    if(Math.abs(dx)<=hw+tolPx && Math.abs(dy)<=hh+tolPx) return fig;
   }
   return null;
 }

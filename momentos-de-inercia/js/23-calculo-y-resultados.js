@@ -4,7 +4,7 @@
 // Se detiene en lo primero que aplica, para que una sola pulsación no deshaga
 // dos cosas a la vez.
 const MODALES_ESC = ['edFigModal','guardarModal','unitsModal','decModal','histModal','catModal','ejModal',
-                     'transModal','repModal'];
+                     'transModal','repModal','calcOpcModal'];
 function manejarEsc(){
   // La ventanita de fórmulas de la ficha se cierra la primera.
   if(document.querySelector('.ref-fig-pop:not([hidden])')){ cerrarInfoFigura(); return; }
@@ -582,6 +582,23 @@ function renderResults(res, u4, u2, u1){
   // SECTION 5: Principal moments + Mohr circle
   // ══════════════════════════════════════════════════
   const R_mohr = Math.sqrt(Math.pow((res.Ix-res.Iy)/2,2)+pxySec*pxySec);
+  // Ejes girados θ en el centroide (θ sin punto P en la ventana de Calcular, 33-).
+  const gC = giroEnCentroide(res);
+  let bloqueGiroC = '';
+  if(gC){
+    bloqueGiroC = `
+    <div class="proc-block" style="margin-top:10px;">
+      <div class="proc-subtitle">Ejes girados θ = ${n4(gC.ang)}° en el centroide C</div>
+      <div class="eq-row"><div class="eq-body">${kx(`I_{u} = \\dfrac{\\bar{I}_{xG}+\\bar{I}_{yG}}{2} + \\dfrac{\\bar{I}_{xG}-\\bar{I}_{yG}}{2}\\cos 2\\theta - P_{xyG}\\sin 2\\theta = ${kres(ftex(gC.Iu)+'\\,'+utex(u4))}`)}</div></div>
+      <div class="eq-row"><div class="eq-body">${kx(`I_{v} = \\dfrac{\\bar{I}_{xG}+\\bar{I}_{yG}}{2} - \\dfrac{\\bar{I}_{xG}-\\bar{I}_{yG}}{2}\\cos 2\\theta + P_{xyG}\\sin 2\\theta = ${kres(ftex(gC.Iv)+'\\,'+utex(u4))}`)}</div></div>
+      <div class="eq-row"><div class="eq-body">${kx(`P_{uv} = \\dfrac{\\bar{I}_{xG}-\\bar{I}_{yG}}{2}\\sin 2\\theta + P_{xyG}\\cos 2\\theta = ${kres(ftex(gC.Iuv)+'\\,'+utex(u4))}`)}</div></div>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-box highlight"><div class="s-lbl">I<sub>u</sub>${gC.swapped?' (= Ī<sub>y</sub>)':''}</div><div class="s-val">${f(gC.Iu)}</div><div class="s-unit">${u4}</div></div>
+      <div class="summary-box highlight"><div class="s-lbl">I<sub>v</sub>${gC.swapped?' (= Ī<sub>x</sub>)':''}</div><div class="s-val">${f(gC.Iv)}</div><div class="s-unit">${u4}</div></div>
+      <div class="summary-box"><div class="s-lbl">P<sub>uv</sub></div><div class="s-val">${f(gC.Iuv)}</div><div class="s-unit">${u4}</div></div>
+    </div>`;
+  }
   html += `<div class="res-section">
     <div class="res-section-title"><div class="num">5</div>Momentos de inercia principales centroidales y Círculo de Mohr</div>
     <div class="proc-block" style="margin-bottom:12px;">
@@ -606,7 +623,7 @@ function renderResults(res, u4, u2, u1){
       <div class="principal-box main"><div class="p-lbl">I<sub>máx</sub></div><div class="p-val">${f(res.Imax)}</div><div class="p-unit">${u4}</div></div>
       <div class="principal-box main"><div class="p-lbl">I<sub>mín</sub></div><div class="p-val">${f(res.Imin)}</div><div class="p-unit">${u4}</div></div>
       <div class="principal-box"><div class="p-lbl">θ<sub>p</sub> (ángulo)</div><div class="p-val">${n4(res.thetaP)}°</div><div class="p-unit">grados</div></div>
-    </div>
+    </div>${bloqueGiroC}
     <div style="padding:8px 0 4px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Círculo de Mohr de Inercia</div>
     <canvas id="mohrCanvas" class="mohr-full"></canvas>
     <div class="proc-block" style="margin-top:8px">
@@ -623,23 +640,12 @@ function renderResults(res, u4, u2, u1){
   </div>`;
 
   // ── ANÁLISIS EN OTRO PUNTO (Sección 6) ──
+  // El punto y el giro se piden en la ventana de Calcular (33-); aquí solo se
+  // enseñan, y sin punto no hay sección.
   const ep = computeExtraPoint(res);
-  const epx = extraPoint ? r2(extraPoint.x) : '';
-  const epy = extraPoint ? r2(extraPoint.y) : '';
-  html += `
-    <div class="res-section point-tool${extraPoint?' has-point':''}">
-      <div class="res-section-title"><div class="num">P</div>${extraPoint?`Momentos de inercia en el punto P(${r2(extraPoint.x)}, ${r2(extraPoint.y)})`:'Analizar la inercia en otro punto'}</div>
-      <div class="proc-block point-input" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;">
-        <div style="font-size:11px;color:var(--muted);flex:1 1 100%;margin-bottom:2px;">
-          Halla I<sub>x</sub>, I<sub>y</sub> y P<sub>xy</sub> respecto a ejes paralelos a X-Y que pasan por el punto indicado, y sus momentos principales en ese punto.
-        </div>
-        <div class="field" style="margin:0;"><label>Punto X (${u1})</label>
-          <input type="number" id="epX" step="any" value="${epx}" style="width:110px;"></div>
-        <div class="field" style="margin:0;"><label>Punto Y (${u1})</label>
-          <input type="number" id="epY" step="any" value="${epy}" style="width:110px;"></div>
-        <button class="btn-calc" style="margin:0;width:auto;padding:9px 18px;font-size:12px;" onclick="analyzePoint()">▶ Analizar punto</button>
-        ${extraPoint?`<button class="btn-sm" style="margin:0;" onclick="clearExtraPoint()">Quitar</button>`:''}
-      </div>`;
+  if(ep) html += `
+    <div class="res-section point-tool has-point">
+      <div class="res-section-title"><div class="num">P</div>Momentos de inercia en el punto P(${r2(ep.x)}, ${r2(ep.y)})</div>`;
   if(ep){
     // La escala del punto P no es la de la sección; el informe hace lo mismo
     // con epLat.IxyP (18-latex-informe-completo.js).
@@ -674,23 +680,7 @@ function renderResults(res, u4, u2, u1){
       <div style="padding:8px 0 4px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Círculo de Mohr en el punto P</div>
       <canvas id="mohrCanvasP" class="mohr-full"></canvas>`;
 
-    // ── ROTACIÓN DE EJES EN EL PUNTO P ──
-    const angv = (axisAngle!==null && isFinite(axisAngle)) ? axisAngle : '';
-    html += `
-      <div class="proc-block" data-bsa-pantalla style="margin-top:10px;">
-        <div class="proc-subtitle">Rotar los ejes en el punto P</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
-          Gira los ejes un ángulo θ medido <b>respecto al eje X</b> (positivo antihorario) y obtén
-          I<sub>u</sub>, I<sub>v</sub> y P<sub>uv</sub> en los ejes girados.
-        </div>
-        <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;">
-          <div class="field" style="margin:0;"><label>Ángulo θ (grados)</label>
-            <input type="number" id="epAng" step="any" value="${angv}" placeholder="0" style="width:120px;"></div>
-          <button class="btn-calc" style="margin:0;width:auto;padding:9px 18px;font-size:12px;" onclick="analyzeAxisAngle()">▶ Rotar ejes</button>
-          ${(axisAngle!==null)?`<button class="btn-sm" style="margin:0;" onclick="clearAxisAngle()">Quitar giro</button>`:''}
-        </div>
-      </div>`;
-
+    // ── ROTACIÓN DE EJES EN EL PUNTO P (θ de la ventana de Calcular) ──
     if(ep.rot){
       const rt = ep.rot;
       html += `
@@ -716,8 +706,8 @@ function renderResults(res, u4, u2, u1){
         <div class="summary-box"><div class="s-lbl">P<sub>uv</sub></div><div class="s-val">${f(rt.Iuv)}</div><div class="s-unit">${u4}</div></div>
       </div>`;
     }
+    html += `</div>`; // end point-tool section
   }
-  html += `</div>`; // end point-tool section
 
   html += `</div>`; // end results-wrap
 

@@ -258,6 +258,11 @@ function _preambuloLatexIn(){
   + '\\begin{document}\n\n';
 }
 
+// cos 2θ y sen 2θ del giro de ejes: coeficientes, con cuatro decimales fijos
+// para que la sustitución rehaga el resultado (con los de ángulo, 0.87, la
+// cuarta cifra de la inercia no salía).
+function _coef4(v){ return (Math.abs(v) < 5e-5 ? 0 : v).toFixed(4); }
+
 function construirLatex(){
   // En 3D el informe es el de inercia de MASA (32-latex-3d-masa.js).
   if(typeof modoEspacio !== 'undefined' && modoEspacio === '3d') return construirLatex3dMasa();
@@ -825,10 +830,14 @@ function construirLatex(){
   tex += '\\[ A(' + ftex(results.Ix) + ',\\ ' + ftex(pxySec) + ') \\qquad '
     + 'B(' + ftex(results.Iy) + ',\\ ' + ftex(-pxySec) + ') \\]\n';
   // La sección con sus ejes principales y el círculo, lado a lado en UNA figura.
+  // Ejes girados theta en el centroide: theta sin punto P en la ventana de
+  // Calcular (33-). Van en la misma figura y en el mismo circulo.
+  const gCLat = (typeof giroEnCentroide === 'function') ? giroEnCentroide(results) : null;
+  const giroC = gCLat ? gCLat.ang : null;
   const figEjes = isotropa
-    ? tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, marcarC:true})
-    : tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, ejesPrincipales:true});
-  const laminaMohr = (typeof tikzMohr === 'function') ? tikzMohr(results, u4) : '';
+    ? tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, marcarC:true, giroC})
+    : tikzSeccionCompuesta({cotas:false, ejes:true, cotasC:true, ejesPrincipales:true, giroC});
+  const laminaMohr = (typeof tikzMohr === 'function') ? tikzMohr(results, u4, gCLat ? {rot:gCLat} : undefined) : '';
   if(laminaMohr){
     figN++;
     tex += '\\begin{center}\n'
@@ -836,13 +845,33 @@ function construirLatex(){
       + '\\end{tikzpicture}}\\end{minipage}\\hfill\n'
       + '\\begin{minipage}[c]{0.48\\linewidth}\\centering\\bsaEncajar{\\begin{tikzpicture}[scale=1]\n' + laminaMohr
       + '\\end{tikzpicture}}\\end{minipage}\\par\\nopagebreak\\vspace{4pt}\n'
-      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} Ejes principales $u$-$v$, girados $\\theta_p$, y círculo de Mohr.}\n'
+      + '{\\small\\color{bsaMuted}\\textbf{Figura ' + figN + '.} Ejes principales $u$-$v$, girados $\\theta_p$, y círculo de Mohr'
+      + (gCLat ? '; en azul, los ejes girados $\\theta = ' + decP(gCLat.ang,'ang') + '^\\circ$ y sus puntos $U$, $V$' : '') + '.}\n'
       + '\\end{center}\n\\vspace{4pt}\n';
   } else {
     tex += lamina(figEjes, 'Ejes centroidales $x$-$y$: todo eje por $C$ es principal; el círculo de Mohr se reduce a un punto.');
   }
   tex += '\\resultado{\\centering $\\theta_p = ' + decP(results.thetaP,'ang') + '^\\circ$ \\quad $I_{\\max} = '
     + ftex(results.Imax) + U4 + '$ \\quad $I_{\\min} = ' + ftex(results.Imin) + U4 + '$}\n';
+  if(gCLat){
+    // Ejes girados theta en C, desde los x-y centroidales sin girar.
+    const avgC = (results.Ix + results.Iy) / 2, difC = (results.Ix - results.Iy) / 2;
+    const c2 = _coef4(gCLat.c2), s2 = _coef4(gCLat.s2);
+    tex += '\\subpaso{Ejes girados $\\theta = ' + decP(gCLat.ang,'ang') + '^\\circ$ en $C$}\n';
+    tex += '\\noindent $2\\theta = ' + decP(2*gCLat.ang,'ang') + '^\\circ$, $\\cos 2\\theta = ' + c2
+      + '$ y $\\sen 2\\theta = ' + s2 + '$.\n';
+    tex += '\\[ \\begin{aligned} I_u &= \\dfrac{\\bar{I}_x+\\bar{I}_y}{2} + \\dfrac{\\bar{I}_x-\\bar{I}_y}{2}\\cos 2\\theta - \\bar{P}_{xy}\\,\\sen 2\\theta \\\\ '
+      + '&= ' + ftex(avgC) + ' + (' + ftex(difC) + ')(' + c2 + ') - (' + ftex(pxySec) + ')(' + s2 + ') = '
+      + ftex(gCLat.Iu) + U4 + ' \\end{aligned} \\]\n';
+    tex += '\\[ \\begin{aligned} I_v &= \\dfrac{\\bar{I}_x+\\bar{I}_y}{2} - \\dfrac{\\bar{I}_x-\\bar{I}_y}{2}\\cos 2\\theta + \\bar{P}_{xy}\\,\\sen 2\\theta \\\\ '
+      + '&= ' + ftex(avgC) + ' - (' + ftex(difC) + ')(' + c2 + ') + (' + ftex(pxySec) + ')(' + s2 + ') = '
+      + ftex(gCLat.Iv) + U4 + ' \\end{aligned} \\]\n';
+    tex += '\\[ \\begin{aligned} P_{uv} &= \\dfrac{\\bar{I}_x-\\bar{I}_y}{2}\\sen 2\\theta + \\bar{P}_{xy}\\cos 2\\theta \\\\ '
+      + '&= (' + ftex(difC) + ')(' + s2 + ') + (' + ftex(pxySec) + ')(' + c2 + ') = '
+      + ftex(gCLat.Iuv) + U4 + ' \\end{aligned} \\]\n';
+    tex += '\\resultado{\\centering $I_u = ' + ftex(gCLat.Iu) + U4 + '$ \\quad $I_v = ' + ftex(gCLat.Iv) + U4
+      + '$ \\quad $P_{uv} = ' + ftex(gCLat.Iuv) + U4 + '$}\n';
+  }
 
   // ══ 7. Paso 6: inercia en un punto P (solo si el usuario lo pidió) ══
   // Toda la sección es condicional: sin punto insertado no se imprime nada, ni
@@ -878,12 +907,12 @@ function construirLatex(){
     if(rotLat){
       tex += '\\subpaso{Ejes girados $\\theta = ' + decP(rotLat.ang,'ang') + '^\\circ$ en $P$}\n';
       tex += '\\noindent $2\\theta = '
-        + decP(2*rotLat.ang,'ang') + '^\\circ$, $\\cos 2\\theta = ' + decP(rotLat.c2,'ang') + '$ y $\\sen 2\\theta = '
-        + decP(rotLat.s2,'ang') + '$.\n';
+        + decP(2*rotLat.ang,'ang') + '^\\circ$, $\\cos 2\\theta = ' + _coef4(rotLat.c2) + '$ y $\\sen 2\\theta = '
+        + _coef4(rotLat.s2) + '$.\n';
       const difP = (epLat.IxP - epLat.IyP) / 2;
       tex += '\\[ I_u = \\dfrac{I_{xP}+I_{yP}}{2} + \\dfrac{I_{xP}-I_{yP}}{2}\\cos 2\\theta - P_{xyP}\\,\\sen 2\\theta = '
-        + ftex(epLat.avg) + ' + ' + ftex(difP) + '(' + decP(rotLat.c2,'ang') + ') - ' + ftex(epLat.IxyP) + '('
-        + decP(rotLat.s2,'ang') + ') = ' + ftex(rotLat.Iu) + U4 + ' \\]\n';
+        + ftex(epLat.avg) + ' + ' + ftex(difP) + '(' + _coef4(rotLat.c2) + ') - ' + ftex(epLat.IxyP) + '('
+        + _coef4(rotLat.s2) + ') = ' + ftex(rotLat.Iu) + U4 + ' \\]\n';
       tex += '\\[ I_v = \\dfrac{I_{xP}+I_{yP}}{2} - \\dfrac{I_{xP}-I_{yP}}{2}\\cos 2\\theta + P_{xyP}\\,\\sen 2\\theta = '
         + ftex(rotLat.Iv) + U4 + ' \\qquad P_{uv} = \\dfrac{I_{xP}-I_{yP}}{2}\\sen 2\\theta + P_{xyP}\\cos 2\\theta = '
         + ftex(rotLat.Iuv) + U4 + ' \\]\n';

@@ -163,9 +163,11 @@ const FIG_DEFS = {
     name:'Cuarto Círculo',
     dims:[{id:'r',label:'Radio (R)',def:50}],
     area: d => 0.25*Math.PI*d.r*d.r,
-    Ix_c: d => 0.0549*Math.pow(d.r,4),
-    Iy_c: d => 0.0549*Math.pow(d.r,4),
-    Ixy_c: d => -0.01647*Math.pow(d.r,4),
+    // Exactos (2026-10-20): los coeficientes redondeados 0.0549 y −0.01647 de la
+    // tabla se notaban con 4 decimales y no casaban con la fórmula que escribe el PDF.
+    Ix_c: d => (Math.PI/16 - 4/(9*Math.PI))*Math.pow(d.r,4),
+    Iy_c: d => (Math.PI/16 - 4/(9*Math.PI))*Math.pow(d.r,4),
+    Ixy_c: d => (1/8 - 4/(9*Math.PI))*Math.pow(d.r,4),
     bounds: d => { const dc=4*d.r/(3*Math.PI); return {left:-dc,right:d.r-dc,bottom:-dc,top:d.r-dc}; },
     anchors: ['C','O','E1','E2'],
     anchorOffset: (d,a) => {

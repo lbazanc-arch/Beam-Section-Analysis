@@ -46,6 +46,21 @@ function computeExtraPoint(res){
   }
   return out;
 }
+// Ejes girados θ en el CENTROIDE: es axisAngle SIN punto P (la ventana de
+// Calcular, 33-). Mismo objeto que out.rot de computeExtraPoint, para que el
+// círculo de Mohr (drawMohr, tikzMohr) lo dibuje igual.
+function giroEnCentroide(res){
+  if(extraPoint || !res || axisAngle === null || !isFinite(axisAngle)) return null;
+  const rot = rotateInertia(res.Ix, res.Iy, res.Ixy, axisAngle);
+  return {
+    ang: axisAngle,
+    norm: ((axisAngle % 360)+360)%360,
+    Iu: rot.Iu, Iv: rot.Iv, Iuv: rot.Iuv,
+    swapped: rot.swapped,
+    c2: Math.cos(2*axisAngle*Math.PI/180),
+    s2: Math.sin(2*axisAngle*Math.PI/180)
+  };
+}
 function analyzeAxisAngle(){
   if(!results||!extraPoint){ return; }
   const ai=document.getElementById('epAng');

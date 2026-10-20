@@ -356,6 +356,11 @@ function tikzSeccionCompuesta(opts){
     // encarga ella de descartar la que cae sobre un eje.
     s += tikzEjesYCotasC({left:minX,right:maxX,bottom:minY,top:maxY}, tx, ty, !!(opts.cotasC && results));
   }
+  if(opts.giroC !== undefined && opts.giroC !== null && isFinite(opts.giroC)){
+    // Ejes girados theta en el centroide (15-): antes de los principales, que
+    // pintan el punto C encima de todo.
+    s += tikzEjesGiradosC({left:minX,right:maxX,bottom:minY,top:maxY}, tx, ty, opts.giroC);
+  }
   if(opts.ejesPrincipales){
     // Si los ejes principales caen SOBRE los ejes x-y --centroide en el origen
     // y theta_p multiplo de 90 grados-- el rotulo «u (I_max)» aterriza en la

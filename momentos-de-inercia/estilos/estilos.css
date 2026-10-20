@@ -755,6 +755,24 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
   .res3d .fig-card-dib.tres-vistas{flex:0 0 auto;width:100%;}
 }
 
+/* Ventana «Punto y giro de ejes» al pulsar Calcular (33-, 2026-10-20). */
+.modal-box.calcop{max-width:440px;max-height:92vh;overflow-y:auto;}
+.calcop-blq{border:1px solid var(--border);border-radius:10px;padding:9px 11px 2px;margin-bottom:9px;}
+.calcop-t{font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px;}
+.calcop-nota{font-size:10.5px;font-weight:600;color:var(--muted);line-height:1.35;align-self:center;margin-bottom:11px;}
+.calcop-fila{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px;}
+.calcop-blq .modal-field label{min-width:52px;}
+.calcop-blq .modal-field input{width:0;}
+.calcop-prev{display:block;width:100%;height:210px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe;}
+.calcop-res{font-size:11.5px;color:var(--muted);margin-top:9px;line-height:1.5;}
+.calcop-res b{color:var(--text);}
+.calcop-res-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text);margin-bottom:3px;}
+.calcop-lista{list-style:none;margin:0;padding:0;}
+.calcop-lista li{position:relative;padding-left:13px;margin-bottom:2px;}
+.calcop-lista li::before{content:'';position:absolute;left:2px;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--grn);}
+.calcop-err{color:#c0392b;font-weight:700;margin-top:4px;}
+@media (max-width:340px){ .calcop-fila{grid-template-columns:minmax(0,1fr);} }
+
 /* ══════════════════════════════════════════════════════════════════════
    DISPOSICIÓN COMÚN A LOS CINCO TEMAS
    Bloque IDÉNTICO al final de los cinco estilos.css. Fija dimensiones y
