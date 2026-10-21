@@ -1874,8 +1874,8 @@ async function api(action, body={}, timeoutMs=12000){
           return {ok:false, error:'Esta cuenta no tiene permisos de profesor.'};
         }
         return {ok:true, role: perfil.es_profesor?'prof':'est', email:correo,
-                student:{codigo:perfil.codigo, nombre:perfil.nombre, email:correo,
-                         horario:perfil.horario, cambio:'Sí'},
+                student:{codigo:perfil.codigo, nombre:perfil.nombre, apellidos:perfil.apellidos,
+                         email:correo, horario:perfil.horario, cambio:'Sí'},
                 token:data.session.access_token};
       }
 
@@ -2533,7 +2533,19 @@ function enterStudent(e, found){
   // descuadraban los recuentos. El ingreso ya lo registra el servidor.
   role='est';user=e;updNav();
   vincularDatosLocales(e);
-  const nm=found.nombre?found.nombre:(found.codigo?found.codigo:e);
+  // La ficha local (miFicha) es la que leen «Mi perfil» y «Mi cuenta», y solo
+  // la escribía el ingreso con contraseña: quien entraba por el enlace del
+  // correo o con la sesión ya abierta veía «—» en su código y su horario
+  // (2026-10-20). Se guarda aquí, con el nombre completo.
+  const completo = [found && found.nombre, found && found.apellidos].filter(Boolean).join(' ').trim();
+  if(found && found.codigo){
+    const cache = (ls.get('students')||[]).filter(s=>s.email!==e);
+    cache.push(Object.assign({}, found, {email:e, nombre: completo || found.nombre}));
+    ls.set('students', cache);
+  }
+  // El saludo con el mismo nombre que pintarCabecera, que lee esa ficha: si no,
+  // decía «Luchex» al entrar y «Luchex Beam» al volver a Mis temas.
+  const nm=completo?completo:(found.codigo?found.codigo:e);
   document.getElementById('wel-email').textContent=nm;   // textContent no interpreta HTML
   const meta=document.getElementById('wel-meta');
   if(meta){
@@ -4541,7 +4553,7 @@ async function restaurarSesion(){
         if(d) d.textContent='Deshabilitado. Reactiva en aprox. '+humanTime(hasta-Date.now())+'.';
         showScreen('s-disabled'); return;
       }
-      enterStudent(user,{codigo:perfil.codigo, nombre:perfil.nombre,
+      enterStudent(user,{codigo:perfil.codigo, nombre:perfil.nombre, apellidos:perfil.apellidos,
                          email:perfil.correo, horario:perfil.horario});
     }
   }catch(e){ console.warn('No se pudo restaurar la sesión:',e); }
