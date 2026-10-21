@@ -1547,7 +1547,7 @@ body.con-sidebar .scr.on .stu-wrap{padding-top:10px;}
              autocomplete="off" title="Escríbelo de nuevo para evitar errores"></div>
     <div class="reg-row reg-acc">
       <div class="lfield"><label>Contraseña</label>
-        <input type="password" id="reg-p1" placeholder="Mínimo 12 caracteres" autocomplete="new-password"></div>
+        <input type="password" id="reg-p1" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
       <div class="lfield"><label>Confirma tu contraseña</label>
         <input type="password" id="reg-p2" placeholder="Escríbela otra vez" autocomplete="new-password"></div>
     </div>
@@ -1894,6 +1894,10 @@ async function api(action, body={}, timeoutMs=12000){
             return {ok:false, error:'Ya existe una cuenta con ese correo. Usa "¿Olvidaste tu contraseña?".'};
           if(/rate limit|too many/i.test(error.message))
             return {ok:false, error:'Se alcanzó el límite de correos por hora. Inténtalo más tarde o avisa a tu profesor.'};
+          // El mínimo de Supabase se fija aparte (Authentication → Providers →
+          // Email): si es mayor que el de este formulario, su aviso llega en inglés.
+          if(/password should|at least \d+ char|weak password/i.test(error.message))
+            return {ok:false, error:'El servidor rechazó la contraseña por ser corta o débil. Usa una más larga.'};
           return {ok:false, error:error.message};
         }
         const ficha={id:data.user.id, codigo:body.codigo, nombre:body.nombre,
@@ -2005,8 +2009,8 @@ async function api(action, body={}, timeoutMs=12000){
         // Un solo mensaje para los dos casos: decir cuál de los dos falla
         // volvería a delatar qué correos están matriculados.
         if(!m) return {ok:false, error:'El correo y el código no coinciden con la lista del curso. Consúltalo con tu profesor.'};
-        if(String(body.pass||'').length < 12)
-          return {ok:false, error:'La contraseña debe tener al menos 12 caracteres.'};
+        if(String(body.pass||'').length < 6)
+          return {ok:false, error:'La contraseña debe tener al menos 6 caracteres.'};
 
         const { data, error } = await SB.auth.signUp({email:correo, password:body.pass});
         if(error){
@@ -3293,7 +3297,7 @@ async function enviarRegistro(){
     const pass2=(document.getElementById('reg-p2')||{}).value||'';
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)){ err.textContent='Ese correo no parece válido.'; return; }
     if(correo!==correo2){ err.textContent='Los dos correos no coinciden. Revísalos.'; return; }
-    if(pass.length<12){ err.textContent='La contraseña debe tener al menos 12 caracteres.'; return; }
+    if(pass.length<6){ err.textContent='La contraseña debe tener al menos 6 caracteres.'; return; }
     if(pass!==pass2){ err.textContent='Las dos contraseñas no coinciden.'; return; }
     const acepto=document.getElementById('reg-acepto');
     if(acepto && !acepto.checked){
