@@ -153,9 +153,107 @@ function equilibrioPorcion(ladoIds, cortadas, conocidas){
   return {ok:true, valores, incog, geo};
 }
 
+// ── Barras pedidas (ventana «Barras a hallar», 19-) ──
+// El Set de ids que hay que hallar, o null si se piden todas (o ya no existen).
+function objetivoCortes(){
+  if(!barrasPedidas || !barrasPedidas.length) return null;
+  const ids = barras.map(b=>b.id);
+  const obj = barrasPedidas.filter(id=>ids.indexOf(id) >= 0);
+  if(!obj.length || obj.length === ids.length) return null;
+  return new Set(obj);
+}
+
+// ── Cortes dirigidos: los menos posibles para hallar SOLO las barras pedidas ──
+// (2026-10-20, petición del profesor.) Codicioso con un paso de anticipación:
+// en cada paso se toma el corte resoluble que halla más barras pedidas y, a
+// igualdad, el que deja más barras pedidas a un corte de distancia. Un corte que
+// no halla ninguna pedida solo vale si toca barras que aparecen en algún corte
+// de una pedida (las que hay que conocer antes). Con simetría, una barra hallada
+// da su espejo, y una pedida cuyo espejo se halló ya está hallada.
+function buscarCortesDirigidos(objetivo){
+  const {mascaras, idx} = particionesPosibles();
+  const cands = [];
+  mascaras.forEach(m=>{ const c = barrasCortadasPorMascara(m, idx); if(c.length) cands.push({m, cortadas:c}); });
+  const conocidas = {};
+  miembrosCero().forEach(c=>{ conocidas[c.barra] = 0; });
+  const sim = simetriaResolucion(resultado);
+  const pendientes = () => [...objetivo].filter(id=>conocidas[id] === undefined);
+  // Cortes que contienen alguna barra pedida, y las barras que los acompañan.
+  const deObjetivo = cands.filter(c=>c.cortadas.some(b=>objetivo.has(b.id)) && c.cortadas.length <= 7);
+  const utiles = new Set();
+  deObjetivo.forEach(c=>c.cortadas.forEach(b=>utiles.add(b.id)));
+  const peso = ids => ids.reduce((s,id)=>{
+    const nd = nodos.find(z=>z.id===id);
+    return s + ((!esCero(nd.fx)||!esCero(nd.fy))?1:0) + gradosApoyo(nd);
+  }, 0);
+  const ladoDe = m => {
+    const A = nodos.filter(z=>(m & (1<<idx[z.id])) !== 0).map(z=>z.id);
+    const B = nodos.filter(z=>(m & (1<<idx[z.id])) === 0).map(z=>z.id);
+    return peso(A) <= peso(B) ? A : B;
+  };
+  const conEspejos = (base, valores) => {
+    const k = Object.assign({}, base);
+    Object.keys(valores).forEach(id=>{
+      k[id] = valores[id];
+      const e = sim.tipo ? sim.espejo[id] : null;
+      if(e && k[e.otro] === undefined) k[e.otro] = e.sg*valores[id];
+    });
+    return k;
+  };
+  // Cuántas pedidas quedarían a un solo corte con lo que ya se sabe. El corte
+  // tiene que poder resolverse: tres incógnitas que concurren en un nudo (FG,
+  // FI y FH en F) no salen de un corte, y contarlas engañaba al desempate.
+  const alAlcance = k => {
+    let mejor = 0;
+    deObjetivo.forEach(c=>{
+      const pend = c.cortadas.filter(b=>k[b.id] === undefined);
+      if(!pend.length || pend.length > 3) return;
+      const n = pend.filter(b=>objetivo.has(b.id)).length;
+      if(n <= mejor) return;
+      if(equilibrioPorcion(ladoDe(c.m), c.cortadas, k).ok) mejor = n;
+    });
+    return mejor;
+  };
+  const pasos = [];
+  let guard = 0;
+  while(pendientes().length && guard < 12){
+    guard++;
+    let mejor = null;
+    cands.forEach(c=>{
+      const pend = c.cortadas.filter(b=>conocidas[b.id] === undefined);
+      if(!pend.length || pend.length > 3) return;
+      const nObj = pend.filter(b=>objetivo.has(b.id) || (sim.tipo && sim.espejo[b.id] && objetivo.has(sim.espejo[b.id].otro))).length;
+      if(!nObj && !pend.some(b=>utiles.has(b.id))) return;
+      const lado = ladoDe(c.m);
+      const sol = equilibrioPorcion(lado, c.cortadas, conocidas);
+      if(!sol.ok) return;
+      const despues = conEspejos(conocidas, sol.valores);
+      // Una «porción» de un solo nudo es el método de nudos, no un corte: solo
+      // si no queda otra.
+      const score = nObj*10000 + alAlcance(despues)*100 - pend.length*5 - peso(lado)*2 - lado.length*0.1
+                  - (lado.length === 1 ? 60 : 0);
+      if(!mejor || score > mejor.score) mejor = {score, m:c.m, lado, cortadas:c.cortadas, sol, nuevas:pend.length};
+    });
+    if(!mejor) break;
+    Object.keys(mejor.sol.valores).forEach(id=>{ conocidas[id] = mejor.sol.valores[id]; });
+    mejor.espejos = [];
+    if(sim.tipo) Object.keys(mejor.sol.valores).forEach(id=>{
+      const e = sim.espejo[id];
+      if(e && conocidas[e.otro] === undefined){
+        conocidas[e.otro] = e.sg*mejor.sol.valores[id];
+        mejor.espejos.push({barra:e.otro, de:+id, sg:e.sg});
+      }
+    });
+    pasos.push(mejor);
+  }
+  return pasos;
+}
+
 // ── Búsqueda de la secuencia más corta ──
 function buscarCortes(){
   if(!resultado) return [];
+  const objetivo = objetivoCortes();
+  if(objetivo) return buscarCortesDirigidos(objetivo);
   const {mascaras, idx, n} = particionesPosibles();
   const conocidas = {};
   // las barras de fuerza cero se dan por sabidas: no gastan incógnita
@@ -284,6 +382,13 @@ function renderAutoCortes(){
   let h = '';
   const total = barras.length, porCortes = pasos.reduce((s,p)=>s+p.nuevas, 0);
   const porSim = pasos.reduce((s,p)=>s + (p.espejos ? p.espejos.length : 0), 0);
+  const objetivo = objetivoCortes();
+  if(objetivo){
+    const nom = [...objetivo].map(id=>nombreBarra(barras.find(b=>b.id===id))).join(', ');
+    h += '<div class="verdict ok"><div class="verdict-t">Barras pedidas</div>'
+      + '<b>' + nom + '</b> con <b>' + pasos.length + ' corte(s)</b>'
+      + (porSim ? ', ' + porSim + ' barra(s) por simetría' : '') + '.</div>';
+  } else
   h += '<div class="verdict ok"><div class="verdict-t">Secuencia encontrada</div>'
     + '<b>' + porCortes + ' de ' + total + ' barras</b> con <b>' + pasos.length + ' corte(s)</b>'
     + (porSim ? ', ' + porSim + ' por simetría' : '')
@@ -308,7 +413,8 @@ function renderAutoCortes(){
     (paso.espejos || []).forEach(e=>{ resueltas[e.barra] = resultado.fuerzas[e.barra]; });
   });
 
-  const faltan = barras.filter(b=>resueltas[b.id] === undefined);
+  // Con barras pedidas, solo cuentan las que faltan de esas.
+  const faltan = barras.filter(b=>resueltas[b.id] === undefined && (!objetivo || objetivo.has(b.id)));
   if(faltan.length){
     h += '<div class="hint-sm">Sin corte válido para <b>' + faltan.map(b=>nombreBarra(b)).join(', ') + '</b>: salen del equilibrio de un nudo (valores en la tabla final).</div>';
   }

@@ -102,9 +102,11 @@ function ejecutarToqueCarga(ref){
 }
 
 function nombreNodo(i){
-  // A, B, ... Z, A1, B1 ...
-  const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  return i < 26 ? L[i] : L[i%26] + Math.floor(i/26);
+  // A, B, ... N, P, ... Z, A1, B1 ... Sin la O (2026-10-20, petición del
+  // profesor): se confunde con el cero y los enunciados la saltan (… M, N, P, Q),
+  // así que con ella el nudo P de la figura salía como O en el tema.
+  const L = 'ABCDEFGHIJKLMNPQRSTUVWXYZ';
+  return i < L.length ? L[i] : L[i%L.length] + Math.floor(i/L.length);
 }
 
 function reNombrar(){ nodos.forEach((n,i)=>n.nombre = nombreNodo(i)); }

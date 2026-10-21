@@ -93,3 +93,7 @@ function giroApoyoSVG(n, px, py){
   if(Math.abs(g) < 0.01) return {abre:'', cierra:''};
   return {abre:'<g transform="rotate(' + g.toFixed(2) + ' ' + px + ' ' + py + ')">', cierra:'</g>'};
 }
+
+// Barras que el alumno pide hallar con el metodo de secciones (19-): null = todas.
+// Va aqui y no en 19-: la lee buscarCortes (16-), que puede correr antes (5.3).
+let barrasPedidas = null;

@@ -124,7 +124,7 @@ function manejarEsc(){
   const pl = document.getElementById('panelLatexPDF');
   if(pl && pl.style.display !== 'none' && pl.style.display !== ''){ cerrarPanelLatex(); return; }
   const modales = ['edNodoModal','edBarraModal','apoyoModal','repModal','cargaModal',
-                    'transModal','unitsModal','decModal','histModal','ejModal'];
+                    'transModal','unitsModal','decModal','histModal','ejModal','barrasPedidasModal'];
   const abierto = modales.find(id=>{
     const m = document.getElementById(id);
     return m && m.classList.contains('show');

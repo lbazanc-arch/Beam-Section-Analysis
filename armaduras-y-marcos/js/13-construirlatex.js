@@ -476,6 +476,11 @@ function construirLatex(){
     // ── Método de secciones (auto o manual) ──
     tex += '\\seccion{5. Paso 4 --- M\\\'etodo de secciones}\n';
     tex += avisoSim;
+    // Barras pedidas en la ventana de Resolver (19-): se dice cuáles, una línea.
+    {
+      const obj = (modoCorte === 'auto') ? objetivoCortes() : null;
+      if(obj) tex += '\\noindent{\\footnotesize Barras pedidas: ' + [...obj].map(id=>'$F_{' + nomB(barras.find(b=>b.id===id)) + '}$').join(', ') + '.}\\\\[4pt]\n';
+    }
     const escribirPaso = (items, datos, externas, lado, titulo, cortadas, ref, espejos) => {
       const nomLado = lado.map(id=>nomN(nodos.find(n=>n.id===id))).sort().join(', ');
       tex += '\\subpaso{' + titulo + '\\quad{\\normalfont\\footnotesize\\color{bsaMuted}porci\\\'on: ' + nomLado + '}}\n';
@@ -535,7 +540,9 @@ function construirLatex(){
           Object.keys(paso.sol.valores).forEach(id=>{ previas[id] = paso.sol.valores[id]; });
           (paso.espejos || []).forEach(e=>{ previas[e.barra] = resultado.fuerzas[e.barra]; });
         });
-        const faltan = barras.filter(b=>previas[b.id] === undefined);
+        // Con barras pedidas (19-), solo cuentan las que faltan de esas.
+        const objetivo = objetivoCortes();
+        const faltan = barras.filter(b=>previas[b.id] === undefined && (!objetivo || objetivo.has(b.id)));
         if(faltan.length)
           tex += '\\noindent{\\footnotesize Las barras ' + faltan.map(b=>'$F_{' + nomB(b) + '}$').join(', ')
             + ' no salen de ning\\\'un corte v\\\'alido y se obtienen del equilibrio de un nudo; su valor est\\\'a en la tabla de resumen.}\\\\[4pt]\n';

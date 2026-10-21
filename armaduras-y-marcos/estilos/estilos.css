@@ -575,6 +575,18 @@ body{
 .bsa-guardado-x:hover{border-color:#c0392b; background:#fef2f2;}
 .bsa-guardados-vacio{font-size:11px; color:var(--muted); padding:8px 2px 12px;}
 
+/* Ventana «Barras a hallar» al resolver por secciones (19-, 2026-10-20). */
+#barrasPedidasModal .modal.selB{max-width:620px; max-height:92vh; overflow-y:auto;}
+.selB-todo{display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:800; color:var(--text);
+  margin:2px 0 10px; cursor:pointer;}
+.selB-todo input{width:16px; height:16px; accent-color:var(--acc);}
+.selB-svg{border:1px solid var(--border); border-radius:10px; background:#fbfcfe; padding:4px;}
+.selB-svg svg{display:block; width:100%; height:auto;}
+.selB-barra{cursor:pointer;}
+.selB-barra:hover line:last-child{stroke-width:6;}
+.selB-res{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.5;}
+.selB-res b{color:var(--text);}
+
 /* ══════════════════════════════════════════════════════════════════════
    DISPOSICIÓN COMÚN A LOS CINCO TEMAS
    Bloque IDÉNTICO al final de los cinco estilos.css. Fija dimensiones y
