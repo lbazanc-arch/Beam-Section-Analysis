@@ -628,7 +628,7 @@ function setTool(t){
     vinculo:textoHerramientaVinculo(),
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
     peso:'Toca los tramos a los que quieras asignar el peso elegido; tócalos de nuevo para quitárselo.',
-    corte:'Toca un punto de la viga (ya calculada): se aísla el trozo a la izquierda del corte y se muestra su DCL con N, V y M en la sección.',
+    corte:'Toca un punto de la viga: se aísla un trozo y se muestra su DCL con N, V y M en la sección.',
     borrar:'Toca un nudo, tramo o carga para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'};
   const ch=document.getElementById('canvasHint'); if(ch) ch.textContent=hints[t]||'';
   dibujar();

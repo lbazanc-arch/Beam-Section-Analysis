@@ -801,6 +801,19 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 .selT-tramo{cursor:pointer;}
 .selT-tramo:hover line:last-child{stroke-width:7;}
 .selT-res{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.5;}
+/* Corta y mira: ventana del punto de corte (19-, 2026-10-22). */
+#puntoCorteModal .modal.pc{max-width:600px; max-height:92vh; overflow-y:auto;}
+.pc-campos{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
+.pc-campos .modal-field label{min-width:44px;}
+#puntoCorteModal .modal-field input{min-width:0;}
+.pc-nota{font-size:11px; color:var(--muted); margin:2px 0 8px;}
+.pc-info{font-size:11.5px; color:var(--text); margin:2px 0 4px;}
+.pc-croquis{border:1px solid var(--border); border-radius:10px; background:#fbfcfe; padding:4px; margin-top:4px;}
+.pc-croquis svg{display:block; width:100%; height:auto;}
+.pc-res{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.5; min-height:1.5em;}
+.pc-err{color:#c0392b; font-weight:700;}
+#corteModal .seg-btn small{font-weight:600; opacity:.85;}
+@media(max-width:480px){ .pc-campos{grid-template-columns:1fr;} }
 
 /* ── Diagramas interactivos: control compacto y fijo, DFN · DFC · DMF (2026-10-18) ── */
 .vd-control{position:sticky; top:0; z-index:3; background:#fff; padding:8px 0 9px;

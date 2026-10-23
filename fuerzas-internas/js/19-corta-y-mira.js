@@ -10,35 +10,74 @@
 // ═══════════════════════════════════════════════════════════
 let _corteActual = null;
 
+// Un toque en el lienzo (herramienta 'corte'): se lleva al tramo y se corta.
 function abrirCorteEn(t, mx, my){
-  if(!R || R.error || !R.internas){ aviso('Primero pulsa Calcular: el corte se lee sobre la viga resuelta.', 'error'); return; }
+  const [wx,wy] = aMundo(mx, my);
+  abrirCorteMundo(t, wx, wy, false);
+}
+// El corte en un punto del mundo sobre el tramo t. Con «exacto» (punto escrito
+// en la ventana) la sección queda donde se pidió; con un toque se aparta un 3 %
+// de los nudos, que la punta del dedo no distingue.
+function abrirCorteMundo(t, wx, wy, exacto){
+  // Si la viga aún no está calculada (o cambió), se calcula aquí: el corte se
+  // lee sobre la viga resuelta y pedir antes Calcular era un paso de más.
+  if(!R || R.error || !R.internas) calcular();
+  if(!R || R.error || !R.internas){ aviso('La viga no se puede resolver todavía: revisa el mensaje de Calcular.', 'error'); return; }
   const ti = R.internas.find(x=>x.tramo.id === t.id);
   if(!ti){ aviso('Ese tramo no forma parte de la cadena resuelta.', 'error'); return; }
-  const [wx,wy] = aMundo(mx, my);
   // ux, uy ya vienen orientados en el sentido del recorrido de la cadena
   const ux = ti.ux, uy = ti.uy;
   let s = (wx - ti.desde.x)*ux + (wy - ti.desde.y)*uy;
   // nunca exactamente sobre un nudo: ahí la sección no está definida
-  s = Math.max(0.03*ti.L, Math.min(0.97*ti.L, s));
-  _corteActual = {tramoId:t.id, s};
+  const m0 = exacto ? 1e-9 : 0.03;
+  s = Math.max(m0*ti.L, Math.min((1-m0)*ti.L, s));
+  // El lado elegido se conserva de un corte al siguiente.
+  _corteActual = {tramoId:t.id, s, lado:(_corteActual && _corteActual.lado) || 'izq'};
+  pintarCorte();
   const m = document.getElementById('corteModal');
-  if(!m) return;
+  if(m) m.classList.add('show');
+}
+// «Lado izquierdo» / «Lado derecho» de la ventana del DCL.
+function corteLado(l){
+  if(!_corteActual) return;
+  _corteActual.lado = l;
+  pintarCorte();
+}
+function pintarCorte(){
+  const c = _corteActual;
+  if(!c || !R || !R.internas) return;
+  const ti = R.internas.find(x=>x.tramo.id === c.tramoId);
+  if(!ti) return;
+  const s = c.s, der = (c.lado === 'der');
   const sub = document.getElementById('corteSub');
   const cuerpo = document.getElementById('corteCuerpo');
-  const info = datosCorte(R, ti, s);
-  if(sub) sub.innerHTML = 'Sección a <b>' + dec(s,'len') + ' ' + unitLen + '</b> de ' + ti.desde.nombre
+  const info = datosCorte(R, ti, s, c.lado);
+  // Los botones dicen qué trozo es cada lado: del arranque de la cadena al
+  // corte, y del corte a su final (en un tramo vertical «izquierda» no dice nada).
+  const cadC = cadDe(R, ti);
+  const ini = cadC[0].desde.nombre, fin = cadC[cadC.length-1].hasta.nombre;
+  const bi = document.getElementById('corteLadoIzq'), bd = document.getElementById('corteLadoDer');
+  if(bi){ bi.innerHTML = 'Lado izquierdo <small>(' + ini + ' → corte)</small>'; bi.classList.toggle('active', !der); }
+  if(bd){ bd.innerHTML = 'Lado derecho <small>(corte → ' + fin + ')</small>'; bd.classList.toggle('active', der); }
+  const cc = cadenaDe(R, ti);
+  if(sub) sub.innerHTML = 'Sección en <b>(' + dec(info.P.x,'len') + '; ' + dec(info.P.y,'len') + ')</b>, a <b>' + dec(s,'len') + ' ' + unitLen + '</b> de ' + ti.desde.nombre
     + ' sobre el tramo ' + ti.desde.nombre + ti.hasta.nombre
     + (ti.cadena ? '. ' : ' (abscisa global ' + dec(ti.s0 + s,'len') + ' ' + unitLen + '). ')
-    + 'Se conserva el trozo a la izquierda del corte y en la cara cortada se ponen N, V y M en el sentido positivo del convenio; '
-    + 'el signo del valor dice el sentido real.';
+    + 'Se conserva el trozo ' + (der ? 'a la derecha' : 'a la izquierda') + ' del corte y en la cara cortada se ponen N, V y M en el sentido positivo del convenio; '
+    + 'el signo del valor dice el sentido real.'
+    + (der && cc.union ? ' En ' + cc.union.nombre + ' actúa el resto de la estructura (naranja).' : '');
   if(cuerpo) cuerpo.innerHTML = svgDCLCorte(R, ti, s, info) + htmlEcuacionesCorte(info);
   try{ renderKatex(cuerpo); }catch(e){}
-  m.classList.add('show');
 }
 function cerrarCorte(){ const m = document.getElementById('corteModal'); if(m) m.classList.remove('show'); }
 
-// ── Todo lo que actúa sobre el trozo izquierdo, en coordenadas del mundo ──
-function datosCorte(r, ti, s){
+// ── Todo lo que actúa sobre el trozo elegido, en coordenadas del mundo ──
+// lado 'izq': de donde arranca la cadena hasta el corte (el trozo con el que
+// el motor calcula N, V y M); lado 'der': del corte al final de la cadena. Si
+// la cadena es una rama (01-), su final es el nudo de unión y ahí actúa el
+// resto de la estructura: lo contrario de lo que la rama le transmite.
+function datosCorte(r, ti, s, lado){
+  const der = (lado === 'der');
   const ux = ti.ux, uy = ti.uy;
   const nx = -uy, ny = ux;
   const P = {x:ti.desde.x + ux*s, y:ti.desde.y + uy*s};
@@ -46,70 +85,98 @@ function datosCorte(r, ti, s){
   // N, V, M en la sección, del polinomio del subtramo que la contiene
   const sub = ti.subs.find(q=>s >= q.sa - 1e-9 && s <= q.sb + 1e-9) || ti.subs[ti.subs.length-1];
   const N = polyVal(sub.cN, s), V = polyVal(sub.cV, s), M = polyVal(sub.cM, s);
-  // acciones puntuales (cargas, pares y reacciones) antes del corte
+  // acciones puntuales (cargas, pares y reacciones) del trozo
   // Todo dentro de la cadena del tramo (01-): una rama llega como la acción que
   // transmite en su nudo de unión, que está entre los puntuales.
   const cadC = cadDe(r, ti);
-  const puntuales = puntualesDe(r, ti).filter(o=>o.s !== null && o.s < sGlobal - 1e-9).map(o=>o.a);
-  // cargas repartidas: la parte del trozo cargado que queda antes del corte
+  const puntuales = puntualesDe(r, ti).filter(o=>o.s !== null && (der ? o.s >= sGlobal - 1e-9 : o.s < sGlobal - 1e-9)).map(o=>o.a);
+  const cc = cadenaDe(r, ti);
+  if(der && cc.union && cc.equivalente){
+    const q = cc.equivalente;
+    puntuales.push({x:q.x, y:q.y, fx:-q.fx, fy:-q.fy, m:-q.m, resto:{nudo:cc.union, tramo:q.rama.nombre}});
+  }
+  // cargas repartidas: la parte del trozo cargado que cae en el trozo
   const posActual = cadC.findIndex(x=>x.t.id === ti.tramo.id);
   const repartidas = [];
+  let Fx = 0, Fy = 0, Mo = 0;
   cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
     const z = trozoCargado(c);
     if(!z || z.len <= 1e-12) return;
     const posTramo = cadC.findIndex(x=>x.t.id===c.tramo);
-    if(posTramo < 0 || posTramo > posActual) return;
+    if(posTramo < 0 || (der ? posTramo < posActual : posTramo > posActual)) return;
     const gc = z.g;
     const inv = (cadC[posTramo].desde.id !== gc.a.id);
-    let r1 = inv ? (gc.L - z.s2) : z.s1;
-    let r2 = inv ? (gc.L - z.s1) : z.s2;
-    const hasta = (posTramo < posActual) ? gc.L : s;
-    const corte = Math.min(r2, hasta);
-    if(corte <= r1 + 1e-12) return;
+    const r1 = inv ? (gc.L - z.s2) : z.s1;
+    const r2 = inv ? (gc.L - z.s1) : z.s2;
+    // la parte del tramo que es del trozo, en la abscisa del recorrido
+    const lo = (der && posTramo === posActual) ? s : 0;
+    const hi = (!der && posTramo === posActual) ? s : gc.L;
+    const ua = Math.max(r1, lo), ub = Math.min(r2, hi);
+    if(ub <= ua + 1e-12) return;
     const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
     const wIni = inv ? w2 : w1, wFinT = inv ? w1 : w2;
     const largo = r2 - r1;
     const wEn = u => wIni + (wFinT-wIni)*((u-r1)/largo);
-    const wa = wEn(r1), wb = wEn(corte);
-    const trozo = corte - r1;
-    const Fp = (wa+wb)/2*trozo;
-    const I1 = r1*Fp + trozo*trozo*(wa+2*wb)/6;
+    const wa = wEn(ua), wb = wEn(ub);
+    const trozo = ub - ua;
+    const Fp = (wa+wb)/2*trozo;                        // ∫w du
+    const I1 = ua*Fp + trozo*trozo*(wa+2*wb)/6;        // ∫u·w du
     const origen = cadC[posTramo].desde;
     const dirx = inv ? -gc.ux : gc.ux, diry = inv ? -gc.uy : gc.uy;
     const dd = dirCarga(c, gc);
-    const uc = (Math.abs(Fp) > 1e-12) ? I1/Fp : (r1 + corte)/2;
-    repartidas.push({a:{x:origen.x + dirx*r1, y:origen.y + diry*r1}, b:{x:origen.x + dirx*corte, y:origen.y + diry*corte},
-      wa, wb, dd, Fp, esT:c.tipo==='T', recortada: corte < r2 - 1e-9,
+    // Momento respecto del corte con las integrales, como el motor (03-): con
+    // un trapecio que cambia de signo el área puede ser nula y el par no.
+    Fx += Fp*dd.x; Fy += Fp*dd.y;
+    Mo += ((origen.x-P.x)*dd.y - (origen.y-P.y)*dd.x)*Fp + (dirx*dd.y - diry*dd.x)*I1;
+    const uc = (Math.abs(Fp) > 1e-12) ? I1/Fp : (ua + ub)/2;
+    repartidas.push({a:{x:origen.x + dirx*ua, y:origen.y + diry*ua}, b:{x:origen.x + dirx*ub, y:origen.y + diry*ub},
+      wa, wb, dd, Fp, esT:c.tipo==='T', recortada: der ? ua > r1 + 1e-9 : ub < r2 - 1e-9,
       res:{x:origen.x + dirx*uc, y:origen.y + diry*uc}, dirx, diry});
   });
   // comprobación: ΣF_u, ΣF_n y ΣM_P del trozo con las fuerzas de la cara
-  let Fx = 0, Fy = 0, Mo = 0;
   puntuales.forEach(a=>{ Fx += a.fx; Fy += a.fy; Mo += (a.x-P.x)*a.fy - (a.y-P.y)*a.fx + (a.m||0); });
-  repartidas.forEach(q=>{ const fx = q.Fp*q.dd.x, fy = q.Fp*q.dd.y; Fx += fx; Fy += fy; Mo += (q.res.x-P.x)*fy - (q.res.y-P.y)*fx; });
-  // fuerzas de la cara: N a lo largo de +u, V a lo largo de −n (convenio) y M antihorario
-  const resU = Fx*ux + Fy*uy + N, resN = Fx*nx + Fy*ny - V, resM = Mo + M;
-  return {P, ux, uy, nx, ny, s, sGlobal, N, V, M, puntuales, repartidas, resU, resN, resM, ti};
+  // Fuerzas de la cara en el sentido positivo del convenio. Trozo izquierdo:
+  // N a lo largo de +u, V de −n y M antihorario. Trozo derecho, lo contrario.
+  const sg = der ? -1 : 1;
+  const resU = Fx*ux + Fy*uy + sg*N, resN = Fx*nx + Fy*ny - sg*V, resM = Mo + sg*M;
+  return {P, ux, uy, nx, ny, s, sGlobal, N, V, M, puntuales, repartidas, resU, resN, resM, ti, lado:der ? 'der' : 'izq'};
 }
 
 // ── El DCL del trozo, en SVG (mismo trazo que el DCL global de la ventana de diagramas) ──
 function svgDCLCorte(r, ti, s, info){
   const F1 = n => n.toFixed(1);
   const P = info.P;
+  const der = (info.lado === 'der');
   // ámbito: los nudos del trozo, el corte y las cargas
   const cadC = cadDe(r, ti);
   const posActual = cadC.findIndex(x=>x.t.id === ti.tramo.id);
+  const enTrozo = i => der ? i >= posActual : i <= posActual;
   const nudosTrozo = [];
-  cadC.forEach((e,i)=>{ if(i <= posActual){ if(!nudosTrozo.some(n=>n.id===e.desde.id)) nudosTrozo.push(e.desde); } });
+  cadC.forEach((e,i)=>{
+    if(!enTrozo(i)) return;
+    const n = der ? e.hasta : e.desde;
+    if(!nudosTrozo.some(q=>q.id===n.id)) nudosTrozo.push(n);
+  });
+  // Las cotas miden, en horizontal y en vertical, los puntos que intervienen
+  // en ΣM del corte: el corte, los nudos, el punto de cada fuerza y los bordes
+  // y la resultante de cada repartida (como las cotas del lienzo).
+  const ptsCota = cotaPuntosCorte(info, nudosTrozo);
   let minx=Infinity, maxx=-Infinity, miny=Infinity, maxy=-Infinity;
   const mete = (x,y)=>{ minx=Math.min(minx,x); maxx=Math.max(maxx,x); miny=Math.min(miny,y); maxy=Math.max(maxy,y); };
-  nudosTrozo.forEach(n=>mete(n.x,n.y)); mete(P.x,P.y);
+  ptsCota.forEach(q=>mete(q.x,q.y));
   info.puntuales.forEach(a=>mete(a.x,a.y));
+  const span0 = Math.max(maxx-minx, maxy-miny, 1e-6);
+  const unicos = v => { const o = v.slice().sort((p,q)=>p-q), u = [];
+    o.forEach(z=>{ if(!u.length || z - u[u.length-1] > 1e-6*span0) u.push(z); }); return u; };
+  const cotX = unicos(ptsCota.map(q=>q.x)), cotY = unicos(ptsCota.map(q=>q.y));
   const span = Math.max(maxx-minx, 1e-6), spanY = Math.max(maxy-miny, 0);
-  const W2 = 700, MX = 90, MTOP = 96, MBOT = 96;
-  let kk = (W2 - 2*MX)/span;
-  const H2 = Math.max(250, Math.min(380, MTOP + MBOT + spanY*kk));
+  // Margen de las cotas: abajo la horizontal y su total; a la derecha la vertical.
+  const wLabY = (cotY.length > 1) ? Math.max(...cotY.map((y,i)=>_anchoCota(dec(i ? y - cotY[i-1] : cotY[cotY.length-1] - cotY[0],'len')))) : 0;
+  const W2 = 700, MX = 90, MXD = (cotY.length > 1) ? 100 + 3*wLabY : 90, MTOP = 96, MBOT = (cotX.length > 1) ? 150 : 96;
+  let kk = (W2 - MX - MXD)/span;
+  const H2 = Math.max(250, Math.min((cotX.length > 1) ? 440 : 380, MTOP + MBOT + spanY*kk));
   if(spanY > 1e-9) kk = Math.min(kk, (H2 - MTOP - MBOT)/spanY);
-  const cx0 = (W2 - 2*MX - span*kk)/2;
+  const cx0 = (W2 - MX - MXD - span*kk)/2;
   const SX = x => MX + cx0 + (x - minx)*kk;
   const SY = y => H2 - MBOT - (y - miny)*kk;
   const linea = (x1,y1,x2,y2,col,w,dash)=>'<line x1="'+F1(x1)+'" y1="'+F1(y1)+'" x2="'+F1(x2)+'" y2="'+F1(y2)+'" stroke="'+col+'" stroke-width="'+w+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+' stroke-linecap="round"/>';
@@ -118,7 +185,16 @@ function svgDCLCorte(r, ti, s, info){
     const hx=x2-ex*9, hy=y2-ey*9, px=-ey, py=ex;
     return linea(x1,y1,hx,hy,col,w)+'<path d="M '+F1(x2)+' '+F1(y2)+' L '+F1(hx+px*4)+' '+F1(hy+py*4)+' L '+F1(hx-px*4)+' '+F1(hy-py*4)+' Z" fill="'+col+'"/>';
   };
-  const texto = (x,y,txt,col,sz,peso,anc,it)=>'<text x="'+F1(x)+'" y="'+F1(y)+'" font-family="Inter,sans-serif" font-size="'+(sz||10)+'" font-weight="'+(peso||600)+'" fill="'+col+'"'+(anc?' text-anchor="'+anc+'"':'')+(it?' font-style="italic"':'')+'>'+txt+'</text>';
+  const textoSVG = (x,y,txt,col,sz,peso,anc,it)=>'<text x="'+F1(x)+'" y="'+F1(y)+'" font-family="Inter,sans-serif" font-size="'+(sz||10)+'" font-weight="'+(peso||600)+'" fill="'+col+'"'+(anc?' text-anchor="'+anc+'"':'')+(it?' font-style="italic"':'')+'>'+txt+'</text>';
+  // Cada rótulo anota hasta dónde llega (a la derecha y abajo): las cotas se
+  // ponen pasado todo lo escrito, para que su línea no cruce un valor.
+  const ext = {der:-Infinity, abajo:-Infinity};
+  const texto = (x,y,txt,col,sz,peso,anc,it)=>{
+    const w = 0.6*(sz||10)*String(txt).length;
+    ext.der = Math.max(ext.der, anc === 'end' ? x : (anc === 'middle' ? x + w/2 : x + w));
+    ext.abajo = Math.max(ext.abajo, y + 3);
+    return textoSVG(x,y,txt,col,sz,peso,anc,it);
+  };
   const arcoM = (cx,cy,rr,col,horario)=>{
     const a0=-35*Math.PI/180, a1=215*Math.PI/180;
     const x1=cx+rr*Math.cos(a0), y1=cy-rr*Math.sin(a0);
@@ -131,8 +207,7 @@ function svgDCLCorte(r, ti, s, info){
     p += '<path d="M '+F1(fin.x+s2*fin.tx*8)+' '+F1(fin.y-s2*fin.ty*8)+' L '+F1(fin.x+3.5*fin.ty*s2)+' '+F1(fin.y+3.5*fin.tx*s2)+' L '+F1(fin.x-3.5*fin.ty*s2)+' '+F1(fin.y-3.5*fin.tx*s2)+' Z" fill="'+col+'"/>';
     return p;
   };
-  let sv = '<svg viewBox="0 0 '+W2+' '+H2+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">';
-  sv += '<rect width="'+W2+'" height="'+H2+'" fill="#fff"/>';
+  let sv = '';
   // repartidas recortadas, detrás de la barra
   const wmax = Math.max(1e-9, ...info.repartidas.map(d=>Math.max(Math.abs(d.wa),Math.abs(d.wb))));
   info.repartidas.forEach(d=>{
@@ -156,9 +231,10 @@ function svgDCLCorte(r, ti, s, info){
   });
   // barra del trozo
   cadC.forEach((e,i)=>{
-    if(i > posActual) return;
-    const fin = (i === posActual) ? P : e.hasta;
-    sv += linea(SX(e.desde.x), SY(e.desde.y), SX(fin.x), SY(fin.y), '#26415e', 4.6);
+    if(!enTrozo(i)) return;
+    const ini = (der && i === posActual) ? P : e.desde;
+    const fin = (!der && i === posActual) ? P : e.hasta;
+    sv += linea(SX(ini.x), SY(ini.y), SX(fin.x), SY(fin.y), '#26415e', 4.6);
   });
   // cara cortada: marca perpendicular
   const cx = SX(P.x), cy = SY(P.y);
@@ -174,46 +250,119 @@ function svgDCLCorte(r, ti, s, info){
   info.puntuales.forEach(a=>{
     const X = SX(a.x), Y = SY(a.y);
     const Fm = Math.hypot(a.fx, a.fy);
-    // Lo que transmite una rama (01-) va en naranja y con su nombre.
-    const col = a.reac ? '#1a7f37' : (a.rama ? COL_RAMA : '#c62828');
+    // Lo que transmite una rama (01-) va en naranja y con su nombre; también
+    // lo que el resto de la estructura hace sobre una rama (lado derecho).
+    const col = a.reac ? '#1a7f37' : ((a.rama || a.resto) ? COL_RAMA : '#c62828');
     if(Fm > 1e-12){
       const ex=a.fx/Fm, ey=-a.fy/Fm;
       sv += flecha(X-ex*38, Y-ey*38, X-ex*5, Y-ey*5, col, 2.2);
       const nom = a.reac ? (a.inc ? nombreAccion(a).tex.replace(/[{}]/g,'').replace('_','') : 'R') + ' = '
-                : (a.rama ? 'F' + a.rama.nombre + ' = ' : '');
-      sv += texto(X-ex*50 + (Math.abs(ex)<0.3 ? 16 : 0), Y-ey*50+3, nom + dec(Fm,'f'), col, 10, 800, 'middle');
-      // brazo desde el corte: perpendicular de P a la línea de acción
-      const dx=a.x-P.x, dy=a.y-P.y, ux2=a.fx/Fm, uy2=a.fy/Fm;
-      const t2 = dx*ux2 + dy*uy2;
-      const Qx = a.x - ux2*t2, Qy = a.y - uy2*t2;      // pie de la perpendicular
-      const brazo = Math.hypot(Qx-P.x, Qy-P.y);
-      if(brazo > 1e-6){
-        const qx = SX(Qx), qy = SY(Qy);
-        sv += linea(X, Y, qx, qy, col, .9, '3 3');
-        sv += linea(cx, cy, qx, qy, '#4a5460', 1, '4 2');
-        sv += texto((cx+qx)/2, (cy+qy)/2 - 5, 'd = ' + dec(brazo,'len'), '#4a5460', 9, 700, 'middle');
-      }
+                : (a.rama ? 'F' + a.rama.nombre + ' = ' : (a.resto ? 'F' + a.resto.nudo.nombre + ' (resto) = ' : ''));
+      // El rótulo, pasada la cola: si la flecha es más bien horizontal va al
+      // lado (centrado encima de ella la tapaba); si es vertical, centrado.
+      if(Math.abs(ex) >= 0.3) sv += texto(X-ex*44, Y-ey*44+3.5, nom + dec(Fm,'f'), col, 10, 800, ex > 0 ? 'end' : 'start');
+      else sv += texto(X-ex*50 + 16, Y-ey*50+3, nom + dec(Fm,'f'), col, 10, 800, 'middle');
     }
     if(Math.abs(a.m) > 1e-12){
-      const colM = a.reac ? '#1a7f37' : (a.rama ? COL_RAMA : '#8b5cf6');
+      const colM = a.reac ? '#1a7f37' : ((a.rama || a.resto) ? COL_RAMA : '#8b5cf6');
       sv += arcoM(X, Y, 15, colM, a.m < 0);
-      sv += texto(X+22, Y-18, (a.reac ? 'M = ' : (a.rama ? 'M' + a.rama.nombre + ' = ' : '')) + dec(Math.abs(a.m),'mom'), colM, 10, 800);
+      sv += texto(X+22, Y-18, (a.reac ? 'M = ' : (a.rama ? 'M' + a.rama.nombre + ' = ' : (a.resto ? 'M' + a.resto.nudo.nombre + ' (resto) = ' : ''))) + dec(Math.abs(a.m),'mom'), colM, 10, 800);
     }
   });
-  // N, V, M en la cara, en el sentido positivo del convenio
-  const Lf = 42;
-  sv += flecha(cx+pux*8, cy+puy*8, cx+pux*Lf, cy+puy*Lf, '#0e9f6e', 2.4);
-  sv += texto(cx+pux*(Lf+16), cy+puy*(Lf+16)+4, 'N', '#0e9f6e', 12, 800, 'middle', true);
-  sv += flecha(cx+pux*4-pnx*6, cy+puy*4-pny*6, cx+pux*4-pnx*Lf, cy+puy*4-pny*Lf, '#d94f5c', 2.4);
-  sv += texto(cx+pux*4-pnx*(Lf+14), cy+puy*4-pny*(Lf+14)+4, 'V', '#d94f5c', 12, 800, 'middle', true);
-  sv += arcoM(cx+pux*22, cy+puy*22, 16, '#8b5cf6', false);
-  sv += texto(cx+pux*22+22, cy+puy*22-20, 'M', '#8b5cf6', 12, 800, 'middle', true);
-  // marco û, n̂ en una esquina (R18)
-  const ox0 = W2 - 80, oy0 = 40;
+  // N, V, M en la cara, en el sentido positivo del convenio. El trozo derecho
+  // queda del lado +û, así que su cara mira a −û: N hacia −û, V hacia +n̂ y M
+  // horario (las mismas fuerzas internas, vistas desde el otro lado).
+  const Lf = 42, sg = der ? -1 : 1;
+  const fu = sg*pux, fv = sg*puy;              // hacia fuera de la cara
+  sv += flecha(cx+fu*8, cy+fv*8, cx+fu*Lf, cy+fv*Lf, '#0e9f6e', 2.4);
+  sv += texto(cx+fu*(Lf+16), cy+fv*(Lf+16)+4, 'N', '#0e9f6e', 12, 800, 'middle', true);
+  sv += flecha(cx+fu*4-sg*pnx*6, cy+fv*4-sg*pny*6, cx+fu*4-sg*pnx*Lf, cy+fv*4-sg*pny*Lf, '#d94f5c', 2.4);
+  sv += texto(cx+fu*4-sg*pnx*(Lf+14), cy+fv*4-sg*pny*(Lf+14)+4, 'V', '#d94f5c', 12, 800, 'middle', true);
+  sv += arcoM(cx+fu*22, cy+fv*22, 16, '#8b5cf6', der);
+  sv += texto(cx+fu*22+22, cy+fv*22-20, 'M', '#8b5cf6', 12, 800, 'middle', true);
+  const cot = cotasCorteSVG(ptsCota, cotX, cotY, SX, SY, F1, texto, ext);
+  sv += cot.s;
+  // marco û, n̂ en una esquina (R18); las cotas verticales empiezan más abajo
+  // Se encaja en la franja de arriba (por encima de MTOP), apunte a donde apunte.
+  const ox0 = W2 - 16 - Math.max(0, 44*pux, 44*pnx), oy0 = 14 - Math.min(0, 44*puy, 44*pny);
   sv += flecha(ox0, oy0, ox0+pux*30, oy0+puy*30, '#6b7684', 1.2) + texto(ox0+pux*40, oy0+puy*40+4, 'û', '#6b7684', 10, 700, 'middle');
   sv += flecha(ox0, oy0, ox0+pnx*30, oy0+pny*30, '#6b7684', 1.2) + texto(ox0+pnx*40, oy0+pny*40+4, 'n̂', '#6b7684', 10, 700, 'middle');
-  sv += '</svg>';
-  return sv;
+  // El lienzo crece si las cotas lo piden: el SVG se escala al ancho de la ventana.
+  const Wf = Math.max(W2, Math.ceil(cot.der + 12)), Hf = Math.max(H2, Math.ceil(cot.abajo + 12));
+  return '<svg viewBox="0 0 '+Wf+' '+Hf+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">'
+    + '<rect width="'+Wf+'" height="'+Hf+'" fill="#fff"/>' + sv + '</svg>';
+}
+
+// Los puntos del trozo que se acotan: el corte, los nudos, el punto de cada
+// fuerza (un par puro no tiene brazo) y los bordes y la resultante de cada
+// repartida.
+function cotaPuntosCorte(info, nudosTrozo){
+  const pts = [{x:info.P.x, y:info.P.y}];
+  nudosTrozo.forEach(n=>pts.push({x:n.x, y:n.y}));
+  info.puntuales.forEach(a=>{ if(Math.hypot(a.fx, a.fy) > 1e-12) pts.push({x:a.x, y:a.y}); });
+  info.repartidas.forEach(d=>pts.push(d.a, d.b, d.res));
+  return pts;
+}
+const _anchoCota = t => 5.8*String(t).length + 8;
+// Cotas del DCL del corte, como las del lienzo: una cadena horizontal bajo el
+// dibujo y una vertical a su derecha, cada una con su total, líneas de
+// extensión a trazos desde cada punto y punta en los dos extremos de cada tramo.
+function cotasCorteSVG(pts, cotX, cotY, SX, SY, F1, texto, ext){
+  const COL = '#4a5460', EXT = '#a3adb8';
+  const lin = (x1,y1,x2,y2,c,w,d)=>'<line x1="'+F1(x1)+'" y1="'+F1(y1)+'" x2="'+F1(x2)+'" y2="'+F1(y2)+'" stroke="'+c+'" stroke-width="'+w+'"'+(d?' stroke-dasharray="'+d+'"':'')+'/>';
+  const punta = (x,y,ex,ey)=>'<path d="M '+F1(x)+' '+F1(y)+' L '+F1(x-ex*6-ey*2.6)+' '+F1(y-ey*6+ex*2.6)+' L '+F1(x-ex*6+ey*2.6)+' '+F1(y-ey*6-ex*2.6)+' Z" fill="'+COL+'"/>';
+  const tramo = (x1,y1,x2,y2)=>{
+    const L = Math.hypot(x2-x1, y2-y1) || 1, ex = (x2-x1)/L, ey = (y2-y1)/L;
+    return lin(x1,y1,x2,y2,COL,1) + (L > 14 ? punta(x2,y2,ex,ey) + punta(x1,y1,-ex,-ey) : '');
+  };
+  let yMax = -Infinity, xMax = -Infinity;
+  pts.forEach(q=>{ yMax = Math.max(yMax, SY(q.y)); xMax = Math.max(xMax, SX(q.x)); });
+  // Pasado todo lo ya escrito (rótulos de fuerzas, N, V, M).
+  const derPrev = ext.der, abajoPrev = ext.abajo;
+  let s = '', fin = {der:0, abajo:0};
+  if(cotX.length > 1){
+    const y0 = Math.max(yMax + 70, abajoPrev + 16), y1 = y0 + 30;   // la cadena y, debajo, el total
+    // Una línea por abscisa, desde el punto más cercano a la cadena.
+    const bajo = {};
+    pts.forEach(q=>{ const k = SX(q.x).toFixed(0); if(!bajo[k] || SY(q.y) > SY(bajo[k].y)) bajo[k] = q; });
+    Object.values(bajo).forEach(q=>{ s += lin(SX(q.x), SY(q.y) + 6, SX(q.x), y0 + 4, EXT, .8, '3 3'); });
+    const xa0 = SX(cotX[0]), xb0 = SX(cotX[cotX.length-1]);
+    if(cotX.length > 2) s += lin(xa0, y0 + 4, xa0, y1 + 4, EXT, .8, '3 3') + lin(xb0, y0 + 4, xb0, y1 + 4, EXT, .8, '3 3');
+    let arriba = false;
+    for(let i=1;i<cotX.length;i++){
+      const xa = SX(cotX[i-1]), xb = SX(cotX[i]), t = dec(cotX[i]-cotX[i-1],'len');
+      s += tramo(xa, y0, xb, y0);
+      // Si el valor no cabe entre sus dos líneas, se alterna por encima.
+      arriba = ((xb - xa) >= _anchoCota(t)) ? false : !arriba;
+      s += texto((xa+xb)/2, arriba ? y0 - 5 : y0 + 13, t, COL, 9.5, 700, 'middle');
+    }
+    if(cotX.length > 2){
+      s += tramo(xa0, y1, xb0, y1);
+      s += texto((xa0 + xb0)/2, y1 + 13, dec(cotX[cotX.length-1]-cotX[0],'len'), COL, 9.5, 800, 'middle');
+    }
+  }
+  if(cotY.length > 1){
+    const wl = Math.max(...cotY.slice(1).map((y,i)=>_anchoCota(dec(y - cotY[i],'len'))));
+    const x0 = Math.max(xMax + 70, derPrev + 14), x1 = x0 + 2*wl + 8;   // la cadena y, por fuera, el total
+    const dcho = {};
+    pts.forEach(q=>{ const k = SY(q.y).toFixed(0); if(!dcho[k] || SX(q.x) > SX(dcho[k].x)) dcho[k] = q; });
+    Object.values(dcho).forEach(q=>{ s += lin(SX(q.x) + 6, SY(q.y), x0 + 4, SY(q.y), EXT, .8, '3 3'); });
+    const ya0 = SY(cotY[0]), yb0 = SY(cotY[cotY.length-1]);
+    if(cotY.length > 2) s += lin(x0 + 4, ya0, x1 + 4, ya0, EXT, .8, '3 3') + lin(x0 + 4, yb0, x1 + 4, yb0, EXT, .8, '3 3');
+    let lejos = false;
+    for(let i=1;i<cotY.length;i++){
+      const ya = SY(cotY[i-1]), yb = SY(cotY[i]), t = dec(cotY[i]-cotY[i-1],'len');
+      s += tramo(x0, ya, x0, yb);
+      // Valores derechos, al lado de la línea; si el tramo es corto, se alternan.
+      lejos = (Math.abs(ya - yb) >= 13) ? false : !lejos;
+      s += texto(x0 + 5 + (lejos ? wl : 0), (ya+yb)/2 + 3.5, t, COL, 9.5, 700, 'start');
+    }
+    if(cotY.length > 2){
+      s += tramo(x1, ya0, x1, yb0);
+      s += texto(x1 + 5, (ya0 + yb0)/2 + 3.5, dec(cotY[cotY.length-1]-cotY[0],'len'), COL, 9.5, 800, 'start');
+    }
+  }
+  return {s, der:ext.der, abajo:ext.abajo};
 }
 
 function htmlEcuacionesCorte(info){
@@ -230,6 +379,323 @@ function htmlEcuacionesCorte(info){
     + (ok(info.resU) && ok(info.resN) && ok(info.resM) ? '✓ El trozo queda en equilibrio con N, V y M en la sección.' : '⚠ El equilibrio del trozo no cierra.') + '</div>'
     + '</div>';
 }
+
+// ═══════════════════════════════════════════════════════════
+//  VENTANA «PUNTO DE CORTE» (2026-10-22, petición del profesor)
+//  El botón Corta y mira ya no arma la herramienta sin más: abre esta
+//  ventana, que pide el punto o manda a tocarlo en el dibujo. El punto se
+//  da por coordenadas (x, y) desde el origen, o eligiendo un tramo y su
+//  distancia desde el PRIMER nudo (t.a, el que se dibujó primero); en un
+//  tramo inclinado esa distancia puede ser sobre el eje, Δx o Δy, una sola.
+// ═══════════════════════════════════════════════════════════
+// Lo último que se escribió se conserva mientras dura la sesión.
+const _pc = {modo:'punto', via:'coord', x:'', y:'', tramo:null, medida:'s', valor:''};
+
+function _pcModal(){
+  let ov = document.getElementById('puntoCorteModal');
+  if(ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'puntoCorteModal';
+  ov.className = 'modal-ov';
+  const seg = (grupo, val, txt) => '<button type="button" class="seg-btn" data-' + grupo + '="' + val + '" onclick="pcCambiar(\'' + grupo + '\',\'' + val + '\')">' + txt + '</button>';
+  const campo = (id, lab) => '<div class="modal-field"><label id="' + id + 'Lab">' + lab + '</label>'
+    + '<input type="number" step="any" id="' + id + '" oninput="pcLeerCampos()" onkeydown="if(event.key===\'Enter\')confirmarPuntoCorte()"></div>';
+  ov.innerHTML =
+      '<div class="modal pc">'
+    +   '<h3>Corta y mira: punto de corte</h3>'
+    +   '<p class="sub">Indica dónde cortar o tócalo en el dibujo.</p>'
+    +   '<div class="cg-grupo"><div class="cg-seg" id="pcModo">'
+    +     seg('modo', 'punto', 'Indicar el punto') + seg('modo', 'dibujo', 'Seleccionar en el dibujo')
+    +   '</div></div>'
+    +   '<div id="pcPunto">'
+    +     '<div class="cg-grupo"><div class="cg-seg" id="pcVia">'
+    +       seg('via', 'coord', 'Por coordenadas (x, y)') + seg('via', 'tramo', 'Por tramo')
+    +     '</div></div>'
+    +     '<div id="pcCoord">'
+    +       '<div class="pc-campos">' + campo('pcX', 'x') + campo('pcY', 'y') + '</div>'
+    +       '<div class="pc-nota" id="pcOrigen"></div>'
+    +     '</div>'
+    +     '<div id="pcTramo">'
+    +       '<div class="pc-nota">Toca el tramo en el croquis; la distancia se mide desde su primer nudo.</div>'
+    +       '<div class="pc-info" id="pcTramoInfo"></div>'
+    +       '<div class="cg-grupo" id="pcMedidaGrupo"><div class="cg-seg" id="pcMedida">'
+    +         seg('medida', 's', 'Sobre el eje') + seg('medida', 'dx', 'Δx') + seg('medida', 'dy', 'Δy')
+    +       '</div></div>'
+    +       campo('pcValor', 'Distancia')
+    +     '</div>'
+    +     '<div class="pc-croquis" id="pcCroquis"></div>'
+    +     '<div class="pc-res" id="pcRes"></div>'
+    +   '</div>'
+    +   '<div class="pc-nota" id="pcDibujo">Se cierra la ventana: toca un punto de la viga.</div>'
+    +   '<div class="modal-btns">'
+    +     '<button class="mbtn ghost" onclick="cerrarPuntoCorte()">Cancelar</button>'
+    +     '<button class="mbtn" id="pcIr" onclick="confirmarPuntoCorte()">Cortar</button>'
+    +   '</div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  return ov;
+}
+
+// Lo que llama el botón Corta y mira de la barra.
+function abrirPuntoCorte(){
+  if(!tramos.length){ aviso('Todavía no hay ningún tramo que cortar.', 'error'); return; }
+  if(!tramos.some(t=>t.id === _pc.tramo)) _pc.tramo = tramos[0].id;
+  _pcModal().classList.add('show');
+  document.getElementById('pcX').value = _pc.x;
+  document.getElementById('pcY').value = _pc.y;
+  document.getElementById('pcValor').value = _pc.valor;
+  pintarPuntoCorte();
+}
+function cerrarPuntoCorte(){
+  const ov = document.getElementById('puntoCorteModal');
+  if(ov) ov.classList.remove('show');
+}
+function pcCambiar(grupo, val){
+  _pc[grupo] = val;
+  pintarPuntoCorte();
+}
+function pcElegirTramo(id){
+  _pc.tramo = id;
+  pintarPuntoCorte();
+}
+function pcLeerCampos(){
+  _pc.x = document.getElementById('pcX').value;
+  _pc.y = document.getElementById('pcY').value;
+  _pc.valor = document.getElementById('pcValor').value;
+  pintarPuntoCorte();
+}
+
+// Geometría del tramo tal como se dibujó: de su primer nudo (a) al segundo (b).
+function _pcGeo(t){
+  const A = nodo(t.a), B = nodo(t.b);
+  const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1e-12;
+  const horiz = Math.abs(dy) <= 1e-9*L, vert = Math.abs(dx) <= 1e-9*L;
+  return {A, B, dx, dy, L, horiz, vert, incl:!horiz && !vert};
+}
+const _pcNombre = t => nodo(t.a).nombre + nodo(t.b).nombre;
+
+// El punto que dice la ventana: {t, x, y, s} con s desde el primer nudo, o {err}.
+function puntoCorteVentana(){
+  const num = v => (String(v).trim() === '' ? NaN : Number(v));
+  if(_pc.via === 'coord'){
+    const x = num(_pc.x), y = num(_pc.y);
+    if(!isFinite(x) || !isFinite(y)) return {err:'Escribe x e y.', vacio:true};
+    // ¿Es un nudo? Ahí la sección no está definida.
+    const Lmax = Math.max(...tramos.map(t=>_pcGeo(t).L));
+    const nn = nodos.find(n=>Math.hypot(n.x - x, n.y - y) <= 1e-6*Lmax);
+    if(nn) return {err:'(' + dec(x,'len') + '; ' + dec(y,'len') + ') es el nudo ' + nn.nombre + ': ahí la sección no está definida. Corta un poco antes o después.'};
+    // El tramo que pasa por el punto (holgura del 0,5 % de su largo, para
+    // coordenadas escritas con pocos decimales en un tramo inclinado).
+    let mejor = null, cerca = null;
+    tramos.forEach(t=>{
+      const g = _pcGeo(t);
+      const s = ((x - g.A.x)*g.dx + (y - g.A.y)*g.dy)/g.L;
+      const sc = Math.max(0, Math.min(g.L, s));
+      const d = Math.hypot(g.A.x + g.dx*sc/g.L - x, g.A.y + g.dy*sc/g.L - y);
+      if(!cerca || d < cerca.d) cerca = {t, d};
+      if(s > 0 && s < g.L && d <= 0.005*g.L && (!mejor || d < mejor.d)) mejor = {t, s, d, g};
+    });
+    if(!mejor) return {err:'Ese punto no está sobre ningún tramo. El más cercano es ' + _pcNombre(cerca.t) + ', a ' + dec(cerca.d,'len') + ' ' + unitLen + '.'};
+    const g = mejor.g;
+    return {t:mejor.t, s:mejor.s, x:g.A.x + g.dx*mejor.s/g.L, y:g.A.y + g.dy*mejor.s/g.L};
+  }
+  const t = tramos.find(z=>z.id === _pc.tramo);
+  if(!t) return {err:'Toca un tramo en el croquis.', vacio:true};
+  const g = _pcGeo(t);
+  const med = g.incl ? _pc.medida : 's';
+  const v = num(_pc.valor);
+  if(!isFinite(v)) return {t, err:'Escribe la distancia.', vacio:true};
+  const total = med === 'dx' ? Math.abs(g.dx) : (med === 'dy' ? Math.abs(g.dy) : g.L);
+  const va = Math.abs(v);
+  if(va <= 1e-9*total || va >= total*(1 - 1e-9))
+    return {t, err:'Debe quedar entre 0 y ' + dec(total,'len') + ' ' + unitLen + ', sin llegar a los nudos.'};
+  const s = va*g.L/total;
+  return {t, s, x:g.A.x + g.dx*s/g.L, y:g.A.y + g.dy*s/g.L};
+}
+
+function pintarPuntoCorte(){
+  const ov = document.getElementById('puntoCorteModal');
+  if(!ov) return;
+  ov.querySelectorAll('.seg-btn').forEach(b=>{
+    const k = Object.keys(b.dataset)[0];
+    b.classList.toggle('active', _pc[k] === b.dataset[k]);
+  });
+  const punto = _pc.modo === 'punto';
+  document.getElementById('pcPunto').style.display = punto ? '' : 'none';
+  document.getElementById('pcDibujo').style.display = punto ? 'none' : '';
+  document.getElementById('pcIr').textContent = punto ? 'Cortar' : 'Ir al dibujo';
+  document.getElementById('pcCoord').style.display = _pc.via === 'coord' ? '' : 'none';
+  document.getElementById('pcTramo').style.display = _pc.via === 'tramo' ? '' : 'none';
+  document.getElementById('pcXLab').textContent = 'x (' + unitLen + ')';
+  document.getElementById('pcYLab').textContent = 'y (' + unitLen + ')';
+  const n0 = nodos.find(n=>Math.abs(n.x) < 1e-9 && Math.abs(n.y) < 1e-9);
+  document.getElementById('pcOrigen').textContent = 'Desde el origen (0; 0)' + (n0 ? ', que es el nudo ' + n0.nombre : '') + '.';
+  const t = tramos.find(z=>z.id === _pc.tramo);
+  if(t){
+    const g = _pcGeo(t);
+    const ang = Math.atan2(Math.abs(g.dy), Math.abs(g.dx))*180/Math.PI;
+    document.getElementById('pcTramoInfo').innerHTML = 'Tramo <b>' + _pcNombre(t) + '</b> · '
+      + (g.horiz ? 'horizontal' : (g.vert ? 'vertical' : 'inclinado ' + dec(ang,'ang') + '°'))
+      + ' · L = ' + dec(g.L,'len') + ' ' + unitLen
+      + (g.incl ? ' · Δx = ' + dec(Math.abs(g.dx),'len') + ' · Δy = ' + dec(Math.abs(g.dy),'len') : '');
+    document.getElementById('pcMedidaGrupo').style.display = g.incl ? '' : 'none';
+    const med = g.incl ? _pc.medida : 's';
+    document.getElementById('pcValorLab').textContent =
+      (med === 'dx' ? 'Δx desde ' : (med === 'dy' ? 'Δy desde ' : 'Distancia desde ')) + g.A.nombre + ' (' + unitLen + ')';
+  }
+  if(!punto) return;
+  const p = puntoCorteVentana();
+  const res = document.getElementById('pcRes');
+  if(p.err) res.innerHTML = p.vacio ? p.err : '<span class="pc-err">' + p.err + '</span>';
+  else {
+    const g = _pcGeo(p.t);
+    res.innerHTML = 'Corte en <b>(' + dec(p.x,'len') + '; ' + dec(p.y,'len') + ')</b>, tramo <b>' + _pcNombre(p.t)
+      + '</b>, a ' + dec(p.s,'len') + ' ' + unitLen + ' de ' + g.A.nombre + ' sobre su eje.';
+  }
+  dibujarCroquisPuntoCorte(p);
+}
+
+// La estructura con el punto de corte. Por tramo, cada tramo se toca para
+// elegirlo y su primer nudo va marcado; por coordenadas se ve el origen.
+function dibujarCroquisPuntoCorte(p){
+  const caja = document.getElementById('pcCroquis');
+  if(!caja) return;
+  const porTramo = _pc.via === 'tramo';
+  let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
+  const mete = (x,y)=>{ x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); };
+  nodos.forEach(n=>mete(n.x, n.y));
+  if(!porTramo) mete(0, 0);
+  const W = Math.round(Math.max(300, Math.min(560, (caja.clientWidth || 560) - 10))), M = porTramo ? 62 : 42;
+  const sx = Math.max(x1-x0, 1e-6), sy = Math.max(y1-y0, 0);
+  let k = (W-2*M)/sx;
+  const H = Math.max(170, Math.min(330, 2*M + sy*k));
+  if(sy > 1e-9) k = Math.min(k, (H-2*M)/sy);
+  const ox = (W - sx*k)/2, oy = (H - sy*k)/2;
+  const X = x => ox + (x-x0)*k, Y = y => H - oy - (y-y0)*k;
+  const f = v => v.toFixed(1);
+  const sel = porTramo ? _pc.tramo : (p && p.t ? p.t.id : null);
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Estructura y punto de corte">';
+  // Origen (0; 0), solo por coordenadas: es la referencia de x e y.
+  if(!porTramo){
+    const cx = X(0), cy = Y(0);
+    const enNudo = nodos.some(n=>Math.abs(n.x) < 1e-9 && Math.abs(n.y) < 1e-9);
+    s += '<line x1="' + f(cx) + '" y1="' + f(cy) + '" x2="' + f(cx+26) + '" y2="' + f(cy) + '" stroke="#8a94a3" stroke-width="1.2"/>'
+      + '<line x1="' + f(cx) + '" y1="' + f(cy) + '" x2="' + f(cx) + '" y2="' + f(cy-26) + '" stroke="#8a94a3" stroke-width="1.2"/>'
+      + '<path d="M ' + f(cx+30) + ' ' + f(cy) + ' l -6 -3 v 6 Z M ' + f(cx) + ' ' + f(cy-30) + ' l -3 6 h 6 Z" fill="#8a94a3"/>'
+      + '<text x="' + f(cx+27) + '" y="' + f(cy+15) + '" font-family="Inter,sans-serif" font-size="10.5" font-weight="700" fill="#6b7684" font-style="italic">x</text>'
+      + '<text x="' + f(cx+5) + '" y="' + f(cy-31) + '" font-family="Inter,sans-serif" font-size="10.5" font-weight="700" fill="#6b7684" font-style="italic">y</text>'
+      // Si el origen es un nudo, su nombre ya está ahí: la nota lo dice.
+      + (enNudo ? '' : '<text x="' + f(cx-4) + '" y="' + f(cy+15) + '" font-family="Inter,sans-serif" font-size="10" font-weight="700" fill="#6b7684" text-anchor="end">(0; 0)</text>');
+  }
+  tramos.forEach(t=>{
+    const a = nodo(t.a), b = nodo(t.b);
+    if(!a || !b) return;
+    const on = t.id === sel;
+    const xa=X(a.x), ya=Y(a.y), xb=X(b.x), yb=Y(b.y);
+    s += '<g' + (porTramo ? ' class="selT-tramo' + (on ? ' on' : '') + '" onclick="pcElegirTramo(' + t.id + ')"' : '') + '>'
+      + (porTramo ? '<line x1="' + f(xa) + '" y1="' + f(ya) + '" x2="' + f(xb) + '" y2="' + f(yb) + '" stroke="transparent" stroke-width="26" stroke-linecap="round"/>' : '')
+      + '<line x1="' + f(xa) + '" y1="' + f(ya) + '" x2="' + f(xb) + '" y2="' + f(yb) + '" stroke="' + (on ? 'var(--acc)' : '#c3cad3')
+      + '" stroke-width="' + (on ? 6 : 4) + '" stroke-linecap="round"/></g>';
+  });
+  // El primer nudo del tramo elegido, con un anillo: desde ahí se mide.
+  const tSel = porTramo ? tramos.find(z=>z.id === sel) : null;
+  if(tSel){
+    const A = nodo(tSel.a);
+    s += '<circle cx="' + f(X(A.x)) + '" cy="' + f(Y(A.y)) + '" r="9" fill="none" stroke="var(--acc)" stroke-width="2"/>';
+    s += _pcGuiaMedida(tSel, p, X, Y, f);
+  }
+  nodos.forEach(n=>{
+    const cx = X(n.x), cy = Y(n.y);
+    let dx = 0, dy = 0;
+    tramos.forEach(t=>{
+      if(t.a !== n.id && t.b !== n.id) return;
+      const o = nodo(t.a === n.id ? t.b : t.a);
+      if(!o) return;
+      const ex = X(o.x) - cx, ey = Y(o.y) - cy, l = Math.hypot(ex, ey) || 1;
+      dx += ex/l; dy += ey/l;
+    });
+    let l = Math.hypot(dx, dy);
+    if(l < 0.3){ dx = 0; dy = 1; l = 1; }
+    const lx = cx - dx/l*18, ly = cy - dy/l*18 + 4.5;
+    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="4.5" fill="' + (n.rotula ? '#fff' : '#26415e') + '" stroke="#26415e" stroke-width="1.8"/>'
+      + '<text x="' + f(lx) + '" y="' + f(ly) + '" font-family="Inter,sans-serif" font-size="13" font-weight="800" fill="#1b1f24" text-anchor="middle">' + n.nombre + '</text>';
+  });
+  // El corte: una raya roja perpendicular al tramo, como en el DCL.
+  if(p && !p.err){
+    const g = _pcGeo(p.t);
+    const cx = X(p.x), cy = Y(p.y), nx = -g.dy/g.L, ny = -g.dx/g.L;   // normal en pantalla
+    s += '<line x1="' + f(cx+nx*13) + '" y1="' + f(cy+ny*13) + '" x2="' + f(cx-nx*13) + '" y2="' + f(cy-ny*13) + '" stroke="#d94f5c" stroke-width="3" stroke-linecap="round"/>';
+  }
+  s += '</svg>';
+  caja.innerHTML = s;
+}
+
+// Cómo se da la distancia: ejes x, y en el primer nudo y la cota de lo que se
+// escribe (s sobre el eje, Δx o Δy) hasta el punto de corte; sin valor válido,
+// hasta el centro del tramo, como ejemplo.
+function _pcGuiaMedida(t, p, X, Y, f){
+  const g = _pcGeo(t), A = g.A;
+  const med = g.incl ? _pc.medida : 's';
+  const ok = p && !p.err && p.t && p.t.id === t.id;
+  const Q = ok ? {x:p.x, y:p.y} : {x:A.x + g.dx/2, y:A.y + g.dy/2};
+  const ax = X(A.x), ay = Y(A.y), qx = X(Q.x), qy = Y(Q.y);
+  const GUIA = '#0f766e', EJE = '#7b8794';
+  const lin = (x1,y1,x2,y2,c,w,d)=>'<line x1="'+f(x1)+'" y1="'+f(y1)+'" x2="'+f(x2)+'" y2="'+f(y2)+'" stroke="'+c+'" stroke-width="'+w+'"'+(d?' stroke-dasharray="'+d+'"':'')+'/>';
+  const punta = (x,y,ex,ey,c)=>'<path d="M '+f(x)+' '+f(y)+' L '+f(x-ex*6-ey*2.8)+' '+f(y-ey*6+ex*2.8)+' L '+f(x-ex*6+ey*2.8)+' '+f(y-ey*6-ex*2.8)+' Z" fill="'+c+'"/>';
+  const txt = (x,y,t,c,anc)=>'<text x="'+f(x)+'" y="'+f(y)+'" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="'+c+'" text-anchor="'+(anc||'middle')+'" font-style="italic">'+t+'</text>';
+  const cota = (x1,y1,x2,y2)=>{
+    const L = Math.hypot(x2-x1, y2-y1) || 1, ex = (x2-x1)/L, ey = (y2-y1)/L;
+    return lin(x1,y1,x2,y2,GUIA,1.3) + (L > 14 ? punta(x2,y2,ex,ey,GUIA) + punta(x1,y1,-ex,-ey,GUIA) : '');
+  };
+  // Ejes x, y en el primer nudo, hacia +x y +y, que es como se leen x e y.
+  const sx = 1, sy = 1;
+  let s = lin(ax, ay, ax + sx*44, ay, EJE, 1.1, '4 3') + punta(ax + sx*48, ay, sx, 0, EJE)
+        + txt(ax + sx*56, ay + 4, 'x', EJE)
+        + lin(ax, ay, ax, ay - sy*44, EJE, 1.1, '4 3') + punta(ax, ay - sy*48, 0, -sy, EJE)
+        + txt(ax, ay - sy*56 + 4, 'y', EJE);
+  const val = v => ok ? ' = ' + dec(v,'len') : '';
+  if(med === 'dx'){
+    // Cota horizontal pasado el punto (lejos del nombre del nudo), con las
+    // líneas de referencia desde el nudo y desde el punto.
+    const oy = (qy >= ay) ? 16 : -16, yc = qy + oy;
+    s += lin(ax, ay, ax, yc + Math.sign(oy)*4, GUIA, .8, '3 3') + lin(qx, qy, qx, yc + Math.sign(oy)*4, GUIA, .8, '3 3')
+       + cota(ax, yc, qx, yc) + txt((ax+qx)/2, yc + (oy > 0 ? 14 : -5), 'Δx' + val(Math.abs(Q.x - A.x)), GUIA);
+  } else if(med === 'dy'){
+    const ox = (qx >= ax) ? 16 : -16, xc = qx + ox;
+    s += lin(ax, ay, xc + Math.sign(ox)*4, ay, GUIA, .8, '3 3') + lin(qx, qy, xc + Math.sign(ox)*4, qy, GUIA, .8, '3 3')
+       + cota(xc, ay, xc, qy) + txt(xc + (ox > 0 ? 6 : -6), (ay+qy)/2 + 4, 'Δy' + val(Math.abs(Q.y - A.y)), GUIA, ox > 0 ? 'start' : 'end');
+  } else {
+    // Sobre el eje: cota paralela al tramo, del lado contrario al nombre del
+    // nudo (que va opuesto a los tramos que llegan a él).
+    const L = Math.hypot(qx-ax, qy-ay) || 1, nx = -(qy-ay)/L, ny = (qx-ax)/L;
+    let lx = 0, ly = 0;
+    tramos.forEach(z=>{
+      if(z.a !== A.id && z.b !== A.id) return;
+      const o2 = nodo(z.a === A.id ? z.b : z.a);
+      const ex = X(o2.x) - ax, ey = Y(o2.y) - ay, l = Math.hypot(ex, ey) || 1;
+      lx -= ex/l; ly -= ey/l;
+    });
+    if(Math.hypot(lx, ly) < 0.3){ lx = 0; ly = -1; }
+    const o = (nx*lx + ny*ly > 0) ? -16 : 16;
+    s += cota(ax + nx*o, ay + ny*o, qx + nx*o, qy + ny*o)
+       + txt((ax+qx)/2 + nx*o*2, (ay+qy)/2 + ny*o*2 + 4, 's' + val(Math.hypot(Q.x - A.x, Q.y - A.y)), GUIA);
+  }
+  return s;
+}
+
+function confirmarPuntoCorte(){
+  if(_pc.modo === 'dibujo'){
+    cerrarPuntoCorte();
+    setTool('corte');
+    return;
+  }
+  const p = puntoCorteVentana();
+  if(p.err){ aviso(p.err, 'error'); return; }
+  cerrarPuntoCorte();
+  abrirCorteMundo(p.t, p.x, p.y, true);
+}
+// «Otro corte» de la ventana del DCL: vuelve a la del punto.
+function otroCorte(){ cerrarCorte(); abrirPuntoCorte(); }
 
 // Figuras de resultados legibles en el teléfono (core/comun.js, 2026-10-11).
 bsaVigilarFigurasMovil('#resultsArea');
