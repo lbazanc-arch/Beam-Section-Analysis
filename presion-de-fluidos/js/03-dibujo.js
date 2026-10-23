@@ -18,7 +18,9 @@ function pasoRejilla(){
   const m = obj/base;
   return (m<=1?1:m<=2?2:m<=5?5:10)*base;
 }
-function snap(v){ const p = pasoRejilla()/2; return Math.round(v/p)*p; }
+// Redondeado a 10 decimales: Math.round(v/p)*p dejaba 0.6000000000000001, y eso
+// se ve tal cual en la ventana del nudo y en el archivo guardado.
+function snap(v){ const p = pasoRejilla()/2; return +(Math.round(v/p)*p).toFixed(10); }
 
 // ── Recorrido ordenado de la compuerta. La cadena va del extremo MÁS ALTO
 //    al MÁS BAJO: la frontera entre zonas sube en vertical desde el primero

@@ -90,7 +90,8 @@ let vx = 0, vy = 0, escala = 45;   // px por unidad de longitud
 let cv, ctx, W = 0, H = 0;
 
 const LEN_A_M = {m:1, cm:0.01, mm:0.001, ft:0.3048};
-const FOR_A_KN = {kN:1, N:0.001, ton:9.80665, kg:0.00980665, lb:0.00444822};
+// kip = 1000 lb (2026-10-23, para enunciados en kips y pies)
+const FOR_A_KN = {kN:1, N:0.001, ton:9.80665, kg:0.00980665, lb:0.00444822, kip:4.44822162};
 
 // ── Utilidades numéricas ──
 function dec(v, tipo){
@@ -125,5 +126,6 @@ function snap(v){
   // El enganche sigue al paso visible de la rejilla (media división),
   // así funciona igual en metros que en centímetros.
   const p = pasoRejilla()/2;
-  return Math.round(v/p)*p;
+  // a 10 decimales: sin esto quedaba 0.6000000000000001 en la ventana del nudo
+  return +(Math.round(v/p)*p).toFixed(10);
 }
