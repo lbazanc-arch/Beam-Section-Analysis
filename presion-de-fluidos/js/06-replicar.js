@@ -115,8 +115,7 @@ function applyReplicar(){
       const ya = previos.find(n=>Math.hypot(n.x - x, n.y - y) <= tol);
       if(ya){ mapaNodo[id] = ya.id; anadir(selNodos, ya.id); unidos++; return; }
       registrar();
-      const nn = Object.assign({}, o, {id:++nodoSeq, x, y, nombre:'',
-                                       tope: o.tope ? Object.assign({}, o.tope) : null});
+      const nn = Object.assign({}, o, {id:++nodoSeq, x, y, nombre:''});
       nodos.push(nn); mapaNodo[id] = nn.id; anadir(selNodos, nn.id); creados++;
     });
     idsTramos.forEach(id=>{
@@ -134,6 +133,20 @@ function applyReplicar(){
       registrar();
       const nt = Object.assign({}, o, {id:++tramoSeq, a, b});
       tramos.push(nt); anadir(selTramos, nt.id); creados++;
+    });
+    // Cuerdas, bielas y topes (14-): el anclado de un nudo copiado y el que une
+    // dos nudos copiados. Si la copia ya tiene uno igual, no se duplica.
+    vinculos.filter(vinculoValido).slice().forEach(v=>{
+      const anc = v.b === null || v.b === undefined;
+      if(idsNodos.indexOf(v.a) < 0 || (!anc && idsNodos.indexOf(v.b) < 0)) return;
+      const a = mapaNodo[v.a], bb = anc ? null : mapaNodo[v.b];
+      if(a === undefined || (!anc && (bb === undefined || bb === a))) return;
+      const ya = vinculos.some(w=>w.tipo === v.tipo && (anc ? (w.a === a && (w.b === null || w.b === undefined))
+                                  : ((w.a === a && w.b === bb) || (w.a === bb && w.b === a))));
+      if(ya) return;
+      registrar();
+      vinculos.push(Object.assign({}, v, {id:++vinculoSeq, a, b:bb}));
+      creados++;
     });
   }
   closeReplicar();
@@ -161,11 +174,13 @@ function limpiarTodo(){
   registrarCambio();
   nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; vaciarSeleccionPF();
   pesos=[]; pesoSeq=0; pesoActivo=null;
+  vinculos=[]; vinculoSeq=0;
   presas=[]; presaSeq=0;
   invalidarResultados();
   refrescar();
 }
-function refrescar(){ dibujar(); pintarListas(); pintarZonas(); }
+// Un vínculo cae con su nudo (14-): se depura antes de pintar.
+function refrescar(){ depurarVinculos(); dibujar(); pintarListas(); pintarZonas(); }
 
 function toggleActivo(id){
   const t=tramos.find(z=>z.id===id); if(!t) return;
@@ -183,8 +198,6 @@ function invertirCara(id){
 function _textoDireccion(u){
   const d = direccionIncognita(u);
   const agudo = bsaAnguloAgudoEje(d.x, d.y).grados < 1e-6 ? '' : ' (a ' + bsaTextoAnguloAgudo(d.x, d.y) + ')';
-  if(u.tipo==='T') return (u.n.tope && u.n.tope.modo === 'angulo')
-    ? 'tope hacia ' + dec(angulo360Pf(u.n.tope.ang),'ang') + '°' : 'tope ⟂' + agudo;
   return (u.n.apModo === 'normal') ? 'móvil ⟂' + agudo
     : 'móvil apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng===undefined?90:u.n.apAng),'ang') + '°';
 }
@@ -208,16 +221,15 @@ function pintarListas(){
   }
   const la=document.getElementById('listaApoyos');
   if(la){
-    const con = nodos.filter(n=>n.apoyo||n.rotula||n.tope);
-    la.innerHTML = con.length ? con.map(n=>{
+    const con = nodos.filter(n=>n.apoyo||n.rotula);
+    la.innerHTML = (con.length ? con.map(n=>{
       const et=[];
       if(n.apoyo==='fijo') et.push('apoyo fijo');
       if(n.apoyo==='movil') et.push(_textoDireccion({n, tipo:'R'}));
       if(n.rotula) et.push('rótula');
-      if(n.tope) et.push(_textoDireccion({n, tipo:'T'}) + (n.tope.modo === 'angulo' ? '' : ' · lado zona ' + (n.tope.lado||1)));
-      return '<div class="item-row"><div class="dot" style="background:'+(n.tope?'#b45309':'#0b3f3a')+'"></div>'
+      return '<div class="item-row"><div class="dot" style="background:#0b3f3a"></div>'
         + '<div class="nm">'+n.nombre+' · '+et.join(', ')+'</div></div>';
-    }).join('') : '<div class="list-empty">Sin apoyos.</div>';
+    }).join('') : '<div class="list-empty">Sin apoyos.</div>') + htmlListaVinculos();   // 14-
   }
   const lp=document.getElementById('listaPresas');
   if(lp) lp.innerHTML = listaPresasHtml();             // 10-
@@ -365,7 +377,7 @@ function actualizarPrevApoyo(){
   const chk = document.getElementById('apNormal');
   const ang = document.getElementById('apAng');
   if(ang && chk) ang.disabled = chk.checked;
-  const inc = nodos.reduce((s,z)=>s+(z.apoyo==='fijo'?2:z.apoyo==='movil'?1:0)+(z.tope?1:0),0);
+  const inc = nodos.reduce((s,z)=>s+(z.apoyo==='fijo'?2:z.apoyo==='movil'?1:0),0) + vinculos.filter(vinculoValido).length;
   const eq = 3 + nodos.filter(z=>z.rotula).length;
   el.innerHTML='Ahora: <b>'+(n.apoyo?(n.apoyo==='fijo'?'apoyo fijo':'apoyo móvil'):'sin apoyo')
     +(n.rotula?' con rótula':'')
@@ -413,136 +425,10 @@ function setApoyo(t){
   actualizarPrevApoyo(); refrescar();
 }
 
-// ── Modal de tope ──
-// Un tope liso empuja perpendicularmente a la compuerta desde el lado en
-// que está (modo `normal`); si el problema da la dirección, modo `angulo`.
-let _topeModo = 'normal';
 // Ángulo en [0, 360), redondeado a 1e-4, para enseñarlo.
 function angulo360Pf(a){
   const r = +((((+a % 360) + 360) % 360).toFixed(4));
   return (r >= 360) ? 0 : r;
-}
-function abrirTopeModal(id){
-  topeId=id; const n=nodos.find(z=>z.id===id); if(!n) return;
-  document.getElementById('tpNom').textContent=n.nombre;
-  const tp = n.tope || {};
-  // El campo dice hacia dónde EMPUJA el tope, desde +x y antihorario: es el
-  // mismo número que guarda el modelo y lee direccionIncognita (2026-10-04;
-  // antes decía desde dónde empujaba, el opuesto). Por defecto 180°: hacia la
-  // izquierda, el mismo tope de siempre.
-  document.getElementById('tpAng').value =
-    (tp.ang !== undefined && isFinite(+tp.ang)) ? angulo360Pf(tp.ang) : 180;
-  // lado por defecto: el seco, si solo una zona tiene líquido
-  let lado = tp.lado;
-  if(!lado){
-    const z1 = capasOrdenadas(1).length, z2 = capasOrdenadas(2).length;
-    lado = (z1 && !z2) ? 2 : (z2 && !z1 ? 1 : 2);
-  }
-  document.getElementById('tpLado').value = String(lado);
-  setTopeModo(tp.modo === 'angulo' ? 'angulo' : 'normal');
-  document.getElementById('topeModal').classList.add('show');
-  dibujarCroquisTope();
-}
-function setTopeModo(m){
-  _topeModo = m;
-  document.getElementById('tpCampoNormal').style.display = (m==='normal') ? 'block' : 'none';
-  document.getElementById('tpCampoAngulo').style.display = (m==='angulo') ? 'block' : 'none';
-  const a = document.getElementById('tpTabNormal'), b = document.getElementById('tpTabAngulo');
-  if(a) a.classList.toggle('active', m==='normal');
-  if(b) b.classList.toggle('active', m==='angulo');
-  dibujarCroquisTope();
-}
-// Croquis de la ventana del tope (2026-10-04, petición del profesor): el nudo,
-// los tramos de la compuerta que llegan a él, el bloque del tope y la flecha de
-// la fuerza que hace, con su ángulo acotado desde +x. Se acota el equivalente de
-// arco más corto, en (−180°, 180°] (270° se acota −90°); si no es el número
-// escrito, una nota lo dice sin tocar el campo. Con «Perpendicular» la dirección
-// sale de la compuerta, como en el cálculo (direccionIncognita).
-function dibujarCroquisTope(){
-  const cont = document.getElementById('tpCroquis'); if(!cont) return;
-  const n = nodos.find(z=>z.id===topeId); if(!n){ cont.innerHTML = ''; return; }
-  const W2 = 300, H2 = 190, cx = W2/2, cy = H2/2, F = v => v.toFixed(1);
-  const rad = g => g*Math.PI/180, ROJO = '#c0392b', ACC = '#0f5c56';
-  const _a = parseFloat((document.getElementById('tpAng')||{}).value);
-  const lado = parseInt((document.getElementById('tpLado')||{}).value, 10) || 1;
-  // Dirección de la fuerza del tope, con los datos que hay ahora en la ventana.
-  let d = null;
-  if(_topeModo !== 'angulo'){
-    const nv = normalCompuertaEnNudo(n, lado);
-    if(nv) d = {x:-nv.x, y:-nv.y};
-  }
-  if(!d){ const a = rad(isFinite(_a) ? _a : 180); d = {x:Math.cos(a), y:Math.sin(a)}; }
-  let s = '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;height:auto;display:block">';
-  // Tramos que llegan al nudo, con su forma (los arcos también), a escala.
-  const piezas = [];
-  let ext = 1e-9;
-  tramos.forEach(t=>{
-    if(t.a !== n.id && t.b !== n.id) return;
-    let pts = puntosTramo(t, 24);
-    if(pts.length < 2) return;
-    if(t.b === n.id) pts = pts.slice().reverse();
-    pts.forEach(p=>{ ext = Math.max(ext, Math.hypot(p.x-n.x, p.y-n.y)); });
-    const o = nodos.find(z=>z.id === (t.a === n.id ? t.b : t.a));
-    piezas.push({pts, o});
-  });
-  const k = 62/ext;
-  const P = p => [cx + (p.x-n.x)*k, cy - (p.y-n.y)*k];
-  piezas.forEach(({pts, o})=>{
-    s += '<polyline points="' + pts.map(p=>P(p).map(F).join(',')).join(' ')
-       + '" fill="none" stroke="' + ACC + '" stroke-width="3" stroke-linecap="round" opacity=".7"/>';
-    const [ex, ey] = P(pts[pts.length-1]);
-    if(o) s += '<text x="' + F(ex + (ex-cx)*0.12) + '" y="' + F(ey + (ey-cy)*0.12 + 3) + '" font-family="Inter,sans-serif" font-size="10" font-weight="700" fill="#44505c" text-anchor="middle">' + o.nombre + '</text>';
-  });
-  // La fuerza SALE del nudo en su dirección y el bloque del tope queda detrás
-  // del nudo, del lado contrario (2026-10-04, corrección del profesor): así el
-  // ángulo se acota EN EL NUDO, desde +x hasta la propia flecha
-  // (bsaArcoAnguloSVG, core), y el arco toca la fuerza.
-  const ux = d.x, uy = -d.y, L = 54, px = -uy, py = ux;
-  const ax1 = cx + ux*L, ay1 = cy + uy*L;
-  s += '<line x1="' + F(cx + ux*7) + '" y1="' + F(cy + uy*7) + '" x2="' + F(ax1 - ux*2) + '" y2="' + F(ay1 - uy*2) + '" stroke="' + ROJO + '" stroke-width="2.4"/>'
-     + '<polygon points="0,0 -9,-4 -9,4" fill="' + ROJO + '" transform="translate(' + F(ax1) + ',' + F(ay1) + ') rotate(' + (Math.atan2(uy,ux)*180/Math.PI).toFixed(1) + ')"/>';
-  const bx = cx - ux*8, by = cy - uy*8;
-  s += '<line x1="' + F(bx+px*13) + '" y1="' + F(by+py*13) + '" x2="' + F(bx-px*13) + '" y2="' + F(by-py*13) + '" stroke="#1b1f24" stroke-width="2.4"/>';
-  for(let i = -2; i <= 2; i++){
-    const hx = bx + px*i*5.5, hy = by + py*i*5.5;
-    s += '<line x1="' + F(hx) + '" y1="' + F(hy) + '" x2="' + F(hx - ux*6 + px*4) + '" y2="' + F(hy - uy*6 + py*4) + '" stroke="#1b1f24" stroke-width="1"/>';
-  }
-  // Lo que el valor no debe pisar: los tramos, la flecha, el bloque y los nombres.
-  const segsT = [[cx, cy, ax1, ay1], [bx+px*13, by+py*13, bx-px*13, by-py*13], [bx, by, bx - ux*8, by - uy*8]];
-  piezas.forEach(({pts})=>{ for(let i = 0; i < pts.length-1; i++){ const a1 = P(pts[i]), a2 = P(pts[i+1]); segsT.push([a1[0], a1[1], a2[0], a2[1]]); } });
-  const cajasT = [{x0:cx+7, x1:cx+22, y0:cy-20, y1:cy-6}];
-  piezas.forEach(({pts, o})=>{ if(!o) return; const [ex, ey] = P(pts[pts.length-1]);
-    const qx = ex + (ex-cx)*0.12, qy = ey + (ey-cy)*0.12; cajasT.push({x0:qx-8, x1:qx+8, y0:qy-8, y1:qy+5}); });
-  const gF = Math.atan2(d.y, d.x)*180/Math.PI;
-  const arco = bsaArcoAnguloSVG({x:cx, y:cy, ang:gF, col:ROJO, r:20,
-                                 segs:segsT, cajas:cajasT, ancho:W2, alto:H2});
-  s += arco.svg;
-  const t = arco.t;
-  s += '<circle cx="' + cx + '" cy="' + cy + '" r="5" fill="' + ACC + '" stroke="#fff" stroke-width="2"/>';
-  s += '<text x="' + (cx+9) + '" y="' + (cy-9) + '" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="#1b1f24">' + n.nombre + '</text>';
-  cont.innerHTML = s + '</svg>';
-  const nota = document.getElementById('tpNotaAng');
-  if(nota){
-    const ver = _topeModo === 'angulo' && isFinite(_a) && Math.abs(t - _a) > 1e-6;
-    nota.style.display = ver ? '' : 'none';
-    if(ver) nota.textContent = 'En el croquis se acota ' + dec(t,'ang') + '°: es la misma dirección que '
-      + dec(_a,'ang') + '° con un arco más corto desde +x.';
-  }
-}
-function closeTopeModal(){ document.getElementById('topeModal').classList.remove('show'); topeId=null; }
-function applyTope(){
-  const n=nodos.find(z=>z.id===topeId);
-  if(n){
-    const _a = parseFloat(document.getElementById('tpAng').value);
-    const nuevo = {ang:isFinite(_a) ? _a : 180, modo:_topeModo,
-                   lado:parseInt(document.getElementById('tpLado').value,10)||1};
-    // Aplicar sin tocar nada no deja paso de deshacer ni oculta el panel.
-    const tp = n.tope;
-    const igual = !!tp && (tp.modo || 'angulo') === nuevo.modo && (tp.lado || 1) === nuevo.lado
-               && _mismoAngulo(tp.ang || 0, nuevo.ang);
-    if(!igual){ registrarCambio(); n.tope = nuevo; invalidarResultados(); }
-  }
-  document.getElementById('topeModal').classList.remove('show'); topeId=null; refrescar();
 }
 // ── Ventana de peso propio (2026-09-14) ──
 // Valores con nombre, en peso por unidad de superficie de placa; mientras la
@@ -595,13 +481,6 @@ function asignarPesoATramo(idTramo){
   invalidarResultados(); renderPesos(); refrescar();
   return true;
 }
-function quitarTope(){
-  const n=nodos.find(z=>z.id===topeId);
-  // Sin tope que quitar no hay cambio: ni paso de deshacer ni panel oculto.
-  if(n && n.tope){ registrarCambio(); n.tope=null; invalidarResultados(); }
-  document.getElementById('topeModal').classList.remove('show'); topeId=null; refrescar();
-}
-
 // ── Panel de control estándar BSA (dos niveles) ──
 const SECCIONES = {
   conf:{titulo:'Configuración', btn:'rbConf'},
@@ -695,8 +574,8 @@ const EJEMPLOS = [
     nom:'Placa vertical entre 2 y 5 m de profundidad',
     desc:'Compuerta AB vertical de 3 m, ancho 1.5 m, con la superficie del agua 2 m por encima de A. '
         +'Articulada en A y apoyada en un tope liso en B.',
-    esperado:'F₁ = 154.51 kN a 1.29 m sobre B (z_P = 3.71 m) · N_B = 88.29 kN ← · R_xA = 66.22 kN ← · R_yA = 0',
-    verifica:{F1:154.51, zP1:3.71, N_B:{v:88.29, s:'←'}, R_xA:{v:66.22, s:'←'}, R_yA:0},
+    esperado:'F₁ = 154.51 kN a 1.29 m sobre B (z_P = 3.71 m) · R_tB = 88.29 kN ← · R_xA = 66.22 kN ← · R_yA = 0',
+    verifica:{F1:154.51, zP1:3.71, Rt_B:{v:88.29, s:'←'}, R_xA:{v:66.22, s:'←'}, R_yA:0},
     armar(N){
       const A=N(0,-2), B=N(0,-5);
       addTramo(A.id,B.id,'recto');
@@ -773,8 +652,8 @@ const EJEMPLOS = [
     nom:'Compuerta curva (cuarto de círculo)',
     desc:'Arco AB de radio 2 m con centro en (2 ; 0), ancho 2 m; el agua llena el cuarto de círculo, a la derecha, '
         +'hasta el nivel de A. Articulada en B (abajo) y con un tope liso en A, del lado seco.',
-    esperado:'F_h = γ(1)(2)(2) = 39.24 kN ← · F_v = peso del cuarto de círculo de agua = γ b πR²/4 = 61.64 kN ↓ · F₁ = 73.07 kN por el centro del arco · N_A = 39.24 kN →',
-    verifica:{F1:73.07, Fx1:{v:39.24, s:'←'}, Fy1:{v:61.64, s:'↓'}, N_A:{v:39.24, s:'→'}},
+    esperado:'F_h = γ(1)(2)(2) = 39.24 kN ← · F_v = peso del cuarto de círculo de agua = γ b πR²/4 = 61.64 kN ↓ · F₁ = 73.07 kN por el centro del arco · R_tA = 39.24 kN →',
+    verifica:{F1:73.07, Fx1:{v:39.24, s:'←'}, Fy1:{v:61.64, s:'↓'}, Rt_A:{v:39.24, s:'→'}},
     armar(N){
       const A=N(0,0), B=N(2,-2);
       const t = addTramo(A.id,B.id,'arco'); t.flecha = -(2 - Math.SQRT2);   // R(1 − cos 45°), combado hacia fuera del agua
@@ -788,8 +667,8 @@ const EJEMPLOS = [
     nom:'Dos líquidos: aceite sobre agua',
     desc:'Compuerta AB vertical de 4 m, ancho 1 m. A la izquierda, 1.5 m de aceite (γ = 8.5) sobre agua (γ = 9.81). '
         +'Articulada en A (en la superficie) y tope liso en B.',
-    esperado:'p en el cambio de capa = 8.5·1.5 = 12.75; en B = 12.75 + 9.81·2.5 = 37.28 kN/m². F₁ = 9.56 + 62.53 = 72.09 kN (z_P = 2.70 m) · N_B = 48.57 kN. Se resuelve por capas: cada una, rectángulo + triángulo.',
-    verifica:{pD1:37.28, F1:72.09, zP1:2.70, N_B:48.57},
+    esperado:'p en el cambio de capa = 8.5·1.5 = 12.75; en B = 12.75 + 9.81·2.5 = 37.28 kN/m². F₁ = 9.56 + 62.53 = 72.09 kN (z_P = 2.70 m) · R_tB = 48.57 kN. Se resuelve por capas: cada una, rectángulo + triángulo.',
+    verifica:{pD1:37.28, F1:72.09, zP1:2.70, Rt_B:48.57},
     armar(N){
       const A=N(0,0), B=N(0,-4);
       addTramo(A.id,B.id,'recto');
@@ -803,9 +682,9 @@ const EJEMPLOS = [
     nom:'Compuerta de marea: líquido a los dos lados',
     desc:'Compuerta AB vertical de 3 m y 1.2 m de ancho, con bisagra en A (arriba) y tope en B. A la derecha, mar '
         +'(γ = 10.05) 0.5 m por encima de A; a la izquierda, agua dulce (γ = 9.81) 0.3 m por debajo de A.',
-    esperado:'Dos fuerzas en el DCL: F₁ = 42.91 kN del agua dulce (izquierda, 2.7 m mojados, z_P = 1.80 m) y F₂ = 72.36 kN del mar (derecha, z_P = 2.38 m). El tope, del lado izquierdo, resiste la diferencia: N_B = 15.19 kN → · R_xA = 14.26 kN →',
+    esperado:'Dos fuerzas en el DCL: F₁ = 42.91 kN del agua dulce (izquierda, 2.7 m mojados, z_P = 1.80 m) y F₂ = 72.36 kN del mar (derecha, z_P = 2.38 m). El tope, del lado izquierdo, resiste la diferencia: R_tB = 15.19 kN → · R_xA = 14.26 kN →',
     verifica:{F1:42.91, L1:2.7, zP1:1.80, F2:72.36, zP2:2.38,
-              N_B:{v:15.19, s:'→'}, R_xA:{v:14.26, s:'→'}},
+              Rt_B:{v:15.19, s:'→'}, R_xA:{v:14.26, s:'→'}},
     armar(N){
       const A=N(0,0), B=N(0,-3);
       addTramo(A.id,B.id,'recto');
@@ -839,7 +718,7 @@ const EJEMPLOS = [
 //    Fk, Fxk, Fyk · magnitud de la resultante y de sus componentes
 //    zPk, Lk      · su centro de presión y su longitud mojada
 //    pTk, pDk     · presión en el extremo menos y más profundo de la parte mojada
-//    R_xA, R_yA, R_B, N_B · incógnitas, con el nombre con el que salen en pantalla
+//    R_xA, R_yA, R_B, Rt_B, T_BD, F_A · incógnitas, con el nombre con el que salen en pantalla
 //  Cada valor es un número (la magnitud, como en el texto) o {v, s} con la
 //  flecha del sentido real: un apoyo resuelto al revés da la misma magnitud y
 //  la flecha contraria, y eso es lo más grave que puede pasar aquí.
@@ -868,8 +747,14 @@ function magnitudesEjemplo(r){
   });
   (r.pesos||[]).forEach(c=>{ m[c.k] = {v:c.F, fam:'f'}; });     // W1, W2…
   (r.inc||[]).forEach((u,j)=>{
-    const pre = u.tipo==='Rx' ? 'R_x' : u.tipo==='Ry' ? 'R_y' : u.tipo==='R' ? 'R_' : 'N_';
     const s = sentidoRealIncognita(u, r.val[j]);
+    // Un vínculo por su nombre plano (Rt_B, T_BD, F_A) y con signo: + tracción.
+    if(u.tipo === 'V'){
+      const nom = nombreVinculoPlano(u.vin);
+      m[(u.vin.tipo === 'tope' ? 'Rt_' + nom.slice(2) : nom.charAt(0) + '_' + nom.slice(1))] = {v:Math.abs(r.val[j]), fam:'f', s:iconoSentidoHtml(s.x, s.y)};
+      return;
+    }
+    const pre = u.tipo==='Rx' ? 'R_x' : u.tipo==='Ry' ? 'R_y' : 'R_';
     m[pre + u.n.nombre] = {v:Math.abs(r.val[j]), fam:'f', s:iconoSentidoHtml(s.x, s.y)};
   });
   return m;
@@ -962,6 +847,7 @@ function cargarEjemplo(id){
   registrarCambio();
   nodos=[]; tramos=[]; nodoSeq=0; tramoSeq=0; vaciarSeleccionPF(); R=null;
   pesos=[]; pesoSeq=0; pesoActivo=null;
+  vinculos=[]; vinculoSeq=0;
   presas=[]; presaSeq=0;
   // Nudo en coordenada EXACTA: addNodo engancha a la rejilla, cuyo paso
   // depende del zoom.
@@ -971,6 +857,7 @@ function cargarEjemplo(id){
     nodos.push(n); return n;
   };
   const b = ej.armar(N);
+  migrarTopes();          // los ejemplos ponen el tope en el nudo, como los archivos antiguos (14-)
   const eb=document.getElementById('pB'); if(eb) eb.value = b || 1;
   if(typeof sincronizarAnchoB === 'function') sincronizarAnchoB();   // 09-
   reNombrar(); centrar(); refrescar(); calcular();

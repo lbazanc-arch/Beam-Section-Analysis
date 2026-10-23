@@ -44,8 +44,13 @@ function renderKatex(root){
 let nodos = [];     // {id,x,y,nombre,apoyo:null|'fijo'|'movil',apAng,apModo:'angulo'|'normal',
                     //  apLado:1|2 (cara del móvil normal: su reacción va hacia esa zona; sin el campo, 2),
                     //  apAngFijo (giro del apoyo fijo: SOLO dibujo, nunca cálculo),
-                    //  rotula:bool,tope:null|{ang,modo:'normal'|'angulo',lado:1|2}}
+                    //  rotula:bool}  (el antiguo `tope` del nudo es ahora un vínculo, 14-)
 let tramos = [];    // {id,a,b,tipo:'recto'|'arco',flecha,activo,invertir,pesoId}
+// Cuerdas, bielas y topes (14-, 2026-10-23): [{id, tipo, a, b|null, ang, modo, lado}].
+let vinculos = [];
+let vinculoSeq = 0;
+let tipoVinculoPendiente = null;   // el tipo elegido en el menú Vínculos
+let vinculoPrimerNudo = null;      // el primer nudo de una cuerda o biela a medio trazar
 // Peso propio de la compuerta (2026-09-14): VARIOS valores con nombre, en peso
 // por unidad de SUPERFICIE de placa, y cada tramo guarda el suyo (t.pesoId),
 // como en fuerzas internas. W = q·b·L, vertical hacia abajo, en el centroide
@@ -385,31 +390,22 @@ function anguloDibujoApoyoFijo(n){
 
 // ── Incógnitas: nombre, dirección y sentido ──
 // Apoyo fijo: R_xA, R_yA. Apoyo móvil: R_B (una sola, en su dirección).
-// Tope: N_C, la fuerza normal que el tope ejerce sobre la compuerta; solo
-// puede EMPUJAR, así que un valor negativo significa que la compuerta se
-// separa del tope (se abre).
+// Vínculo (14-): T de la cuerda, F de la biela y R_t del tope, positiva en
+// TRACCIÓN; su dirección es la de la tracción sobre el nudo `n` (hacia el otro
+// nudo o hacia el anclaje). Un tope trabaja a compresión: si sale positivo, la
+// compuerta se separa de él (se abre).
 function direccionIncognita(u){
   if(u.tipo==='Rx') return {x:1,y:0};
   if(u.tipo==='Ry') return {x:0,y:1};
-  if(u.tipo==='R'){
-    if(u.n.apModo === 'normal'){
-      // Normal hacia la zona `apLado` (2 si falta: archivos anteriores y nudos
-      // nuevos). Al girar, Transformar la cambia 1 ↔ 2 si la cadena de la
-      // compuerta se invierte, para que el móvil siga en la misma cara (05-).
-      const nv = normalCompuertaEnNudo(u.n, u.n.apLado === 1 ? 1 : 2);
-      if(nv) return nv;
-    }
-    const a = (u.n.apAng===undefined?90:u.n.apAng)*Math.PI/180;
-    return {x:Math.cos(a), y:Math.sin(a)};
+  if(u.tipo==='V') return dirVinculo(u.vin);
+  if(u.n.apModo === 'normal'){
+    // Normal hacia la zona `apLado` (2 si falta: archivos anteriores y nudos
+    // nuevos). Al girar, Transformar la cambia 1 ↔ 2 si la cadena de la
+    // compuerta se invierte, para que el móvil siga en la misma cara (05-).
+    const nv = normalCompuertaEnNudo(u.n, u.n.apLado === 1 ? 1 : 2);
+    if(nv) return nv;
   }
-  // tope
-  const tp = u.n.tope || {};
-  if(tp.modo !== 'angulo'){
-    // el tope está del lado `lado` y empuja hacia el otro lado
-    const nv = normalCompuertaEnNudo(u.n, tp.lado || 1);
-    if(nv) return {x:-nv.x, y:-nv.y};
-  }
-  const a = (tp.ang||0)*Math.PI/180;
+  const a = (u.n.apAng===undefined?90:u.n.apAng)*Math.PI/180;
   return {x:Math.cos(a), y:Math.sin(a)};
 }
 function anguloIncognita(u){
@@ -424,14 +420,14 @@ function simbIncognita(u){
   if(u.tipo==='Rx') return 'R_{x' + b + '}';
   if(u.tipo==='Ry') return 'R_{y' + b + '}';
   if(u.tipo==='R')  return 'R_{' + b + '}';
-  return 'N_{' + b + '}';
+  return nombreVinculoTex(u.vin);
 }
 function simbIncognitaHtml(u){
   const b = u.n.nombre;
   if(u.tipo==='Rx') return 'R<sub>x' + b + '</sub>';
   if(u.tipo==='Ry') return 'R<sub>y' + b + '</sub>';
   if(u.tipo==='R')  return 'R<sub>' + b + '</sub>';
-  return 'N<sub>' + b + '</sub>';
+  return nombreVinculoHtml(u.vin);
 }
 function descIncognita(u){
   if(u.tipo==='Rx') return 'reacción horizontal del apoyo fijo';
@@ -441,7 +437,9 @@ function descIncognita(u){
   if(u.tipo==='R')  return (u.n.apModo === 'normal') ? 'reacción del apoyo móvil, normal a la compuerta'
                     : 'reacción del apoyo móvil' + (Math.abs((u.n.apAng===undefined?90:u.n.apAng) - 90) > 1e-6
                         ? ' (apoyado a ' + dec(bsaAnguloOpuesto(u.n.apAng),'ang') + '°)' : '');
-  return (u.n.tope && u.n.tope.modo === 'angulo') ? 'fuerza del tope' : 'fuerza normal del tope';
+  const v = u.vin;
+  return 'fuerza de ' + (v.tipo === 'cuerda' ? 'la cuerda' : (v.tipo === 'biela' ? 'la biela' : 'el tope'))
+    + (u.n2 ? '' : (v.modo === 'normal' ? ', normal a la compuerta' : ''));
 }
 // Sentido real como flecha (R8): la más próxima de las ocho.
 const _FLECHAS_HTML = ['→','↗','↑','↖','←','↙','↓','↘'];
@@ -781,8 +779,8 @@ function listaIncognitas(){
   nodos.forEach(n=>{
     if(n.apoyo === 'fijo'){ inc.push({n, tipo:'Rx'}); inc.push({n, tipo:'Ry'}); }
     else if(n.apoyo === 'movil'){ inc.push({n, tipo:'R'}); }
-    if(n.tope) inc.push({n, tipo:'T'});
   });
+  incognitasDeVinculos().forEach(u=>inc.push(u));         // cuerdas, bielas y topes (14-)
   inc.forEach(u=>{ u.dir = direccionIncognita(u); u.ang = Math.atan2(u.dir.y, u.dir.x); });
   return inc;
 }
@@ -805,18 +803,20 @@ function analizar(){
   const inc = listaIncognitas();
   const rotulas = nodos.filter(n=>n.rotula);
   const nEq = 3 + rotulas.length;
-  const diag = {inc:inc.length, eq:nEq, rot:rotulas.length};
+  const diag = {inc:inc.length, eq:nEq, rot:rotulas.length, vin:inc.filter(u=>u.tipo === 'V').length};
   if(!cargas.length) return {error:'sin-liquido', diag, cargas, inc};
   if(inc.length !== nEq) return {error:'determinacion', diag, cargas, inc};
 
   // ── ecuaciones ──
   const A = Array.from({length:nEq}, ()=>new Array(inc.length).fill(0));
   const b = new Array(nEq).fill(0);
-  // ΣFx, ΣFy, ΣM(origen)
+  // ΣFx, ΣFy, ΣM(origen). Un vínculo entre dos nudos hace dos fuerzas iguales
+  // y opuestas (fuerzasDeIncognita, 14-): aquí se anulan.
   inc.forEach((u,j)=>{
-    const d = u.dir;
-    A[0][j] = d.x; A[1][j] = d.y;
-    A[2][j] = u.n.x*d.y - u.n.y*d.x;
+    fuerzasDeIncognita(u).forEach(f=>{
+      A[0][j] += f.d.x; A[1][j] += f.d.y;
+      A[2][j] += f.n.x*f.d.y - f.n.y*f.d.x;
+    });
   });
   let sx=0, sy=0, sm=0;
   todas.forEach(c=>{ sx+=c.Fx; sy+=c.Fy; sm+=c.Mo; });
@@ -828,11 +828,7 @@ function analizar(){
   rotulas.forEach((rt, k)=>{
     const lado = ladoDeRotula(rt);
     lados.push(lado);
-    inc.forEach((u,j)=>{
-      if(lado.nodos.indexOf(u.n.id) < 0) return;
-      const d = u.dir;
-      A[3+k][j] = (u.n.x-rt.x)*d.y - (u.n.y-rt.y)*d.x;
-    });
+    inc.forEach((u,j)=>{ A[3+k][j] = momentoIncognita(u, rt, lado.nodos).m; });
     let m = 0;
     todas.forEach(c=>{
       if(lado.tramos.indexOf(c.t.id) < 0) return;
@@ -851,11 +847,13 @@ function analizar(){
   // Comprobación numérica del equilibrio con los valores hallados.
   let cx=0, cy=0, cm=0;
   todas.forEach(c=>{ cx+=c.Fx; cy+=c.Fy; cm+=c.Mo; });
-  inc.forEach((u,j)=>{ cx += val[j]*u.dir.x; cy += val[j]*u.dir.y; cm += u.n.x*val[j]*u.dir.y - u.n.y*val[j]*u.dir.x; });
+  inc.forEach((u,j)=>{ fuerzasDeIncognita(u).forEach(f=>{ cx += val[j]*f.d.x; cy += val[j]*f.d.y; cm += f.n.x*val[j]*f.d.y - f.n.y*val[j]*f.d.x; }); });
   out.residuo = {cx, cy, cm, ref: Math.max(1, Math.abs(sx), Math.abs(sy), Math.abs(sm))};
   out.cierra = Math.abs(cx) < 1e-7*out.residuo.ref && Math.abs(cy) < 1e-7*out.residuo.ref && Math.abs(cm) < 1e-7*out.residuo.ref;
-  // Topes que se separan: el tope solo empuja.
-  out.topesSueltos = inc.filter((u,j)=>u.tipo==='T' && val[j] < -1e-9*out.residuo.ref);
+  // Cuerdas comprimidas y topes que tendrían que tirar (14-): con un tope, la
+  // compuerta se abre. Se avisa y se enseñan igualmente los resultados.
+  out.avisosVin = avisosDeVinculos(out);
+  out.topesSueltos = out.avisosVin.filter(a=>!a.cuerda).map(a=>a.u);
   return out;
 }
 
@@ -983,7 +981,7 @@ function planEquilibrio(r){
   const candidatos = [];
   nodos.forEach(n=>{
     let pasan = 0;
-    inc.forEach(u=>{ if(brazoRespecto(n, u.n, u.dir).brazo < 1e-7*Math.max(1, Math.abs(n.x), Math.abs(n.y))) pasan++; });
+    inc.forEach(u=>{ if(!u.n2 && brazoRespecto(n, u.n, u.dir).brazo < 1e-7*Math.max(1, Math.abs(n.x), Math.abs(n.y))) pasan++; });
     candidatos.push({n, pasan, fijo: n.apoyo === 'fijo' ? 1 : 0});
   });
   candidatos.sort((a,b)=> b.pasan - a.pasan || b.fijo - a.fijo || a.n.id - b.n.id);
@@ -999,8 +997,9 @@ function planEquilibrio(r){
     });
     const us = [];
     inc.forEach((u,j)=>{
-      if(filtroN && filtroN.indexOf(u.n.id) < 0) return;
-      const coef = eje==='x' ? u.dir.x : u.dir.y;
+      // Un vínculo entre dos nudos suma cero (14-).
+      let coef = 0;
+      fuerzasDeIncognita(u).forEach(f=>{ if(!filtroN || filtroN.indexOf(f.n.id) >= 0) coef += eje==='x' ? f.d.x : f.d.y; });
       if(Math.abs(coef) > EPS) us.push({j, coef});
     });
     return {ts, us};
@@ -1014,9 +1013,10 @@ function planEquilibrio(r){
     });
     const us = [];
     inc.forEach((u,j)=>{
-      if(filtroN && filtroN.indexOf(u.n.id) < 0) return;
-      const br = brazoRespecto(C, u.n, u.dir);
-      if(br.brazo > 1e-7*Math.max(1, Math.abs(u.n.x), Math.abs(u.n.y))) us.push({j, coef: br.m, brazo:br.brazo, signo:br.signo});
+      // Solo las fuerzas del lado (filtroN); un vínculo entre dos nudos del mismo
+      // lado no da momento, y uno que cruza la rótula da el de su nudo (14-).
+      const br = momentoIncognita(u, C, filtroN);
+      if(br.brazo > 1e-7*Math.max(1, Math.abs(br.n.x), Math.abs(br.n.y))) us.push({j, coef: br.m, brazo:br.brazo, signo:br.signo, nodo:br.n, d:br.d});
     });
     return {ts, us};
   };
@@ -1110,10 +1110,13 @@ function renderError(r){
   else if(r.error === 'sin-liquido') t = 'Ningún tramo está mojado: añade líquido en la zona 1 o en la zona 2 (panel <b>Líquidos</b>) con un nivel por encima de la compuerta.';
   else if(r.error === 'determinacion'){
     const d = r.diag, g = d.inc - d.eq;
-    t = 'Hay <b>' + d.inc + ' incógnita(s)</b> (reacciones y topes) y <b>' + d.eq + ' ecuación(es)</b> '
+    t = 'Hay <b>' + d.inc + ' incógnita(s)</b>'
+      + (d.vin ? ' (' + (d.inc - d.vin) + ' reacción(es) y ' + d.vin + ' de cuerdas, bielas o topes)' : ' (reacciones)')
+      + ' y <b>' + d.eq + ' ecuación(es)</b> '
       + 'de equilibrio' + (d.rot ? ' (3 del conjunto más ' + d.rot + ' por las rótulas)' : '') + '. '
       + (g < 0 ? 'Faltan ' + (-g) + ': la compuerta no está sujeta y se movería.'
-               : 'Sobran ' + g + ': el problema es hiperestático y la estática no basta para resolverlo.');
+               : 'Sobran ' + g + ': el problema es hiperestático y la estática no basta para resolverlo.'
+                 + (vinculos.some(v=>v.b !== null && v.b !== undefined) ? ' Una cuerda o una biela entre dos nudos necesita una rótula que la compense.' : ''));
   }
   else t = 'La disposición de apoyos no impide el movimiento: revisa sus direcciones.';
   return '<div class="res-section"><div class="res-title"><div class="num">!</div>No se puede resolver</div>'

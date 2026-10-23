@@ -42,18 +42,26 @@ function condicionesInverso(){
   const inc = tramos.length ? listaIncognitas() : [];
   const nEq = 3 + nodos.filter(n=>n.rotula).length;
   if(tramos.length && inc.length === nEq){
-    inc.filter(u=>u.tipo === 'T').forEach(u=>{
-      out.push({clave:'tope:' + u.n.id, tipo:'tope', nid:u.n.id, tinc:'T', grupo:'Compuerta',
+    // Cuerdas, bielas y topes (14-) se identifican por su vínculo (`vid`) y su
+    // tipo: 'T' el tope (cuenta lo que EMPUJA, −N), 'C' la cuerda (lo que tira,
+    // N) y 'B' la biela (su magnitud).
+    const tincV = u => u.vin.tipo === 'tope' ? 'T' : (u.vin.tipo === 'cuerda' ? 'C' : 'B');
+    inc.filter(u=>u.tipo === 'V' && u.vin.tipo !== 'biela').forEach(u=>{
+      const tope = u.vin.tipo === 'tope';
+      out.push({clave:'tope:v' + u.vin.id, tipo:'tope', vid:u.vin.id, tinc:tincV(u), grupo:'Compuerta',
         nomHtml:simbIncognitaHtml(u), nomTex:simbIncognita(u),
-        tit:'El tope en ' + u.n.nombre + ' deja de empujar',
-        sub:'Su fuerza ' + simbIncognitaHtml(u) + ' llega a cero: la compuerta está a punto de abrirse.'});
+        tit:tope ? 'El tope ' + simbIncognitaHtml(u) + ' deja de empujar' : 'La cuerda ' + simbIncognitaHtml(u) + ' deja de tirar',
+        sub:'Su fuerza llega a cero: ' + (tope ? 'la compuerta está a punto de abrirse.' : 'la cuerda está a punto de aflojarse.')});
     });
     inc.forEach(u=>{
-      out.push({clave:'reac:' + u.n.id + ':' + u.tipo, tipo:'reac', nid:u.n.id, tinc:u.tipo, grupo:'Compuerta',
+      const v = u.tipo === 'V';
+      out.push({clave:'reac:' + (v ? 'v' + u.vin.id : u.n.id + ':' + u.tipo), tipo:'reac', nid:u.n.id, vid:v ? u.vin.id : null,
+        tinc:v ? tincV(u) : u.tipo, grupo:'Compuerta',
         nomHtml:simbIncognitaHtml(u), nomTex:simbIncognita(u),
-        tit:'La ' + (u.tipo === 'T' ? 'fuerza del tope ' : 'reacción ') + simbIncognitaHtml(u) + ' llega a un valor',
-        sub:u.tipo === 'T' ? 'El tope empuja con la fuerza límite que escribas.'
-                           : 'Su magnitud alcanza el valor límite que escribas (p. ej., la tracción máxima).'});
+        tit:'La ' + (v ? 'fuerza ' + (u.vin.tipo === 'tope' ? 'del tope ' : (u.vin.tipo === 'cuerda' ? 'de la cuerda ' : 'de la biela ')) : 'reacción ') + simbIncognitaHtml(u) + ' llega a un valor',
+        sub:(v && u.vin.tipo === 'tope') ? 'El tope empuja con la fuerza límite que escribas.'
+           : ((v && u.vin.tipo === 'cuerda') ? 'La cuerda tira con la fuerza límite que escribas.'
+           : 'Su magnitud alcanza el valor límite que escribas (p. ej., la tracción máxima).')});
     });
   }
   presas.forEach(p=>{
@@ -70,6 +78,11 @@ function condicionesInverso(){
   return out;
 }
 
+// La incógnita de la condición: un vínculo por su id (14-), un apoyo por su nudo y tipo.
+function indiceIncInverso(r, c){
+  return c.vid ? r.inc.findIndex(u=>u.vin && u.vin.id === c.vid)
+               : r.inc.findIndex(u=>u.n.id === c.nid && u.tipo === c.tinc);
+}
 // ── Lo que vale la condición con el nivel h ──
 // Devuelve {q, m, v?}: q, la magnitud que se dibuja en la gráfica; m, el margen
 // (≥ 0 = se cumple); v, el valor con signo de la incógnita (para extrapolar).
@@ -78,13 +91,15 @@ function evaluarInverso(c, z, h){
     if(c.tipo === 'tope' || c.tipo === 'reac'){
       const r = analizar();
       if(r.error) return null;
-      const j = r.inc.findIndex(u=>u.n.id === c.nid && u.tipo === c.tinc);
+      const j = indiceIncInverso(r, c);
       if(j < 0) return null;
-      const v = r.val[j];
-      if(c.tipo === 'tope') return {q:v, m:v, v};
-      // Un tope solo empuja: su fuerza cuenta con signo (negativa = compuerta abierta).
-      if(c.tinc === 'T') return {q:v, m:c.valor - v, v, u:r.inc[j]};
-      return {q:Math.abs(v), m:c.valor - Math.abs(v), v, u:r.inc[j]};
+      const raw = r.val[j];
+      // Un tope solo empuja y una cuerda solo tira: cuentan con signo (lo que
+      // empuja el tope, −N; lo que tira la cuerda, N); negativo = no trabaja.
+      const v = c.tinc === 'T' ? -raw : raw;
+      if(c.tipo === 'tope') return {q:v, m:v, v, raw};
+      if(c.tinc === 'T' || c.tinc === 'C') return {q:v, m:c.valor - v, v, raw, u:r.inc[j]};
+      return {q:Math.abs(raw), m:c.valor - Math.abs(raw), v:raw, raw, u:r.inc[j]};
     }
     const p = presa(c.pid);
     if(!p) return null;
@@ -167,7 +182,7 @@ function resolverInverso(c, z){
       const afin = Math.abs((e3.v - e1.v) - 2*(e2.v - e1.v)) <= 1e-6*Math.max(1, Math.abs(e1.v), Math.abs(e3.v));
       extra = {v1:e1.v, s, afin};
       if(afin && Math.abs(s) > 1e-12){
-        const objetivos = c.tipo === 'tope' ? [0] : (c.tinc === 'T' ? [c.valor] : [c.valor, -c.valor]);
+        const objetivos = c.tipo === 'tope' ? [0] : ((c.tinc === 'T' || c.tinc === 'C') ? [c.valor] : [c.valor, -c.valor]);
         objetivos.forEach(t=>{
           const h = rg.hi + (t - e1.v)/s;
           if(h > rg.hi + 1e-9*Math.max(1, span)) meter(h);
@@ -204,7 +219,7 @@ function resolverInverso(c, z){
 function _hInv(res, h){ return dec(h - res.rg.ref, 'len') + ' ' + unitLen; }
 function _cotaInv(h){ return dec(h, 'len') + ' ' + unitLen; }
 function _nomCondInv(c){
-  if(c.tipo === 'tope') return 'la fuerza del tope';
+  if(c.tipo === 'tope') return c.tinc === 'C' ? 'la fuerza de la cuerda' : 'la fuerza del tope';
   if(c.tipo === 'reac') return '|' + c.nomHtml + '|';
   if(c.tipo === 'vuelco') return 'la posición de N';
   return 'la normal N';
@@ -214,13 +229,18 @@ function lecturaRaizInv(res, s){
   const c = res.c;
   let V = dec(c.valor, 'f') + ' ' + unitFor;
   const sube = s.abajo > 0 && s.arriba < 0, baja = s.abajo < 0 && s.arriba > 0;
+  if(c.tipo === 'tope' && c.tinc === 'C'){
+    if(sube) return {etq:'Nivel máximo', txt:'Hasta este nivel la cuerda tira; si el líquido sube más, tendría que empujar y <b>se afloja</b>.'};
+    if(baja) return {etq:'Nivel mínimo', txt:'Por debajo de este nivel la cuerda se afloja; desde aquí queda tensa.'};
+    return {etq:'Toca cero', txt:'La fuerza de la cuerda llega a cero justo en este nivel y vuelve a tirar.'};
+  }
   if(c.tipo === 'tope'){
     if(sube) return {etq:'Nivel máximo', txt:'Hasta este nivel el tope empuja y la compuerta sigue cerrada; si el líquido sube más, la fuerza del tope saldría negativa y <b>la compuerta se abre</b>.'};
     if(baja) return {etq:'Nivel mínimo', txt:'Por debajo de este nivel la compuerta se abre; desde aquí el líquido la mantiene contra el tope. Es lo mínimo que hace falta para que <b>siga cerrada</b>.'};
     return {etq:'Toca cero', txt:'La fuerza del tope llega a cero justo en este nivel y vuelve a empujar: la compuerta queda a punto de abrirse, sin llegar a hacerlo.'};
   }
   if(c.tipo === 'reac'){
-    if(c.tinc !== 'T' && s.e && s.e.u){
+    if(c.tinc !== 'T' && c.tinc !== 'C' && s.e && s.e.u){
       const sr = sentidoRealIncognita(s.e.u, s.e.v);
       V = V + ' (' + iconoSentidoHtml(sr.x, sr.y) + ')';
     }
@@ -242,6 +262,9 @@ function sinSolucionInv(res){
   const c = res.c, rg = res.rg;
   const tope = rg.abierto ? 'a ninguna altura' : 'ni con el agua en la corona';
   if(res.siempre === 0) return 'No se pudo evaluar la condición en el rango de niveles: revisa que el modelo se resuelva con «Calcular».';
+  if(c.tipo === 'tope' && c.tinc === 'C') return res.siempre > 0
+    ? 'La cuerda tira con cualquier nivel: <b>no se afloja ' + tope + '</b>.'
+    : 'La cuerda tendría que empujar con cualquier nivel: está siempre floja. Revisa hacia dónde va su anclaje.';
   if(c.tipo === 'tope') return res.siempre > 0
     ? 'El tope empuja con cualquier nivel: <b>la compuerta no se abre ' + tope + '</b>.'
     : 'La fuerza del tope sale negativa con cualquier nivel: la compuerta está siempre abierta. Revisa de qué lado está el tope.';
@@ -316,7 +339,7 @@ function curvaInversoSVG(res, elegida){
   });
   const nomTxt = c.nomHtml ? c.nomHtml.replace(/<sub>(.*?)<\/sub>/g, '<tspan font-size="8" dy="3">$1</tspan><tspan dy="-3"> </tspan>') : '';
   const yl = c.tipo === 'vuelco' ? 'd, posición de N desde O (' + unitLen + ')'
-           : (c.tipo === 'reac' && c.tinc !== 'T' ? '|' + nomTxt + '| (' + unitFor + ')'
+           : (c.tipo === 'reac' && c.tinc !== 'T' && c.tinc !== 'C' ? '|' + nomTxt + '| (' + unitFor + ')'
            : (c.tipo === 'levanta' ? 'N (' + unitFor + ')' : nomTxt + ' (' + unitFor + ')'));
   s += '<text x="' + ((M.l + W - M.r)/2) + '" y="' + (H - 6) + '" font-size="11" text-anchor="middle" fill="#374151">h, altura del líquido ' + (c.tipo === 'vuelco' || c.tipo === 'levanta' ? 'sobre la base' : 'sobre el punto más bajo') + ' (' + unitLen + ')</text>'
      + '<text transform="translate(13 ' + ((M.t + H - M.b)/2) + ') rotate(-90)" font-size="11" text-anchor="middle" fill="#374151">' + yl + '</text>';
@@ -447,6 +470,13 @@ function inversoGuardable(){
 function restaurarInverso(g){
   inversoActivo = null;
   if(!g || !g.clave) return;
+  // Un archivo anterior al 2026-10-23 nombra el tope por su nudo ('tope:3',
+  // 'reac:3:T'); hoy es un vínculo con su id (14-).
+  const viejo = /^(tope|reac):(\d+)(:T)?$/.exec(g.clave);
+  if(viejo && (viejo[1] === 'tope' || viejo[3])){
+    const v = vinculos.find(w=>w.tipo === 'tope' && w.a === +viejo[2]);
+    if(v) g = Object.assign({}, g, {clave:viejo[1] + ':v' + v.id});
+  }
   const c = condicionesInverso().find(q=>q.clave === g.clave);
   if(!c || !_capaSuperiorInv(g.z)) return;
   if(c.tipo === 'reac'){ if(!(g.valor > 0)) return; c.valor = g.valor; }

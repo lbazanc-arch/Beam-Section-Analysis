@@ -11,7 +11,11 @@ function estadoActual(){
     nodos: nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,apAng:n.apAng,apModo:n.apModo||'angulo',
                           apLado:(n.apLado === 1 ? 1 : 2),
                           apAngFijo:anguloDibujoApoyoFijo(n),
-                          rotula:n.rotula,tope:n.tope ? Object.assign({}, n.tope) : null})),
+                          rotula:n.rotula})),
+    // Cuerdas, bielas y topes (14-, 2026-10-23); el tope antiguo del nudo se
+    // convierte al abrir (migrarTopes) y ya no se escribe.
+    vinculos: vinculos.filter(vinculoValido).map(v=>({id:v.id, tipo:v.tipo, a:v.a, b:(v.b === undefined ? null : v.b),
+                                                      ang:(v.ang === undefined ? null : v.ang), modo:v.modo || 'angulo', lado:v.lado === 2 ? 2 : 1})),
     tramos: tramos.map(t=>({id:t.id,a:t.a,b:t.b,tipo:t.tipo,flecha:t.flecha,
                             activo:t.activo,invertir:t.invertir,pesoId:t.pesoId||null})),
     pesos: pesos.map(p=>Object.assign({}, p)),
@@ -76,6 +80,10 @@ function cargarProyecto(id){
     // Presas (2026-10-03): los archivos anteriores no las traen y se abren igual.
     presas=(e.presas||[]).map(copiaPresa);
     presaSeq=maxId(presas);
+    // Vínculos (14-): los archivos anteriores no los traen; su tope de nudo se convierte.
+    vinculos=(e.vinculos||[]).map(v=>Object.assign({}, v));
+    vinculoSeq=maxId(vinculos);
+    migrarTopes(); depurarVinculos();
     if(e.zonas) zonas=e.zonas;
     // Con fijarUnidades (06-) cambian también el chip de la barra y los rótulos:
     // si no, un ejercicio en cm·N se abría con la barra diciendo m · kN.
@@ -149,7 +157,7 @@ function confirmarAnchoPendiente(){
 // ── Jerarquía de Esc (criterio cap9): cierra lo más superficial primero ────
 function manejarEsc(){
   // 1) Un modal abierto: se cierra con su función propia para no dejar estado sucio
-  const cierres = {presaModal:'cerrarPresa', arcoModal:'cerrarArco', edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', topeModal:'closeTopeModal', pesoModal:'cerrarPeso',
+  const cierres = {presaModal:'cerrarPresa', arcoModal:'cerrarArco', edNodoModal:'closeEdNodo', apoyoModal:'closeApoyoModal', vinculoModal:'cerrarVinculo', pesoModal:'cerrarPeso',
     ejModal:'cerrarEjemplos', invModal:'cerrarInverso',
     unitsModal:'closeUnitsModal', decModal:'closeDecModal',
     guardarModal:'cerrarGuardar', histModal:'cerrarHistorial',
@@ -166,6 +174,10 @@ function manejarEsc(){
   if(av && av.classList.contains('visible')){ cerrarAviso(); return; }
   // 3) Un gesto a medias
   if(panDrag || gesto || pinchDist!==null){ cancelarGestoEnCurso(); dibujar(); return; }
+  // 3b) El menú Vínculos abierto, o una cuerda o biela a medio trazar (14-)
+  const mv = document.getElementById('menuVinculos');
+  if(mv && mv.classList.contains('abierto')){ mv.classList.remove('abierto'); return; }
+  if(vinculoPrimerNudo !== null){ cancelarTrazoVinculo(); return; }
   // 4) Un tramo a medio dibujar: se corta la cadena (o se suelta el inicio del arco)
   if(puntoPendiente || selNodo!==null){ puntoPendiente=null; selNodo=null; dibujar(); return; }
   // 4b) Un polígono de presa a medio tocar (10-)

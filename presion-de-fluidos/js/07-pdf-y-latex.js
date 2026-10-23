@@ -180,17 +180,6 @@ function tkpApoyo(n, X, Y, k){
     // la caja gira con el símbolo, como la del apoyo fijo
     tkpOcuparGirado(x, y, ang, -0.47, -0.6, 0.47, 0);
   }
-  if(n.tope){
-    const d = direccionIncognita({n, tipo:'T'});
-    const ang = Math.atan2(d.y, d.x)*180/Math.PI;
-    out += '\\begin{scope}[shift={(' + F(x) + ',' + F(y) + ')}, rotate=' + ang.toFixed(2) + ']\n';
-    out += '\\filldraw[fill=bsaTope!15, draw=bsaTope, line width=.9pt] (-0.62,-0.22) rectangle (-0.16,0.22);\n';
-    for(let i=-2;i<=2;i++) out += '\\draw[bsaTope, line width=.5pt] (-0.62,' + F(i*0.09) + ') -- (-0.76,' + F(i*0.09-0.12) + ');\n';
-    out += '\\end{scope}\n';
-    // bloque y rayado en x local ∈ [−0.76, −0.16] sobre d (y hacia arriba): la
-    // caja de antes tenía el signo de y cambiado y caía al otro lado del nudo
-    tkpOcuparGirado(x, y, ang, -0.78, -0.32, -0.14, 0.24);
-  }
   return out;
 }
 
@@ -249,8 +238,9 @@ function tkpCompuerta(opts){
     fijos += '\\draw[' + estilo + '] ' + seq + ';\n';
     for(let i=1;i<pts.length;i++) tkpOcuparTrazo(X(pts[i-1].x), Y(pts[i-1].y), X(pts[i].x), Y(pts[i].y), 0.02);
   });
-  // apoyos y topes
+  // apoyos, y cuerdas, bielas y topes con su símbolo y su nombre (14-)
   nodos.forEach(n=>{ fijos += tkpApoyo(n, X, Y, k); });
+  fijos += tikzVinculosPF(X, Y, false, null);
   // rótulos de la superficie libre y de las capas, en el borde exterior de la
   // franja; si chocan, escapan hacia afuera (zona 1 a −x, zona 2 a +x)
   const cajasFijas = _tkpCajas.slice();
@@ -527,19 +517,25 @@ function tkpDCL(r, sel){
     out += tkpTexto(Gx + gx*0.34, Gy + gy*0.34, '$G_{' + c.k.slice(1) + '}$', 'font=\\tiny, color=bsaPeso', gx, gy);
     ocupados.push([Gx, Gy + Lw]);
   });
-  // reacciones e incógnitas: llegan al nudo en su sentido real, solo el nombre
-  const incVis = sel ? r.inc.filter(u=>sel.nodos.indexOf(u.n.id) >= 0) : r.inc;
-  incVis.forEach((u)=>{
-    const j = r.inc.indexOf(u);
+  // cuerdas y bielas que unen dos nudos del cuerpo: son parte de él (14-)
+  out += tikzVinculosPF(X, Y, true, sel ? sel.nodos : null);
+  // reacciones e incógnitas: llegan al nudo en su sentido real, solo el nombre.
+  // Un vínculo anclado es una fuerza más; uno que une el cuerpo con el resto
+  // (al lado de una rótula), la fuerza en el nudo que queda dentro (14-).
+  const visibles = [];
+  r.inc.forEach((u, j)=>{
+    const s = r.val[j] >= 0 ? 1 : -1;
+    fuerzasVisibles(u, sel ? sel.nodos : null).forEach(f=>visibles.push({u, j, n:f.n, d:{x:f.d.x*s, y:f.d.y*s}}));
+  });
+  visibles.forEach(({u, j, n:nU, d})=>{
     const v = r.val[j];
-    const d = sentidoRealIncognita(u, v);
-    let x = X(u.n.x), y = Y(u.n.y);
+    let x = X(nU.x), y = Y(nU.y);
     const L = 1.15;
-    const col = u.tipo === 'T' ? 'bsaTope' : 'bsaReac';
+    const col = u.tipo === 'V' ? VIN_TIPOS[u.vin.tipo].colTex : 'bsaReac';
     // Una reacción paralela a la compuerta en ese nudo (R_yA en una placa
     // vertical) caería SOBRE la placa: se aparta un poco hacia un lado y
     // lleva un halo blanco, como las cargas paralelas de fuerzas internas.
-    const nv = normalCompuertaEnNudo(u.n, 2);
+    const nv = normalCompuertaEnNudo(nU, 2);
     const paralela = nv && Math.abs(d.x*nv.x + d.y*nv.y) < 0.3;
     if(paralela){ x += nv.x*0.26; y += nv.y*0.26; }
     const x1 = x - d.x*L, y1 = y - d.y*L;
@@ -595,7 +591,13 @@ function tkpBrazos(r, ec, sel, conLeyenda){
   out += tkpTexto(X(C.x) + 0.3, Y(C.y) + 0.3, '\\textbf{' + escLatex(C.nombre) + '}', 'font=\\scriptsize, color=bsaAcc2', 1, 1);
   const filas = [];
   ec.ts.forEach(t=>filas.push({P:t.carga.P, dir:t.carga.dir, nombre:t.carga.nombre, sub:String(t.carga.k), col:(t.carga.esPeso ? 'bsaPeso' : 'bsaPres'), brazo:t.brazo}));
-  ec.us.forEach(u=>{ const q = r.inc[u.j]; filas.push({P:{x:q.n.x, y:q.n.y}, dir:sentidoRealIncognita(q, r.val[u.j]), nombre:simbIncognita(q), sub:q.n.nombre, col:(q.tipo==='T' ? 'bsaTope' : 'bsaReac'), brazo:u.brazo}); });
+  // El brazo de cada incógnita lo da la fuerza que produce el momento (u.nodo,
+  // u.d del plan): en un vínculo que cruza la rótula, la del nudo de ese lado (14-).
+  ec.us.forEach(u=>{
+    const q = r.inc[u.j], nU = u.nodo || q.n, dU = u.d || q.dir, s = r.val[u.j] >= 0 ? 1 : -1;
+    filas.push({P:{x:nU.x, y:nU.y}, dir:{x:dU.x*s, y:dU.y*s}, nombre:simbIncognita(q), sub:(q.tipo === 'V' ? nombreVinculoPlano(q.vin) : nU.nombre),
+                col:(q.tipo === 'V' ? VIN_TIPOS[q.vin.tipo].colTex : 'bsaReac'), brazo:u.brazo});
+  });
   // Brazos sobre la misma recta desde C (p. ej., fuerzas verticales): cotas
   // corridas, cada rótulo en el trozo que añade su brazo, como en las cotas de
   // fuerzas internas; si no, dos rótulos centrados en el mismo sitio se pisan.
@@ -718,6 +720,8 @@ function construirLatex(){
     + PALETA_LIQ.map((c, i)=>'\\definecolor{bsaLiq' + i + '}{HTML}{' + c.slice(1).toUpperCase() + '}\n').join('')
     + '\\definecolor{bsaPres}{HTML}{C0392B}\n'
     + '\\definecolor{bsaTope}{HTML}{B45309}\n'
+    + '\\definecolor{bsaCuerda}{HTML}{9A6A1C}\n'
+    + '\\definecolor{bsaBiela}{HTML}{475569}\n'
     + '\\definecolor{bsaPeso}{HTML}{7A5C1E}\n'
     + '\\definecolor{bsaReac}{HTML}{15803D}\n'
     + '\\definecolor{bsaRes}{HTML}{6D28D9}\n'
@@ -992,7 +996,7 @@ function construirLatex(){
   const letras = Object.values(_LETRAS_ANG);
   const listaAng = letras.map(e=>'$' + e.letra + ' = ' + dec(e.grados,'ang') + '^\\circ$');
   tex += lamina(tkpDCL(r, null), 'DCL de la compuerta.' + (listaAng.length ? ' ' + listaAng.join(', ') + '.' : ''));
-  if(r.topesSueltos.length === 0 && r.inc.some(u=>u.tipo==='T'))
+  if(r.topesSueltos.length === 0 && r.inc.some(u=>u.tipo==='V' && u.vin.tipo === 'tope'))
     tex += porque('tope', 'Un tope liso solo puede \\textbf{empujar}: su fuerza es normal a la compuerta y se supone hacia ella. Si del equilibrio saliera negativa, la compuerta se separar\\\'ia del tope (se abrir\\\'ia); con valor cero est\\\'a \\emph{a punto de abrirse}, que es la situaci\\\'on l\\\'imite de muchos problemas.');
 
   // ═══ 5. Paso 4: equilibrio ═══
@@ -1055,12 +1059,14 @@ function construirLatex(){
       // La dirección de una reacción o un tope inclinados, con el mismo ángulo
       // agudo que la figura y las ecuaciones (2026-09-14).
       const ag = bsaAnguloAgudoEje(u.dir.x, u.dir.y);
-      const dirTx = ((u.tipo === 'R' || u.tipo === 'T') && ag.grados >= 1e-6)
+      const dirTx = ((u.tipo === 'R' || (u.tipo === 'V' && !u.n2)) && ag.grados >= 1e-6)
         ? ' (a ' + dec(ag.grados,'ang') + '$^\\circ$ de la ' + (ag.desdeV ? 'vertical' : 'horizontal') + ')' : '';
-      return '$' + simbIncognita(u) + ' = ' + f(Math.abs(v)) + '$' + UF + (nulo ? '' : ' ' + iconoSentidoTex(sr.x, sr.y)) + dirTx;
+      // Un vínculo dice además cómo trabaja (14-); entre dos nudos, sin flecha.
+      const trab = u.tipo === 'V' ? ' (' + trabajoVinculo(u, v).txt + ')' : '';
+      return '$' + simbIncognita(u) + ' = ' + f(Math.abs(v)) + '$' + UF + ((nulo || u.n2) ? '' : ' ' + iconoSentidoTex(sr.x, sr.y)) + dirTx + trab;
     }).join(', ') + '.}\n';
-  if(r.topesSueltos.length)
-    tex += '\\veredicto{\\textbf{Tope que no trabaja.} El equilibrio exige que ' + r.topesSueltos.map(u=>'$' + simbIncognita(u) + '$').join(', ') + ' tire de la compuerta, y un tope solo puede empujar: \\textbf{la compuerta se abre} (se separa del tope). Para que se mantenga cerrada hace falta otro apoyo o cambiar los niveles.}\n';
+  // Cuerdas comprimidas y topes que tendrían que tirar: con un tope, la compuerta se abre (14-).
+  tex += avisosVinculosTex(r);
 
   // ═══ 6. Paso 5: comprobaciones ═══
   tex += '\\seccion{6. Paso 5 --- Comprobaciones}\n';

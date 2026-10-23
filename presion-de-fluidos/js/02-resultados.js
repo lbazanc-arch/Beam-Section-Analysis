@@ -22,11 +22,16 @@ function _casiCero(v){ return Math.abs(v) < 1e-9; }
 // ecuaciones; nunca el de 0 a 360 (anguloIncognita), que salía hasta el
 // 2026-09-14. Sobre un eje no hace falta decir nada.
 function _dirAgudoHtml(u){
-  if(u.tipo !== 'R' && u.tipo !== 'T') return '';
+  if(u.tipo !== 'R' && !(u.tipo === 'V' && !u.n2)) return '';
   if(bsaAnguloAgudoEje(u.dir.x, u.dir.y).grados < 1e-6) return '';
   return ' (a ' + bsaTextoAnguloAgudo(u.dir.x, u.dir.y) + ')';
 }
 function _gr(v){ return dec(v,'ang') + '^\\circ'; }   // con los decimales de ÁNGULOS
+// «en B» o, para un vínculo entre dos nudos, «entre B y D».
+function _dondeIncognita(u, negrita){
+  const b = t => negrita ? '<b>' + t + '</b>' : t;
+  return u.n2 ? ' entre ' + b(u.n.nombre) + ' y ' + b(u.n2.nombre) : ' en ' + b(u.n.nombre);
+}
 
 // ── Términos de cada ecuación, en LaTeX (los comparten pantalla y PDF) ──
 // Cada término es {v, lit, sus}: v da el signo real, `lit` es la expresión
@@ -55,9 +60,13 @@ function terminosIncognita(ec, u, j){
     const {fn, ang} = _trigDir(ec, u.dir);
     return {j, coef, lit:s + fn + letraAngulo(u.dir), sus:s + fn + ' ' + _gr(ang), factor:fn + ' ' + _gr(ang)};
   }
-  const br = brazoRespecto(ec.centro, u.n, u.dir);
-  if(br.brazo < 1e-7*Math.max(1, Math.abs(u.n.x), Math.abs(u.n.y))) return null;
-  return {j, coef:br.m, lit:s + '\\,d_{' + u.n.nombre + '}', sus:s + '\\,(' + dec(br.brazo,'len') + ')', factor:'(' + dec(br.brazo,'len') + ')', brazo:br.brazo};
+  // Con una rótula, solo las fuerzas de su lado; un vínculo entre dos nudos da
+  // el momento de la fuerza del nudo que queda en ese lado (14-).
+  const br = momentoIncognita(u, ec.centro, ec.tipo === 'Mrot' ? ec.lado.nodos : null);
+  if(br.brazo < 1e-7*Math.max(1, Math.abs(br.n.x), Math.abs(br.n.y))) return null;
+  // El brazo de un vínculo lleva su nombre (d_{TAC}): el del nudo chocaría con
+  // el de una reacción en el mismo nudo.
+  return {j, coef:br.m, lit:s + '\\,d_{' + (u.tipo === 'V' ? nombreVinculoPlano(u.vin) : br.n.nombre) + '}', sus:s + '\\,(' + dec(br.brazo,'len') + ')', factor:'(' + dec(br.brazo,'len') + ')', brazo:br.brazo};
 }
 function _sumaTerminos(lista, clave){
   if(!lista.length) return '0';
@@ -275,7 +284,7 @@ function renderResultados(r){
     + 'Equilibrio de la compuerta</div>'
     + '<div class="proc-block proc-cols">'
     + '<div class="proc-col"><div class="proc-sub">Incógnitas (' + r.diag.inc + ')</div>'
-    + r.inc.map(u=>'<div class="eq-row"><div class="eq-body">' + kx(simbIncognita(u)) + ' <span class="hint-sm" style="display:inline">— ' + descIncognita(u) + ' en ' + u.n.nombre + _dirAgudoHtml(u) + '</span></div></div>').join('')
+    + r.inc.map(u=>'<div class="eq-row"><div class="eq-body">' + kx(simbIncognita(u)) + ' <span class="hint-sm" style="display:inline">— ' + descIncognita(u) + _dondeIncognita(u) + _dirAgudoHtml(u) + '</span></div></div>').join('')
     + '</div>'
     + '<div class="proc-col"><div class="proc-sub">Ecuaciones (' + r.diag.eq + ')</div>'
     + '<div class="eq-row"><div class="eq-body">' + kx('\\sum F_x = 0,\\quad \\sum F_y = 0,\\quad \\sum M_{' + plan.centro.nombre + '} = 0') + '</div></div>'
@@ -291,8 +300,11 @@ function renderResultados(r){
       if(q.despeje){
         const dp = q.despeje;
         h += '<div class="eq-row"><div class="eq-body">' + kx('\\phantom{' + q.icono + '}\\boxed{' + dp.simb + ' = ' + f(dp.valor) + '\\ \\text{' + uF + '}}') + '</div></div>';
-        if(dp.valor < 0)
-          h += '<div class="hint-sm">Signo negativo: ' + kx(dp.simb) + ' actúa al revés de lo supuesto' + (r.inc[paso.j].tipo === 'T' ? '; el tope no tira, la compuerta se separa' : '') + '.</div>';
+        // En un vínculo el signo dice cómo trabaja (positivo, tracción).
+        if(r.inc[paso.j].tipo === 'V')
+          h += '<div class="hint-sm">' + kx(dp.simb) + ': ' + trabajoVinculo(r.inc[paso.j], dp.valor).txt + '.</div>';
+        else if(dp.valor < 0)
+          h += '<div class="hint-sm">Signo negativo: ' + kx(dp.simb) + ' actúa al revés de lo supuesto.</div>';
       }
       if(paso.tipo === 'comprobacion') h += '<div class="hint-sm">Sirve de comprobación.</div>';
     } else if(paso.tipo === 'sistema'){
@@ -308,25 +320,25 @@ function renderResultados(r){
 
   // ═══ 4 · Reacciones ═══
   h += '<div class="res-section"><div class="res-title"><div class="num">4</div>'
-    + 'Reacciones y fuerza del tope</div>'
+    + (r.inc.some(u=>u.tipo === 'V') ? 'Reacciones y vínculos' : 'Reacciones') + '</div>'
     + '<table class="tabla"><thead><tr><th>Fuerza</th><th>Qué es</th>'
     + '<th class="r">Valor (' + uF + ')</th><th>Sentido real</th></tr></thead><tbody>';
   r.inc.forEach((u,j)=>{
     const v = r.val[j];
     const s = sentidoRealIncognita(u, v);
-    h += '<tr><td><b>'+kx(simbIncognita(u))+'</b></td><td>'+descIncognita(u)+' en <b>'+u.n.nombre+'</b>'+_dirAgudoHtml(u)+'</td>'
-      + '<td class="r"><b>'+f(Math.abs(v))+'</b></td>'
-      + '<td>' + iconoSentidoHtml(s.x, s.y) + (u.tipo==='T' ? (r.topesSueltos.indexOf(u) >= 0 ? ' <b style="color:#c0392b">se separa</b>'
-                       : (Number(dec(v, 'f')) === 0 ? ' a punto de abrirse' : ' empuja a la compuerta')) : '') + '</td></tr>';
+    // Un vínculo dice cómo trabaja (tracción, compresión), en rojo si no lo
+    // admite; uno entre dos nudos no lleva flecha: son dos fuerzas opuestas.
+    let sent = iconoSentidoHtml(s.x, s.y);
+    if(u.tipo === 'V'){
+      const tr = trabajoVinculo(u, v);
+      sent = (u.n2 ? '' : sent + ' ') + (tr.ok ? tr.txt : '<b style="color:#c0392b">' + tr.txt + '</b>');
+    }
+    h += '<tr><td><b>'+kx(simbIncognita(u))+'</b></td><td>'+descIncognita(u)+_dondeIncognita(u, true)+_dirAgudoHtml(u)+'</td>'
+      + '<td class="r"><b>'+f(Math.abs(v))+'</b></td><td>' + sent + '</td></tr>';
   });
   h += '</tbody></table>'
-    + '<div class="hint-sm">Magnitud y sentido real (flecha).</div>';
-  if(r.topesSueltos.length){
-    h += '<div class="verdict bad"><div class="verdict-t">Tope que no trabaja</div>'
-      + r.topesSueltos.map(u=>kx(simbIncognita(u))).join(', ') + ' &lt; 0: el tope solo empuja, así que <b>la compuerta se abre</b>.</div>';
-  } else if(r.inc.some(u=>u.tipo==='T')){
-    h += '<div class="verdict ok"><div class="verdict-t">Tope</div>Fuerza positiva: el tope empuja (cero = a punto de abrirse).</div>';
-  }
+    + '<div class="hint-sm">Magnitud y sentido real (flecha)' + (r.inc.some(u=>u.tipo === 'V') ? '; en cuerdas, bielas y topes, cómo trabajan' : '') + '.</div>';
+  h += avisosVinculosHtml(r);
   h += '</div>';
 
   // ═══ 5 · Comprobación ═══
@@ -336,7 +348,7 @@ function renderResultados(r){
     + '<div class="proc-block"><div class="eq-row"><div class="eq-body">'
     + kx('\\sum F_x = ' + cero(rs.cx) + ' \\qquad \\sum F_y = ' + cero(rs.cy) + ' \\qquad \\sum M_{O} = ' + cero(rs.cm)) + '</div></div>'
     + '<div class="hint-sm" style="color:' + (r.cierra?'#15803d':'#c0392b') + '">'
-    + (r.cierra ? '✓ Con todas las fuerzas (líquido' + (r.pesos && r.pesos.length ? ', peso propio' : '') + ', reacciones y tope) las tres sumas son nulas.'
+    + (r.cierra ? '✓ Con todas las fuerzas (líquido' + (r.pesos && r.pesos.length ? ', peso propio' : '') + ', reacciones' + (r.inc.some(u=>u.tipo === 'V') ? ' y vínculos' : '') + ') las tres sumas son nulas.'
                 : '⚠ El equilibrio no cierra; revisa apoyos y caras mojadas.') + '</div>';
   const planas = cargas.filter(c=>c.des && c.des.tipo==='recto' && !c.des.horizontal);
   if(planas.length)

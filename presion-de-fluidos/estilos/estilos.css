@@ -435,6 +435,45 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 .bsa-guardado-x:hover{border-color:#c0392b; background:#fef2f2;}
 .bsa-guardados-vacio{font-size:11px; color:var(--muted); padding:8px 2px 12px;}
 
+/* Vínculos: menú de la barra y ventana (14-, 2026-10-23; las mismas reglas que
+   fuerzas internas, con el acento del tema). */
+.tb-menu{position:fixed;top:0;left:0;z-index:70;width:300px;max-width:calc(100vw - 24px);
+  background:#fff;border:1px solid var(--border2);border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);display:none;overflow:hidden;}
+.tb-menu.abierto{display:block;}
+.tb-menu-head{background:var(--acc);color:#fff;font-size:11.5px;font-weight:800;
+  letter-spacing:.4px;text-transform:uppercase;padding:8px 12px;}
+.tb-menu-body{padding:10px 12px 14px;}
+.menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.menu-btn{border:1px solid var(--border2);border-radius:9px;background:#fff;cursor:pointer;position:relative;
+  padding:8px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-family:inherit;transition:all .15s;}
+.menu-btn:hover{border-color:var(--acc);background:var(--acc-l);}
+.menu-btn.active{border-color:var(--acc);border-width:2px;background:var(--acc-l);
+  box-shadow:0 0 0 3px rgba(15,92,86,.13);padding:7px 3px 5px;}
+.menu-btn.active span{color:var(--acc);}
+.menu-btn.active::after{content:'';position:absolute;top:5px;right:6px;width:7px;height:7px;
+  border-radius:50%;background:var(--acc);}
+.menu-btn svg{width:30px;height:26px;}
+.menu-btn span{font-size:9px;font-weight:700;text-align:center;line-height:1.15;}
+.modo-tabs{display:flex;gap:7px;margin:8px 0 4px;}
+.modo-btn{flex:1;padding:6px 4px;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer;
+  font-family:inherit;background:#fff;border:1px solid var(--border2);color:var(--muted);transition:all .15s;}
+.modo-btn.active{background:var(--acc);border-color:var(--acc);color:#fff;}
+#vinculoModal .modal.vn{max-width:540px; max-height:92vh; overflow-y:auto;}
+.vn-admite{font-size:11.5px; color:var(--muted); margin:9px 0 4px;}
+.vn-admite b{color:var(--text);}
+.vn-cuerpo{display:flex; gap:12px; align-items:flex-start; margin-top:6px;}
+.vn-campos{flex:1; min-width:0;}
+.vn-destino{font-size:12px; font-weight:700; color:var(--acc2); margin:4px 0 8px;}
+.vn-campos .modal-field{display:block;}
+.vn-campos .modal-field label{display:block; margin-bottom:4px;}
+.vn-campos .modal-field input, .vn-campos .modal-field select{width:100%; box-sizing:border-box; min-width:0;}
+.vn-nota{font-size:10.5px; color:var(--muted); line-height:1.45;}
+.vn-croquis{flex:none; width:230px; border:1px solid var(--border); border-radius:9px; overflow:hidden;}
+.vn-croquis svg{display:block; width:100%; height:auto;}
+@media (max-width:560px){ .vn-cuerpo{flex-direction:column;} .vn-croquis{width:100%;} }
+
 /* ══════════════════════════════════════════════════════════════════════
    DISPOSICIÓN COMÚN A LOS CINCO TEMAS
    Bloque IDÉNTICO al final de los cinco estilos.css. Fija dimensiones y

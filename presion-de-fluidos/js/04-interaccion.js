@@ -78,7 +78,7 @@ function onDown(e){
   }
   else if(tool==='presaPoli'){ tocarPresaPoligono(wx, wy, mx, my); }   // vértices de una presa (10-)
   else if(tool==='apoyo'){ if(n) abrirApoyoModal(n.id); }
-  else if(tool==='tope'){ if(n) abrirTopeModal(n.id); }
+  else if(tool==='vinculo'){ toqueVinculo(mx, my); }              // cuerda, biela o tope (14-)
   else if(tool==='peso'){
     // Tocar un tramo le asigna (o le quita) el valor de peso elegido.
     const tr = tramoEn(mx, my);
@@ -93,7 +93,10 @@ function onDown(e){
     // rápido en vacío (paneo temporal) o uno sostenido en vacío (recuadro
     // múltiple). Se resuelve en onMove/onUp.
     let hit = null;
-    if(n) hit = {tipo:'nodo', id:n.id};
+    // En modo borrar, un vínculo bajo el dedo se borra antes que lo que tenga detrás.
+    const vn = (tool==='borrar' && !n) ? vinculoEn(mx,my) : null;
+    if(vn) hit = {tipo:'vinculo', id:vn.id};
+    else if(n) hit = {tipo:'nodo', id:n.id};
     else { const t=tramoEn(mx,my); if(t) hit = {tipo:'tramo', id:t.id}; }
     if(!hit){ const pr = presaEn(mx,my); if(pr) hit = {tipo:'presa', id:pr.id}; }   // 10-
     gesto = { modo:tool, hit, x0:mx, y0:my, wx0:wx, wy0:wy, moved:false, mantenido:false };
@@ -195,6 +198,7 @@ function onUp(){
       let bN=[], bT=[], bP=[];
       if(!gesto.moved){
         if(gesto.hit){
+          if(gesto.hit.tipo==='vinculo'){ const id = gesto.hit.id; gesto = null; borrarVinculo(id); return; }
           if(gesto.hit.tipo==='nodo') bN=[gesto.hit.id];
           else if(gesto.hit.tipo==='presa') bP=[gesto.hit.id];
           else bT=[gesto.hit.id];
@@ -306,6 +310,8 @@ function onDbl(e){
   if(tool==='recto' || tool==='arco' || tool==='presaPoli') return;
   const r=cv.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const vn=vinculoEn(mx,my);
+  if(vn){ editarVinculo(vn.id); return; }                          // 14-
   const n=nodoEn(mx,my);
   if(n){ abrirEdNodo(n.id); return; }
   const t=tramoEn(mx,my);
@@ -318,7 +324,12 @@ function onDbl(e){
 function setTool(t){
   tool=t; selNodo=null; puntoPendiente=null;
   if(t !== 'presaPoli') presaPend = null;
-  ['recto','arco','apoyo','tope','peso','sel','pan'].forEach(k=>{
+  // El tipo de vínculo elegido solo vive con su herramienta; un trazo a medias, con ningún cambio.
+  if(t !== 'vinculo') tipoVinculoPendiente = null;
+  vinculoPrimerNudo = null;
+  document.querySelectorAll('#menuVinculos .menu-btn').forEach(bt=>
+    bt.classList.toggle('active', t==='vinculo' && bt.dataset.tipo===tipoVinculoPendiente));
+  ['recto','arco','apoyo','vinculo','peso','sel','pan'].forEach(k=>{
     const el=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
     if(el) el.classList.toggle('active',k===t);
   });
@@ -331,13 +342,13 @@ function setTool(t){
     recto:'Toca para colocar nudos: cada uno se une al anterior con un tramo recto. Esc corta la cadena.',
     arco:'Toca el inicio y el fin del arco (un nudo o un punto nuevo); la ventana pide el radio.',
     apoyo:'Haz clic en un nudo y elige su apoyo o su rótula interna.',
-    tope:'Haz clic en un nudo para colocar un tope liso: una fuerza incógnita, normal a la compuerta (o con la dirección que indiques).',
+    vinculo:textoHerramientaVinculo(),
     peso:'Toca los tramos a los que quieras asignar el peso elegido; tócalos de nuevo para quitárselo.',
     pan:'Arrastra el lienzo para desplazar la vista.',
     presa:'Elige en la ventana cómo dibujar la presa.',
     presaPoli:'Toca los vértices de la presa; ciérrala tocando el primero. Esc cancela.',
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
-    borrar:'Toca un nudo o un tramo para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'};
+    borrar:'Toca un nudo, un tramo o un vínculo para borrarlo · sobre zona vacía, mantén presionado y luego arrastra para encerrar y borrar varios (un arrastre rápido solo desplaza el panel).'};
   const ch=document.getElementById('canvasHint'); if(ch) ch.textContent=hints[t]||'';
   dibujar();
 }
@@ -357,6 +368,7 @@ function instantanea(){
     zonas:  {1: zonas[1].map(l=>Object.assign({}, l)),
              2: zonas[2].map(l=>Object.assign({}, l))},
     pesos:  pesos.map(p=>Object.assign({}, p)),
+    vinculos: vinculos.map(v=>Object.assign({}, v)), vinculoSeq,   // 14-
     presas: presas.map(copiaPresa), presaSeq,          // 10-
     // Las unidades van con el modelo: sus números solo valen en ellas, y
     // deshacer un cambio de unidades tiene que devolver las dos cosas juntas.
@@ -384,6 +396,8 @@ function restaurarInstantanea(txt){
             2: e.zonas[2].map(l=>Object.assign({}, l))};
   nodoSeq = e.nodoSeq; tramoSeq = e.tramoSeq;
   pesos = (e.pesos || []).map(p=>Object.assign({}, p)); pesoSeq = e.pesoSeq || 0;
+  vinculos = (e.vinculos || []).map(v=>Object.assign({}, v)); vinculoSeq = e.vinculoSeq || 0;
+  migrarTopes();                                        // una instantánea con el tope antiguo (14-)
   if(!pesos.some(p=>p.id === pesoActivo)) pesoActivo = null;
   presas = (e.presas || []).map(copiaPresa); presaSeq = e.presaSeq || 0;
   selP = selP.filter(id=>presas.some(p=>p.id===id)); presaPend = null;
@@ -473,7 +487,7 @@ function abrirEdNodo(id){
   if(ta) ta.textContent = (n.apoyo === 'fijo' ? 'Apoyo fijo' : (n.apoyo === 'movil' ? 'Apoyo móvil' : 'Sin apoyo'))
                         + (n.rotula ? ' · rótula' : '');
   const tt = document.getElementById('edNTopeTxt');
-  if(tt) tt.textContent = n.tope ? 'Con tope' : 'Sin tope';
+  if(tt) tt.textContent = vinculos.some(v=>v.tipo === 'tope' && v.a === n.id) ? 'Con tope' : 'Sin tope';
   document.getElementById('edNodoModal').classList.add('show');
   const inp = document.getElementById('edNx'); if(inp) setTimeout(()=>inp.focus(), 50);
 }

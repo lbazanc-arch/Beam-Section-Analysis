@@ -719,7 +719,8 @@ function dibujar(){
     ctx.restore();
   }
 
-  // ── Apoyos, rótulas, topes, nudos ──
+  // ── Cuerdas, bielas y topes (14-), bajo los nudos; luego apoyos, rótulas y nudos ──
+  dibujarVinculos();
   nodos.forEach(n=>{
     const [px,py]=aPantalla(n.x,n.y);
     if(VIS.apoyos){
@@ -746,27 +747,6 @@ function dibujar(){
       ctx.restore();
       // La caja reservada gira con el símbolo (antes era la de un rodillo recto).
       _reservarGirado(px, py, Math.PI/2-a, -14, 0, 14, 25);
-    }
-    if(n.tope){
-      // El tope es un bloque liso apoyado en la compuerta, del lado en que
-      // está; empuja hacia el otro lado (dirección d de la incógnita).
-      const u = {n, tipo:'T'};
-      const d = direccionIncognita(u);
-      const rt = Math.atan2(-d.y, d.x);
-      ctx.save(); ctx.translate(px,py); ctx.rotate(rt);
-      // bloque detrás del nudo (en −d), con rayado
-      ctx.fillStyle='#e9d2b3'; ctx.strokeStyle='#b45309'; ctx.lineWidth=1.6;
-      ctx.beginPath(); ctx.rect(-22,-9,15,18); ctx.fill(); ctx.stroke();
-      ctx.beginPath();
-      for(let k=-6;k<=6;k+=4){ ctx.moveTo(-22,k); ctx.lineTo(-28,k+5); }
-      ctx.strokeStyle='#b45309'; ctx.lineWidth=1.1; ctx.stroke();
-      ctx.restore();
-      // el bloque y su rayado, girados con el tope (antes era una caja suelta)
-      _reservarGirado(px, py, rt, -29, -11, -6, 11);
-      const vt = (R && !R.error) ? valorTope(n) : null;
-      if(vt === null){
-        _rotulo('tope', px - d.x*36, py + d.y*36, '#b45309', -d.x, d.y, '700 10px Inter,sans-serif', 'center', _ROT_VALOR);
-      }
     }
     }
     if(selN.indexOf(n.id)>=0){
@@ -838,30 +818,30 @@ function dibujar(){
   if(R && !R.error){
     R.inc.forEach((u,j)=>{
       const v = R.val[j];
-      if(esCero(v)) return;
+      // Los vínculos dicen su fuerza junto a su símbolo (dibujarVinculos, 14-).
+      if(u.tipo === 'V' || esCero(v)) return;
       const d = sentidoRealIncognita(u, v);
       const [px,py]=aPantalla(u.n.x,u.n.y);
-      const col = (u.tipo==='T') ? '#b45309' : '#15803d';
+      const col = '#15803d';
       // Si la flecha viene por el eje del símbolo (rodillo, pasador o bloque del
       // tope, a menos de 35° de hacia donde cuelga), nace más allá de él en vez de
       // cruzarlo; y una reacción o un tope inclinados llevan en la cola el arco de
       // su ángulo agudo con el eje más cercano (bsaArcoReaccion, el mismo dibujo
       // que armaduras y fuerzas internas; 2026-09-14).
       let hx = null, hy = null, ext = 0;
-      if(u.tipo === 'T'){ const dd = direccionIncognita(u); hx = -dd.x; hy = -dd.y; ext = 30; }
-      else if(u.n.apoyo === 'movil'){ const dd = direccionIncognita({n:u.n, tipo:'R'}); hx = -dd.x; hy = -dd.y; ext = 34; }
+      if(u.n.apoyo === 'movil'){ const dd = direccionIncognita({n:u.n, tipo:'R'}); hx = -dd.x; hy = -dd.y; ext = 34; }
       else if(u.n.apoyo === 'fijo'){ const hd = (anguloDibujoApoyoFijo(u.n) - 180)*Math.PI/180; hx = Math.cos(hd); hy = Math.sin(hd); ext = 34; }
       const porElApoyo = hx !== null && (-d.x*hx - d.y*hy) > Math.cos(35*Math.PI/180);
       const d1 = porElApoyo ? ext : 8;
-      const L = d1 + ((u.tipo==='T') ? 36 : 38);
+      const L = d1 + 38;
       // llega al nudo desde fuera, en su sentido real
       const x0 = px - d.x*L, y0 = py + d.y*L;
       _flecha(x0, y0, px - d.x*d1, py + d.y*d1, col, 2.6, 10);
-      if(u.tipo === 'R' || u.tipo === 'T'){
+      if(u.tipo === 'R'){
         bsaArcoReaccion(ctx, x0, y0, d.x, d.y, col);
         _reservarArcoReaccion(x0, y0, d.x, d.y);
       }
-      const base = (u.tipo==='T') ? 'N' : 'R';
+      const base = 'R';
       const sub = (u.tipo==='Rx') ? 'x'+u.n.nombre : (u.tipo==='Ry') ? 'y'+u.n.nombre : u.n.nombre;
       const txt = base + '_' + sub + ' = ' + dec(Math.abs(v),'f') + ' ' + unitFor;
       _rotulo(txt.replace('_',''), x0 - d.x*6, y0 + d.y*6, col, -d.x, d.y, '700 10.5px Inter,sans-serif', 'center', _ROT_VALOR);
@@ -1136,10 +1116,4 @@ function dibujarResultanteUnica(ru){
     _rotulo('s = ' + dec(ru.s, 'len') + ' ' + unitLen, (D1[0] + D2[0])/2 + nx*12, (D1[1] + D2[1])/2 + ny*12, COL_RES, nx, ny,
             '700 10px Inter,sans-serif', 'center', _ROT_VALOR);
   }
-}
-function valorTope(n){
-  if(!R || R.error) return null;
-  let out = null;
-  R.inc.forEach((u,j)=>{ if(u.tipo==='T' && u.n.id===n.id) out = R.val[j]; });
-  return out;
 }

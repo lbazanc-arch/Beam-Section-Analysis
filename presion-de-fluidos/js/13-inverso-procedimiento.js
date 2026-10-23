@@ -268,7 +268,7 @@ function _procCompuertaInv(res, s){
   const c = res.c, z = res.z, ref = res.rg.ref, hs = s.h - ref;
   const r = analizar();
   if(r.error) return null;
-  const j = r.inc.findIndex(u=>u.n.id === c.nid && u.tipo === c.tinc);
+  const j = indiceIncInverso(r, c);
   if(j < 0) return null;
   const u = r.inc[j];
   const ys = nodos.map(n=>n.y).concat(capasOrdenadas(z).slice(1).map(q=>q.niv));
@@ -516,13 +516,14 @@ function figuraInversoDatos(pr){
   });
   if(pr.r){
     pr.r.inc.forEach((u, jj)=>{
+      if(u.n2) return;                     // un vínculo entre dos nudos es interno
       const esObj = (u === pr.inc);
       const val = esObj ? (pr.X || 1) : pr.r.val[jj];
       const dir = sentidoRealIncognita(u, val);
       const nv = normalCompuertaEnNudo(u.n, 2);
       const paralela = nv && Math.abs(dir.x*nv.x + dir.y*nv.y) < 0.3;
       const nulo = Math.abs(val) < 1e-9*Math.max(1, pr.r.residuo.ref);
-      d.flechas.push({P:{x:u.n.x, y:u.n.y}, dir, nom:simbIncognita(u), tipo:u.tipo === 'T' ? 'tope' : 'reac',
+      d.flechas.push({P:{x:u.n.x, y:u.n.y}, dir, nom:simbIncognita(u), tipo:u.tipo === 'V' ? 'tope' : 'reac',
                       trazos:(esObj && Math.abs(pr.X) < 1e-12) || (!esObj && nulo), inc:u, objetivo:esObj,
                       lado:paralela ? nv : null});
     });
@@ -683,7 +684,7 @@ function procesoInversoHtml(pr){
     let t;
     if(pr.c.tipo === 'vuelco') t = 'd = ' + dec(e.q,'len') + '\\ \\text{' + uL + '} = ' + (e.derecha ? 'B' : '0');
     else if(pr.c.tipo === 'levanta') t = 'N = ' + dec(e.q,'f') + '\\ \\text{' + uF + '}';
-    else t = pr.simb + ' = ' + dec(pr.c.tipo === 'reac' && pr.c.tinc !== 'T' ? e.q : e.v,'f') + '\\ \\text{' + uF + '}';
+    else t = pr.simb + ' = ' + dec(pr.c.tipo === 'reac' && pr.c.tinc !== 'T' && pr.c.tinc !== 'C' ? e.q : e.raw,'f') + '\\ \\text{' + uF + '}';
     h += '<div class="inv-paso">④ Comprobación con h = ' + dec(pr.raiz.h,'len') + ' ' + uL + '</div><div class="eq-row"><div class="eq-body">' + kx(t + '\\ \\checkmark') + '</div></div>';
   }
   h += '</div>';
@@ -755,7 +756,7 @@ function latexInverso(ctx){
   if(e){
     if(c.tipo === 'vuelco') t += 'la posici\\\'on de $N$ sale $d = ' + dec(e.q,'len') + '$' + UL + ', en la arista.\n';
     else if(c.tipo === 'levanta') t += 'la normal sale $N = ' + dec(e.q,'f') + '$\\,' + uF + '.\n';
-    else t += 'all\\\'i sale $' + pr.simb + ' = ' + dec(c.tipo === 'reac' && c.tinc !== 'T' ? e.q : e.v,'f') + '$\\,' + uF + '.\n';
+    else t += 'all\\\'i sale $' + pr.simb + ' = ' + dec(c.tipo === 'reac' && c.tinc !== 'T' && c.tinc !== 'C' ? e.q : e.raw,'f') + '$\\,' + uF + '.\n';
   }
   return t;
 }

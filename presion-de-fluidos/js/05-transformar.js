@@ -113,10 +113,12 @@ function applyTransformar(){
       if(!n) return;
       if(n.apoyo === 'movil') n.apAng     = norm((n.apAng === undefined ? 90 : n.apAng) + t.ang);
       if(n.apoyo === 'fijo')  n.apAngFijo = norm(anguloDibujoApoyoFijo(n) + t.ang);
-      if(n.tope && n.tope.modo === 'angulo'){
-        const a0 = +n.tope.ang;
-        n.tope.ang = norm((isFinite(a0) ? a0 : 0) + t.ang);
-      }
+      // Cuerdas, bielas y topes anclados con dirección dada (14-): el anclaje gira.
+      vinculos.forEach(v=>{
+        if(v.a !== n.id || !(v.b === null || v.b === undefined) || v.modo === 'normal') return;
+        const a0 = +v.ang;
+        v.ang = norm((isFinite(a0) ? a0 : 0) + t.ang);
+      });
     });
     corregirLadoDeTopes(topesNormales, t.ang);
   }
@@ -164,16 +166,17 @@ function normalesDeTopesAntesDeGirar(t){
   };
   const lista = [];
   nodos.forEach(n=>{
-    const esTope  = !!n.tope && n.tope.modo !== 'angulo';
+    // Vínculos anclados normales a la compuerta (14-), con su lado.
+    const vNorm = vinculos.filter(v=>v.a === n.id && (v.b === null || v.b === undefined) && v.modo === 'normal');
     const esMovil = n.apoyo === 'movil' && n.apModo === 'normal';
-    if((!esTope && !esMovil) || !giraConLaSeleccion(n.id)) return;
+    if((!vNorm.length && !esMovil) || !giraConLaSeleccion(n.id)) return;
     const suyos = tramos.filter(tr=>tr.a === n.id || tr.b === n.id);
     if(!suyos.length) return;
     if(!suyos.every(tr=>giraConLaSeleccion(tr.a === n.id ? tr.b : tr.a))) return;
-    if(esTope){
-      const nv = normalCompuertaEnNudo(n, _ladoGiro(n, 'tope'));
-      if(nv) lista.push({n, nv, cual:'tope'});
-    }
+    vNorm.forEach(v=>{
+      const nv = normalCompuertaEnNudo(n, v.lado === 2 ? 2 : 1);
+      if(nv) lista.push({n, nv, cual:'vinculo', v});
+    });
     if(esMovil){
       const nv = normalCompuertaEnNudo(n, _ladoGiro(n, 'movil'));
       if(nv) lista.push({n, nv, cual:'movil'});
@@ -183,17 +186,17 @@ function normalesDeTopesAntesDeGirar(t){
 }
 // El lado vigente: el del tope (1 si falta) o la cara del móvil (2 si falta).
 function _ladoGiro(n, cual){
-  return (cual === 'movil') ? (n.apLado === 1 ? 1 : 2) : (n.tope.lado || 1);
+  return (cual === 'movil') ? (n.apLado === 1 ? 1 : 2) : 1;
 }
 function corregirLadoDeTopes(lista, grados){
   const a = grados*Math.PI/180, cs = Math.cos(a), sn = Math.sin(a);
-  lista.forEach(({n, nv, cual})=>{
+  lista.forEach(({n, nv, cual, v})=>{
     const gx = nv.x*cs - nv.y*sn, gy = nv.x*sn + nv.y*cs;     // la normal de antes, girada
-    const lado = _ladoGiro(n, cual);
+    const lado = (cual === 'vinculo') ? (v.lado === 2 ? 2 : 1) : _ladoGiro(n, cual);
     const ahora = normalCompuertaEnNudo(n, lado);
     if(!ahora || gx*ahora.x + gy*ahora.y >= 0) return;
     const otro = (lado === 2) ? 1 : 2;
     if(cual === 'movil') n.apLado = otro;
-    else n.tope.lado = otro;
+    else v.lado = otro;
   });
 }
