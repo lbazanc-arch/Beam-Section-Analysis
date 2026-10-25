@@ -1,0 +1,916 @@
+function vdGiro(campo, valor){
+  const c = cargas.find(z=>z.id === _vdCarga);
+  if(!c) return;
+  let v = parseFloat(valor);
+  if(!isFinite(v)) return;
+  // La rueda avanza de paso en paso desde su ancla (2026-10-18): 45, 45.05,
+  // 45.10… sin el ruido de coma flotante del control.
+  const lim = _vdLim[c.id], paso = (campo === 'mag' ? lim.paso : lim.paso2) || 0;
+  const ancla = (_vdAncla && _vdAncla[campo] !== undefined) ? _vdAncla[campo] : v;
+  if(paso > 0) v = +(ancla + Math.round((v - ancla)/paso)*paso).toFixed(10);
+  if(campo === 'mag') c.mag = v; else c.mag2 = v;
+  const nn = document.getElementById('vdN_' + campo);
+  if(nn) nn.value = v.toFixed(Math.max(_vdDecPaso(paso), 2));
+  // Un giro rápido dispara decenas de eventos: el recálculo se agrupa por
+  // frame para que la ventana siga fluida también en móvil.
+  if(_vdRaf) return;
+  _vdRaf = requestAnimationFrame(()=>{ _vdRaf = 0; vdRender(); });
+}
+// Botones − y +: un paso, sin salirse del rango.
+function vdPaso(campo, signo){
+  const c = cargas.find(z=>z.id === _vdCarga);
+  if(!c) return;
+  const lim = _vdLim[c.id];
+  const paso = (campo === 'mag' ? lim.paso : lim.paso2) || 0;
+  const mn = campo === 'mag' ? lim.min : lim.min2, mx = campo === 'mag' ? lim.max : lim.max2;
+  const actual = campo === 'mag' ? c.mag : (c.mag2 || 0);
+  const v = +Math.min(mx, Math.max(mn, actual + signo*paso)).toFixed(10);
+  const rg = document.getElementById('vdR_' + campo);
+  if(rg) rg.value = v;
+  vdGiro(campo, v);
+}
+// El paso lo escribe el alumno; la rejilla se apoya en el valor vigente.
+function vdCambiarPaso(campo, valor){
+  const c = cargas.find(z=>z.id === _vdCarga);
+  const p = parseFloat(valor);
+  if(!c) return;
+  if(!isFinite(p) || p <= 0){ aviso('El paso tiene que ser un número mayor que cero.', 'error'); vdPintarRuedas(); return; }
+  _vdLim[c.id][campo === 'mag' ? 'paso' : 'paso2'] = p;
+  vdPintarRuedas();
+}
+
+function vdValorExacto(campo, valor){
+  const c = cargas.find(z=>z.id === _vdCarga);
+  const v = parseFloat(valor);
+  if(!c || !isFinite(v)) return;
+  const lim = _vdLim[c.id];
+  // un valor tecleado fuera del rango ensancha el propio rango: el usuario manda
+  if(campo === 'mag'){
+    if(v < lim.min) lim.min = v;
+    if(v > lim.max) lim.max = v;
+    c.mag = v;
+  } else {
+    if(v < lim.min2) lim.min2 = v;
+    if(v > lim.max2) lim.max2 = v;
+    c.mag2 = v;
+  }
+  vdPintarRuedas();
+  vdRender();
+}
+
+function vdLimite(campo, extremo, valor){
+  const c = cargas.find(z=>z.id === _vdCarga);
+  const v = parseFloat(valor);
+  if(!c || !isFinite(v)) return;
+  const lim = _vdLim[c.id];
+  const kMin = campo === 'mag' ? 'min' : 'min2';
+  const kMax = campo === 'mag' ? 'max' : 'max2';
+  if(extremo === 'min') lim[kMin] = v; else lim[kMax] = v;
+  if(lim[kMin] > lim[kMax]){ const t = lim[kMin]; lim[kMin] = lim[kMax]; lim[kMax] = t; }
+  // el valor vigente se recorta al nuevo rango
+  const actual = campo === 'mag' ? c.mag : (c.mag2 || 0);
+  const rec = Math.min(lim[kMax], Math.max(lim[kMin], actual));
+  if(campo === 'mag') c.mag = rec; else c.mag2 = rec;
+  vdPintarRuedas();
+  vdRender();
+}
+
+// ── Extremos exactos de una serie en un grupo ──
+// Candidatos: extremos de cada subtramo y raíces de la derivada del
+// polinomio; con ellos el máximo y el mínimo son exactos, no muestreados.
+function extremosSerie(gg, clave){
+  let mx = null, mn = null;
+  gg.tramos.forEach(t=>{
+    const off = t.s0 - gg.s0;
+    t.subs.forEach(su=>{
+      // En un arco las leyes no son polinomios: `extremosSub` (05-) busca los
+      // cambios de signo de la derivada.
+      const cand = [su.sa, su.sb].concat(extremosSub(su, clave));
+      cand.forEach(v=>{
+        const val = valorSub(su, clave, v), X = off + v;
+        if(!mx || val > mx.v + 1e-12) mx = {v:val, x:X};
+        if(!mn || val < mn.v - 1e-12) mn = {v:val, x:X};
+      });
+    });
+  });
+  return {mx, mn};
+}
+
+// Recuadro de máximos y mínimos, uno por diagrama, con la posición en la
+// abscisa del grupo (x en los rectos, r en los inclinados).
+function htmlExtremosGrupo(r, gg, claves){
+  const series = [
+    {k:'N', col:'#0e9f6e', nom:'DFN', tU:()=>unitFor},
+    {k:'V', col:'#d94f5c', nom:'DFC', tU:()=>unitFor},
+    {k:'M', col:'#8b5cf6', nom:'DMF', tU:()=>uMom()}
+  ].filter(se=>!claves || claves.indexOf(se.k) >= 0);
+  const sb = gg.simbolo;
+  // En un arco la posición se dice por su ángulo θ, en grados.
+  const pos = x => gg.arco ? dec(x/gg.arco.R*180/Math.PI, 'ang') + '°' : dec(x, 'len') + ' ' + unitLen;
+  return '<div class="vd-stats">' + series.map(se=>{
+    const e = extremosSerie(gg, se.k);
+    if(!e.mx) return '';
+    const dt = se.k === 'M' ? 'mom' : 'f';
+    return '<div class="vd-stat" style="border-left-color:' + se.col + '">'
+      + '<div class="vd-stat-t" style="color:' + se.col + '">' + se.nom + '</div>'
+      + '<div>máx = <b>' + dec(e.mx.v, dt) + '</b> ' + se.tU()
+      + ' en <i>' + sb + '</i> = ' + pos(e.mx.x) + '</div>'
+      + '<div>mín = <b>' + dec(e.mn.v, dt) + '</b> ' + se.tU()
+      + ' en <i>' + sb + '</i> = ' + pos(e.mn.x) + '</div>'
+      + '</div>';
+  }).join('') + '</div>';
+}
+
+// ── DCL global de la estructura ──
+// El cuerpo libre completo: barras, nudos, cargas con sus valores,
+// reacciones en verde y cadena de cotas por cada tramo de dirección.
+// Arco del ángulo de una reacción inclinada en el SVG del DCL global: entre el
+// eje más cercano (trazo punteado) y la flecha, con el valor agudo
+// (bsaAnguloAgudoEje: el mismo número que el lienzo y el PDF). (x0,y0) es la
+// cola en pantalla; (ex,ey) el sentido de la flecha en el mundo (y arriba).
+function _svgArcoReaccion(x0, y0, ex, ey, col){
+  const ag = bsaAnguloAgudoEje(ex, ey);
+  if(ag.grados < 4) return '';
+  const rx = ag.desdeV ? 0 : (ex >= 0 ? 1 : -1), ry = ag.desdeV ? (ey >= 0 ? 1 : -1) : 0;
+  const a0 = Math.atan2(-ry, rx), a1 = Math.atan2(-ey, ex);
+  let d = a1 - a0; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI;
+  const r = 14, F = v => v.toFixed(1);
+  const sx = Math.cos(a1), sy = Math.sin(a1), tx = rx, ty = -ry;
+  let qx = -ty, qy = tx; if(qx*sx + qy*sy > 0){ qx = -qx; qy = -qy; }
+  let s = '<line x1="'+F(x0)+'" y1="'+F(y0)+'" x2="'+F(x0+22*tx)+'" y2="'+F(y0+22*ty)+'" stroke="'+col+'" stroke-width="1" stroke-dasharray="3,3"/>';
+  s += '<path d="M '+F(x0+r*Math.cos(a0))+' '+F(y0+r*Math.sin(a0))+' A '+r+' '+r+' 0 0 '+(d > 0 ? 1 : 0)+' '+F(x0+r*Math.cos(a1))+' '+F(y0+r*Math.sin(a1))+'" fill="none" stroke="'+col+'" stroke-width="1.2"/>';
+  s += '<text x="'+F(x0+22*tx+12*qx)+'" y="'+F(y0+22*ty+12*qy+3)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'+col+'" text-anchor="'+(sx < 0 ? 'start' : 'end')+'">'+dec(ag.grados,'ang')+'°</text>';
+  return s;
+}
+function svgDCLGlobal(r){
+  const F1 = n => n.toFixed(1);
+  // ámbito del dibujo
+  let minx=Infinity, maxx=-Infinity, miny=Infinity, maxy=-Infinity;
+  nodos.forEach(n=>{ minx=Math.min(minx,n.x); maxx=Math.max(maxx,n.x);
+                     miny=Math.min(miny,n.y); maxy=Math.max(maxy,n.y); });
+  if(!isFinite(minx)) return '';
+  const span = Math.max(maxx-minx, 1e-6), spanY = Math.max(maxy-miny, 0);
+  const W2 = 660, MX = 70, MTOP = 84, MBOT = 96;
+  let kk = (W2 - 2*MX)/span;
+  const H2 = Math.max(210, Math.min(340, MTOP + MBOT + spanY*kk));
+  if(spanY > 1e-9) kk = Math.min(kk, (H2 - MTOP - MBOT)/spanY);
+  const cx0 = (W2 - 2*MX - span*kk)/2;
+  const SX = x => MX + cx0 + (x - minx)*kk;
+  const SY = y => H2 - MBOT - (y - miny)*kk;
+
+  const linea = (x1,y1,x2,y2,col,w,dash)=>'<line x1="'+F1(x1)+'" y1="'+F1(y1)
+    +'" x2="'+F1(x2)+'" y2="'+F1(y2)+'" stroke="'+col+'" stroke-width="'+w+'"'
+    +(dash?' stroke-dasharray="'+dash+'"':'')+' stroke-linecap="round"/>';
+  const flecha = (x1,y1,x2,y2,col,w)=>{
+    const dx=x2-x1, dy=y2-y1, L3=Math.hypot(dx,dy)||1, ex=dx/L3, ey=dy/L3;
+    const hx=x2-ex*9, hy=y2-ey*9, px=-ey, py=ex;
+    return linea(x1,y1,hx,hy,col,w)
+      +'<path d="M '+F1(x2)+' '+F1(y2)+' L '+F1(hx+px*4)+' '+F1(hy+py*4)
+      +' L '+F1(hx-px*4)+' '+F1(hy-py*4)+' Z" fill="'+col+'"/>';
+  };
+  const texto = (x,y,txt,col,sz,peso,anc,it)=>'<text x="'+F1(x)+'" y="'+F1(y)
+    +'" font-family="Inter,sans-serif" font-size="'+(sz||10)+'" font-weight="'+(peso||600)
+    +'" fill="'+col+'"'+(anc?' text-anchor="'+anc+'"':'')+(it?' font-style="italic"':'')+'>'+txt+'</text>';
+  const arcoM = (cx,cy,rr,col,horario)=>{
+    const a0=-35*Math.PI/180, a1=215*Math.PI/180;
+    const x1=cx+rr*Math.cos(a0), y1=cy-rr*Math.sin(a0);
+    const x2=cx+rr*Math.cos(a1), y2=cy-rr*Math.sin(a1);
+    const sweep = horario ? 1 : 0;
+    const fin = horario ? {x:x1,y:y1,tx:-Math.sin(a0),ty:-Math.cos(a0)}
+                        : {x:x2,y:y2,tx:-Math.sin(a1),ty:-Math.cos(a1)};
+    const ini = horario ? {x:x2,y:y2} : {x:x1,y:y1};
+    let p='<path d="M '+F1(ini.x)+' '+F1(ini.y)+' A '+rr+' '+rr+' 0 1 '+sweep+' '
+      +F1(fin.x)+' '+F1(fin.y)+'" fill="none" stroke="'+col+'" stroke-width="2"/>';
+    const s2 = horario ? -1 : 1;
+    p += '<path d="M '+F1(fin.x+s2*fin.tx*8)+' '+F1(fin.y-s2*fin.ty*8)
+      +' L '+F1(fin.x+3.5*fin.ty*s2)+' '+F1(fin.y+3.5*fin.tx*s2)
+      +' L '+F1(fin.x-3.5*fin.ty*s2)+' '+F1(fin.y-3.5*fin.tx*s2)+' Z" fill="'+col+'"/>';
+    return p;
+  };
+
+  let sv = '<svg viewBox="0 0 '+W2+' '+H2+'" xmlns="http://www.w3.org/2000/svg" '
+         + 'style="width:100%;height:auto;display:block">';
+  sv += '<rect width="'+W2+'" height="'+H2+'" fill="#fff"/>';
+
+  // ── cargas distribuidas, detrás de la barra
+  const distr = [];
+  cargas.filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
+    const z = trozoCargado(c);
+    if(!z || z.len <= 1e-12) return;
+    const g = z.g;
+    const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
+    const dd = dirCarga(c, g);   // sentido de la carga positiva, en el mundo
+    distr.push({a:{x:g.a.x+g.ux*z.s1, y:g.a.y+g.uy*z.s1},
+                b:{x:g.a.x+g.ux*z.s2, y:g.a.y+g.uy*z.s2},
+                wa:w1, wb:w2, nwx:-dd.x, nwy:-dd.y, esT:c.tipo==='T'});
+  });
+  const wmax = Math.max(1e-9, ...distr.map(d=>Math.max(Math.abs(d.wa),Math.abs(d.wb))));
+  distr.forEach(d=>{
+    const A={x:SX(d.a.x),y:SY(d.a.y)}, B={x:SX(d.b.x),y:SY(d.b.y)};
+    const ox=d.nwx, oy=-d.nwy;
+    // altura CON SIGNO: la carga negativa cambia de lado y de sentido
+    const ha=26*d.wa/wmax, hb=26*d.wb/wmax;
+    const A2={x:A.x+ox*ha, y:A.y+oy*ha}, B2={x:B.x+ox*hb, y:B.y+oy*hb};
+    sv += '<path d="M '+F1(A.x)+' '+F1(A.y)+' L '+F1(B.x)+' '+F1(B.y)
+      +' L '+F1(B2.x)+' '+F1(B2.y)+' L '+F1(A2.x)+' '+F1(A2.y)
+      +' Z" fill="#b8860b" fill-opacity=".14"/>';
+    sv += linea(A2.x,A2.y,B2.x,B2.y,'#b8860b',1.8);
+    const nf = 4;
+    for(let q=0;q<=nf;q++){
+      const f=q/nf;
+      const bx=A.x+(B.x-A.x)*f, by=A.y+(B.y-A.y)*f;
+      const hh=ha+(hb-ha)*f, sg=Math.sign(hh)||1;
+      if(Math.abs(hh)>4) sv += flecha(bx+ox*hh, by+oy*hh, bx+ox*3*sg, by+oy*3*sg, '#b8860b', 1.6);
+    }
+    const va=Math.sign(d.wa)||1, vb=Math.sign(d.wb)||1;
+    if(Math.abs(d.wa) > 5e-9)
+      sv += texto(A2.x, A2.y + (oy*va<0 ? -5 : 13), dec(Math.abs(d.wa),'f'), '#8a6508', 9.5, 700, 'middle');
+    if((d.esT || Math.abs(d.wb-d.wa) > 1e-9) && Math.abs(d.wb) > 5e-9)
+      sv += texto(B2.x, B2.y + (oy*vb<0 ? -5 : 13), dec(Math.abs(d.wb),'f'), '#8a6508', 9.5, 700, 'middle');
+  });
+
+  // ── barras
+  tramos.forEach(t=>{
+    const g = geoTramo(t); if(!g) return;
+    sv += linea(SX(g.a.x), SY(g.a.y), SX(g.b.x), SY(g.b.y), '#26415e', 4.6);
+  });
+  // Una cuerda o biela entre dos nudos es parte del cuerpo: se dibuja como barra,
+  // con su fuerza; las ancladas salen abajo como reacción, en su dirección (22-).
+  r.inc.forEach((u,j)=>{
+    if(u.tipo !== 'V' || !u.n2) return;
+    const T = VIN_TIPOS[u.vin.tipo], v = r.val[j], tr = trabajoVinculo(u, v);
+    const x1 = SX(u.n.x), y1 = SY(u.n.y), x2 = SX(u.n2.x), y2 = SY(u.n2.y);
+    sv += linea(x1, y1, x2, y2, T.col, u.vin.tipo === 'cuerda' ? 2 : 3.2);
+    const L = Math.hypot(x2 - x1, y2 - y1) || 1, nx = -(y2 - y1)/L, ny = (x2 - x1)/L;
+    sv += texto((x1 + x2)/2 + nx*12, (y1 + y2)/2 + ny*12 + 3, nombreVinculoPlano(u.vin) + ' = ' + dec(Math.abs(v),'f')
+      + ' (' + tr.txt + ')', tr.ok ? T.col : '#c0392b', 10, 800, 'middle');
+  });
+
+  // ── nudos con su nombre (la rótula se distingue con círculo abierto)
+  nodos.forEach(n=>{
+    sv += '<circle cx="'+F1(SX(n.x))+'" cy="'+F1(SY(n.y))
+      +'" r="4.4" fill="'+(n.rotula?'#fff':'#26415e')+'" stroke="#26415e" stroke-width="2"/>';
+    sv += texto(SX(n.x)-9, SY(n.y)+17, n.nombre, '#1b1f24', 11, 800);
+  });
+
+  // ── cargas puntuales y momentos aplicados (del modelo, no del resultado:
+  //    así la ventana los redibuja con el valor vigente de la rueda)
+  (r.acc || []).forEach(a=>{
+    if(a.carga && (a.carga.tipo==='U' || a.carga.tipo==='T')) return;
+    const X = SX(a.x), Y = SY(a.y);
+    const Fm = Math.hypot(a.fx, a.fy);
+    if(Fm > 1e-12){
+      const ex=a.fx/Fm, ey=-a.fy/Fm;
+      sv += flecha(X-ex*34, Y-ey*34, X-ex*4, Y-ey*4, '#c62828', 2.2);
+      // con la flecha casi vertical el rótulo se corre a un lado del asta,
+      // que es donde suelen estar los valores de las repartidas
+      const dxr = Math.abs(ex) < 0.3 ? 15 : 0;
+      sv += texto(X-ex*46+dxr, Y-ey*46+3, dec(Fm,'f'), '#c62828', 10, 800, 'middle');
+    }
+    if(Math.abs(a.m) > 1e-12){
+      sv += arcoM(X, Y, 15, '#8b5cf6', a.m < 0);
+      sv += texto(X+24, Y-18, dec(Math.abs(a.m),'mom'), '#8b5cf6', 10, 800);
+    }
+  });
+
+  // ── reacciones en verde con sus valores
+  r.inc.forEach((u,j)=>{
+    const v = r.val[j];
+    if(Math.abs(v) < 5e-9) return;   // una reacción nula solo añade ruido
+    if(u.tipo === 'V' && u.n2) return;   // interna: ya va como barra
+    const X = SX(u.n.x), Y = SY(u.n.y);
+    if(u.tipo === 'M'){
+      sv += arcoM(X, Y, 19, '#1a7f37', v < 0);
+      sv += texto(X+27, Y+24, dec(Math.abs(v),'mom'), '#1a7f37', 10, 800);
+      return;
+    }
+    let dx, dy;
+    if(u.ang !== undefined){ dx = Math.cos(u.ang); dy = Math.sin(u.ang); }
+    else if(u.tipo === 'Rx'){ dx = 1; dy = 0; }
+    else { dx = 0; dy = 1; }
+    // sentido real: la flecha apunta hacia donde empuja la reacción
+    const s = v >= 0 ? 1 : -1;
+    const ex = dx*s, ey = -dy*s;
+    sv += flecha(X-ex*36, Y-ey*36, X-ex*5, Y-ey*5, '#1a7f37', 2.4);
+    // El rodillo inclinado lleva el arco de su ángulo agudo en la cola, como en el
+    // lienzo y en el PDF (2026-09-14).
+    if(u.ang !== undefined) sv += _svgArcoReaccion(X-ex*36, Y-ey*36, dx*s, dy*s, '#1a7f37');
+    sv += texto(X-ex*48, Y-ey*48+3, dec(Math.abs(v),'f'), '#1a7f37', 10, 800, 'middle');
+  });
+
+  // ── cadena de cotas por cada grupo de dirección, del lado libre
+  const gs = gruposDireccion(r);
+  gs.forEach(gg=>{
+    const ux = Math.cos(gg.ang*Math.PI/180), uy = Math.sin(gg.ang*Math.PI/180);
+    // normal en pantalla: hacia abajo/afuera del cuerpo
+    const nx = -uy, ny = ux;                 // normal en mundo
+    const pnx = nx, pny = -ny;               // normal en pantalla (y invertida)
+    // Los bloques de carga repartida se dibujan del lado +n: la cadena de
+    // cotas va al lado contrario para no montarse sobre ellos.
+    const lado = -1;
+    // Separación holgada: los rótulos de las reacciones quedan a 48 px del
+    // nudo y la cadena no debe pisarlos.
+    const SEP = 66;
+    const ptos = gg.tramos.map(t=>t.desde).concat([gg.hasta]);
+    const q = p => ({x:SX(p.x)+pnx*lado*SEP, y:SY(p.y)+pny*lado*SEP});
+    const q0 = q(ptos[0]), q1 = q(ptos[ptos.length-1]);
+    sv += linea(q0.x, q0.y, q1.x, q1.y, '#6b7684', 1.2);
+    ptos.forEach(p=>{
+      const b0 = {x:SX(p.x)+pnx*lado*8, y:SY(p.y)+pny*lado*8};
+      const b1 = q(p);
+      sv += linea(b0.x, b0.y, b1.x, b1.y, '#9aa4b1', .9, '3 3');   // extensión
+      sv += linea(b1.x-3, b1.y+3, b1.x+3, b1.y-3, '#6b7684', 1.4); // tick
+    });
+    gg.tramos.forEach((t,i)=>{
+      const a2 = q(ptos[i]), b2 = q(ptos[i+1]);
+      sv += texto((a2.x+b2.x)/2, (a2.y+b2.y)/2 + (lado>0?13:-6),
+                  dec(t.L,'len') + ' ' + unitLen, '#4a5460', 9.5, 700, 'middle');
+    });
+  });
+
+  sv += '</svg>';
+  return sv;
+}
+
+// ── Recalcula y repinta toda la ventana ──
+function vdRender(){
+  const dclW = document.getElementById('vdDCL');
+  const diagW = document.getElementById('vdDiag');
+  if(!dclW || !diagW) return;
+  const r = analizarMarco();
+  if(r.error){
+    diagW.innerHTML = '<div class="verdict bad"><div class="verdict-t">Estructura no resoluble'
+      + '</div>Con estos valores el sistema no tiene solución única.</div>';
+    return;
+  }
+  r.internas = fuerzasInternasMarco(r);
+  const gs = gruposDireccion(r);
+  if(_vdGrupo !== 'todo' && _vdGrupo >= gs.length) _vdGrupo = 0;
+  dclW.innerHTML = svgDCLGlobal(r);
+  // Solo los diagramas elegidos con DFN, DFC y DMF (2026-10-18), del tramo o de
+  // toda la estructura.
+  const claves = ['N','V','M'].filter(k=>!_vdSeries || _vdSeries[k]);
+  if(!claves.length){
+    diagW.innerHTML = '<div class="hint-sm" style="padding:12px;text-align:center">Elige al menos un diagrama: DFN, DFC o DMF.</div>';
+    return;
+  }
+  if(_vdGrupo === 'todo'){
+    diagW.innerHTML = htmlDiagramasEstructura(r, claves);
+    return;
+  }
+  const g = gs[_vdGrupo];
+  diagW.innerHTML = (g.inclinado ? htmlDiagramasOrientados(r, g, claves) : '<div class="proc-block">' + svgDiagramas(r, g, claves) + '</div>')
+                  + htmlExtremosGrupo(r, g, claves);
+}
+
+
+// ── Grupos por cambio de dirección ──
+// Los tramos consecutivos que siguen la MISMA recta forman un solo grupo:
+// para el alumno "ABC recto" es un único elemento aunque internamente sean
+// dos tramos. Cada quiebre abre un grupo nuevo, y cada grupo tiene sus tres
+// diagramas con su propia abscisa medida desde el punto de quiebre.
+const TOL_ANG_GRUPO = 0.5;   // grados; por debajo se considera la misma recta
+
+// `soloSol` (2026-10-18): solo los tramos elegidos para la solución (20-). Dos
+// elegidos seguidos y en la misma recta siguen formando un grupo; uno que no se
+// eligió corta la recta en dos.
+function gruposDireccion(r, soloSol){
+  const g = [];
+  const lista = (soloSol && typeof tramoEnSolucion === 'function')
+    ? r.internas.filter(t=>tramoEnSolucion(t)) : r.internas;
+  lista.forEach(t=>{
+    const ult = g[g.length-1];
+    // Diferencia de ángulos normalizada a (-180, 180]. Dos tramos siguen la
+    // misma recta si esa diferencia es casi nula.
+    const d = ult ? ((t.ang - ult.ang + 540) % 360) - 180 : 999;
+    // Solo dentro de la misma cadena (01-): una rama empieza siempre un grupo.
+    // Un tramo CURVO es siempre un grupo propio (23-).
+    const mismaRecta = ult && Math.abs(d) < TOL_ANG_GRUPO && !t.arco && !ult.arco
+                    && (ult.cadena || 0) === (t.cadena || 0) && ult.hasta === t.desde;
+    if(mismaRecta){
+      ult.tramos.push(t); ult.L += t.L; ult.hasta = t.hasta;
+    } else {
+      g.push({tramos:[t], ang:t.ang, L:t.L, s0:t.s0, desde:t.desde, hasta:t.hasta,
+              cadena:t.cadena || 0, arco:t.arco || null});
+    }
+  });
+  g.forEach((gr,i)=>{
+    gr.idx = i;
+    // El grupo anterior DE SU CADENA (null en el primero): es el que le entrega
+    // N, V y M por el nudo de quiebre. Con una sola cadena, el de índice i − 1.
+    // Tiene que acabar donde empieza este: con solo algunos tramos elegidos, el
+    // anterior de la lista puede no ser el contiguo.
+    const prev = g[i-1];
+    gr.anterior = (prev && prev.cadena === gr.cadena && prev.hasta === gr.desde) ? prev : null;
+    // `primero`: arranca en el extremo de su cadena, así que sus acciones salen de
+    // cero. Con toda la estructura equivale a no tener anterior; si no se eligió
+    // el tramo previo, el grupo no es el primero y tampoco tiene anterior: N, V y
+    // M le llegan por su nudo de arranque (`bloqueArranque`, 21-).
+    gr.primero = (gr.tramos[0].idx === undefined) ? !gr.anterior : gr.tramos[0].idx === 0;
+    gr.inclinado = Math.abs(gr.ang) > TOL_ANG_GRUPO;
+    // Un eje a 90°, 180° o 270° no es «inclinado» para el alumno: es vertical u
+    // horizontal y no lleva ángulo θ ni proyecciones con senos y cosenos
+    // (2026-10-05, observación del profesor). `oblicuo` es el que sí los lleva.
+    const resto = Math.abs(gr.ang) % 90;
+    gr.oblicuo = resto > TOL_ANG_GRUPO && resto < 90 - TOL_ANG_GRUPO;
+    gr.vertical = !gr.oblicuo && Math.abs(Math.abs(gr.ang) - 90) < TOL_ANG_GRUPO;
+    // En un tramo inclinado la abscisa no es x ni y, sino la resultante de
+    // ambos catetos: se llama r para dejarlo claro. En un arco, el ángulo θ.
+    gr.simbolo = gr.arco ? 'θ' : (gr.inclinado ? 'r' : 'x');
+    if(gr.arco){ gr.inclinado = true; gr.oblicuo = false; gr.vertical = false; }
+    gr.nombre = gr.desde.nombre + gr.hasta.nombre;
+    gr.recorrido = gr.tramos.map(t=>t.desde.nombre).join('') + gr.hasta.nombre;
+  });
+  return g;
+}
+
+// ── Relaciones w–V–M visibles (propuesta 1, 2026-09-08) ──
+// Cada diagrama registra su escala para que, al pasar el ratón, se lea el
+// valor y la pendiente en ese punto: la pendiente de V es −w y la de M es V.
+let _fiGrupos = {}, _fiSeq = 0;
+function polyDerVal(c, s){ let v = 0; for(let i=c.length-1;i>=1;i--) v = v*s + i*c[i]; return v; }
+function fiHoverSalir(gid){ const g = document.getElementById('fiHover-' + gid); if(g) g.style.display = 'none'; }
+function fiHoverMover(ev, gid){
+  const d = _fiGrupos[gid]; if(!d) return;
+  const svg = ev.currentTarget.ownerSVGElement || ev.currentTarget; if(!svg || !svg.createSVGPoint) return;
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+  let xg = (q.x - d.M)/d.anchoUtil*d.total;
+  xg = Math.max(0, Math.min(d.total, xg));
+  let t = null, sub = null, xl = 0;
+  for(const tt of d.lista){
+    const off = tt.s0 - d.base0;
+    if(xg >= off - 1e-9 && xg <= off + tt.L + 1e-9){
+      t = tt; xl = Math.max(0, Math.min(tt.L, xg - off));
+      sub = tt.subs.find(su=>xl >= su.sa - 1e-9 && xl <= su.sb + 1e-9) || tt.subs[tt.subs.length-1];
+      break;
+    }
+  }
+  const g = document.getElementById('fiHover-' + gid);
+  if(!t || !sub || !g) return;
+  g.style.display = '';
+  const PX = x => d.M + x/d.total*d.anchoUtil;
+  const X = PX(xg);
+  const lx = document.getElementById('fiHoverX-' + gid);
+  if(lx){ lx.setAttribute('x1', X.toFixed(1)); lx.setAttribute('x2', X.toFixed(1)); }
+  const delta = 0.05*d.total;
+  // V y M se leen siempre, aunque su diagrama no esté a la vista (2026-10-18).
+  const vals = {};
+  ['N','V','M'].forEach(k=>{ vals[k] = {v:valorSub(sub, k, xl), dv:derivSub(sub, k, xl)}; });
+  d.series.forEach(se=>{
+    const {v, dv} = vals[se.k];
+    const PY = y => se.yc - y*se.esc;
+    const ln = document.getElementById('fiHoverT-' + gid + '-' + se.k);
+    if(ln){
+      ln.setAttribute('x1', PX(xg - delta).toFixed(1)); ln.setAttribute('y1', PY(v - dv*delta).toFixed(1));
+      ln.setAttribute('x2', PX(xg + delta).toFixed(1)); ln.setAttribute('y2', PY(v + dv*delta).toFixed(1));
+    }
+    const pc = document.getElementById('fiHoverP-' + gid + '-' + se.k);
+    if(pc){ pc.setAttribute('cx', X.toFixed(1)); pc.setAttribute('cy', PY(v).toFixed(1)); }
+  });
+  const w = -vals.V.dv;
+  // En un arco las relaciones w–V–M llevan además N/R: solo se leen los valores.
+  const txt = d.arco
+    ? 'θ = ' + dec(xg/d.arco.R*180/Math.PI,'ang') + '°'
+      + '   |   N = ' + dec(vals.N.v,'f') + ' ' + unitFor
+      + '   |   V = ' + dec(vals.V.v,'f') + ' ' + unitFor
+      + '   |   M = ' + dec(vals.M.v,'mom') + ' ' + uMom()
+    : d.simb + ' = ' + dec(xg,'len') + ' ' + unitLen
+    + '   |   w = ' + dec(w,'f') + ' ' + unitFor + '/' + unitLen + ' (pendiente de V = −w)'
+    + '   |   V = ' + dec(vals.V.v,'f') + ' ' + unitFor + ' (pendiente de M = V)'
+    + '   |   M = ' + dec(vals.M.v,'mom') + ' ' + uMom();
+  const tx = document.getElementById('fiHoverTxt-' + gid);
+  if(tx) tx.textContent = txt;
+}
+
+// `claves` (opcional, 2026-10-18): solo esos diagramas, apilados; sin ella, los tres.
+function svgDiagramas(r, grupo, claves){
+  const gid = ++_fiSeq;
+  const _reg = {series:[]};
+  const lista = grupo ? grupo.tramos : r.internas;
+  const base0 = grupo ? grupo.s0 : 0;
+  const simb  = grupo ? grupo.simbolo : 'x';
+  const total = lista.reduce((s,t)=>s+t.L, 0) || 1;
+  const series = [
+    {k:'N', col:'#0e9f6e', tit:'DFN — Fuerza normal',   u:'f'},
+    {k:'V', col:'#d94f5c', tit:'DFC — Fuerza cortante', u:'f'},
+    {k:'M', col:'#8b5cf6', tit:'DMF — Momento flector', u:'mom'}
+  ].filter(se=>!claves || claves.indexOf(se.k) >= 0);
+  const W2 = 700, alto = 118, sep = 34, M = 58;
+  const H = series.length*alto + (series.length - 1)*sep + 56;
+  let s = '<svg viewBox="0 0 '+W2+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">';
+  s += '<rect width="'+W2+'" height="'+H+'" fill="#fff"/>';
+  const anchoUtil = W2 - 2*M;
+  const PX = x => M + x/total*anchoUtil;
+  // En un arco la abscisa es θ (en grados): se dibuja sobre s = R·θ, que es
+  // proporcional, y solo cambian los rótulos.
+  const arcoG = grupo && grupo.arco ? grupo.arco : null;
+  const absc = x => arcoG ? dec(x/arcoG.R*180/Math.PI,'ang') + '°' : dec(x,'len');
+  Object.assign(_reg, {lista, base0, total, M, anchoUtil, simb, arco:arcoG});
+
+  series.forEach((se, si)=>{
+    const y0 = 26 + si*(alto+sep);
+    const yc = y0 + alto/2;
+    const ramas = muestrearSerie(r, se.k, lista, base0);
+    let vmax = 1e-9;
+    ramas.forEach(rm=>{
+      if(rm.salto){ vmax = Math.max(vmax, Math.abs(rm.de), Math.abs(rm.a)); }
+      else rm.pts.forEach(p=>{ vmax = Math.max(vmax, Math.abs(p.v)); });
+    });
+    const esc = (alto/2 - 20)/vmax;
+    const PY = v => yc - v*esc;
+    _reg.series.push({k:se.k, yc, esc, col:se.col});
+
+    s += '<text x="'+M+'" y="'+(y0-8)+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="800" fill="'+se.col+'">'+se.tit+'</text>';
+
+    // marcas verticales de los nudos
+    let ac = 0;
+    lista.forEach(t=>{
+      const X = PX(ac);
+      s += '<line x1="'+X.toFixed(1)+'" y1="'+y0+'" x2="'+X.toFixed(1)+'" y2="'+(y0+alto)+'" stroke="#dfe4ea" stroke-width="1" stroke-dasharray="3,3"/>';
+      ac += t.L;
+    });
+    s += '<line x1="'+PX(total).toFixed(1)+'" y1="'+y0+'" x2="'+PX(total).toFixed(1)+'" y2="'+(y0+alto)+'" stroke="#dfe4ea" stroke-width="1" stroke-dasharray="3,3"/>';
+
+    // relleno + contorno, rama a rama; los saltos son segmentos verticales
+    let d = '', trazo = '';
+    const saltosTxt = [];
+    ramas.forEach(rm=>{
+      if(rm.salto){
+        // relleno: se cierra la rama anterior y se abre la siguiente en la
+        // misma abscisa, así el área no queda cosida en diagonal
+        trazo += ' L '+PX(rm.x).toFixed(1)+' '+PY(rm.a).toFixed(1);
+        d += ' L '+PX(rm.x).toFixed(1)+' '+PY(rm.a).toFixed(1);
+        // El salto es el único sitio donde el diagrama "rompe": se nombra
+        // con su valor (ΔV por una fuerza concentrada, ΔM por un par).
+        saltosTxt.push({X:PX(rm.x), Y:(PY(rm.de)+PY(rm.a))/2, txt:'Δ'+se.k+' = '+dec(rm.a-rm.de, se.u)});
+        return;
+      }
+      const p = rm.pts;
+      if(!trazo){
+        d = 'M '+PX(p[0].x).toFixed(1)+' '+yc.toFixed(1)
+          + ' L '+PX(p[0].x).toFixed(1)+' '+PY(p[0].v).toFixed(1);
+        trazo = 'M '+PX(p[0].x).toFixed(1)+' '+PY(p[0].v).toFixed(1);
+      } else {
+        trazo += ' L '+PX(p[0].x).toFixed(1)+' '+PY(p[0].v).toFixed(1);
+        d     += ' L '+PX(p[0].x).toFixed(1)+' '+PY(p[0].v).toFixed(1);
+      }
+      for(let i=1;i<p.length;i++){
+        trazo += ' L '+PX(p[i].x).toFixed(1)+' '+PY(p[i].v).toFixed(1);
+        d     += ' L '+PX(p[i].x).toFixed(1)+' '+PY(p[i].v).toFixed(1);
+      }
+    });
+    d += ' L '+PX(total).toFixed(1)+' '+yc.toFixed(1)+' Z';
+    s += '<path d="'+d+'" fill="'+se.col+'" fill-opacity=".14" stroke="none"/>';
+    s += '<path d="'+trazo+'" fill="none" stroke="'+se.col+'" stroke-width="1.9" stroke-linejoin="round"/>';
+
+    // eje de referencia por encima del relleno
+    s += '<line x1="'+M+'" y1="'+yc+'" x2="'+(W2-M)+'" y2="'+yc+'" stroke="#5b6672" stroke-width="1.2"/>';
+    saltosTxt.forEach(q=>{
+      s += '<text x="'+(q.X+5).toFixed(1)+'" y="'+(q.Y+3).toFixed(1)+'" font-family="Inter,sans-serif" font-size="8.5" font-weight="700" fill="'+se.col+'" fill-opacity=".85">'+q.txt+'</text>';
+    });
+    // En el diagrama de M, cada extremo interior se explica: ahí V = 0.
+    if(se.k === 'M'){
+      lista.forEach(t=>{
+        const off = t.s0 - base0;
+        t.subs.forEach(su=>{
+          // En un arco el extremo de M no es donde V = 0 (dM/ds = V solo en
+          // tramos rectos): ahí no se rotula.
+          if(su.trig) return;
+          extremosSub(su, 'M').forEach(v=>{
+            if(v <= su.sa + 1e-9 || v >= su.sb - 1e-9) return;
+            const Xe = PX(off + v), Ye = PY(valorSub(su, 'M', v));
+            const arriba = valorSub(su, 'M', v) >= 0;
+            s += '<line x1="'+Xe.toFixed(1)+'" y1="'+Ye.toFixed(1)+'" x2="'+Xe.toFixed(1)+'" y2="'+(arriba ? Ye-22 : Ye+22).toFixed(1)+'" stroke="'+se.col+'" stroke-width=".8" stroke-dasharray="2,2"/>';
+            s += '<text x="'+Xe.toFixed(1)+'" y="'+(arriba ? Ye-25 : Ye+31).toFixed(1)+'" font-family="Inter,sans-serif" font-size="8.5" font-style="italic" fill="'+se.col+'" text-anchor="middle">V = 0 → M extremo</text>';
+          });
+        });
+      });
+    }
+
+    // ── valores anotados ──
+    let et = etiquetasSerie(ramas).filter(e=>Math.abs(e.v) > 1e-7);
+    // Dos puntos muy próximos con el MISMO valor son el mismo dato leído a
+    // ambos lados de una frontera de subtramo: basta una etiqueta.
+    et = et.filter((e,i)=> !et.some((q,j)=>
+      j < i && Math.abs(q.x-e.x) < 0.06*total &&
+      Math.abs(q.v-e.v) < 5e-3*Math.max(1,Math.abs(e.v))));
+    // se descartan etiquetas que se pisarían, dando prioridad a saltos y vértices
+    const puestas = [];
+    et.sort((a,b)=>b.prio-a.prio).forEach(e=>{
+      const X = PX(e.x), Y = PY(e.v);
+      const txt = dec(e.v, se.u);
+      // 5.2 px por carácter aproxima mejor Inter a 9 px que el 3.9 anterior,
+      // que subestimaba el ancho y dejaba pasar solapes.
+      const w = 5.2*txt.length + 7;
+      const arriba = e.v >= 0;
+      let ty = arriba ? Y - 5 : Y + 12;
+      // si no cabe, se prueba al otro lado antes de renunciar
+      const cabe = yy => {
+        const caja = {x0:X-w/2, x1:X+w/2, y0:yy-9, y1:yy+4};
+        return !puestas.some(q => caja.x0 < q.x1 && caja.x1 > q.x0 && caja.y0 < q.y1 && caja.y1 > q.y0)
+               ? caja : null;
+      };
+      let caja = cabe(ty);
+      if(!caja){ ty = arriba ? Y + 12 : Y - 5; caja = cabe(ty); }
+      if(!caja) return;
+      puestas.push(caja);
+      s += '<circle cx="'+X.toFixed(1)+'" cy="'+Y.toFixed(1)+'" r="2" fill="'+se.col+'"/>'
+        + '<text x="'+X.toFixed(1)+'" y="'+ty.toFixed(1)+'" font-family="Inter,sans-serif" '
+        + 'font-size="9" font-weight="700" fill="'+se.col+'" text-anchor="middle">'+txt+'</text>';
+    });
+    s += '<text x="'+(M-8)+'" y="'+(yc+3)+'" font-family="Inter,sans-serif" font-size="9" fill="#66727e" text-anchor="end">0</text>';
+    s += '<text x="'+(M-8)+'" y="'+(y0+11)+'" font-family="Inter,sans-serif" font-size="8.5" fill="#8892a0" text-anchor="end">'
+      + (se.k==='M' ? uMom() : unitFor) + '</text>';
+  });
+
+  // etiquetas de nudo y su abscisa, abajo
+  let ac3 = 0;
+  const yTxt = H - 16, yPos = H - 4;
+  lista.forEach((t,i)=>{
+    const X = PX(ac3);
+    const nd = t.desde ? t.desde.nombre : '';
+    s += '<text x="'+X.toFixed(1)+'" y="'+yTxt+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="700" fill="#1b1f24" text-anchor="middle">'+nd+'</text>'
+      + '<text x="'+X.toFixed(1)+'" y="'+yPos+'" font-family="Inter,sans-serif" font-size="8" fill="#8892a0" text-anchor="middle">'+absc(ac3)+'</text>';
+    ac3 += t.L;
+  });
+  const ultimo = lista[lista.length-1];
+  if(ultimo){
+    const X = PX(total);
+    s += '<text x="'+X.toFixed(1)+'" y="'+yTxt+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="700" fill="#1b1f24" text-anchor="middle">'+ultimo.hasta.nombre+'</text>'
+      + '<text x="'+X.toFixed(1)+'" y="'+yPos+'" font-family="Inter,sans-serif" font-size="8" fill="#8892a0" text-anchor="middle">'+absc(total)+'</text>';
+  }
+  // En un arco, marcas intermedias cada 30° para leer θ.
+  if(arcoG){
+    const tot = total/arcoG.R*180/Math.PI;
+    for(let gr = 30; gr < tot - 8; gr += 30){
+      const X = PX(gr*Math.PI/180*arcoG.R);
+      s += '<text x="'+X.toFixed(1)+'" y="'+yPos+'" font-family="Inter,sans-serif" font-size="8" fill="#8892a0" text-anchor="middle">'+gr+'°</text>';
+    }
+  }
+  s += '<text x="'+(W2-M+18)+'" y="'+yTxt+'" font-family="Inter,sans-serif" font-size="10.5" '
+    + 'font-style="italic" font-weight="700" fill="#3c4652">'+simb+'</text>';
+  // capa de lectura al pasar el ratón: guía vertical, tangente y punto en cada
+  // diagrama, y una línea de texto con x, w, V y M
+  _fiGrupos[gid] = _reg;
+  s += '<g id="fiHover-'+gid+'" style="display:none;pointer-events:none">'
+    + '<line id="fiHoverX-'+gid+'" x1="0" y1="26" x2="0" y2="'+(H-40)+'" stroke="#1b1f24" stroke-width=".8" stroke-dasharray="3,3"/>'
+    + _reg.series.map(se=>'<line id="fiHoverT-'+gid+'-'+se.k+'" x1="0" y1="0" x2="0" y2="0" stroke="#1b1f24" stroke-width="1.6"/>'
+        + '<circle id="fiHoverP-'+gid+'-'+se.k+'" cx="0" cy="0" r="3.2" fill="#fff" stroke="'+se.col+'" stroke-width="1.8"/>').join('')
+    + '<rect x="'+(M-4)+'" y="4" width="'+(anchoUtil+8)+'" height="16" rx="4" fill="#fff" fill-opacity=".92" stroke="#dfe4ea"/>'
+    + '<text id="fiHoverTxt-'+gid+'" x="'+(M+anchoUtil/2)+'" y="15.5" font-family="Inter,sans-serif" font-size="9" font-weight="600" fill="#1b1f24" text-anchor="middle"></text>'
+    + '</g>';
+  s += '<rect x="'+M+'" y="22" width="'+anchoUtil+'" height="'+(H-56)+'" fill="transparent" style="cursor:crosshair" '
+    + 'onmousemove="fiHoverMover(event,'+gid+')" onmouseleave="fiHoverSalir('+gid+')"/>';
+  s += '</svg>';
+  return s;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DIAGRAMAS CON LA ORIENTACIÓN DE LA ESTRUCTURA (2026-10-11, petición del profesor)
+//  Cada tramo se dibuja en su posición real y la ordenada de N, V o M se lleva
+//  PERPENDICULAR a su eje, del lado de +n̂ (n̂ = û girado 90° antihorario, el
+//  mismo marco del informe): en un tramo horizontal recorrido hacia la derecha
+//  el positivo queda arriba, como en el diagrama de siempre. Sirve para la
+//  estructura entera (`lista` = r.internas) y para un tramo inclinado o vertical
+//  (`lista` = sus tramos). Los textos van derechos. Una escala por diagrama.
+// ═══════════════════════════════════════════════════════════
+const SERIES_DIAG = {
+  N:{col:'#0e9f6e', tit:'DFN — Fuerza normal',   u:'f',   campo:'cN', nulo:'Sin fuerza normal'},
+  V:{col:'#d94f5c', tit:'DFC — Fuerza cortante', u:'f',   campo:'cV', nulo:'Sin fuerza cortante'},
+  M:{col:'#8b5cf6', tit:'DMF — Momento flector', u:'mom', campo:'cM', nulo:'Sin momento flector'}
+};
+function svgDiagramaOrientado(r, clave, lista){
+  const se = SERIES_DIAG[clave];
+  lista = lista || r.internas;
+  // Muestras de cada subtramo: punto del eje (mundo), valor y normal.
+  const trozos = [];
+  let vmax = 0, xs = [], ys = [];
+  // Eje de un tramo: dos puntos en un recto; el arco muestreado en uno curvo.
+  const ejeDe = t => t.arco ? Array.from({length:33}, (_, i)=>puntoArcoRec(t.arco, t.L*i/32)) : [t.desde, t.hasta];
+  lista.forEach(t=>{
+    const nx = -t.uy, ny = t.ux;
+    ejeDe(t).forEach(p=>{ xs.push(p.x); ys.push(p.y); });
+    t.subs.forEach(su=>{
+      // En un arco la ordenada va por la normal de CADA punto (radial).
+      const curva = su.trig || (su.cN && su[se.campo].reduce((g,v,i)=>Math.abs(v) > 1e-12 ? i : g, 0) >= 2);
+      const n = curva ? 24 : 1, pts = [];
+      for(let i=0;i<=n;i++){
+        const s = su.sa + (su.sb - su.sa)*i/n, v = valorSub(su, clave, s);
+        if(t.arco){ const P = puntoArcoRec(t.arco, s); pts.push({x:P.x, y:P.y, v, nx:P.nx, ny:P.ny}); }
+        else pts.push({x:t.desde.x + t.ux*s, y:t.desde.y + t.uy*s, v});
+        vmax = Math.max(vmax, Math.abs(v));
+      }
+      trozos.push({pts, nx, ny, t});
+    });
+  });
+  const NX = (p, tr) => p.nx !== undefined ? p.nx : tr.nx, NY = (p, tr) => p.ny !== undefined ? p.ny : tr.ny;
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const D = Math.max(maxX - minX, maxY - minY, 1e-9);
+  const nulo = vmax < 1e-7;
+  const escW = nulo ? 0 : 0.16*D/vmax;                // ordenada máxima = 16 % del tamaño
+  // Envolvente en el mundo: eje y curva.
+  const env = {x0:minX, x1:maxX, y0:minY, y1:maxY};
+  trozos.forEach(tr=>tr.pts.forEach(p=>{
+    const cx = p.x + NX(p, tr)*p.v*escW, cy = p.y + NY(p, tr)*p.v*escW;
+    env.x0 = Math.min(env.x0, cx); env.x1 = Math.max(env.x1, cx);
+    env.y0 = Math.min(env.y0, cy); env.y1 = Math.max(env.y1, cy);
+  }));
+  const W2 = 700, pad = 46;
+  const k = Math.min((W2 - 2*pad)/Math.max(env.x1 - env.x0, 1e-9), 270/Math.max(env.y1 - env.y0, 1e-9));
+  const H2 = Math.max(150, (env.y1 - env.y0)*k + 2*pad);
+  const ox = (W2 - (env.x1 - env.x0)*k)/2;
+  const X = x => ox + (x - env.x0)*k, Y = y => pad + (env.y1 - y)*k;
+  const F = v => v.toFixed(1);
+  let s = '<svg viewBox="0 0 '+W2+' '+F(H2)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">'
+        + '<rect width="'+W2+'" height="'+F(H2)+'" fill="#fff"/>';
+  s += '<text x="10" y="16" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="'+se.col+'">'
+     + se.tit + ' (' + (clave === 'M' ? uMom() : unitFor) + ')</text>';
+  // Relleno y contorno de cada subtramo: un salto queda como borde recto del
+  // trozo siguiente, igual que en el diagrama horizontal.
+  // El contorno se cierra contra el eje solo en los extremos de cada tramo y en
+  // un salto: entre dos subtramos continuos no queda raya.
+  const linea = (a, b) => '<line x1="'+F(a[0])+'" y1="'+F(a[1])+'" x2="'+F(b[0])+'" y2="'+F(b[1])+'" stroke="'+se.col+'" stroke-width="1.8"/>';
+  trozos.forEach((tr, i)=>{
+    if(nulo) return;
+    const ejes = tr.pts.map(p=>[X(p.x), Y(p.y)]);
+    const curva = tr.pts.map(p=>[X(p.x + NX(p, tr)*p.v*escW), Y(p.y + NY(p, tr)*p.v*escW)]);
+    tr.curva = curva;
+    const poli = ejes.concat(curva.slice().reverse()).map(q=>F(q[0])+','+F(q[1])).join(' ');
+    s += '<polygon points="'+poli+'" fill="'+se.col+'" fill-opacity=".14" stroke="none"/>';
+    s += '<polyline points="'+curva.map(q=>F(q[0])+','+F(q[1])).join(' ')
+       + '" fill="none" stroke="'+se.col+'" stroke-width="1.8" stroke-linejoin="round"/>';
+    const prev = trozos[i-1], sig = trozos[i+1];
+    const v0 = tr.pts[0].v;
+    if(prev && prev.t === tr.t){
+      const pv = prev.pts[prev.pts.length-1].v;
+      if(Math.abs(pv - v0) > 1e-7*Math.max(1, Math.abs(v0))) s += linea(prev.curva[prev.curva.length-1], curva[0]);
+    } else s += linea(ejes[0], curva[0]);
+    if(!sig || sig.t !== tr.t) s += linea(curva[curva.length-1], ejes[ejes.length-1]);
+  });
+  // Ejes de los tramos y nudos, encima del relleno.
+  const nudos = {};
+  lista.forEach(t=>{
+    s += '<polyline points="'+ejeDe(t).map(p=>F(X(p.x))+','+F(Y(p.y))).join(' ')+'" fill="none" stroke="#2b3440" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+    nudos[t.desde.nombre] = t.desde; nudos[t.hasta.nombre] = t.hasta;
+  });
+  // Registro de cajas para que los rótulos no se pisen.
+  const cajas = [];
+  const libre = c => !cajas.some(q=>c.x0 < q.x1 && c.x1 > q.x0 && c.y0 < q.y1 && c.y1 > q.y0);
+  // Centro de los nudos, para empujar su nombre hacia fuera de la estructura.
+  const cxm = (minX + maxX)/2, cym = (minY + maxY)/2;
+  Object.values(nudos).forEach(n=>{
+    const px = X(n.x), py = Y(n.y);
+    s += '<circle cx="'+F(px)+'" cy="'+F(py)+'" r="3.2" fill="#2b3440"/>';
+    let dx = n.x - cxm, dy = -(n.y - cym), L = Math.hypot(dx, dy);
+    if(L < 1e-9){ dx = 0; dy = 1; L = 1; }
+    const tx = px + dx/L*14, ty = py + dy/L*14 + 4;
+    s += '<text x="'+F(tx)+'" y="'+F(ty)+'" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="#1b1f24" text-anchor="middle">'+n.nombre+'</text>';
+    cajas.push({x0:tx-7, x1:tx+7, y0:ty-11, y1:ty+3});
+  });
+  if(nulo){
+    s += '<text x="'+(W2/2)+'" y="'+F(H2-12)+'" font-family="Inter,sans-serif" font-size="11" fill="#66727e" text-anchor="middle">'+se.nulo+'</text>';
+    return s + '</svg>';
+  }
+  // Valores: extremos de cada subtramo y vértices interiores, con prioridad a
+  // los extremos; los iguales en el mismo punto se escriben una vez.
+  const et = [];
+  trozos.forEach(tr=>{
+    const p = tr.pts, add = (q, prio) => { if(Math.abs(q.v) > 1e-7) et.push({q, tr, prio}); };
+    // Un subtramo de valor constante se rotula una vez, en su centro.
+    const cte = p.every(q=>Math.abs(q.v - p[0].v) < 1e-7*Math.max(1, Math.abs(p[0].v)));
+    if(cte){
+      const a = p[0], b = p[p.length-1];
+      add({x:(a.x + b.x)/2, y:(a.y + b.y)/2, v:a.v}, 2);
+      return;
+    }
+    add(p[0], 2); add(p[p.length-1], 2);
+    for(let i=1;i<p.length-1;i++){
+      const d1 = p[i].v - p[i-1].v, d2 = p[i+1].v - p[i].v;
+      if(d1*d2 < 0) add(p[i], 3);
+    }
+  });
+  // Los trazos (ejes y curvas) también estorban: un valor encima de una línea
+  // no se lee, sobre todo donde dos diagramas se cruzan en una esquina.
+  const trazos = [];
+  lista.forEach(t=>{ const e = ejeDe(t); for(let i=1;i<e.length;i++) trazos.push([[X(e[i-1].x), Y(e[i-1].y)], [X(e[i].x), Y(e[i].y)]]); });
+  trozos.forEach(tr=>{ for(let i=1;i<(tr.curva||[]).length;i++) trazos.push([tr.curva[i-1], tr.curva[i]]); });
+  const pisaTrazo = c => trazos.some(([a, b2])=>{
+    const L = Math.hypot(b2[0]-a[0], b2[1]-a[1]), n = Math.max(1, Math.ceil(L/3));
+    for(let i=0;i<=n;i++){
+      const x = a[0] + (b2[0]-a[0])*i/n, y = a[1] + (b2[1]-a[1])*i/n;
+      if(x > c.x0 && x < c.x1 && y > c.y0 && y < c.y1) return true;
+    }
+    return false;
+  });
+  const vistos = [];
+  et.sort((a,b)=>b.prio - a.prio).forEach(e=>{
+    const {q, tr} = e;
+    // El mismo valor ya escrito muy cerca (dos lados de un subtramo constante) no se repite.
+    if(vistos.some(w=>Math.abs(w.v - q.v) < 5e-3*Math.max(1, Math.abs(q.v)) && Math.hypot(w.x - q.x, w.y - q.y) < 0.12*D)) return;
+    vistos.push(q);
+    const txt = dec(q.v, se.u), w = 6*txt.length + 6, h = 13;
+    const qnx = NX(q, tr), qny = NY(q, tr);
+    const cx = X(q.x + qnx*q.v*escW), cy = Y(q.y + qny*q.v*escW);
+    // Dirección hacia fuera del diagrama (en pantalla la y va hacia abajo).
+    const sg = q.v >= 0 ? 1 : -1, ux = qnx*sg, uy = -qny*sg;
+    const tx = tr.t.ux, ty = -tr.t.uy;
+    // Candidatos: hacia fuera del diagrama a tres distancias y, en cada una, corrido
+    // a lo largo del tramo. Primero uno que no pise ni rótulos ni trazos; si no lo
+    // hay, uno que solo no pise rótulos.
+    const cand = [];
+    [12, 24, 38].forEach(d=>[0, 0.6, -0.6, 1.2, -1.2].forEach(k=>cand.push([ux*d + tx*w*k, uy*d + ty*w*k])));
+    const caja = ([ax, ay]) => {
+      const px = cx + ax + (ux > 0.5 ? w/2 : (ux < -0.5 ? -w/2 : 0)), py = cy + ay;
+      return {px, py, x0:px - w/2, x1:px + w/2, y0:py - h/2, y1:py + h/2};
+    };
+    const elegida = cand.map(caja).find(c=>libre(c) && !pisaTrazo(c)) || cand.map(caja).find(libre);
+    for(const c of (elegida ? [elegida] : [])){
+      const px = c.px, py = c.py;
+      cajas.push(c);
+      // Si el valor tuvo que apartarse, una guía fina lo une a su punto.
+      const bx = Math.max(c.x0, Math.min(cx, c.x1)), by = Math.max(c.y0, Math.min(cy, c.y1));
+      if(Math.hypot(bx - cx, by - cy) > 10)
+        s += '<line x1="'+F(cx)+'" y1="'+F(cy)+'" x2="'+F(bx)+'" y2="'+F(by)+'" stroke="'+se.col+'" stroke-width=".8" stroke-opacity=".6"/>';
+      s += '<circle cx="'+F(cx)+'" cy="'+F(cy)+'" r="2" fill="'+se.col+'"/>'
+         + '<text x="'+F(px)+'" y="'+F(py + 4)+'" font-family="Inter,sans-serif" font-size="10" font-weight="700" fill="'+se.col+'" text-anchor="middle">'+txt+'</text>';
+      break;
+    }
+  });
+  return s + '</svg>';
+}
+// Los tres diagramas de la estructura entera, uno debajo del otro.
+// `claves` (opcional): solo esos diagramas (los botones DFN, DFC, DMF de «Ver
+// diagramas»); sin ella, como siempre.
+function htmlDiagramasEstructura(r, claves){
+  const hayN = r.internas.some(t=>t.subs.some(su=>!subNulo(su, 'N')));
+  return (claves || (hayN ? ['N','V','M'] : ['V','M'])).map(k=>'<div class="proc-block" style="margin-bottom:8px">'
+    + svgDiagramaOrientado(r, k, r.internas) + '</div>').join('');
+}
+// Los de un tramo inclinado o vertical, con su inclinación.
+function htmlDiagramasOrientados(r, g, claves){
+  return (claves || ['N','V','M']).map(k=>'<div class="proc-block" style="margin-bottom:8px">'
+    + svgDiagramaOrientado(r, k, g.tramos) + '</div>').join('');
+}
+
+// ── Panel de control estándar BSA (dos niveles) ──
+const SECCIONES = {
+  conf:{titulo:'Configuración', btn:'rbConf'},
+  met:{titulo:'Método', btn:'rbMet'},
+  car:{titulo:'Cargas', btn:'rbCar'},
+  ele:{titulo:'Elementos', btn:'rbEle'}
+};
+let seccionAbierta = null;
+
+function posicionarToggle(){
+  const p = document.getElementById('leftPanel');
+  const f = document.getElementById('panelFlyout');
+  const b = document.getElementById('panelToggle');
+  if(!p || !b) return;
+  const rail = !p.classList.contains('plegado');
+  const fly  = f && !f.classList.contains('plegado');
+  b.classList.toggle('corrido', rail);
+  b.classList.toggle('expandido', rail && fly);
+}
+function togglePanel(){
+  const p = document.getElementById('leftPanel');
+  if(!p) return;
+  const seCierra = !p.classList.contains('plegado');
+  p.classList.toggle('plegado');
+  if(seCierra) cerrarSeccion();
+  posicionarToggle();
+  setTimeout(ajustarCanvas, 240);
+}
+function abrirSeccion(id){
+  const f = document.getElementById('panelFlyout');
+  if(!f || !SECCIONES[id]) return;
+  if(seccionAbierta === id && !f.classList.contains('plegado')){ cerrarSeccion(); return; }
+  seccionAbierta = id;
+  Object.keys(SECCIONES).forEach(k=>{
+    const c = document.getElementById('sec_' + k);
+    if(c) c.style.display = (k===id) ? '' : 'none';
+    const b = document.getElementById(SECCIONES[k].btn);
+    if(b) b.classList.toggle('active', k===id);
+  });
+  document.getElementById('flyoutTitulo').textContent = SECCIONES[id].titulo;
+  // El desplegable va SIEMPRE a la derecha de la columna de control, así que
+  // abrir una sección abre también la columna. Por debajo de 820 px la columna
+  // arranca plegada, y sin esto el panel salía con la franja de la izquierda
+  // vacía y sin los botones de acción (2026-09-24).
+  const lp = document.getElementById('leftPanel');
+  if(lp) lp.classList.remove('plegado');
+  f.classList.remove('plegado');
+  posicionarToggle();
+  setTimeout(ajustarCanvas, 240);
+}
+function cerrarSeccion(){
+  const f = document.getElementById('panelFlyout');
+  if(f) f.classList.add('plegado');
+  seccionAbierta = null;
+  Object.keys(SECCIONES).forEach(k=>{
+    const b = document.getElementById(SECCIONES[k].btn);
+    if(b) b.classList.remove('active');
+  });
+  posicionarToggle();
+  setTimeout(ajustarCanvas, 240);
+}

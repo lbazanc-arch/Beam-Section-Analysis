@@ -1,0 +1,1686 @@
+// ═══════════════════════════════════════════════════════════
+//  UNIDADES Y DECIMALES
+// ═══════════════════════════════════════════════════════════
+function openUnitsModal(){
+  document.getElementById('selLen').value=unitLen;
+  document.getElementById('selFor').value=unitFor;
+  updateUnitsPreview();
+  document.getElementById('unitsModal').classList.add('show');
+}
+function closeUnitsModal(){ document.getElementById('unitsModal').classList.remove('show'); }
+function updateUnitsPreview(){
+  const L=document.getElementById('selLen').value, F=document.getElementById('selFor').value;
+  document.getElementById('upF').textContent=F;
+  document.getElementById('upM').textContent=F+'·'+L;
+}
+// Unidades vigentes y su rótulo en la barra. La usan applyUnits, abrir un
+// ejercicio y deshacer/rehacer (10-), para que el rótulo no se quede atrás.
+function fijarUnidades(len, fuerza){
+  unitLen=len; unitFor=fuerza;
+  const ch=document.getElementById('chipUnits'); if(ch) ch.textContent=len+' · '+fuerza;
+}
+function applyUnits(){
+  const nL=document.getElementById('selLen').value, nF=document.getElementById('selFor').value;
+  if(nL===unitLen && nF===unitFor){ closeUnitsModal(); return; }   // sin cambio no hay paso
+  const kL=LEN_A_M[unitLen]/LEN_A_M[nL], kF=FOR_A_KN[unitFor]/FOR_A_KN[nF];
+  // Un campo que no es número (la pos de una carga de nudo) se deja como está:
+  // multiplicado daba NaN.
+  const esc=(v,k)=>(v===undefined || v===null || v==='' || !isFinite(Number(v))) ? v : Number(v)*k;
+  // Un solo paso de deshacer, y la instantánea lleva las unidades (10-): sin
+  // él, deshacer devolvía la viga de 4 m con la unidad nueva y se leía 4 cm.
+  registrarCambio();
+  nodos.forEach(n=>{ n.x*=kL; n.y*=kL; });
+  // La flecha de un tramo curvo es una longitud (23-).
+  tramos.forEach(t=>{ if(esArco(t)) t.flecha = +t.flecha*kL; });
+  cargas.forEach(c=>{
+    // Sobre un arco la posición es un ÁNGULO (θ en grados): no cambia con la unidad.
+    if(c.basePos !== 'theta'){
+      c.pos=esc(c.pos,kL);
+      c.posFin=esc(c.posFin,kL);                       // fin de la repartida: antes no se escalaba
+    }
+    if(c.tipo==='M') c.mag=esc(c.mag,kF*kL);          // momento = fuerza x longitud
+    else if(c.tipo==='U'||c.tipo==='T'){ c.mag=esc(c.mag,kF/kL); c.mag2=esc(c.mag2,kF/kL); }  // fuerza por unidad
+    else c.mag=esc(c.mag,kF);
+  });
+  // El peso propio es fuerza por unidad de longitud, como U y T (02-).
+  pesos.forEach(p=>{ p.val=esc(p.val,kF/kL); });
+  fijarUnidades(nL, nF);
+  invalidarResultados(); closeUnitsModal(); centrar(); refrescar();
+}
+function fillDec(id,val){
+  const s=document.getElementById(id); if(!s) return;
+  s.innerHTML='';
+  for(let i=0;i<=5;i++){
+    const o=document.createElement('option');
+    o.value=i; o.textContent=i+(i===1?' decimal':' decimales');
+    if(i===val) o.selected=true;
+    s.appendChild(o);
+  }
+}
+function openDecModal(){
+  fillDec('selDecLen',DEC.len); fillDec('selDecFor',DEC.fuerza); fillDec('selDecMom',DEC.momento);
+  fillDec('selDecAng',DEC.ang);
+  updateDecPreview(); document.getElementById('decModal').classList.add('show');
+}
+function closeDecModal(){ document.getElementById('decModal').classList.remove('show'); }
+function updateDecPreview(){
+  const g=id=>{const e=document.getElementById(id); return e?(parseInt(e.value,10)||0):2;};
+  const el=document.getElementById('dpPrev');
+  if(el) el.textContent='Ejemplo: '+(4.2857).toFixed(g('selDecLen'))+' '+unitLen
+    +' · '+(12.3456).toFixed(g('selDecFor'))+' '+unitFor
+    +' · '+(37.8912).toFixed(g('selDecMom'))+' '+uMom()
+    +' \u00b7 '+(33.6901).toFixed(g('selDecAng'))+'\u00b0';
+}
+function textoDecimales(){
+  const v=[DEC.len, DEC.fuerza, DEC.momento, DEC.ang];
+  return v.every(x=>x===v[0]) ? (v[0]+(v[0]===1?' decimal':' decimales'))
+                              : v.join(' / ')+' decimales';
+}
+function applyDecModal(){
+  const g=id=>{const e=document.getElementById(id); return e?(parseInt(e.value,10)||0):2;};
+  DEC={len:g('selDecLen'), fuerza:g('selDecFor'), momento:g('selDecMom'), ang:g('selDecAng')};
+  document.getElementById('chipDec').textContent=textoDecimales();
+  closeDecModal();
+  if(R && !R.error) calcular(); else refrescar();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GUARDAR / ABRIR — archivo local del usuario, no almacenamiento del
+//  navegador ni del portal. Se descarga un .json con la estructura de la
+//  viga y se recupera con el selector nativo de archivos del sistema.
+//  Ventaja sobre localStorage/Supabase: el alumno lleva su ejercicio en su
+//  propio dispositivo, sin límite de espacio en la cuenta ni dependencia de
+//  haber iniciado sesión.
+// ═══════════════════════════════════════════════════════════
+const BSA_FORMATO = 'bsa11';
+const BSA_EXT     = '.json';          // un solo .json: la doble extensión .bsa7.json
+                                      // dejaba los archivos en gris en el selector de Android
+const BSA_PREFIJO = 'marcos-';    // el tema va en el nombre, y el formato dentro (bsaApp)
+// v2 (2026-09-10): el ángulo del apoyo móvil pasó a significar la DIRECCIÓN DE
+// LA REACCIÓN —antes era hacia dónde colgaba el símbolo, 180° de diferencia— y
+// el apoyo simple ganó un ángulo de dibujo. Los archivos v1 se convierten al
+// abrirlos, en `convertirApoyosDeArchivo`.
+// v3 (2026-10-24): la posición de una carga dada por Δx o Δy (`basePos`
+// coordX / coordY) se mide SIEMPRE desde el primer nudo de su tramo; hasta la v2,
+// con dirección del plano y en el par, era la coordenada x o y del plano. Los
+// archivos anteriores se convierten al abrirlos, en `convertirPosicionesDeArchivo`.
+const BSA_VERSION = 3;
+
+function nombreArchivoSeguro(nombre){
+  // Sin caracteres que rompan el nombre de archivo en Windows/macOS/Android.
+  const limpio = (nombre||'ejercicio').trim().replace(/[\\/:*?"<>|]+/g,'-').slice(0,60) || 'ejercicio';
+  return limpio;
+}
+
+function abrirGuardar(){
+  ['guardadoAviso','guardadoAcciones'].forEach(i=>{ const e = document.getElementById(i); if(e) e.style.display = 'none'; });
+  const m=document.getElementById('guardarModal'); if(!m) return;
+  document.getElementById('nombreProyecto').value='';
+  m.classList.add('show');
+}
+function cerrarGuardar(){ document.getElementById('guardarModal').classList.remove('show'); }
+
+// Cualquier fallo al guardar se dice con su mensaje: antes moría en la consola
+// y en el teléfono parecía que «no pasaba nada».
+async function guardarProyecto(){
+  try{ await _guardarProyectoSinRed(); }
+  catch(err){ aviso('No se pudo guardar: ' + (err && err.message ? err.message : err), 'error'); }
+}
+async function _guardarProyectoSinRed(){
+  const inp=document.getElementById('nombreProyecto');
+  const nombre=(inp.value||'').trim();
+  if(!nombre){ aviso('Ponle un nombre al ejercicio antes de guardarlo.', 'error'); inp.focus(); return; }
+
+  const paquete = {
+    bsaApp: BSA_FORMATO, version: BSA_VERSION,
+    titulo: nombre, fecha: new Date().toISOString(),
+    estado: estadoActual()
+  };
+  const texto = JSON.stringify(paquete, null, 2);
+  const archivo = BSA_PREFIJO + nombreArchivoSeguro(nombre) + BSA_EXT;
+
+  // ── Camino preferido: el diálogo "Guardar como" del sistema ──
+  // Deja elegir carpeta y nombre, como cualquier programa de escritorio.
+  // Solo existe en navegadores de escritorio basados en Chromium; en el
+  // resto se cae al segundo camino sin que el usuario note nada raro.
+  if(window.showSaveFilePicker){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: archivo,
+        types: [{ description:'Ejercicio BSA — Marcos',
+                  accept: {'application/json': ['.json']} }]
+      });
+      const w = await handle.createWritable();
+      await w.write(texto);
+      await w.close();
+      cerrarGuardar();
+      aviso('Guardado como "'+handle.name+'".');
+      return;
+    }catch(err){
+      // Cancelar el diálogo no es un error: se sale en silencio.
+      if(err && err.name === 'AbortError'){ return; }
+      // Cualquier otro fallo (permisos, contexto no seguro) cae a la descarga.
+    }
+  }
+
+  // ── Reserva: descarga normal a la carpeta de descargas ──
+  // Siempre queda una copia en ESTE equipo (core/comun.js): sin servidor y sin
+  // archivos. Es lo que hace que guardar funcione en el teléfono.
+  const enEquipo = bsaGuardarEnEquipo(BSA_FORMATO, nombre, texto);
+  bsaUltimoTextoGuardado = texto;
+  bsaUltimoNombreGuardado = archivo;
+  if(bsaEsMovil()){ mostrarGuardadoEnEquipo(enEquipo, nombre); return; }
+  const como = await bsaGuardarArchivo(texto, archivo);
+  cerrarGuardar();
+  // En el móvil el archivo sale como .txt (ver bsaGuardarArchivo): se avisa
+  // con el nombre real, que es el que el alumno verá en Archivos.
+  const guardadoComo = bsaUltimoNombreGuardado || archivo;
+  if(como === 'compartido') aviso('Guardado "' + guardadoComo + '" donde elegiste.');
+  else if(como === 'descargado') aviso('Descargando "' + guardadoComo + '". Búscalo en tu carpeta de descargas.');
+}
+
+// Descarga clásica por enlace. Es lo único disponible en móvil, en Firefox y
+// en Safari, donde el navegador decide la carpeta.
+
+function abrirHistorial(){
+  pintarGuardadosEnEquipo();
+  const el = document.getElementById('histLista');
+  if(el) el.innerHTML = '';
+  document.getElementById('histModal').classList.add('show');
+}
+function cerrarHistorial(){ document.getElementById('histModal').classList.remove('show'); }
+
+// Carga un ejercicio a partir de su TEXTO, venga de un archivo o de lo que
+// haya guardado en este equipo.
+function _cargarEjercicioTexto(texto, nombre){
+    let datos;
+    try { datos = JSON.parse(texto); }
+    catch(e){ aviso('El archivo no es un ejercicio válido (JSON dañado).', 'error'); return; }
+    // Aviso, no bloqueo: un archivo de otro capítulo podría en principio
+    // compartir la forma {nodos,tramos,cargas} y cargar igual, pero avisamos
+    // por si el nombre no coincide con lo esperado.
+    if(datos.bsaApp && datos.bsaApp !== BSA_FORMATO)
+      aviso('Este archivo parece ser de otro capítulo (' + datos.bsaApp + '). Se intentará abrir de todos modos.', 'error');
+    const estado = datos.estado || datos;   // admite también el JSON "pelado" del estado
+    cargarEstadoDesdeArchivo(estado, nombre, datos.version);
+}
+function onArchivoElegido(ev){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';                    // permite reelegir el mismo archivo
+  if(!file) return;
+  const lector = new FileReader();
+  lector.onerror = () => aviso('No se pudo leer el archivo.', 'error');
+  lector.onload = () => _cargarEjercicioTexto(lector.result, file.name);
+  lector.readAsText(file);
+}
+
+// ── Guardado en ESTE equipo y salida sin nube (core/comun.js) ──
+// En el teléfono no se intenta escribir un archivo: entregarlo desde el iframe
+// del portal no es fiable. Se guarda aquí y se ofrece llevárselo en una pestaña
+// propia, donde el gesto y el documento sí son de nivel superior.
+function mostrarGuardadoEnEquipo(res, nombre){
+  const av = document.getElementById('guardadoAviso');
+  const ac = document.getElementById('guardadoAcciones');
+  if(av){
+    av.innerHTML = res.ok
+      ? 'Guardado <b>' + nombre + '</b> en este equipo. Lo vuelves a abrir desde <b>Historial</b>.'
+      : 'No se pudo guardar en este equipo: el almacenamiento está lleno o bloqueado. Usa «Enviar o descargar».';
+    av.style.display = '';
+  }
+  if(ac) ac.style.display = '';
+  if(res.ok) aviso('Guardado en este equipo.');
+}
+function enviarEjercicio(){
+  if(!bsaEnviarUltimo()) aviso('El navegador bloqueó la pestaña. Permítela y vuelve a intentarlo.', 'error');
+}
+// Abrir y quitar lo guardado en este equipo. Los llama bsaHtmlGuardados.
+function abrirEjercicioGuardado(id){
+  const t = bsaLeerGuardado(BSA_FORMATO, id);
+  if(!t){ aviso('Ese ejercicio ya no está en este equipo.', 'error'); return; }
+  const e = bsaListaGuardados(BSA_FORMATO).find(x=>x.id === id);
+  _cargarEjercicioTexto(t, (e && e.titulo) || 'ejercicio');
+  cerrarHistorial();
+}
+function borrarEjercicioGuardado(id){
+  bsaBorrarGuardado(BSA_FORMATO, id);
+  pintarGuardadosEnEquipo();
+}
+function pintarGuardadosEnEquipo(){
+  const c = document.getElementById('histGuardados');
+  if(c) c.innerHTML = bsaHtmlGuardados(BSA_FORMATO);
+}
+
+// ── Archivos anteriores al cambio de convención (v1 → v2) ──
+// En v1 `apAng` era «hacia dónde cuelga el símbolo del apoyo móvil desde el
+// nudo», y la reacción actuaba en sentido contrario; desde v2 el campo YA es la
+// dirección de la reacción. Girarlo 180° deja el ejercicio con la misma física
+// que tenía. En la práctica ningún archivo v1 trae el campo, porque el
+// `estadoActual` de entonces no lo guardaba, pero la conversión se deja escrita
+// para que la regla no dependa de ese detalle.
+function convertirApoyosDeArchivo(lista, version){
+  if((+version || 1) >= 2) return;
+  (lista || []).forEach(n=>{
+    if(n && n.apoyo === 'movil' && n.apAng !== undefined && isFinite(+n.apAng))
+      n.apAng = ((+n.apAng + 180) % 360 + 360) % 360;
+  });
+}
+// Hasta la v2, una carga de tramo situada por coordenada con dirección del PLANO
+// (vertical, horizontal, inclinada, y el par) guardaba en pos y posFin la
+// coordenada x o y del plano; las de dirección perpendicular o axial ya
+// guardaban Δ desde el nudo inicial. Desde la v3 todas guardan Δ: a las primeras
+// se les resta la coordenada del nudo inicial. Va después de cargar nudos y
+// tramos, y con las cargas ya normalizadas (la dirección de las antiguas sale de
+// `normalizarCargas`). La carga queda en el mismo punto del tramo.
+function convertirPosicionesDeArchivo(lista, version){
+  if((+version || 1) >= 3) return;
+  (lista || []).forEach(c=>{
+    if(!c || c.destino === 'nudo') return;
+    if(c.basePos !== 'coordX' && c.basePos !== 'coordY') return;
+    if(marcoDeCarga(c) === 'local') return;
+    const t = tramos.find(z=>z.id === c.tramo), a = t && nodo(t.a);
+    if(!a) return;
+    const o = (c.basePos === 'coordX') ? a.x : a.y;
+    const resta = v => +((Number(v) || 0) - o).toFixed(10);
+    c.pos = resta(c.pos);
+    if(c.posFin !== undefined && c.posFin !== null) c.posFin = resta(c.posFin);
+  });
+}
+// `version` es la del PAQUETE (`datos.version`), no la del estado: dice en qué
+// convención vienen escritos los campos que llegan.
+function cargarEstadoDesdeArchivo(e, nombreArchivo, version){
+  if(!e || !Array.isArray(e.nodos)){
+    aviso('El archivo no contiene un ejercicio reconocible.', 'error');
+    return;
+  }
+  try{
+    registrarCambio();
+    nodos=(e.nodos||[]).map(n=>Object.assign({nombre:''},n));
+    convertirApoyosDeArchivo(nodos, version);
+    tramos=(e.tramos||[]).slice();
+    cargas=normalizarCargas((e.cargas||[]).map(c=>Object.assign({}, c)));
+    convertirPosicionesDeArchivo(cargas, version);
+    pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
+    // Cuerdas, bielas y topes (22-, 2026-10-18); un archivo anterior no los trae.
+    vinculos=(e.vinculos||[]).map(v=>Object.assign({}, v));
+    // Cada contador queda en el mayor id del archivo, para que un nudo, tramo o
+    // carga nuevos (o las copias de Replicar) nunca repitan uno. Un id que no
+    // sea número no cuenta: con Math.max a secas dejaba el contador en NaN.
+    const mayorId = lista=>lista.reduce((m,o)=>{
+      const v = Number(o && o.id); return isFinite(v) ? Math.max(m, v) : m;
+    }, 0);
+    nodoSeq=mayorId(nodos); tramoSeq=mayorId(tramos);
+    miembroSeq=tramos.reduce((m,t)=>isFinite(+t.miembro) ? Math.max(m, +t.miembro) : m, 0); cadenaMiembro=null;
+    cargaSeq=mayorId(cargas); pesoSeq=mayorId(pesos);
+    depurarVinculos(); vinculoSeq=mayorId(vinculos);
+    pesoActivo=null;
+    // La selección y el nudo inicial eran del ejercicio anterior: con ellos,
+    // Replicar copiaba los nudos del abierto que tuvieran esos mismos ids.
+    selNodos=[]; selTramos=[]; selCargas=[]; selNodo=null; selTramo=null; primerNodo=null;
+    // Con fijarUnidades el rótulo de la barra cambia también: antes seguía
+    // enseñando las unidades del ejercicio anterior.
+    if(e.unidades) fijarUnidades(e.unidades.len||unitLen, e.unidades.fuerza||unitFor);
+    if(e.decimales) DEC=Object.assign({len:2, fuerza:2, momento:2, ang:2}, e.decimales);
+    reNombrar(); invalidarResultados(); centrar(); refrescar(); cerrarHistorial();
+    aviso('Ejercicio abierto desde "'+nombreArchivo+'".');
+  }catch(err){
+    aviso('No se pudo abrir el ejercicio: el archivo tiene un formato inesperado.', 'error');
+  }
+}
+
+function escaparTexto(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function estadoActual(){
+  // `apAng` (dirección de la reacción del móvil) y `apAngDib` (giro del símbolo
+  // del simple) se guardan desde la v2: antes se perdían al guardar, y el
+  // ejercicio se reabría con todos los apoyos en su posición por defecto.
+  // El peso propio —la lista `pesos` y el `pesoId` de cada tramo— se guarda
+  // desde el 2026-09-15: antes se perdía y el ejercicio se reabría sin él.
+  // `pesoSeq` no hace falta (al abrir se toma el mayor id) y `pesoActivo` es de
+  // la interfaz. Un archivo sin `pesos` abre con la lista vacía.
+  // Marcos (24-): el miembro de cada tramo y la unión de cada nudo (rígida o
+  // deslizante, con el tramo por el que corre).
+  return {nodos:nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,rotula:n.rotula,
+                               apAng:n.apAng, apAngDib:n.apAngDib, union:n.union, desliza:n.desliza})),
+          tramos:tramos.map(t=>esArco(t) ? {id:t.id,a:t.a,b:t.b,pesoId:t.pesoId,miembro:t.miembro,flecha:+t.flecha}
+                                         : {id:t.id,a:t.a,b:t.b,pesoId:t.pesoId,miembro:t.miembro}),
+          cargas:cargas.slice(),
+          pesos:pesos.map(p=>({id:p.id,nom:p.nom,val:p.val})),
+          vinculos:vinculos.map(v=>({id:v.id,tipo:v.tipo,a:v.a,b:(v.b === undefined ? null : v.b),ang:v.ang})),
+          unidades:{len:unitLen,fuerza:unitFor}, decimales:DEC};
+}
+// ═══════════════════════════════════════════════════════════
+//  GENERADOR DE PDF PROFESIONAL CON LATEX (texlive.net)
+//  Mismo mecanismo que Cap. 9: un traductor independiente del HTML que
+//  parte de los mismos datos que ya alimenta renderResultados (R).
+// ═══════════════════════════════════════════════════════════
+function escLatex(s){
+  return String(s).replace(/([%&_#{}$])/g, '\\$1');
+}
+// Unidad compuesta (fuerza·longitud) en texto plano, válida tanto dentro
+// de \text{} como fuera: evita usar \cdot, que solo existe en modo matemático.
+function unidadMomento(){ return unitFor + '\u00b7' + unitLen; }
+
+// ═══════════════════════════════════════════════════════════
+//  ACOTACIÓN Y RÓTULOS EN TikZ
+//  El navegador ya reparte cotas en niveles y evita que los rótulos se
+//  pisen; el informe no hacía ninguna de las dos cosas. Aquí se lleva ese
+//  mismo criterio a TikZ, reutilizando el planificador planCotas para que
+//  pantalla y PDF acoten igual.
+//  Todo trabaja en las unidades del dibujo TikZ (cm).
+// ═══════════════════════════════════════════════════════════
+// ── Medidas aproximadas del texto en el dibujo ──
+// El colocador de rótulos necesita saber cuánto ocupa cada etiqueta. Las
+// medidas anteriores se quedaban cortas (un carácter \tiny mide unos 0.13 cm
+// a 11 pt, no 0.105), así que dos rótulos que el planificador daba por
+// separados salían pisados en el PDF. Van holgadas a propósito: es preferible
+// apartar de más que solapar.
+const TZ_CUERPO = {
+  tiny:       {w:0.138, h:0.26},
+  scriptsize: {w:0.170, h:0.31},
+  small:      {w:0.200, h:0.35},
+  normal:     {w:0.190, h:0.33}
+};
+const TZ_ALTO_TXT = TZ_CUERPO.tiny.h;
+const TZ_ANCHO_CAR = TZ_CUERPO.tiny.w;
+let _tzCajas = [];
+
+function tzReiniciar(){ _tzCajas = []; }
+function tzMetrica(opts){
+  const o = String(opts || '');
+  if(o.indexOf('\\tiny') >= 0) return TZ_CUERPO.tiny;
+  if(o.indexOf('\\scriptsize') >= 0) return TZ_CUERPO.scriptsize;
+  if(o.indexOf('\\small') >= 0) return TZ_CUERPO.small;
+  return TZ_CUERPO.normal;
+}
+// Los comandos de LaTeX ($, \, \tfrac...) no ocupan sitio, pero una fracción
+// sí ensancha: se cuentan sus dos números.
+function _tzAnchoTxt(txt, opts){
+  const m = tzMetrica(opts);
+  const limpio = String(txt).replace(/\\[a-zA-Z]+/g, '').replace(/[$\\{}^_,]/g, '');
+  return Math.max(1, limpio.length) * m.w + 0.14;
+}
+function _tzAltoTxt(txt, opts){
+  const m = tzMetrica(opts);
+  // Una fracción \tfrac ocupa dos pisos de alto.
+  return m.h * (/\\[dt]?frac/.test(String(txt)) ? 1.7 : 1);
+}
+// Giro (grados) del scope en el que se está dibujando (2026-10-05: los diagramas
+// de un tramo inclinado se dibujan girados, 16-). El texto sigue derecho en la
+// página, así que en las coordenadas giradas su caja es la del rótulo girado −θ:
+// el registro tiene que reservar ESA caja, o los rótulos se pisan.
+let _tzGiro = 0;
+function tzAncho(txt, opts){
+  const w = _tzAnchoTxt(txt, opts);
+  if(!_tzGiro) return w;
+  const a = _tzGiro*Math.PI/180;
+  return w*Math.abs(Math.cos(a)) + _tzAltoTxt(txt, opts)*Math.abs(Math.sin(a));
+}
+function tzAlto(txt, opts){
+  const h = _tzAltoTxt(txt, opts);
+  if(!_tzGiro) return h;
+  const a = _tzGiro*Math.PI/180;
+  return _tzAnchoTxt(txt, opts)*Math.abs(Math.sin(a)) + h*Math.abs(Math.cos(a));
+}
+function tzOcupar(x0, y0, x1, y1){
+  _tzCajas.push({x0:Math.min(x0,x1), y0:Math.min(y0,y1),
+                 x1:Math.max(x0,x1), y1:Math.max(y0,y1)});
+}
+// `sinGuias` no cuenta las cajas de las guías ya dibujadas (las marcadas `guia`).
+function tzChoca(c, sinGuias){
+  return _tzCajas.some(q => !(sinGuias && q.guia)
+    && c.x0 < q.x1 && c.x1 > q.x0 && c.y0 < q.y1 && c.y1 > q.y0);
+}
+// ¿El trazo (x0,y0)–(x1,y1) atraviesa la caja de algún RÓTULO ya colocado?
+// Las cajas de rótulo llevan `rot`; las de geometría no cuentan, porque la
+// guía siempre nace dentro de lo que rotula. Recorte de Liang–Barsky contra la
+// caja encogida 0.02, para no descartar una guía que solo roza una esquina.
+function tzGuiaCruza(x0, y0, x1, y1){
+  const dx = x1-x0, dy = y1-y0;
+  return _tzCajas.some(q => {
+    if(!q.rot) return false;
+    const bx0 = q.x0+0.02, bx1 = q.x1-0.02, by0 = q.y0+0.02, by1 = q.y1-0.02;
+    let t0 = 0, t1 = 1;
+    const p = [-dx, dx, -dy, dy], r = [x0-bx0, bx1-x0, y0-by0, by1-y0];
+    for(let i=0;i<4;i++){
+      if(Math.abs(p[i]) < 1e-12){ if(r[i] < 0) return false; continue; }
+      const t = r[i]/p[i];
+      if(p[i] < 0) t0 = Math.max(t0, t); else t1 = Math.min(t1, t);
+      if(t0 > t1) return false;
+    }
+    return true;
+  });
+}
+// Reserva un trazo como cadena de cajitas, para que ningún rótulo lo tape.
+// Los extremos de cada trozo se ordenan ANTES de sumar la holgura: si se suma
+// antes, en un trazo que va hacia la izquierda o hacia abajo la caja sale
+// recortada g por cada lado en vez de ensanchada, y deja un hueco en cada junta
+// justo por donde pasa la recta (un rótulo podía volver a pisar la barra).
+function tzOcuparTrazo(x1, y1, x2, y2, w){
+  const g = w || 0.09, n = 6;
+  for(let m=0;m<n;m++){
+    const f0=m/n, f1=(m+1)/n;
+    const xa=x1+(x2-x1)*f0, ya=y1+(y2-y1)*f0, xb=x1+(x2-x1)*f1, yb=y1+(y2-y1)*f1;
+    tzOcupar(Math.min(xa,xb)-g, Math.min(ya,yb)-g, Math.max(xa,xb)+g, Math.max(ya,yb)+g);
+  }
+}
+// Reserva el interior del bloque de una carga repartida: (A,B) sobre el eje,
+// (ex,ey) la normal en la que se levanta y h1/h2 su altura en cada extremo.
+function tzOcuparBloque(A, B, ex, ey, h1, h2){
+  const L = Math.hypot(B.x-A.x, B.y-A.y);
+  const n = Math.max(3, Math.min(12, Math.round(L/0.35)));
+  for(let i=0;i<n;i++){
+    const f0=i/n, f1=(i+1)/n;
+    const xa=A.x+(B.x-A.x)*f0, ya=A.y+(B.y-A.y)*f0;
+    const xb=A.x+(B.x-A.x)*f1, yb=A.y+(B.y-A.y)*f1;
+    const ha=h1+(h2-h1)*f0, hb=h1+(h2-h1)*f1;
+    const hm=(Math.abs(ha) >= Math.abs(hb)) ? ha : hb;
+    const xs=[xa, xb, xa+ex*hm, xb+ex*hm], ys=[ya, yb, ya+ey*hm, yb+ey*hm];
+    tzOcupar(Math.min.apply(null,xs), Math.min.apply(null,ys),
+             Math.max.apply(null,xs), Math.max.apply(null,ys));
+  }
+}
+// Reserva un arco (el de un par o el de un momento de reacción) como el
+// cuadrado que lo contiene: radio r alrededor de (cx,cy), más la holgura g.
+function tzOcuparArco(cx, cy, r, g){
+  const s = r + (g || 0);
+  tzOcupar(cx-s, cy-s, cx+s, cy+s);
+}
+// Extensión de todo lo reservado hasta ahora (flechas, rótulos, bloques).
+// Sirve para arrancar las cotas MÁS ALLÁ de lo dibujado, en vez de a una
+// distancia fija del último nudo: así una cota nunca cruza el valor de una
+// fuerza que sobresale del contorno de la estructura.
+function tzExtension(){
+  const e = {x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity};
+  _tzCajas.forEach(c=>{ e.x0 = Math.min(e.x0, c.x0); e.y0 = Math.min(e.y0, c.y0);
+                        e.x1 = Math.max(e.x1, c.x1); e.y1 = Math.max(e.y1, c.y1); });
+  return e;
+}
+// ── Rótulo fijo ──
+// Una etiqueta de cota debe quedarse SOBRE su propia línea: si se la deja
+// buscar hueco acaba lejos de la línea que mide y ya no se sabe qué acota.
+// Se dibuja con fondo blanco, para que la línea no la atraviese, y reserva
+// su caja para que los demás rótulos la esquiven.
+function tzTextoFijo(x, y, txt, opts){
+  const w = tzAncho(txt, opts), h = tzAlto(txt, opts);
+  tzOcupar(x-w/2, y-h/2, x+w/2, y+h/2);
+  _tzCajas[_tzCajas.length-1].rot = true;
+  return '\\node[' + (opts || 'font=\\scriptsize') + ', fill=white, inner sep=1pt] at ('
+       + x.toFixed(3) + ',' + y.toFixed(3) + ') {' + txt + '};\n';
+}
+// ── Rótulo que busca hueco ──
+// dirX/dirY marcan hacia dónde apartarse. Se prueba primero el sitio pedido y
+// después escalones en esa dirección, con desplazamientos laterales. Si aun
+// así no cabe, el rótulo NO se omite: se lleva al último escalón y se une con
+// una guía fina al punto que rotula, porque un valor que falta es peor que uno
+// alejado (y sin la guía no se sabría a qué fuerza pertenece).
+// Un sitio cuya guía atravesaría otro rótulo se descarta como si estuviera
+// ocupado (2026-09-14): la guía gris que cruzaba el valor de una repartida se
+// leía en el PDF como la flecha de la puntual pasando por encima del texto.
+function tzTexto(x, y, txt, opts, dirX, dirY){
+  const w = tzAncho(txt, opts), h = tzAlto(txt, opts);
+  const dx0 = (dirX === undefined) ? 0 : dirX;
+  const dy0 = (dirY === undefined) ? 1 : dirY;
+  const nn = Math.hypot(dx0, dy0) || 1;
+  const ex = dx0/nn, ey = dy0/nn;
+  const lx = -ey, ly = ex;                 // lateral, perpendicular a la fuga
+  const paso = h + 0.08;
+  const nodo = (ox, oy) => '\\node[' + (opts || 'font=\\scriptsize') + '] at ('
+      + (x+ox).toFixed(3) + ',' + (y+oy).toFixed(3) + ') {' + txt + '};\n';
+  // Extremo de la guía, o null si no hace falta. La guía acaba en el BORDE de
+  // la caja del rótulo, donde la corta la recta que viene del punto. Antes
+  // paraba a una fracción fija del ancho y, con un desplazamiento sobre todo
+  // horizontal, entraba en el texto y lo tachaba.
+  const finGuia = (ox, oy) => {
+    const d = Math.hypot(ox, oy);
+    if(d < 0.62) return null;
+    const ux = ox/d, uy = oy/d;
+    const sx = (Math.abs(ux) < 1e-6) ? Infinity : (w/2)/Math.abs(ux);
+    const sy = (Math.abs(uy) < 1e-6) ? Infinity : (h/2)/Math.abs(uy);
+    const s = Math.min(sx, sy) + 0.05;
+    if(s >= d - 0.05) return null;         // la caja ya llega al punto: nada que unir
+    return {x: x + ox - ux*s, y: y + oy - uy*s};
+  };
+  // La guía dibujada también se reserva, para que un rótulo colocado DESPUÉS
+  // no caiga encima de ella (el otro sentido del mismo cruce).
+  const guia = (ox, oy) => {
+    const f = finGuia(ox, oy);
+    if(!f) return '';
+    const n0 = _tzCajas.length;
+    tzOcuparTrazo(x, y, f.x, f.y, 0.03);
+    for(let i=n0;i<_tzCajas.length;i++) _tzCajas[i].guia = true;
+    return '\\draw[gray!55, line width=.25pt] (' + x.toFixed(3) + ',' + y.toFixed(3)
+         + ') -- (' + f.x.toFixed(3) + ',' + f.y.toFixed(3) + ');\n';
+  };
+  // Dos pasadas. La estricta exige además que el sitio no pise una guía ya
+  // dibujada y que su propia guía no cruce otro rótulo. Si en una figura
+  // apretada no queda ninguno así, la segunda acepta lo que se aceptaba antes
+  // (libre de dibujo y de rótulos): sin ella el rótulo acababa en el último
+  // escalón, a 5 cm, con una guía que cruzaba media figura, que es peor que
+  // rozar una guía corta.
+  for(const estricta of [true, false]){
+    for(let k=0;k<14;k++){
+      for(const lado of (k===0 ? [0] : [0,-1,1,-2,2])){
+        const ox = ex*paso*k + lx*lado*w*0.55, oy = ey*paso*k + ly*lado*w*0.55;
+        const c = {x0:x+ox-w/2, y0:y+oy-h/2, x1:x+ox+w/2, y1:y+oy+h/2, rot:true};
+        if(tzChoca(c, !estricta)) continue;
+        if(estricta){
+          const f = finGuia(ox, oy);
+          if(f && tzGuiaCruza(x, y, f.x, f.y)) continue;
+        }
+        _tzCajas.push(c);
+        return guia(ox, oy) + nodo(ox, oy);
+      }
+    }
+  }
+  const ox = ex*paso*14, oy = ey*paso*14;
+  _tzCajas.push({x0:x+ox-w/2, y0:y+oy-h/2, x1:x+ox+w/2, y1:y+oy+h/2, rot:true});
+  return guia(ox, oy) + nodo(ox, oy);
+}
+// ── Rótulo con sitios preferidos ──
+// `candidatos` es una lista de centros {x,y} en orden de preferencia. Se prueba
+// cada uno tal cual, sin escalones ni desplazamientos, y se usa el primero
+// libre: sirve cuando un rótulo tiene pocos sitios naturales (las esquinas de un
+// nudo, las diagonales de un par, el centro o los cuartos de una repartida) y
+// apartarse en escalones lo alejaría de lo que nombra. Si ninguno está libre,
+// cae a tzTexto con su búsqueda en (dirX,dirY) y su guía, desde `origen` si se
+// da y si no desde el primer candidato. `origen` sirve cuando los candidatos
+// están al costado de lo que se rotula: la guía nace en el punto de arranque de
+// tzTexto, y desde un candidato apartado salía de un hueco vacío (el interior
+// del bloque de una repartida), no de la flecha que nombra.
+function tzTextoEn(candidatos, txt, opts, dirX, dirY, origen){
+  if(!candidatos || !candidatos.length) return '';
+  const w = tzAncho(txt, opts), h = tzAlto(txt, opts);
+  for(const p of candidatos){
+    const c = {x0:p.x-w/2, y0:p.y-h/2, x1:p.x+w/2, y1:p.y+h/2, rot:true};
+    if(!tzChoca(c)){
+      _tzCajas.push(c);
+      return '\\node[' + (opts || 'font=\\scriptsize') + '] at ('
+           + p.x.toFixed(3) + ',' + p.y.toFixed(3) + ') {' + txt + '};\n';
+    }
+  }
+  const o = origen || candidatos[0];
+  return tzTexto(o.x, o.y, txt, opts, dirX, dirY);
+}
+
+// Cadena de cotas VERTICAL: misma lógica, pero los niveles se apilan hacia
+// la derecha y las etiquetas van giradas 90°, como en un plano.
+function tzCadenaCotasY(valores, Yn, xBase, color, opts){
+  const o = Object.assign({salto:0.38, tick:0.09, maxNiveles:4}, opts||{});
+  if(!valores || valores.length < 2) return {tikz:'', nMax:-1};
+  const ESC = 100;
+  const plan = planCotas(valores, v => Yn(v)*ESC, t => tzAncho(t)*ESC,
+                         {maxNiveles:o.maxNiveles, minSeg:18, fusion:8, holgura:15});
+  if(!plan) return {tikz:'', nMax:-1};
+  const col = color || 'bsaMuted';
+  let out = '';
+  const y0 = Yn(plan.coords[0]), y1 = Yn(plan.coords[plan.coords.length-1]);
+  out += '\\draw[' + col + ', line width=.5pt] (' + xBase.toFixed(3) + ',' + y0.toFixed(3)
+       + ') -- (' + xBase.toFixed(3) + ',' + y1.toFixed(3) + ');\n';
+  tzOcuparTrazo(xBase, y0, xBase, y1, 0.05);
+  plan.coords.forEach(v=>{
+    const yy = Yn(v);
+    out += '\\draw[' + col + ', line width=.6pt] (' + (xBase-o.tick).toFixed(3) + ','
+         + (yy-o.tick).toFixed(3) + ') -- (' + (xBase+o.tick).toFixed(3) + ','
+         + (yy+o.tick).toFixed(3) + ');\n';
+  });
+  plan.segs.forEach((sg, m)=>{
+    if(!sg.visible) return;
+    const ym = (Yn(plan.coords[m]) + Yn(plan.coords[m+1]))/2;
+    const xx = xBase + 0.20 + sg.nivel*o.salto;
+    if(sg.nivel > 0)
+      out += '\\draw[' + (col.indexOf('!')>=0 ? col : col+'!45') + ', line width=.3pt] (' + (xBase+0.04).toFixed(3) + ','
+           + ym.toFixed(3) + ') -- (' + (xx-0.09).toFixed(3) + ',' + ym.toFixed(3) + ');\n';
+    const w = tzAncho(sg.txt), h = TZ_ALTO_TXT;
+    // girada: al rotar, el alto y el ancho se intercambian en la caja
+    tzOcupar(xx-h/2, ym-w/2, xx+h/2, ym+w/2);
+    out += '\\node[rotate=90, font=\\scriptsize, color=' + col + '] at ('
+         + xx.toFixed(3) + ',' + ym.toFixed(3) + ') {' + sg.txt + '};\n';
+  });
+  return {tikz:out, nMax:plan.nMax};
+}
+
+// ── Cadena de cotas en el primer carril libre (2026-10-03, el criterio del lienzo) ──
+// Las coordenadas `valores` encadenadas con punta en los dos extremos, líneas de
+// extensión desde `borde` (el contorno de lo dibujado por ese lado) y el valor
+// DERECHO junto a la línea. eje 'x': carril horizontal, lado −1 debajo y +1
+// encima; eje 'y': carril vertical, +1 a la derecha y −1 a la izquierda. Se
+// prueba cada distancia de PASOS y gana la primera en que la línea y los valores
+// no chocan con nada reservado. Un valor que no cabe junto al anterior sube de
+// fila. Devuelve {tikz, c (el carril), lejos (hasta dónde llega con sus valores)}.
+function tzCadenaLibre(valores, eje, o){
+  const vs = [...new Set(valores.map(v=>+v.toFixed(6)))].sort((a,b)=>a-b);
+  if(vs.length < 2) return {tikz:'', c:null, lejos:o.borde};
+  const horiz = eje === 'x', lado = o.lado, pos = o.pos, col = o.color || 'bsaMuted', F = v => v.toFixed(3);
+  const FT = 'font=\\scriptsize, color=' + col;
+  const segs = [];
+  for(let i=0;i<vs.length-1;i++){
+    const a = pos(vs[i]), b = pos(vs[i+1]);
+    if(Math.abs(b-a) < 0.05) continue;
+    const txt = dec(vs[i+1]-vs[i],'len') + '\\,' + escLatex(unitLen);
+    segs.push({a, b, txt, w:tzAncho(txt, FT), h:tzAlto(txt, FT)});
+  }
+  if(!segs.length) return {tikz:'', c:null, lejos:o.borde};
+  // filas: un valor que no cabe junto al anterior sube a la segunda
+  let fin = [-Infinity, -Infinity];
+  segs.forEach(sg=>{
+    const m = (sg.a+sg.b)/2, ext = horiz ? sg.w/2 + 0.06 : sg.h/2 + 0.04;
+    let f = (m - ext < fin[0]) ? 1 : 0;
+    if(f === 1 && m - ext < fin[1]) f = 0;
+    sg.fila = f; fin[f] = m + ext;
+  });
+  const wMax = Math.max(...segs.map(s=>s.w)), hMax = Math.max(...segs.map(s=>s.h));
+  const caja = (sg, c) => {
+    const m = (sg.a+sg.b)/2;
+    if(horiz){ const cy = c + lado*(0.08 + sg.h/2 + sg.fila*(sg.h+0.04)); return {x0:m-sg.w/2, y0:cy-sg.h/2, x1:m+sg.w/2, y1:cy+sg.h/2, cx:m, cy}; }
+    const cx = c + lado*(0.08 + sg.w/2 + sg.fila*(wMax+0.08)); return {x0:cx-sg.w/2, y0:m-sg.h/2, x1:cx+sg.w/2, y1:m+sg.h/2, cx, cy:m};
+  };
+  const lo = Math.min(...segs.map(s=>Math.min(s.a,s.b))), hi = Math.max(...segs.map(s=>Math.max(s.a,s.b)));
+  const PASOS = [0.35, 0.55, 0.80, 1.05, 1.35, 1.70, 2.10, 2.60];
+  let c = o.borde + lado*PASOS[PASOS.length-1];
+  for(const d of PASOS){
+    const cc = o.borde + lado*d;
+    const linea = horiz ? {x0:lo, y0:cc-0.05, x1:hi, y1:cc+0.05} : {x0:cc-0.05, y0:lo, x1:cc+0.05, y1:hi};
+    if(!tzChoca(linea) && segs.every(sg=>!tzChoca(caja(sg, cc)))){ c = cc; break; }
+  }
+  let out = '';
+  // líneas de extensión: desde `desde` (junto a los nudos) si por el camino no
+  // atraviesan ningún rótulo; si no, desde el borde de lo dibujado
+  vs.forEach(v=>{
+    const p = pos(v), e1 = c + lado*0.10;
+    let e0 = o.borde + lado*0.06;
+    if(o.desde !== undefined){
+      const d0 = o.desde;
+      const cruza = horiz ? tzGuiaCruza(p, d0, p, e1) : tzGuiaCruza(d0, p, e1, p);
+      if(!cruza) e0 = d0;
+    }
+    out += horiz ? '\\draw[' + col + '!55, line width=.3pt] (' + F(p) + ',' + F(e0) + ') -- (' + F(p) + ',' + F(e1) + ');\n'
+                 : '\\draw[' + col + '!55, line width=.3pt] (' + F(e0) + ',' + F(p) + ') -- (' + F(e1) + ',' + F(p) + ');\n';
+  });
+  let lejos = c;
+  segs.forEach(sg=>{
+    out += horiz ? '\\draw[' + col + ', line width=.45pt, {Latex[length=1.3mm,width=1mm]}-{Latex[length=1.3mm,width=1mm]}] (' + F(sg.a) + ',' + F(c) + ') -- (' + F(sg.b) + ',' + F(c) + ');\n'
+                 : '\\draw[' + col + ', line width=.45pt, {Latex[length=1.3mm,width=1mm]}-{Latex[length=1.3mm,width=1mm]}] (' + F(c) + ',' + F(sg.a) + ') -- (' + F(c) + ',' + F(sg.b) + ');\n';
+    if(horiz) tzOcuparTrazo(sg.a, c, sg.b, c, 0.05); else tzOcuparTrazo(c, sg.a, c, sg.b, 0.05);
+    const q = caja(sg, c);
+    out += tzTextoFijo(q.cx, q.cy, sg.txt, FT);
+    lejos = lado > 0 ? Math.max(lejos, horiz ? q.y1 : q.x1) : Math.min(lejos, horiz ? q.y0 : q.x0);
+  });
+  return {tikz:out, c, lejos};
+}
+
+// Cadena de cotas horizontal con niveles, al estilo del panel de dibujo.
+// Devuelve {tikz, nMax} para que quien la use sepa cuánto bajó.
+function tzCadenaCotas(valores, Xn, yBase, color, opts){
+  const o = Object.assign({salto:0.36, tick:0.09, maxNiveles:5}, opts||{});
+  if(!valores || valores.length < 2) return {tikz:'', nMax:-1};
+  // planCotas trabaja en píxeles; aquí la "posición" es la x del dibujo en
+  // cm, y el "ancho" el del texto en cm. Se escala por 100 para reutilizarlo
+  // con sus umbrales, pensados para píxeles.
+  const ESC = 100;
+  const plan = planCotas(valores, v => Xn(v)*ESC, t => tzAncho(t)*ESC,
+                         {maxNiveles:o.maxNiveles, minSeg:18, fusion:8, holgura:15});
+  if(!plan) return {tikz:'', nMax:-1};
+  const col = color || 'bsaMuted';
+  let out = '';
+  const x0 = Xn(plan.coords[0]), x1 = Xn(plan.coords[plan.coords.length-1]);
+  out += '\\draw[' + col + ', line width=.5pt] (' + x0.toFixed(3) + ',' + yBase.toFixed(3)
+       + ') -- (' + x1.toFixed(3) + ',' + yBase.toFixed(3) + ');\n';
+  tzOcuparTrazo(x0, yBase, x1, yBase, 0.05);
+  plan.coords.forEach(v=>{
+    const xx = Xn(v);
+    // marca oblicua, convención de plano
+    out += '\\draw[' + col + ', line width=.6pt] (' + (xx-o.tick).toFixed(3) + ','
+         + (yBase-o.tick).toFixed(3) + ') -- (' + (xx+o.tick).toFixed(3) + ','
+         + (yBase+o.tick).toFixed(3) + ');\n';
+  });
+  plan.segs.forEach((sg, m)=>{
+    if(!sg.visible) return;
+    const xm = (Xn(plan.coords[m]) + Xn(plan.coords[m+1]))/2;
+    const yy = yBase - 0.21 - sg.nivel*o.salto;
+    if(sg.nivel > 0)
+      out += '\\draw[' + (col.indexOf('!')>=0 ? col : col+'!45') + ', line width=.3pt] (' + xm.toFixed(3) + ','
+           + (yBase-0.04).toFixed(3) + ') -- (' + xm.toFixed(3) + ',' + (yy+0.09).toFixed(3) + ');\n';
+    // La unidad se pone solo en la ÚLTIMA cota de la fila: repetirla en
+    // todas ensancharía cada etiqueta y obligaría a escalonar de más.
+    const ult = (m === plan.segs.length - 1);
+    out += tzTextoFijo(xm, yy, sg.txt + (ult ? '\\,' + escLatex(unitLen) : ''),
+                       'font=\\scriptsize, color=' + col);
+  });
+  return {tikz:out, nMax:plan.nMax};
+}
+
+// Términos que componen cada lado de una ecuación de equilibrio.
+// e = 0 -> suma de Fx ; 1 -> suma de Fy ; 2 -> momentos respecto al origen ;
+// 3+ -> momentos a un lado de cada rótula.
+// Devuelve [{v, tex}]: v da el signo con el que entra el término y tex su
+// expresión en valor absoluto, para poder componer la suma con sus signos.
+function terminosEquilibrio(R, e){
+  const trm = [];
+  const dt = e >= 2 ? 'momento' : 'fuerza';
+  const push = (v, det) => {
+    if(Math.abs(v) < 1e-9) return;
+    trm.push({v, tex: det || dec(Math.abs(v), dt)});
+  };
+  // Las acciones se agrupan por carga: una distribuida es un solo término,
+  // con su resultante y su brazo, no una lista de rebanadas.
+  const porCarga = new Map();
+  R.acc.forEach(a=>{
+    const k = a.carga ? a.carga.id : ('x'+trm.length);
+    if(!porCarga.has(k)) porCarga.set(k, {c:a.carga, fx:0, fy:0, m:0, x:a.x, y:a.y});
+    const o = porCarga.get(k);
+    o.fx += a.fx; o.fy += a.fy; o.m += a.m || 0;
+  });
+  const lista = [...porCarga.values()];
+  if(e === 0){ lista.forEach(o=>push(o.fx)); return trm; }
+  if(e === 1){ lista.forEach(o=>push(o.fy)); return trm; }
+  // momentos: se muestra fuerza x brazo, que es lo que se hace a mano
+  const rt = (e >= 3 && R.rotulas[e-3]) ? R.rotulas[e-3] : {x:0, y:0};
+  const ok = (o) => {
+    if(e < 3) return true;
+    const lado = ladoDeRotula(R.rotulas[e-3], R.cad);
+    return accionEnLado(o.c, lado);
+  };
+  lista.forEach(o=>{
+    if(!ok(o)) return;
+    const bx = o.x - rt.x, by = o.y - rt.y;
+    const mv = bx*o.fy - by*o.fx + o.m;
+    if(Math.abs(mv) < 1e-9) return;
+    let det;
+    if(Math.abs(o.fy) > 1e-9 && Math.abs(o.fx) < 1e-9 && Math.abs(o.m) < 1e-9)
+      det = dec(Math.abs(o.fy),'fuerza') + '\\times' + dec(Math.abs(bx),'len');
+    else if(Math.abs(o.fx) > 1e-9 && Math.abs(o.fy) < 1e-9 && Math.abs(o.m) < 1e-9)
+      det = dec(Math.abs(o.fx),'fuerza') + '\\times' + dec(Math.abs(by),'len');
+    else if(Math.abs(o.m) > 1e-9 && Math.abs(o.fx) < 1e-9 && Math.abs(o.fy) < 1e-9)
+      det = dec(Math.abs(o.m),'momento');
+    else
+      det = dec(Math.abs(mv),'momento');
+    push(mv, det);
+  });
+  return trm;
+}
+
+// ── Desarrollo paso a paso de las reacciones ──
+// Se plantea cada ecuación completa (incógnitas y cargas, todo a un lado) y
+// se resuelve en el orden en que se puede resolver a mano: primero la que
+// deja una sola incógnita, después las que se despejan sustituyendo lo ya
+// hallado. Cada reacción aparece con su valor en cuanto se obtiene; antes se
+// escribían tres líneas casi iguales y el valor solo salía en la tabla final.
+// ── Nombre de cada reacción ──
+// ── Ángulos acotados en la figura que se está dibujando (2026-09-14) ──
+// tikzViga y tikzDCLSub lo vacían al empezar y tikzArcoReaccionFI añade cada
+// {letra, valor}; el pie de figura los lista con _angulosFiguraTex, y el
+// desarrollo de las reacciones toma de aquí la letra del rodillo inclinado.
+let _angulosFiguraFI = [];
+function _angulosFiguraTex(lista){
+  if(!lista || !lista.length) return '';
+  const vistas = [];
+  lista.forEach(a=>{ if(a.letra && !vistas.some(v=>v.letra === a.letra)) vistas.push(a); });
+  return ' Ángulos: ' + vistas.map(a=>'$' + a.letra + ' = ' + dec(a.valor,'ang') + '^{\\circ}$').join(', ') + '.';
+}
+// Arco del ángulo de una reacción inclinada en el PDF, en la cola de su flecha:
+// desde el eje más cercano (trazo punteado), con su letra griega colocada por
+// tzTexto. (ox,oy) es la cola; (ux,uy) la dirección de la flecha hacia el nudo.
+// Mismo criterio que el lienzo (bsaAnguloAgudoEje) y que armaduras.
+// `pend` (opcional): lista de rótulos pendientes. Si se da, la letra no se
+// coloca aquí sino que se deja en ella como {x,y,txt,opts,dir}, para que la
+// figura la coloque cuando ya tenga reservada toda su geometría (tikzViga).
+function tikzArcoReaccionFI(ox, oy, ux, uy, gen, pend, col){
+  const cA = col || 'bsaReac';
+  const ag = bsaAnguloAgudoEje(ux, uy);
+  if(ag.grados < 4) return '';
+  const rayDeg = ag.desdeV ? (uy >= 0 ? 90 : -90) : (ux >= 0 ? 0 : 180);
+  let endDeg = Math.atan2(uy, ux)*180/Math.PI;
+  while(endDeg - rayDeg > 180) endDeg -= 360;
+  while(endDeg - rayDeg < -180) endDeg += 360;
+  const cr = Math.cos(rayDeg*Math.PI/180), sr = Math.sin(rayDeg*Math.PI/180), R2 = 0.45;
+  const F3 = v => v.toFixed(3);
+  const letra = gen.para(ag.grados);
+  let q = '\\draw[' + cA + '!55, line width=0.35pt, dash pattern=on 1.5pt off 1.5pt] (' + F3(ox) + ',' + F3(oy)
+        + ') -- (' + F3(ox + 0.62*cr) + ',' + F3(oy + 0.62*sr) + ');\n';
+  q += '\\draw[' + cA + '!70, line width=0.45pt] (' + F3(ox + R2*cr) + ',' + F3(oy + R2*sr)
+     + ') arc [start angle=' + rayDeg + ', end angle=' + endDeg.toFixed(2) + ', radius=' + R2 + '];\n';
+  const am = (rayDeg + endDeg)/2*Math.PI/180;
+  const rot = {x:ox + 0.72*Math.cos(am), y:oy + 0.72*Math.sin(am), txt:'$' + letra + '$',
+               opts:'font=\\tiny, color=' + cA, dir:[Math.cos(am), Math.sin(am)]};
+  if(pend) pend.push(rot);
+  else q += tzTexto(rot.x, rot.y, rot.txt, rot.opts, rot.dir[0], rot.dir[1]);
+  _angulosFiguraFI.push({letra, valor:ag.grados});
+  return q;
+}
+// $R_{yD}$, $R_{xD}$, $R_A$, $M_D$: el mismo símbolo en el desarrollo, en el
+// resumen y en los DCL, para que el alumno siga una sola nomenclatura.
+function simbReaccion(u){
+  if(u.tipo === 'V') return nombreVinculoTex(u.vin);     // T_{BD}, F_{A}, R_{tA} (22-)
+  const b = escLatex(u.n.nombre);
+  if(u.ang !== undefined) return 'R_{' + b + '}';
+  return (u.tipo==='Rx' ? 'R_{x' : (u.tipo==='Ry' ? 'R_{y' : 'M_{')) + b + '}';
+}
+// ── Sentido real, con icono ──
+// Una flecha se lee de un vistazo; «hacia la izquierda» hay que leerlo. Un
+// apoyo móvil orientado puede apuntar en cualquier dirección, así que se
+// escoge la flecha más próxima de las ocho.
+const _FLECHAS = ['\\rightarrow', '\\nearrow', '\\uparrow', '\\nwarrow',
+                  '\\leftarrow', '\\swarrow', '\\downarrow', '\\searrow'];
+function iconoReaccion(u, v){
+  if(u.tipo === 'M' && u.ang === undefined)
+    return '$' + (v >= 0 ? '\\circlearrowleft' : '\\circlearrowright') + '$';
+  let ang;
+  if(u.ang !== undefined) ang = u.ang;
+  else ang = (u.tipo === 'Rx') ? 0 : Math.PI/2;
+  if(v < 0) ang += Math.PI;
+  const k = ((Math.round(ang/(Math.PI/4)) % 8) + 8) % 8;
+  return '$' + _FLECHAS[k] + '$';
+}
+
+function pasoAPasoReacciones(R){
+  if(!R || R.error || !R.inc.length) return '';
+  const simb = simbReaccion;
+  const uInc = (u) => escLatex((u.tipo === 'M' && u.ang === undefined) ? unidadMomento() : unitFor);
+  const nEq = R.A.length, nInc = R.inc.length;
+  // El subíndice de la sumatoria ya dice respecto a qué punto se toman los
+  // momentos: la aclaración entre paréntesis sobraba. Si en el origen hay un
+  // nudo, se le llama por su nombre ($\sum M_A = 0$) en vez de $\sum M_O = 0$.
+  const nomEq = [];
+  nomEq.push('\\sum F_x = 0');
+  nomEq.push('\\sum F_y = 0');
+  nomEq.push('\\sum M_{' + nombreOrigen() + '} = 0');
+  for(let e=3;e<nEq;e++) nomEq.push('\\sum M_{' + escLatex(R.rotulas[e-3].etiqueta || R.rotulas[e-3].nombre) + '} = 0');
+
+  let out = '';
+  // Diagrama de cuerpo libre global: la viga con sus cargas Y con las
+  // reacciones dibujadas como incógnitas, para que se vea el sentido
+  // positivo supuesto de cada una antes de plantear las ecuaciones.
+  const _dclGlobal = tikzViga(true);
+  const angsGlobal = _angulosFiguraFI.slice();     // las letras de esta figura
+  // El DCL global (y la descomposición del rodillo inclinado, que lo cita) va
+  // justo antes de la PRIMERA ecuación global que se desarrolla, no al principio:
+  // con rótulas, sus ecuaciones van antes y el DCL quedaba páginas atrás de donde
+  // se usa (2026-10-05, observación del profesor). Sin rótulas sale donde siempre.
+  let preGlobal = '\\begin{center}\\begin{tikzpicture}\n' + _dclGlobal
+       + '\\end{tikzpicture}\n'
+       + '\\\\[2pt]{\\footnotesize\\color{bsaMuted} DCL global.' + _angulosFiguraTex(angsGlobal) + '}\n\\end{center}\\vspace{4pt}\n';
+
+  // ── El rodillo inclinado: su reacción se descompone con el ángulo de la figura ──
+  // Antes su coeficiente aparecía ya multiplicado (5.66 R_C) sin explicación. Se
+  // escribe con el ángulo agudo acotado en el DCL y el signo de cada sentido
+  // (R_x = -R sen θ ...), nunca con el de 0 a 360 del modelo; y el brazo respecto
+  // del origen de momentos se desarrolla con sus distancias (2026-09-14).
+  R.inc.forEach((u,j)=>{
+    if(u.ang === undefined) return;
+    const ca = Math.cos(u.ang), sa = Math.sin(u.ang);
+    const ag = bsaAnguloAgudoEje(ca, sa);
+    if(ag.grados < 4) return;
+    const nR = simb(u), nn = escLatex(u.n.nombre);
+    const letra = (angsGlobal.find(x => x.letra && Math.abs(x.valor - ag.grados) < 0.15) || {}).letra || '\\theta';
+    const g = dec(ag.grados,'ang') + '^{\\circ}';
+    const fn = comp => (((comp === 'x') !== ag.desdeV) ? '\\cos' : '\\operatorname{sen}');
+    const sg = comp => ((comp === 'x' ? ca : sa) < 0 ? '-' : '');
+    const f4 = v => (Math.round(v*10000)/10000).toFixed(4);
+    // Las componentes de una cuerda, biela o tope anclados (22-) llevan su nombre:
+    // T_{A,x}, no R_{xA}, que podría ser la del apoyo del mismo nudo.
+    const cX = (u.tipo === 'V') ? _arComp(nR, 'x') : 'R_{x' + nn + '}';
+    const cY = (u.tipo === 'V') ? _arComp(nR, 'y') : 'R_{y' + nn + '}';
+    preGlobal += _alineada([
+      cX + ' &= ' + sg('x') + nR + fn('x') + letra + ' = ' + sg('x') + nR + fn('x') + ' ' + g + ' = ' + f4(ca) + '\\,' + nR,
+      cY + ' &= ' + sg('y') + nR + fn('y') + letra + ' = ' + sg('y') + nR + fn('y') + ' ' + g + ' = ' + f4(sa) + '\\,' + nR
+    ]);
+    const O = nombreOrigen(), coefM = R.A[2][j];
+    preGlobal += _alineada([
+      'M_{' + O + '} &= x_{' + nn + '}\\,' + cY + ' - y_{' + nn + '}\\,' + cX,
+      '&= (' + dec(u.n.x,'len') + ')\\,(' + f4(sa) + '\\,' + nR + ') - (' + dec(u.n.y,'len') + ')\\,(' + f4(ca) + '\\,' + nR + ')',
+      '&= ' + dec(coefM,'len') + '\\,' + nR
+    ]);
+    // Autocontrol: el brazo escrito debe reproducir el coeficiente del motor.
+    if(Math.abs(u.n.x*sa - u.n.y*ca - coefM) > 1e-6)
+      console.warn('Informe LaTeX: el brazo del rodillo inclinado no reproduce el coeficiente', {escrito:u.n.x*sa - u.n.y*ca, motor:coefM});
+  });
+
+  // ── Un DCL por cada ecuación de equilibrio independiente ──
+  // Con una rótula no basta el DCL global: la ecuación de momento nulo aísla
+  // UN LADO, y ese trozo es otro cuerpo libre, con sus propias cargas, sus
+  // propias reacciones y sus brazos medidos desde la rótula. Sin la figura,
+  // «tomando solo lo que hay a un lado» es una frase sin apoyo visual.
+  const dclRotula = (rt) => {
+    const lado = ladoDeRotula(rt, R.cad);
+    if(!lado.tramos.length) return '';
+    const nr = escLatex(rt.nombre);
+    return '\\begin{center}\\begin{tikzpicture}\n'
+      + tikzViga(true, {tramos:lado.tramos, incNodos:lado.nodos, rotula:rt,
+                        origen:{x:rt.x, y:rt.y, nombre:rt.nombre}})
+      + '\\end{tikzpicture}\n\\\\[2pt]{\\footnotesize\\color{bsaMuted} DCL del trozo desde la rótula ' + nr
+      + '.}\n\\end{center}\\vspace{4pt}\n';
+  };
+
+  const dtEq = e => (e >= 2 ? 'momento' : 'fuerza');
+  const unEq = e => escLatex(e >= 2 ? unidadMomento() : unitFor);
+  const conocido = new Array(nInc).fill(false);
+  const usada = new Array(nEq).fill(false);
+  // Términos de las incógnitas; las ya halladas entran como número.
+  const izqTerms = (e, sustituir) => {
+    const t = [];
+    R.inc.forEach((u,j)=>{
+      const a = R.A[e][j];
+      if(Math.abs(a) < 1e-9) return;
+      if(sustituir && conocido[j]){
+        const v = a*R.val[j];
+        if(Math.abs(v) < 1e-9) return;
+        t.push({v, tex: dec(Math.abs(v), dtEq(e))});
+      } else {
+        t.push({v:a, tex: termInc(u, a, e), inc:true});
+      }
+    });
+    return t;
+  };
+  // Cómo entra una incógnita en una suma. La reacción del rodillo inclinado va
+  // en $\\sum F_x$ y $\\sum F_y$ con su seno o su coseno del ángulo agudo de la
+  // figura (R sen 45°), no con el coeficiente ya multiplicado (0.71 R); el signo
+  // lo pone el término. En $\\sum M$ el coeficiente es el brazo, que ya se
+  // desarrolló arriba, y se deja en número.
+  const _trigInclinada = (u, e) => {
+    if(e > 1 || u.ang === undefined) return null;
+    const ag = bsaAnguloAgudoEje(Math.cos(u.ang), Math.sin(u.ang));
+    if(ag.grados < 4) return null;
+    return (((e === 0) !== ag.desdeV) ? '\\cos ' : '\\operatorname{sen} ') + dec(ag.grados,'ang') + '^{\\circ}';
+  };
+  function termInc(u, a, e){
+    const tr = _trigInclinada(u, e);
+    if(tr) return simb(u) + tr;
+    const co = Math.abs(Math.abs(a)-1) < 1e-9 ? '' : dec(Math.abs(a),'len') + '\\,';
+    return co + simb(u);
+  }
+  const pendientes = (e) => {
+    const v = [];
+    R.inc.forEach((u,j)=>{ if(Math.abs(R.A[e][j]) > 1e-9 && !conocido[j]) v.push({u, j, a:R.A[e][j]}); });
+    return v;
+  };
+
+  // Una ecuación con muchos términos (pórtico con rótula y varias cargas) se
+  // salía del margen en una sola línea: a partir de seis términos se parte.
+  const carg = [];                 // términos de carga de cada ecuación
+  for(let e=0;e<nEq;e++) carg.push(terminosEquilibrio(R, e));
+
+  // Cabecera de una ecuación: si es la de una rótula, delante va su DCL.
+  // Mismo formato que los cortes: icono del convenio, la sumatoria con dos
+  // puntos y la ecuación en la misma línea; el despeje alineado debajo.
+  const ico = e => (e === 0) ? '\\xrightarrow{+}\\ '
+                 : (e === 1 ? '+\\!\\uparrow\\ ' : '\\circlearrowleft\\!+\\ ');
+  const etiqueta = e => ico(e) + nomEq[e] + ':\\quad';
+  const _cabecera = (e) => (e >= 3 && R.rotulas[e-3] ? dclRotula(R.rotulas[e-3]) : '');
+  // Lo que precede a la primera ecuación global (ΣFx, ΣFy, ΣM del origen): el DCL
+  // global y, si lo hay, el rodillo inclinado. Se entrega una sola vez.
+  const sacarGlobal = () => { const g = preGlobal; preGlobal = ''; return g; };
+
+  // Numeración de las ecuaciones.
+  const numEc = new Array(nEq).fill(0);
+  let nSig = 0;
+
+  let restantes = nEq;
+  while(restantes > 0){
+    // Se elige la ecuación que deje UNA sola incógnita: es la que se puede
+    // despejar sin tocar las demás.
+    let el = -1;
+    for(let e=0;e<nEq;e++){
+      if(usada[e]) continue;
+      if(pendientes(e).length === 1){ el = e; break; }
+    }
+    if(el < 0){
+      // Ninguna se despeja sola: las que quedan forman un sistema simultáneo.
+      const libres = [], nums = [];
+      let filasS = [];
+      const flush = () => { if(filasS.length){ out += _ecuaciones(filasS); filasS = []; } };
+      for(let e=0;e<nEq;e++){
+        if(usada[e]) continue;
+        usada[e] = true; restantes--;
+        numEc[e] = ++nSig; nums.push(numEc[e]);
+        if(e < 3){ const g = sacarGlobal(); if(g){ flush(); out += g; } }
+        const dcl = _cabecera(e);
+        if(dcl){ flush(); out += dcl; }      // el DCL de la rótula va antes de SU ecuación
+        // Dos líneas por ecuación (2026-10-11, directriz del profesor): la
+        // ecuación completa y, debajo, la expresión que queda con lo ya hallado
+        // sustituido y las cargas sumadas (a R_x + b R_y = c).
+        const par = [_fila(etiqueta(e), izqTerms(e, false).concat(carg[e]),
+                           ' = 0\\qquad(' + numEc[e] + ')', 5, ' & ')];
+        const pe = pendientes(e);
+        // Sin cargas ni valores ya hallados, la segunda línea repetiría la primera.
+        const reduce = carg[e].length || izqTerms(e, false).length > pe.length;
+        if(pe.length && reduce){
+          // Fuera las incógnitas que quedan: marcadas (`inc`), y por su nombre.
+          const c = izqTerms(e, true).concat(carg[e])
+                      .filter(t=>!t.inc && t.tex.indexOf('R_') < 0 && t.tex.indexOf('M_') < 0)
+                      .reduce((s,t)=>s + t.v, 0);
+          par.push(_fila('', pe.map(p=>({v:p.a, tex:termInc(p.u, p.a, e)})),
+                         ' = ' + dec(-c, dtEq(e)) + '\\ \\text{' + unEq(e) + '}', 5, ' & '));
+        }
+        filasS.push(par);
+        pe.forEach(p=>{ if(libres.indexOf(p.j) < 0) libres.push(p.j); });
+      }
+      flush();
+      if(libres.length){
+        // Los valores del sistema, en una línea centrada como las ecuaciones.
+        out += '\\[' + libres.map(j=>simb(R.inc[j]) + ' = '
+          + dec(R.val[j], (R.inc[j].tipo === 'M' && R.inc[j].ang === undefined) ? 'momento' : 'fuerza')
+          + '\\ \\text{' + uInc(R.inc[j]) + '}').join('\\qquad ') + '\\]\n';
+        libres.forEach(j=>{ conocido[j] = true; });
+      }
+      break;
+    }
+
+    usada[el] = true; restantes--;
+    const p = pendientes(el)[0];
+    const hayPrevias = izqTerms(el, false).length > 1;
+    if(el < 3) out += sacarGlobal();
+    out += _cabecera(el);
+    // Dos líneas por ecuación (2026-10-11, directriz del profesor): la ecuación
+    // completa —incógnitas, cargas y fuerza × brazo, igualada a cero— y debajo
+    // la incógnita con su valor. Lo ya hallado se sustituye sin escribirlo.
+    // Una ecuación con una sola incógnita de coeficiente unidad y sin cargas
+    // ya es el propio despeje: va en una sola línea.
+    const trivial = !hayPrevias && !carg[el].length && Math.abs(Math.abs(p.a)-1) < 1e-9;
+    numEc[el] = ++nSig;
+    const dtI = (p.u.tipo === 'M' && p.u.ang === undefined) ? 'momento' : 'fuerza';
+    const valor = simb(p.u) + ' = ' + dec(R.val[p.j], dtI) + '\\ \\text{' + uInc(p.u) + '}';
+    const filas = [];
+    if(trivial) filas.push(etiqueta(el) + ' & ' + valor + '\\qquad(' + numEc[el] + ')');
+    else {
+      filas.push(_fila(etiqueta(el), izqTerms(el, false).concat(carg[el]),
+                       ' = 0\\qquad(' + numEc[el] + ')', 5, ' & '));
+      filas.push(' & ' + valor);
+    }
+    out += _alineada(filas);
+    conocido[p.j] = true;
+  }
+  return out;
+}
+
+// ── Hacia dónde mira el muro de un empotramiento ──
+// La dirección contraria a la media de los tramos que llegan al nudo, en grados
+// (0 = a la derecha, 90 = arriba). Es el mismo criterio del lienzo
+// (`dibujarApoyo`, 08-), y por eso el símbolo del PDF coincide con el que el
+// alumno ve mientras dibuja; allí se calcula en coordenadas de pantalla (y hacia
+// abajo) y aquí en las del modelo (y hacia arriba), que es la de TikZ.
+function anguloEmpotramiento(n){
+  let sx = 0, sy = 0, cuenta = 0;
+  tramos.forEach(t=>{
+    const o = (t.a === n.id) ? nodo(t.b) : (t.b === n.id ? nodo(t.a) : null);
+    if(!o) return;
+    const L = Math.hypot(o.x - n.x, o.y - n.y) || 1;
+    sx += (o.x - n.x)/L; sy += (o.y - n.y)/L; cuenta++;
+  });
+  if(!cuenta || Math.hypot(sx, sy) < 1e-9) return 180;      // sin viga: a la izquierda
+  // Con una viga horizontal, `-sy` es −0 y `Math.atan2(-0, -1)` vale −π, no π:
+  // se normaliza para que un muro a la izquierda salga siempre como 180.
+  const a = Math.atan2(-sy, -sx)*180/Math.PI;
+  return a <= -179.999 ? 180 : a;
+}
+
+// ── Símbolo de apoyo en TikZ ──
+// El mismo dibujo sirve para el modelo, los DCL y el esquema de los
+// diagramas, así el alumno reconoce el apoyo en las tres figuras.
+// angMuro: hacia dónde mira el muro del empotramiento, en grados (0 = a la
+// derecha, 180 = a la izquierda, que es el valor por defecto). Lo da
+// `anguloEmpotramiento(n)` salvo en el esquema de los diagramas, donde la pieza
+// se dibuja desarrollada sobre su eje y el muro sigue a ese eje, no al modelo.
+// angApoyo: ángulo del propio apoyo, en la convención del proyecto (desde +x,
+// antihorario; 90° = el de siempre). Lo usan el simple y el móvil, que se
+// dibujan colgando del nudo y giran (ángulo − 90°) dentro de un `scope`. En el
+// MÓVIL ese ángulo es la dirección real de su reacción y sale de `apAng`; en el
+// SIMPLE es solo presentación y sale de `apAngDib`, sin tocar ningún cálculo.
+function tikzApoyo(x, y, tipo, k, angMuro, angApoyo){
+  const K = k || 1, F = n => n.toFixed(3);
+  let out = '';
+  const aAp = (angApoyo === undefined ? 90 : angApoyo);
+  const giro = (tipo === 'simple' || tipo === 'movil') && Math.abs(aAp - 90) > 0.01;
+  if(giro) out += '\\begin{scope}[shift={(' + F(x) + ',' + F(y) + ')}, rotate=' + (aAp - 90).toFixed(2) + ']\n';
+  const X0 = giro ? 0 : x, Y0 = giro ? 0 : y;
+  if(tipo === 'simple'){
+    out += '\\draw[line width=1pt] (' + F(X0) + ',' + F(Y0) + ') -- (' + F(X0-0.28*K) + ',' + F(Y0-0.45*K)
+         + ') -- (' + F(X0+0.28*K) + ',' + F(Y0-0.45*K) + ') -- cycle;\n';
+    out += '\\draw[line width=1pt] (' + F(X0-0.4*K) + ',' + F(Y0-0.45*K) + ') -- (' + F(X0+0.4*K) + ',' + F(Y0-0.45*K) + ');\n';
+    for(let i=-3;i<=3;i++){
+      const xi = X0+i*0.11*K;
+      out += '\\draw[line width=.6pt] (' + F(xi) + ',' + F(Y0-0.45*K) + ') -- (' + F(xi-0.08*K) + ',' + F(Y0-0.58*K) + ');\n';
+    }
+  } else if(tipo === 'movil'){
+    out += '\\draw[line width=1pt] (' + F(X0) + ',' + F(Y0) + ') -- (' + F(X0-0.26*K) + ',' + F(Y0-0.38*K)
+         + ') -- (' + F(X0+0.26*K) + ',' + F(Y0-0.38*K) + ') -- cycle;\n';
+    out += '\\draw[line width=1pt] (' + F(X0-0.13*K) + ',' + F(Y0-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
+    out += '\\draw[line width=1pt] (' + F(X0+0.13*K) + ',' + F(Y0-0.46*K) + ') circle (' + F(0.08*K) + ');\n';
+    out += '\\draw[line width=1pt] (' + F(X0-0.36*K) + ',' + F(Y0-0.54*K) + ') -- (' + F(X0+0.36*K) + ',' + F(Y0-0.54*K) + ');\n';
+  } else if(tipo === 'empotrado'){
+    // El muro entero gira: se dibuja con la cara del muro sobre el eje vertical
+    // local y las rayas hacia +x, y el `rotate` lo lleva a su orientación. Así
+    // el empotramiento de una columna queda debajo de ella y el de un voladizo
+    // a su lado, en vez de quedar siempre vertical.
+    const a = (angMuro === undefined ? 180 : angMuro);
+    out += '\\begin{scope}[shift={(' + F(x) + ',' + F(y) + ')}, rotate=' + a.toFixed(2) + ']\n';
+    out += '\\draw[line width=1.4pt] (0,' + F(-0.42*K) + ') -- (0,' + F(0.42*K) + ');\n';
+    for(let i=-3;i<=3;i++){
+      const yi = i*0.13*K;
+      out += '\\draw[line width=.6pt] (0,' + F(yi) + ') -- (' + F(0.16*K) + ',' + F(yi-0.1*K) + ');\n';
+    }
+    out += '\\end{scope}\n';
+  }
+  if(giro) out += '\\end{scope}\n';
+  return out;
+}
+
+// ── DCL del trozo cortado, en TikZ ──
+// Se ve la porción de viga que queda antes del corte con TODO lo que actúa
+// sobre ella: el apoyo y sus reacciones (con nombre y valor), las cargas
+// puntuales, los pares, las repartidas con su resultante y, en la cara
+// cortada, N, V y M en sentido positivo. Reutiliza el colocador de rótulos,
+// así que las etiquetas se apartan en vez de pisarse.
+//
+// Ojo con las repartidas: si la sección cae DENTRO de la carga, la parte que
+// actúa depende de la abscisa, así que su resultante no es un número sino
+// w(x-d), aplicada a la mitad de ese trozo. Solo las cargas que terminan
+// antes del intervalo se sustituyen por su resultante numérica.
+// ── Leyenda al costado de un DCL (2026-10-05, petición del profesor) ──
+// La figura lleva solo la variable ($P_1$, $w_1$, $R_{yD}$, $N_0$…) y aquí van sus
+// valores; debajo, los brazos, si sus cotas también van por nombre. Una sola
+// caja, a la derecha de todo lo dibujado. Una variable repetida se da una vez.
+function leyendaFigFI(valores, brazos){
+  // Sin repetir, y por familias: repartidas y sus resultantes, puntuales, pares,
+  // lo que transmite una rama, reacciones y lo que llega por el nudo.
+  const ORDEN = ['w', 'W', 'P', 'C', 'F', 'M', 'R', 'N', 'V'];
+  const clave = f => { const i = ORDEN.indexOf(f.nom.charAt(0)); return (i < 0 ? 99 : i)*1000 + (parseInt((f.nom.match(/\d+/) || ['0'])[0], 10) || 0); };
+  const uniq = l => (l || []).filter((f, i, a)=>a.findIndex(g=>g.nom === f.nom) === i);
+  const bloques = [];
+  const v = uniq(valores).map((f, i)=>({f, i})).sort((p, q)=>clave(p.f) - clave(q.f) || p.i - q.i).map(p=>p.f);
+  const b = uniq(brazos);
+  if(v.length) bloques.push('\\textbf{Valores}' + v.map(f=>'\\\\ $' + f.nom + ' = ' + f.val + '$').join(''));
+  if(b.length) bloques.push('\\textbf{Brazos}' + b.map(f=>'\\\\ $' + f.nom + ' = ' + f.val + '$').join(''));
+  if(!bloques.length) return '';
+  return '\\node[anchor=north west, xshift=4mm, font=\\scriptsize, align=left, draw=black!25, '
+    + 'fill=white, rounded corners=1pt, inner sep=3pt] at (current bounding box.north east) {'
+    + bloques.join('\\\\[3pt]') + '};\n';
+}
+
+function tikzDCLSub(R, gg, seg, sub, info){
+  _angulosFiguraFI = [];
+  const valores = [];             // la leyenda: {nom, val}
+  const uTx = u => '\\,\\text{' + u + '}';
+  const genAngSub = bsaLetrasGriegas();
+  // θ es la inclinación del tramo; si no la lleva, igual queda reservada para que
+  // el ángulo de una carga se llame α y no se confunda con ella.
+  genAngSub.para(gg.oblicuo ? Math.abs(gg.ang) : -999);
+  const EPS = 1e-9;
+  const primero = gg.primero;
+  const sIni = gg.s0;
+  const sCut = seg.s0 + sub.sb;
+  const O = gg.desde;
+  const P = {x: seg.desde.x + seg.ux*sub.sb, y: seg.desde.y + seg.uy*sub.sb};
+  const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
+  const Fz = v => dec(Math.abs(v),'fuerza');
+  const Lz = v => dec(v,'len');
+  const sb = gg.simbolo;
+  const brazo = d => (Math.abs(d) < 1e-6 ? sb : '(' + sb + ' - ' + Lz(d) + ')');
+  // Abscisa donde empieza el intervalo: una carga que termina antes de él ya
+  // es una fuerza conocida; una que lo cruza, no.
+  const A0 = info ? info.a : (seg.s0 - gg.s0 + sub.sa);
+
+  // nudos del grupo que quedan dentro del trozo
+  const pts = [{x:O.x, y:O.y, nom:O.nombre, n:O}];
+  let ac = sIni;
+  gg.tramos.forEach(t2=>{
+    ac += t2.L;
+    if(ac < sCut - 1e-9) pts.push({x:t2.hasta.x, y:t2.hasta.y, nom:t2.hasta.nombre, n:t2.hasta});
+  });
+  const todos = pts.concat([P]);
+
+  let minx=Infinity, maxx=-Infinity, miny=Infinity, maxy=-Infinity;
+  todos.forEach(p=>{ minx=Math.min(minx,p.x); maxx=Math.max(maxx,p.x);
+                     miny=Math.min(miny,p.y); maxy=Math.max(maxy,p.y); });
+  const dxB = Math.max(maxx-minx, 1e-6), dyB = Math.max(maxy-miny, 1e-6);
+  // Tope 3.2 (antes 2.4): un tramo corto, como una rama de 1 m, salía diminuto
+  // y sus flechas y rótulos se amontonaban (2026-10-05). Los largos no cambian.
+  const k = Math.min(3.2, 10.0/dxB, 5.6/dyB);
+  const X = x => (x-minx)*k, Y = y => (y-miny)*k;
+  const F = n => n.toFixed(3);
+  tzReiniciar();
+
+  // Ejes locales y puntos clave, que necesitan tanto las cargas como las cotas.
+  const ux = seg.ux, uy = seg.uy, nx = -uy, ny = ux;
+  const px = X(P.x), py = Y(P.y);
+  let nxq = nx, nyq = ny;
+  if(nyq > 0){ nxq = -nxq; nyq = -nyq; }        // hacia el lado libre (abajo)
+  const rCut = sCut - sIni;
+  const pxU = Math.hypot(px - X(O.x), py - Y(O.y)) / (rCut || 1);
+  // Punto del eje a la abscisa r del grupo, separado sep hacia el lado libre.
+  const qEje = (r, sep) => ({x: X(O.x) + ux*(r*pxU) + nxq*sep,
+                             y: Y(O.y) + uy*(r*pxU) + nyq*sep});
+
+  let out = '';
+  const nombresNudo = [];
+  for(let i=0;i<todos.length-1;i++){
+    out += '\\draw[line width=1.7pt, color=bsaAcc2] (' + F(X(todos[i].x)) + ',' + F(Y(todos[i].y))
+         + ') -- (' + F(X(todos[i+1].x)) + ',' + F(Y(todos[i+1].y)) + ');\n';
+    tzOcuparTrazo(X(todos[i].x), Y(todos[i].y), X(todos[i+1].x), Y(todos[i+1].y), 0.09);
+  }
+  pts.forEach((p,i)=>{
+    out += '\\filldraw[color=bsaAcc2] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.055);\n';
+    // El nombre se reserva aquí, abajo a la izquierda, y se escribe al final:
+    // si para entonces una flecha lo pisa, busca hueco (2026-10-05: la «H» de la
+    // rama quedaba debajo de su carga).
+    tzOcupar(X(p.x)-0.36, Y(p.y)-0.38, X(p.x)+0.06, Y(p.y)-0.02);
+    nombresNudo.push({x:X(p.x), y:Y(p.y), nom:escLatex(p.nom), i:_tzCajas.length - 1});
+    // El apoyo se dibuja tal cual: así el alumno ve de dónde salen las
+    // reacciones. En los grupos siguientes al primero, el nudo de arranque
+    // ya está representado por N0, V0 y M0 y no lleva apoyo.
+    const esArranque = (i === 0);
+    if(p.n && p.n.apoyo && p.n.apoyo !== 'libre' && (primero || !esArranque)){
+      const emp = (p.n.apoyo === 'empotrado');
+      const aAp = anguloApoyo(p.n);
+      out += tikzApoyo(X(p.x), Y(p.y), p.n.apoyo, 0.9,
+                       emp ? anguloEmpotramiento(p.n) : undefined, aAp);
+      // Si el símbolo gira, su hueco deja de ser la banda de debajo del nudo y
+      // pasa a ser un cuadrado alrededor, como el del empotramiento.
+      if(emp || Math.abs(aAp - 90) > 0.01) tzOcupar(X(p.x)-0.42, Y(p.y)-0.42, X(p.x)+0.42, Y(p.y)+0.42);
+      else tzOcupar(X(p.x)-0.42, Y(p.y)-0.62, X(p.x)+0.42, Y(p.y)-0.02);
+    }
+    if(p.n && p.n.rotula && !esArranque)
+      out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.8pt] (' + F(X(p.x)) + ',' + F(Y(p.y)) + ') circle (0.09);\n';
+  });
+
+  // ── Inclinación del tramo ──
+  // En un tramo inclinado, las ecuaciones del corte usan las componentes
+  // perpendicular y paralela de cada fuerza, y esas salen de θ. Sin el ángulo
+  // en la figura, los senos y cosenos del desarrollo no se sostienen en nada.
+  // Un tramo vertical u horizontal no lleva θ (2026-10-05): se sobrentiende.
+  // El rótulo de θ se coloca AL FINAL, cuando ya están las cotas: así las esquiva.
+  let rotTheta = null;
+  if(gg.oblicuo){
+    const ox = X(O.x), oy = Y(O.y);
+    const gr = dec(gg.ang,'ang');
+    const a2 = gg.ang;                       // ángulo del eje con la horizontal
+    const rr = 0.95, sgx = (a2 > 90 || a2 < -90) ? -1 : 1;
+    // horizontal de referencia, a puntos, hacia el lado del tramo
+    out += '\\draw[dotted, color=bsaMuted] (' + F(ox) + ',' + F(oy) + ') -- ('
+         + F(ox + sgx*(rr + 0.35)) + ',' + F(oy) + ');\n';
+    out += '\\draw[-{Latex[length=1.5mm]}, color=bsaCarga, line width=.8pt] ('
+         + F(ox + sgx*rr) + ',' + F(oy) + ') arc (' + (sgx > 0 ? '0' : '180') + ':'
+         + F(a2) + ':' + F(rr) + ');\n';
+    const am = (((sgx > 0 ? 0 : 180) + a2)/2)*Math.PI/180;
+    tzOcupar(ox - rr, oy - rr, ox + rr, oy + rr);
+    rotTheta = [ox + Math.cos(am)*(rr + 0.34), oy + Math.sin(am)*(rr + 0.34),
+                '{\\scriptsize$\\theta = ' + gr + '^\\circ$}', 'color=bsaCarga',
+                Math.cos(am), Math.sin(am)];
+  }
+
+  // ── Cargas repartidas hasta el corte ──
+  // Van las PRIMERAS para que su bloque quede por debajo de las flechas y de
+  // los arcos de momento, que antes tapaba.
+  const marcasCota = [];        // abscisas que merecen cota (centroides, inicios)
+  const brazos = [];            // {r, tex} brazo de cada resultante hasta el corte
+  cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
+    const z = trozoCargado(c);
+    if(!z || z.len <= 1e-12) return;
+    const el = gg.tramos.find(t2=>t2.tramo && t2.tramo.id === c.tramo);
+    if(!el) return;
+    const inv = (el.invert);
+    const offT = el.s0 - gg.s0;
+    const r1 = inv ? (z.g.L - z.s2) : z.s1;
+    const r2Tot = inv ? (z.g.L - z.s1) : z.s2;
+    const hasta = Math.min(el.L, sCut - el.s0);
+    if(hasta <= 1e-9) return;
+    const r2 = Math.min(r2Tot, hasta);
+    if(r2 <= r1 + 1e-9) return;
+    const g1 = offT + r1, g2 = offT + r2Tot;
+    // Activa = sigue actuando cuando la sección recorre el intervalo. Su
+    // resultante depende de la abscisa y NO puede escribirse como un número.
+    const activa = (g2 > A0 + 1e-6);
+    const wFin = (c.tipo==='U') ? c.mag : (c.mag2||0);
+    const wA = inv ? wFin : c.mag, wBtot = inv ? c.mag : wFin;
+    const kw = (wBtot - wA)/(r2Tot - r1);
+    const w1 = wA, w2 = wA + kw*(r2 - r1);   // intensidad al inicio y en el corte
+    const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9);
+    const A = {x:X(el.desde.x+el.ux*r1), y:Y(el.desde.y+el.uy*r1)};
+    const B = {x:X(el.desde.x+el.ux*r2), y:Y(el.desde.y+el.uy*r2)};
+    const d = dirCarga(c, geoTramo(el.tramo));
+    const ex = -d.x, ey = -d.y, alt = 0.55;
+    const h1 = alt*w1/wm, h2 = alt*w2/wm;
+    out += '\\draw[color=bsaDist] (' + F(A.x) + ',' + F(A.y)
+         + ') -- (' + F(A.x+ex*h1) + ',' + F(A.y+ey*h1)
+         + ') -- (' + F(B.x+ex*h2) + ',' + F(B.y+ey*h2)
+         + ') -- (' + F(B.x) + ',' + F(B.y) + ') -- cycle;\n';
+    for(let i=0;i<=4;i++){
+      const t3=i/4, xi=A.x+(B.x-A.x)*t3, yi=A.y+(B.y-A.y)*t3, hi=h1+(h2-h1)*t3;
+      const sg = Math.sign(hi)||1;
+      if(Math.abs(hi) < 0.10) continue;
+      out += '\\draw[-{Latex[length=1.4mm]}, color=bsaDist, line width=.7pt] ('
+           + F(xi+ex*hi) + ',' + F(yi+ey*hi) + ') -- (' + F(xi+ex*0.04*sg) + ',' + F(yi+ey*0.04*sg) + ');\n';
+    }
+    tzOcuparBloque(A, B, ex, ey, h1, h2);
+    const sgR = (Math.abs(h1) >= Math.abs(h2) ? Math.sign(h1) : Math.sign(h2)) || 1;
+    const nomW = nombreCargaFI(c), nomR = nombreResultanteFI(c);
+    valores.push({nom:nomW, val:dec(Math.abs(w1),'fuerza') + (Math.abs(w1-w2)>1e-9 ? '\\to' + dec(Math.abs(w2),'fuerza') : '') + uTx(escLatex(uDist()))});
+    const etiquetaW = () => tzTexto(
+      (A.x+B.x)/2+ex*sgR*(alt+0.24), (A.y+B.y)/2+ey*sgR*(alt+0.24),
+      '$' + nomW + '$', 'font=\\tiny, color=bsaDist!70!black', ex*sgR, ey*sgR);
+
+    // Resultantes, en trazo discontinuo y con su punto de aplicación.
+    // Cada una se dibuja donde de verdad actúa, para que el brazo del
+    // desarrollo se pueda medir sobre el propio dibujo.
+    const flecha = (rLocal, val, lab, largo)=>{
+      if(Math.abs(val) < 1e-9) return;
+      const Cq = {x:X(el.desde.x+el.ux*rLocal), y:Y(el.desde.y+el.uy*rLocal)};
+      const sA = Math.sign(val) || 1;
+      const dx = d.x*sA, dy = d.y*sA;
+      out += '\\draw[-{Latex[length=2mm]}, color=bsaDist!60!black, dashed, line width=1pt] ('
+           + F(Cq.x-dx*largo) + ',' + F(Cq.y-dy*largo) + ') -- (' + F(Cq.x-dx*0.08) + ',' + F(Cq.y-dy*0.08) + ');\n';
+      tzOcuparTrazo(Cq.x-dx*largo, Cq.y-dy*largo, Cq.x-dx*0.08, Cq.y-dy*0.08, 0.06);
+      out += tzTexto(Cq.x-dx*(largo+0.22), Cq.y-dy*(largo+0.22), lab,
+                     'font=\\tiny, color=bsaDist!60!black', -dx, -dy);
+    };
+    const tr = r2 - r1;
+    if(!activa){
+      // Terminó antes del intervalo: es una fuerza conocida en su centroide.
+      const Ares = (w1+w2)/2*tr;
+      if(Math.abs(Ares) > 1e-9){
+        const dc = tr*(w1+2*w2)/(3*(w1+w2));
+        flecha(r1+dc, Ares, '$' + nomR + '$', alt + 0.85);
+        valores.push({nom:nomR, val:Fz(Ares) + uTx(uF)});
+        marcasCota.push(g1 + dc);
+        // Su brazo hasta la sección también se acota: es el que entra en la
+        // ecuación de momentos y no se lee de la cadena de posiciones.
+        brazos.push({r: g1 + dc, tex: '$' + brazo(g1 + dc) + '$'});
+      }
+    } else {
+      // La sección cae dentro: rectángulo (intensidad inicial) y triángulo (lo
+      // que crece), cada uno con su resultante en función de la abscisa.
+      marcasCota.push(g1);
+      if(Math.abs(w1) > 1e-9){
+        flecha(r1 + tr/2, w1*tr, '$' + nomR + '$', alt + 0.85);
+        valores.push({nom:nomR, val:Fz(w1) + '\\,' + brazo(g1) + uTx(uF)});
+        brazos.push({r: g1 + tr/2, tex: '$\\tfrac{1}{2}' + brazo(g1) + '$'});
+      }
+      if(Math.abs(kw) > 1e-9){
+        flecha(r1 + tr*2/3, kw*tr*tr/2, '$' + nomR + "'$", alt + 1.35);
+        valores.push({nom:nomR + "'", val:'\\tfrac{1}{2}\\,' + Fz(kw) + '\\,' + brazo(g1) + '^{2}' + uTx(uF)});
+        brazos.push({r: g1 + tr*2/3, tex: '$\\tfrac{1}{3}' + brazo(g1) + '$'});
+      }
+    }
+    out += etiquetaW();
+  });
+
+  // ── Banda de cotas ──
+  // Debajo de la viga irán los brazos y la cadena de posiciones. Se reserva
+  // esa banda ANTES de rotular las fuerzas, para que ningún valor caiga sobre
+  // una línea de cota: los rótulos buscan sitio por encima o a los lados.
+  // Una reacción bajo un apoyo baja hasta 1.30 y lleva su valor al costado;
+  // la flecha V de la cara cortada, hasta 0.92: la banda empieza debajo.
+  const hayBajoApoyo = puntualesDe(R, seg).some(o=>{
+    if(o.s === null) return false;
+    if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return false;
+    if(o.s >= sCut - EPS) return false;
+    const a = o.a, Fm = Math.hypot(a.fx, a.fy);
+    return Fm > 1e-12 && a.reac && a.nodo && a.nodo.apoyo && a.nodo.apoyo !== 'libre' && a.fy/Fm > 0.5;
+  });
+  // Un rodillo inclinado bajo la viga lleva su flecha más larga (1.55) y el arco
+  // en la cola: la banda de cotas empieza más abajo.
+  const hayInclinadaBajo = puntualesDe(R, seg).some(o=>{
+    if(o.s === null) return false;
+    if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return false;
+    if(o.s >= sCut - EPS) return false;
+    const a = o.a, Fm = Math.hypot(a.fx, a.fy);
+    return Fm > 1e-12 && a.reac && a.inc && a.inc.ang !== undefined && a.fy/Fm > 0.3
+      && bsaAnguloAgudoEje(a.fx/Fm, a.fy/Fm).grados >= 4;
+  });
+  const BRAZO0 = hayInclinadaBajo ? 1.90 : (hayBajoApoyo ? 1.62 : 1.25), BRAZO_SALTO = 0.50;
+  const bandaIni = BRAZO0 - 0.14;
+  const bandaFin = BRAZO0 + brazos.length*BRAZO_SALTO + 0.30 + 4*0.36 + 0.9;
+  const iBanda = _tzCajas.length;
+  for(let m=0;m<8;m++){
+    const p1 = qEje(rCut*m/8, bandaIni), p2 = qEje(rCut*(m+1)/8, bandaFin);
+    tzOcupar(Math.min(p1.x,p2.x), Math.min(p1.y,p2.y), Math.max(p1.x,p2.x), Math.max(p1.y,p2.y));
+  }
+
+  // ── Solicitaciones heredadas en el nudo de arranque (grupos 2.º en adelante) ──
+  const t0 = gg.tramos[0], su0 = t0.subs[0];
+  const ox = X(O.x), oy = Y(O.y);
+  if(!primero){
+    const N0 = polyVal(su0.cN, 0), V0 = polyVal(su0.cV, 0), M0 = polyVal(su0.cM, 0);
+    const u0x = t0.ux, u0y = t0.uy, n0x = -u0y, n0y = u0x;
+    // N0 positivo = tracción: sobre esta cara tira hacia afuera (hacia atrás)
+    if(Math.abs(N0) > EPS){
+      const s = N0 > 0 ? -1 : 1;
+      out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] ('
+           + F(ox+s*u0x*0.12) + ',' + F(oy+s*u0y*0.12) + ') -- (' + F(ox+s*u0x*1.0) + ',' + F(oy+s*u0y*1.0) + ');\n';
+      tzOcuparTrazo(ox+s*u0x*0.12, oy+s*u0y*0.12, ox+s*u0x*1.0, oy+s*u0y*1.0, 0.07);
+      out += tzTexto(ox+s*u0x*1.25, oy+s*u0y*1.25, '$N_0$', 'font=\\tiny, color=bsaAcc', s*u0x, s*u0y);
+      valores.push({nom:'N_0', val:dec(N0,'fuerza') + uTx(uF)});
+    }
+    // V0 positivo: sobre la cara de arranque actúa hacia arriba de la normal
+    if(Math.abs(V0) > EPS){
+      const s = V0 > 0 ? 1 : -1;
+      out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] ('
+           + F(ox-s*n0x*0.95) + ',' + F(oy-s*n0y*0.95) + ') -- (' + F(ox-s*n0x*0.10) + ',' + F(oy-s*n0y*0.10) + ');\n';
+      tzOcuparTrazo(ox-s*n0x*0.95, oy-s*n0y*0.95, ox-s*n0x*0.10, oy-s*n0y*0.10, 0.07);
+      out += tzTexto(ox-s*n0x*1.20, oy-s*n0y*1.20, '$V_0$', 'font=\\tiny, color=bsaAcc', -s*n0x, -s*n0y);
+      valores.push({nom:'V_0', val:dec(V0,'fuerza') + uTx(uF)});
+    }
+    if(Math.abs(M0) > EPS){
+      const arc = M0 > 0 ? '(0:-300:0.30)' : '(0:300:0.30)';   // M0 positivo: horario sobre esta cara
+      out += '\\draw[-{Latex[length=1.8mm]}, color=bsaMomento, line width=1pt] ('
+           + F(ox+0.30) + ',' + F(oy) + ') arc ' + arc + ';\n';
+      tzOcupar(ox-0.36, oy-0.36, ox+0.36, oy+0.36);
+      out += tzTexto(ox-0.85, oy+0.62, '$M_0$', 'font=\\tiny, color=bsaMomento', -1, 1);
+      valores.push({nom:'M_0', val:dec(M0,'momento') + uTx(uM)});
+    }
+  }
+
+  // ── Acciones puntuales del trozo: reacciones (con nombre), cargas y pares ──
+  puntualesDe(R, seg).forEach(o=>{
+    if(o.s === null) return;
+    if(primero ? (o.s < sIni - EPS) : (o.s <= sIni + EPS)) return;
+    if(o.s >= sCut - EPS) return;
+    const a = o.a, x = X(a.x), y = Y(a.y);
+    const Fm = Math.hypot(a.fx, a.fy);
+    const col = a.reac ? 'bsaReac' : (a.pin ? 'bsaPin' : 'bsaCarga');
+    const nom = nombreAccion(a);
+    if(Fm > 1e-12){
+      const ex = a.fx/Fm, ey = a.fy/Fm;
+      // La reacción sale del apoyo: si el nudo tiene apoyo dibujado, la flecha
+      // arranca por debajo de él para no taparlo.
+      // El rodillo inclinado lleva el arco de su ángulo en la cola, y toda flecha
+      // que venga por el eje del símbolo del apoyo nace más allá de él (2026-09-14).
+      const inclinada = a.reac && a.inc && a.inc.ang !== undefined && bsaAnguloAgudoEje(ex, ey).grados >= 4;
+      let porElApoyo = false;
+      if(a.reac && a.nodo && (a.nodo.apoyo === 'movil' || a.nodo.apoyo === 'simple')){
+        const hd = (anguloApoyo(a.nodo) - 180)*Math.PI/180;
+        porElApoyo = (-ex*Math.cos(hd) - ey*Math.sin(hd)) > Math.cos(35*Math.PI/180);
+      }
+      const bajoApoyo = porElApoyo || (a.reac && a.nodo && a.nodo.apoyo && a.nodo.apoyo !== 'libre' && ey > 0.5);
+      const larga = inclinada ? 1.55 : (bajoApoyo ? 1.30 : 0.85);
+      const corta = inclinada ? 0.70 : (porElApoyo ? 0.70 : (bajoApoyo ? 0.62 : 0.10));
+      out += '\\draw[-{Latex[length=2mm]}, color=' + col + ', line width=1pt] ('
+           + F(x-ex*larga) + ',' + F(y-ey*larga) + ') -- (' + F(x-ex*corta) + ',' + F(y-ey*corta) + ');\n';
+      tzOcuparTrazo(x-ex*larga, y-ey*larga, x-ex*corta, y-ey*corta, 0.07);
+      if(inclinada) out += tikzArcoReaccionFI(x-ex*larga, y-ey*larga, ex, ey, genAngSub);
+      // Una carga inclinada lleva también su ángulo, en la cola (2026-10-05).
+      // La acción de una rama (F_HC) también, si es inclinada (2026-10-05).
+      const cargaIncl = !a.reac && bsaAnguloAgudoEje(ex, ey).grados >= 4;
+      if(cargaIncl) out += tikzArcoReaccionFI(x-ex*larga, y-ey*larga, ex, ey, genAngSub, null, 'bsaCarga');
+      // Toda fuerza lleva su nombre, el mismo de las ecuaciones ($P_1$…), y su
+      // valor va en la leyenda.
+      const lab = '$' + nom.tex + '$';
+      valores.push({nom:nom.tex, val:Fz(Fm) + uTx(uF)});
+      if(!inclinada && ey > 0.5){
+        // Fuerza hacia arriba: su cola cae bajo la viga, en la banda de cotas,
+        // así que el valor va al costado de la flecha, hacia afuera del trozo.
+        const s = (x <= (X(minx)+X(maxx))/2) ? -1 : 1;
+        const yl = bajoApoyo ? (larga+corta)/2 : 0.30;
+        // el rótulo se centra ya fuera de la flecha: con un desplazamiento
+        // fijo su caja pisaba el propio trazo y salía disparado con guía
+        const wl = tzAncho(lab, 'font=\\tiny');
+        out += tzTexto(x + s*(wl/2 + 0.14), y - ey*yl, lab, 'font=\\tiny, color=' + col, s, 0);
+      } else {
+        out += tzTexto(x-ex*(larga+0.22), y-ey*(larga+0.22), lab, 'font=\\tiny, color=' + col, -ex, -ey);
+      }
+    }
+    if(Math.abs(a.m) > 1e-12){
+      const colM = a.reac ? 'bsaReac' : 'bsaMomento';
+      const arc = a.m > 0 ? '(0:300:0.28)' : '(0:-300:0.28)';
+      out += '\\draw[-{Latex[length=1.8mm]}, color=' + colM + ', line width=1pt] ('
+           + F(x+0.28) + ',' + F(y) + ') arc ' + arc + ';\n';
+      tzOcupar(x-0.34, y-0.34, x+0.34, y+0.34);
+      const nomM = a.rama ? nom.texM : nom.tex;
+      const lab = '$' + nomM + '$';
+      valores.push({nom:nomM, val:dec(Math.abs(a.m),'momento') + uTx(uM)});
+      out += tzTexto(x+0.55, y+0.32, lab, 'font=\\tiny, color=' + colM, 1, 1);
+    }
+  });
+
+  // ── Cara del corte: N, V y M en sentido positivo ──
+  out += '\\draw[color=bsaAcc, line width=1pt] (' + F(px+nx*0.24) + ',' + F(py+ny*0.24)
+       + ') -- (' + F(px-nx*0.24) + ',' + F(py-ny*0.24) + ');\n';
+  out += tzTexto(px+nx*0.40, py+ny*0.40, '$S$', 'font=\\scriptsize\\itshape, color=bsaAcc', nx, ny);
+  out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] (' + F(px+ux*0.12) + ',' + F(py+uy*0.12)
+       + ') -- (' + F(px+ux*0.88) + ',' + F(py+uy*0.88) + ');\n';
+  out += tzTexto(px+ux*1.08, py+uy*1.08, '$N$', 'font=\\scriptsize, color=bsaAcc', ux, uy);
+  out += '\\draw[-{Latex[length=2mm]}, color=bsaAcc, line width=1pt] (' + F(px) + ',' + F(py)
+       + ') -- (' + F(px-nx*0.72) + ',' + F(py-ny*0.72) + ');\n';
+  out += tzTexto(px-nx*0.92, py-ny*0.92, '$V$', 'font=\\scriptsize, color=bsaAcc', -nx, -ny);
+  out += '\\draw[-{Latex[length=1.8mm]}, color=bsaAcc, line width=1pt] ('
+       + F(px-ux*0.42+0.26) + ',' + F(py-uy*0.42) + ') arc (0:300:0.26);\n';
+  // El rótulo del momento huye PERPENDICULAR al eje, no siempre hacia arriba:
+  // en un elemento vertical se metía justo debajo de la N.
+  out += tzTexto(px-ux*0.42+nx*0.42, py-uy*0.42+ny*0.42, '$M$',
+                 'font=\\scriptsize, color=bsaAcc', nx, ny);
+
+  // La banda ya cumplió su papel (los rótulos de fuerzas quedaron fuera de
+  // ella); se libera para que las cotas se repartan con su propio criterio.
+  _tzCajas.splice(iBanda, 8);
+
+  // ── Brazos de las resultantes repartidas, medidos hasta el corte ──
+  // Se acotan aparte porque son los que entran en la ecuación de momentos y
+  // no se pueden leer de la cadena de posiciones.
+  // Si la expresión de algún brazo no cabe en su cota (2026-10-05: «½(x − 4.00)»
+  // se quedaba sin línea a la vista), todas se nombran $b_1$, $b_2$… y las
+  // expresiones van en la leyenda «Brazos» al costado (bsaLeyendaBrazosTikz).
+  let SEP0 = BRAZO0;
+  const brazosV = brazos.slice(0, 3);
+  const largoBrazo = bz => { const p1 = qEje(bz.r, 0), p2 = qEje(rCut, 0); return Math.hypot(p2.x-p1.x, p2.y-p1.y); };
+  const brazoLeyenda = brazosV.some(bz => tzAncho(bz.tex, 'font=\\tiny') + 0.16 > largoBrazo(bz));
+  const filasBrazo = [];
+  brazosV.forEach((bz, i)=>{
+    const sep = BRAZO0 + i*BRAZO_SALTO;
+    const p1 = qEje(bz.r, sep), p2 = qEje(rCut, sep);
+    out += '\\draw[bsaDist!70!black, line width=.45pt, {Latex[length=1.2mm]}-{Latex[length=1.2mm]}] ('
+         + F(p1.x) + ',' + F(p1.y) + ') -- (' + F(p2.x) + ',' + F(p2.y) + ');\n';
+    tzOcuparTrazo(p1.x, p1.y, p2.x, p2.y, 0.04);
+    if(brazoLeyenda){
+      const nomB = '$b_{' + (i+1) + '}$';
+      filasBrazo.push({nom:'b_{' + (i+1) + '}', val:bz.tex.replace(/^\$|\$$/g, '')});
+      const w = tzAncho(nomB, 'font=\\tiny'), largo = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+      // en medio si cabe; si no, pasado el extremo del lado contrario al corte
+      if(w + 0.10 <= largo) out += tzTextoFijo((p1.x+p2.x)/2, (p1.y+p2.y)/2, nomB, 'font=\\tiny, color=bsaDist!70!black');
+      else {
+        const L1 = largo || 1, dx = (p1.x-p2.x)/L1, dy = (p1.y-p2.y)/L1;
+        out += tzTextoFijo(p1.x + dx*(w/2 + 0.10), p1.y + dy*(w/2 + 0.10), nomB, 'font=\\tiny, color=bsaDist!70!black');
+      }
+    } else
+      out += tzTextoFijo((p1.x+p2.x)/2, (p1.y+p2.y)/2, bz.tex, 'font=\\tiny, color=bsaDist!70!black');
+    SEP0 = sep + BRAZO_SALTO;
+  });
+
+  // ── Cotas PARALELAS al eje: posiciones de las acciones, inicios y
+  //    centroides de las repartidas, y la abscisa completa en el nivel
+  //    exterior ──
+  const marcas = [0, rCut];
+  puntualesDe(R, seg).forEach(o=>{
+    if(o.s === null) return;
+    const rr = o.s - sIni;
+    if(rr > 1e-6 && rr < rCut - 1e-6) marcas.push(rr);
+  });
+  marcasCota.forEach(cq=>{ if(cq > 1e-6 && cq < rCut - 1e-6) marcas.push(cq); });
+  const uniq = [...new Set(marcas.map(v=>+v.toFixed(4)))].sort((a,b)=>a-b);
+  const BASE = Math.max(0.78, SEP0 + 0.24), SALTO = 0.36;
+  let niv = -1;
+  if(uniq.length > 2){
+    const plan = planCotas(uniq, v => v*pxU*100, t => tzAncho(t)*100,
+                           {maxNiveles:4, minSeg:16, fusion:8, holgura:15});
+    if(plan){
+      niv = plan.nMax;
+      const e0=qEje(plan.coords[0],BASE), e1=qEje(plan.coords[plan.coords.length-1],BASE);
+      out += '\\draw[black!75, line width=.5pt] (' + F(e0.x) + ',' + F(e0.y)
+           + ') -- (' + F(e1.x) + ',' + F(e1.y) + ');\n';
+      plan.coords.forEach(v=>{ const p2=qEje(v,BASE);
+        out += '\\draw[black!75, line width=.6pt] (' + F(p2.x-(ux-nxq)*0.08) + ',' + F(p2.y-(uy-nyq)*0.08)
+             + ') -- (' + F(p2.x+(ux-nxq)*0.08) + ',' + F(p2.y+(uy-nyq)*0.08) + ');\n'; });
+      plan.segs.forEach((sg,m)=>{
+        if(!sg.visible) return;
+        const d0 = plan.coords[m];
+        const ult = (m === plan.segs.length-1);
+        const txt = ult ? (Math.abs(d0)<1e-6 ? '$'+gg.simbolo+'$'
+                          : '$'+gg.simbolo+' - '+dec(d0,'len')+'$') : sg.txt;
+        const pm = qEje((plan.coords[m]+plan.coords[m+1])/2, BASE+0.22+sg.nivel*SALTO);
+        out += tzTextoFijo(pm.x, pm.y, txt, 'font=\\tiny, color=black!75');
+      });
+    }
+  }
+  // abscisa completa, en el nivel exterior
+  let SEP = BASE + 0.24 + (niv+1)*SALTO + (niv>=0 ? 0.26 : 0);
+  const _lineaLibre = sep => {
+    const p1 = qEje(0, sep), p2 = qEje(rCut, sep);
+    for(let m=0;m<6;m++){
+      const f0=m/6, f1=(m+1)/6;
+      const c={x0:Math.min(p1.x+(p2.x-p1.x)*f0, p1.x+(p2.x-p1.x)*f1)-0.05,
+               x1:Math.max(p1.x+(p2.x-p1.x)*f0, p1.x+(p2.x-p1.x)*f1)+0.05,
+               y0:Math.min(p1.y+(p2.y-p1.y)*f0, p1.y+(p2.y-p1.y)*f1)-0.05,
+               y1:Math.max(p1.y+(p2.y-p1.y)*f0, p1.y+(p2.y-p1.y)*f1)+0.05};
+      if(tzChoca(c)) return false;
+    }
+    return true;
+  };
+  for(let k2=0; k2<5 && !_lineaLibre(SEP); k2++) SEP += 0.32;
+  const a1 = qEje(0, SEP), b1 = qEje(rCut, SEP);
+  tzOcuparTrazo(a1.x, a1.y, b1.x, b1.y, 0.05);
+  out += '\\draw[bsaMuted, line width=.5pt] (' + F(a1.x) + ',' + F(a1.y)
+       + ') -- (' + F(b1.x) + ',' + F(b1.y) + ');\n';
+  [a1,b1].forEach(p2=>{
+    out += '\\draw[bsaMuted, line width=.7pt] (' + F(p2.x-(ux-nxq)*0.09) + ',' + F(p2.y-(uy-nyq)*0.09)
+         + ') -- (' + F(p2.x+(ux-nxq)*0.09) + ',' + F(p2.y+(uy-nyq)*0.09) + ');\n';
+  });
+  out += tzTextoFijo((a1.x+b1.x)/2, (a1.y+b1.y)/2, '$' + gg.simbolo + '$',
+                     'font=\\scriptsize, color=bsaMuted');
+  // Los nombres de los nudos: en su sitio si nada lo pisa; si no, donde quepan.
+  nombresNudo.forEach(nq=>{
+    const caja = _tzCajas[nq.i];
+    _tzCajas[nq.i] = {x0:0, x1:0, y0:0, y1:0};          // la suya no cuenta
+    const pisado = _tzCajas.some((q, j) => j > nq.i && !q.guia && !q.rot
+      && caja.x0 < q.x1 && caja.x1 > q.x0 && caja.y0 < q.y1 && caja.y1 > q.y0);
+    if(!pisado){
+      _tzCajas[nq.i] = caja;
+      out += '\\node[below left, font=\\scriptsize\\bfseries, color=bsaAcc2] at ('
+           + F(nq.x) + ',' + F(nq.y) + ') {' + nq.nom + '};\n';
+    } else
+      out += tzTexto(nq.x + 0.22, nq.y + 0.22, '\\textbf{' + nq.nom + '}', 'font=\\scriptsize, color=bsaAcc2', 1, 1);
+  });
+  // θ al final: busca hueco entre todo lo ya rotulado, cotas incluidas.
+  if(rotTheta) out += tzTexto(...rotTheta);
+  // Marco de referencia (û, n̂) del tramo, como en los DCL de nudo (2026-10-05,
+  // corrección del profesor): dice hacia dónde son positivas F∥ y F⊥. Va en la
+  // primera esquina libre de lo dibujado; si ninguna lo está, a un costado.
+  {
+    const e = tzExtension();
+    const cand = [[e.x0 + 0.45, e.y1 - 0.45], [e.x1 - 0.45, e.y1 - 0.45], [e.x0 + 0.45, e.y0 + 0.45],
+                  [e.x1 - 0.45, e.y0 + 0.45], [e.x0 - 1.0, e.y1 - 0.45], [e.x0 - 1.0, e.y0 + 0.45]];
+    const libre = ([x, y]) => !tzChoca({x0:x - 0.30, y0:y - 0.30, x1:x + 1.05, y1:y + 1.05})
+                           && !tzChoca({x0:x + Math.min(0, ux, nx)*1.05 - 0.1, y0:y + Math.min(0, uy, ny)*1.05 - 0.1,
+                                        x1:x + Math.max(0, ux, nx)*1.05 + 0.1, y1:y + Math.max(0, uy, ny)*1.05 + 0.1});
+    const [mx, my] = cand.find(libre) || cand[4];
+    out += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (' + F(mx) + ',' + F(my) + ') -- (' + F(mx + ux*0.7) + ',' + F(my + uy*0.7) + ');\n';
+    out += '\\draw[-{Latex[length=1.5mm]}, color=bsaAcc, line width=.7pt] (' + F(mx) + ',' + F(my) + ') -- (' + F(mx + nx*0.7) + ',' + F(my + ny*0.7) + ');\n';
+    out += '\\fill[bsaAcc] (' + F(mx) + ',' + F(my) + ') circle (0.8pt);\n';
+    tzOcuparTrazo(mx, my, mx + ux*0.7, my + uy*0.7, 0.05);
+    tzOcuparTrazo(mx, my, mx + nx*0.7, my + ny*0.7, 0.05);
+    out += tzTexto(mx + ux*0.92, my + uy*0.92, '{\\scriptsize$\\hat{u}$}', 'color=bsaAcc', ux, uy);
+    out += tzTexto(mx + nx*0.92, my + ny*0.92, '{\\scriptsize$\\hat{n}$}', 'color=bsaAcc', nx, ny);
+  }
+  // La leyenda de valores y brazos, a la derecha de todo lo dibujado.
+  out += leyendaFigFI(valores, filasBrazo);
+  return out;
+}

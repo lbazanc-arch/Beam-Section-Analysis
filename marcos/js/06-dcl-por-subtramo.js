@@ -1,0 +1,540 @@
+// ── Ley de intensidad de las cargas distribuidas variables ──
+// Devuelve, para cada carga variable que cubre el subtramo, el polinomio de
+// w expresado en la MISMA abscisa que el resto del bloque. Las uniformes se
+// omiten: su ley es una constante que ya se lee en el dibujo.
+function leyesDeCarga(seg, sub, off){
+  const out = [];
+  const tid = seg.tramo && seg.tramo.id;
+  if(!tid) return out;
+  cargasConPeso().forEach(c=>{
+    if(c.tipo !== 'T' || c.tramo !== tid) return;
+    const z = trozoCargado(c);
+    if(!z || z.len <= 1e-12) return;
+    // El tramo puede recorrerse al revés que su definición: en ese caso los
+    // límites y las intensidades se invierten para quedar en la abscisa
+    // que se está mostrando.
+    const inv = !!seg.invert;
+    const r1 = inv ? (seg.L - z.s2) : z.s1;
+    const w1 = inv ? (c.mag2 || 0) : c.mag;
+    const w2 = inv ? c.mag : (c.mag2 || 0);
+    // ¿cubre este subtramo?
+    const r2 = r1 + z.len;
+    if(sub.sb <= r1 + 1e-9 || sub.sa >= r2 - 1e-9) return;
+    if(Math.abs(w2 - w1) < 1e-12) return;   // constante: no aporta nada
+    // w(s) = w1 + (w2-w1)*(s - r1)/len, con s sobre el eje del tramo.
+    // La abscisa mostrada es X = off + s, luego s = X - off.
+    const B = (w2 - w1)/z.len;
+    const A = w1 - B*(off + r1);
+    out.push({carga:c, c:[A, B]});
+  });
+  return out;
+}
+
+function renderMetodoEcuaciones(r){
+  let h = '<div class="hint-sm" style="margin-bottom:8px">Corte en una sección genérica de cada subtramo; la abscisa (<i>x</i> en tramos rectos, <i>r</i> en inclinados) se mide desde el último quiebre. El desarrollo completo va en el PDF.</div>';
+  const _grupos = gruposSolucion(r);
+  r.internas.forEach((t,ti)=>{
+    if(!tramoEnSolucion(t)) return;      // solo los tramos elegidos (20-)
+    // Un tramo curvo: leyes en función de θ (23-).
+    if(t.arco){ h += htmlArcoEcuaciones(r, t, ti); return; }
+    // Grupo (recta continua) al que pertenece este tramo: de él salen el
+    // origen de la abscisa y su símbolo.
+    const gt = _grupos.find(g=>g.tramos.indexOf(t) >= 0) || _grupos[0];
+    const sb = gt.simbolo;
+    h += '<div class="sub-tramo-cab">Tramo '+t.nombre+' — L = '+dec(t.L,'len')+' '+unitLen
+      + (Math.abs(t.ang)>0.05 ? ' · inclinación '+dec(t.ang,'ang')+'°' : '') + '</div>';
+    t.subs.forEach((sub,si)=>{
+      // La abscisa se mide desde el arranque del GRUPO (el punto de quiebre),
+      // no desde el origen de la viga: recorrer un eje quebrado desde A no
+      // tiene sentido físico. En los grupos inclinados se llama r.
+      const off = t.s0 - gt.s0;
+      const a = dec(off + sub.sa,'len'), b = dec(off + sub.sb,'len');
+      h += '<div class="dcl-caja">'
+        + '<div class="dcl-rango">'+(t.subs.length>1 ? 'Subtramo '+(si+1)+' · ' : '')
+        + kx(a+' \\le '+sb+' \\le '+b)
+        + ' <span class="dcl-nota">(' + gt.simbolo + ' desde ' + gt.desde.nombre + ', sobre el eje del tramo, en '+unitLen+')</span></div>'
+        + svgDCL(r, ti, sub)
+        + '<div class="dcl-ecs">';
+      const gN = desplazarPoly(sub.cN, off),
+            gV = desplazarPoly(sub.cV, off),
+            gM = desplazarPoly(sub.cM, off);
+      // Si sobre este subtramo actúa una carga VARIABLE, se muestra primero
+      // su ley w(x): es el dato del que salen V y M por integración, y sin
+      // él el alumno no puede seguir de dónde vienen los coeficientes.
+      const leyes = leyesDeCarga(t, sub, off);
+      leyes.forEach(L=>{
+        h += '<div class="eq-row"><div class="eq-body">'
+          + kx('w('+sb+') = '+polyTex(L.c,'f',sb)+'\\ \\ ['+uDist()+']')
+          + '</div></div>';
+      });
+      if(gN.some(v=>Math.abs(v)>5e-9))
+        h += '<div class="eq-row"><div class="eq-body">'
+          + kx('\\sum F_{\\parallel} = 0:\\quad N('+sb+') = '+polyTex(gN,'f',sb)+'\\ \\ ['+unitFor+']')
+          + '</div></div>';
+      h += '<div class="eq-row"><div class="eq-body">'
+        + kx('+\\!\\uparrow \\sum F_{\\perp} = 0:\\quad V('+sb+') = '+polyTex(gV,'f',sb)+'\\ \\ ['+unitFor+']')
+        + '</div></div>'
+        + '<div class="eq-row"><div class="eq-body">'
+        + kx('\\circlearrowleft\\! + \\;\\sum M_{\\text{corte}} = 0:\\quad M('+sb+') = '+polyTex(gM,'mom',sb)+'\\ \\ ['+uMom()+']')
+        + '</div></div></div>'
+        + '<div class="dcl-extremos">Extremos del subtramo:'
+        + (gN.some(v=>Math.abs(v)>5e-9)
+            ? '<br>N('+a+') = <b>'+dec(polyVal(sub.cN,sub.sa),'f')+'</b> · '
+              + 'N('+b+') = <b>'+dec(polyVal(sub.cN,sub.sb),'f')+'</b> '+unitFor
+            : '')
+        + '<br>V('+a+') = <b>'+dec(polyVal(sub.cV,sub.sa),'f')+'</b> · '
+        + 'V('+b+') = <b>'+dec(polyVal(sub.cV,sub.sb),'f')+'</b> '+unitFor
+        + '<br>M('+a+') = <b>'+dec(polyVal(sub.cM,sub.sa),'mom')+'</b> · '
+        + 'M('+b+') = <b>'+dec(polyVal(sub.cM,sub.sb),'mom')+'</b> '+uMom()
+        + ceroDeMomento(sub, off, sb)
+        + '</div></div>';
+    });
+  });
+  return h;
+}
+
+// El método de las áreas (`renderMetodoAreas`) vive en 21-metodo-de-areas.js
+// desde el 2026-10-18: con figuras conocidas, sin integrales.
+
+function renderResultados(r){
+  const f=v=>dec(v,'f'), nl=v=>dec(v,'len'), fm=v=>dec(v,'mom');
+  let h = '';
+
+  // 1 · Determinación
+  h += '<div class="res-section"><div class="res-title"><div class="num">1</div>'
+    + 'Determinación estática</div>'
+    + '<div class="verdict ok"><div class="verdict-t">Resultado</div>'
+    + 'Viga isostática: <b>'+r.diag.inc+(r.diag.vin ? ' incógnitas</b> ('+(r.diag.inc-r.diag.vin)+' reacciones y '
+       +r.diag.vin+' de cuerdas, bielas o topes)' : ' reacciones</b>')+' y <b>'+r.diag.eq+' ecuaciones</b> de equilibrio'
+    + (r.diag.rot ? ', incluyendo '+r.diag.rot+' por rótula interna.' : '.') + '</div>'
+    + '<div class="proc-block"><div class="eq-row"><div class="eq-body">'
+    + kx('\\sum F_x = 0 \\qquad \\sum F_y = 0 \\qquad \\sum M = 0'
+         + (r.diag.rot ? '\\qquad \\sum M_{\\text{rótula}} = 0' : ''))
+    + '</div></div></div></div>';
+
+  // 2 · Reacciones
+  h += '<div class="res-section"><div class="res-title"><div class="num">2</div>'
+    + 'Reacciones en los apoyos</div>'
+    + '<table class="tabla"><thead><tr><th>Nudo</th><th>Apoyo</th><th>Componente</th>'
+    + '<th class="r">Valor</th><th>Unidad</th></tr></thead><tbody>';
+  r.inc.forEach((u,j)=>{
+    const v = r.val[j];
+    // Cuerda, biela o tope (22-): su fuerza axial, con cómo trabaja.
+    if(u.tipo === 'V'){
+      const T = VIN_TIPOS[u.vin.tipo], tr = trabajoVinculo(u, v);
+      const donde = u.n2 ? u.n.nombre + '–' + u.n2.nombre : u.n.nombre;
+      const dir = u.n2 ? 'entre los nudos' : 'anclaje a ' + dec(+u.vin.ang,'ang') + '°';
+      h += '<tr><td><b>'+donde+'</b></td><td>'+T.nom+' ('+dir+')</td><td>'+kx(nombreVinculoTex(u.vin))+' · '
+        + '<span style="color:'+(tr.ok ? '#15803d' : '#c0392b')+';font-weight:700">'+tr.txt+(tr.ok ? ' ✓' : ' ✗')+'</span></td>'
+        + '<td class="r"><b>'+f(Math.abs(v))+'</b></td><td>'+unitFor+'</td></tr>';
+      return;
+    }
+    // Un apoyo MOVIL puede estar orientado: tiene UNA reaccion, en la direccion
+    // `u.ang` (radianes, la que monto 03-). Llamarla «Vertical R_y» solo es
+    // cierto a 90°; el informe LaTeX ya lo hacia bien y la tabla no.
+    let comp;
+    if(u.tipo==='M') comp = 'Momento M';
+    else if(u.tipo==='Rx') comp = 'Horizontal R<sub>x</sub>';
+    // La dirección se dice como en el lienzo y en el PDF: el ángulo agudo con el
+    // eje más cercano (bsaTextoAnguloAgudo), nunca el de 0 a 360 (2026-09-14).
+    else if(u.ang !== undefined && Math.abs(u.ang - Math.PI/2) > 1e-6)
+      comp = 'Reacción R (a ' + bsaTextoAnguloAgudo(Math.cos(u.ang), Math.sin(u.ang)) + ')';
+    else comp = 'Vertical R<sub>y</sub>';
+    // El tipo de apoyo lleva el ángulo que escribió el alumno (dónde se apoya),
+    // que no es la dirección de la reacción.
+    const tipoAp = NOMBRE_APOYO[u.n.apoyo] + ((u.n.apoyo === 'movil' && Math.abs(anguloApoyo(u.n) - 90) > 1e-6)
+      ? ' (apoyado a ' + dec(bsaAnguloOpuesto(anguloApoyo(u.n)),'ang') + '°)' : '');
+    h += '<tr><td><b>'+u.n.nombre+'</b></td><td>'+tipoAp+'</td><td>'+comp+'</td>'
+      + '<td class="r"><b>'+(u.tipo==='M'?fm(v):f(v))+'</b></td>'
+      + '<td>'+(u.tipo==='M'?uMom():unitFor)+'</td></tr>';
+  });
+  h += '</tbody></table>' + avisosVinculosHtml(r) + '</div>';
+
+  // 3 · Procedimiento con el método elegido
+  h += '<div class="res-section"><div class="res-title"><div class="num">3</div>'
+    + 'Procedimiento — ' + (metodo7==='ecuaciones' ? 'método de las ecuaciones' : 'método de las áreas') + '</div>'
+    + '<div class="hint-sm" style="margin:2px 0 12px">El método se elige en '
+    + '<b>Método</b>, en la columna de control.</div>'
+    + (metodo7==='ecuaciones' ? renderMetodoEcuaciones(r) : renderMetodoAreas(r))
+    + '</div>';
+
+  // 4 · Resumen de fuerzas internas por tramo
+  h += '<div class="res-section"><div class="res-title"><div class="num">4</div>'
+    + 'Resumen de fuerzas internas por tramo</div>'
+    + '<div class="hint-sm" style="margin-bottom:8px">Ejes locales de cada tramo: <b>N</b> a lo largo del tramo, <b>V</b> perpendicular.</div>'
+    + '<table class="tabla"><thead><tr><th>Tramo</th><th class="r">Longitud</th>'
+    + '<th class="r">Inclinación</th><th class="r">N máx</th><th class="r">V máx</th>'
+    + '<th class="r">M máx</th></tr></thead><tbody>';
+  r.internas.forEach(t=>{
+    if(!tramoEnSolucion(t)) return;
+    const mx = arr => arr.reduce((m,p)=>Math.abs(p)>Math.abs(m)?p:m, 0);
+    h += '<tr><td><b>'+t.nombre+'</b></td><td class="r">'+nl(t.L)+' '+unitLen+'</td>'
+      + '<td class="r">'+(t.arco ? 'curvo, R = '+nl(t.arco.R)+' '+unitLen : dec(t.ang,'ang')+'°')+'</td>'
+      + '<td class="r">'+f(mx(t.puntos.map(p=>p.N)))+'</td>'
+      + '<td class="r">'+f(mx(t.puntos.map(p=>p.V)))+'</td>'
+      + '<td class="r">'+fm(mx(t.puntos.map(p=>p.M)))+'</td></tr>';
+  });
+  h += '</tbody></table></div>';
+
+  // 5 · Diagramas, agrupados por cambio de dirección (solo los tramos elegidos)
+  const grupos = gruposSolucion(r);
+  h += '<div class="res-section"><div class="res-title"><div class="num">5</div>'
+    + 'Diagramas DFN · DFC · DMF</div>'
+    + '<div class="hint-sm" style="margin-bottom:8px">La viga tiene <b>' + grupos.length
+    + '</b> tramo(s) por cambio de dirección. Elige cuáles quieres graficar '
+    + 'y pulsa Generar; cada uno lleva sus tres diagramas con su propia abscisa.</div>'
+    + '<div class="vis-row" id="grupoSel">'
+    + grupos.map(g=>'<label class="vis-item"><input type="checkbox" data-g="'+g.idx+'" checked>'
+        + '<span>' + g.recorrido + (g.arco ? ' · curvo' : (g.oblicuo ? ' · ' + dec(g.ang,'ang') + '°' : (g.vertical ? ' · vertical' : ' · recto')))
+        + '</span></label>').join('')
+    + '</div>'
+    + '<div style="display:flex;gap:7px;margin:9px 0 12px">'
+    + '<button class="mbtn" onclick="generarDiagramas()">Generar</button>'
+    + '<button class="mbtn ghost" onclick="marcarGrupos(true)">Todos</button>'
+    + '<button class="mbtn ghost" onclick="marcarGrupos(false)">Ninguno</button>'
+    + '<button class="mbtn" style="background:#0e9f6e" onclick="abrirVerDiagramas()">'
+    + 'Ver diagramas</button>'
+    + '</div>'
+    + '<div id="diagWrap">' + htmlDiagramasGrupos(r, grupos.map(g=>g.idx)) + '</div>'
+    + '</div>';
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DIAGRAMAS N · V · M
+//  Antes se dibujaba muestreando el tramo a intervalos regulares. Eso tiene
+//  dos consecuencias malas: en una carga puntual el salto cae ENTRE dos
+//  muestras y se pinta como una rampa inclinada, cuando en realidad los dos
+//  valores conviven en la misma x; y los vértices exactos se pierden.
+//  Ahora se dibuja a partir de los polinomios exactos de cada subtramo:
+//  cada uno se evalúa en sus propios extremos, de modo que una
+//  discontinuidad produce dos ordenadas en la misma abscisa y el trazo baja
+//  o sube EN VERTICAL, como debe ser.
+// ═══════════════════════════════════════════════════════════
+
+// Muestreo de una serie a lo largo de toda la viga, respetando los saltos.
+// Devuelve una lista de tramos continuos; entre uno y el siguiente hay una
+// discontinuidad que se dibuja como segmento vertical.
+function muestrearSerie(r, clave, lista, base0){
+  const campo = {N:'cN', V:'cV', M:'cM'}[clave];
+  const ramas = [];
+  let anterior = null;      // {x, v} final de la rama previa
+  (lista || r.internas).forEach(t=>{
+    t.subs.forEach(sub=>{
+      // grado real: si es lineal bastan los extremos; si es curvo se afina.
+      // En un tramo curvo (23-) la ley tiene senos y cosenos: siempre se afina.
+      const c = sub[campo];
+      const grado = sub.trig ? 9 : c.reduce((g,v,i)=>Math.abs(v)>1e-12?i:g, 0);
+      const n = grado >= 2 ? 24 : 1;
+      const pts = [];
+      for(let i=0;i<=n;i++){
+        const sl = sub.sa + (sub.sb-sub.sa)*i/n;
+        pts.push({x: t.s0 - (base0||0) + sl, v: valorSub(sub, clave, sl)});
+      }
+      const ini = pts[0];
+      if(anterior && Math.abs(ini.v - anterior.v) > 1e-7*Math.max(1,Math.abs(anterior.v)))
+        ramas.push({salto:true, x:ini.x, de:anterior.v, a:ini.v});
+      ramas.push({salto:false, pts});
+      anterior = pts[pts.length-1];
+    });
+  });
+  return ramas;
+}
+
+// Puntos que merecen etiqueta: extremos de cada rama, los dos lados de cada
+// salto, y los máximos/mínimos interiores (donde la derivada cambia de signo).
+function etiquetasSerie(ramas){
+  const et = [];
+  const push = (x,v,prio)=>{
+    if(!isFinite(v)) return;
+    const igual = et.find(e=>Math.abs(e.x-x)<1e-7 && Math.abs(e.v-v)<1e-7);
+    if(!igual) et.push({x, v, prio});
+  };
+  ramas.forEach(rm=>{
+    if(rm.salto){
+      // Si los dos lados coinciden en la práctica, es un vértice y no un
+      // salto: una sola etiqueta. Antes se escribían las dos, una encima de
+      // la otra.
+      const ref = Math.max(1, Math.abs(rm.de), Math.abs(rm.a));
+      if(Math.abs(rm.de - rm.a) < 5e-3*ref) push(rm.x, rm.a, 2);
+      else { push(rm.x, rm.de, 2); push(rm.x, rm.a, 2); }
+      return;
+    }
+    const p = rm.pts;
+    push(p[0].x, p[0].v, 1);
+    push(p[p.length-1].x, p[p.length-1].v, 1);
+    for(let i=1;i<p.length-1;i++){
+      const d1 = p[i].v - p[i-1].v, d2 = p[i+1].v - p[i].v;
+      if(d1*d2 < 0) push(p[i].x, p[i].v, 3);      // vértice de la parábola
+    }
+  });
+  return et;
+}
+
+// Dibuja los grupos pedidos, cada uno con su encabezado.
+function htmlDiagramasGrupos(r, idxs){
+  const grupos = gruposSolucion(r);
+  // Primero la estructura entera, con cada diagrama sobre su barra (2026-10-11);
+  // solo si se eligió toda la estructura (2026-10-18).
+  const estr = solucionParcial() ? '' : '<div style="margin-bottom:16px">'
+    + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">Estructura completa</div>'
+    + htmlDiagramasEstructura(r) + '</div>';
+  if(!idxs || !idxs.length)
+    return estr + '<div class="hint-sm" style="padding:14px;text-align:center">'
+         + 'No hay ningún tramo seleccionado.</div>';
+  return estr + idxs.map(i=>{
+    const g = grupos[i];
+    if(!g) return '';
+    // Un tramo curvo: sobre el arco y, debajo, desarrollados en función de θ.
+    if(g.arco) return '<div style="margin-bottom:16px">'
+      + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">'
+      + 'Tramo ' + g.recorrido + ' — curvo · R = ' + dec(g.arco.R,'len') + ' ' + unitLen
+      + ' · arco de ' + dec(g.L/g.arco.R*180/Math.PI,'ang') + '° · ángulo <i>θ</i> desde ' + g.desde.nombre + '</div>'
+      + htmlDiagramasOrientados(r, g)
+      + '<div class="proc-block">' + svgDiagramas(r, g) + '</div>'
+      + htmlExtremosGrupo(r, g) + '</div>';
+    return '<div style="margin-bottom:16px">'
+      + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">'
+      + 'Tramo ' + g.recorrido + ' — '
+      + (g.oblicuo ? 'inclinado ' + dec(g.ang,'ang') + '°' : (g.vertical ? 'vertical' : 'recto'))
+      + ' · L = ' + dec(g.L,'len') + ' ' + unitLen
+      + ' · abscisa <i>' + g.simbolo + '</i> desde ' + g.desde.nombre + '</div>'
+      // Un tramo inclinado o vertical, con su inclinación (2026-10-11); uno
+      // horizontal, con el diagrama de siempre y su lectura al pasar el ratón.
+      + (g.inclinado ? htmlDiagramasOrientados(r, g) : '<div class="proc-block">' + svgDiagramas(r, g) + '</div>')
+      + htmlExtremosGrupo(r, g) + '</div>';
+  }).join('');
+}
+function marcarGrupos(v){
+  document.querySelectorAll('#grupoSel input[type=checkbox]').forEach(c=>{ c.checked = v; });
+}
+function generarDiagramas(){
+  if(!R || R.error) return;
+  const idxs = [...document.querySelectorAll('#grupoSel input[type=checkbox]')]
+    .filter(c=>c.checked).map(c=>parseInt(c.dataset.g));
+  const w = document.getElementById('diagWrap');
+  if(w) w.innerHTML = htmlDiagramasGrupos(R, idxs);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  VENTANA «DIAGRAMAS INTERACTIVOS»
+//  DCL global con reacciones + diagramas N/V/M del tramo elegido,
+//  con ruedas para variar cada carga y ver el efecto al instante.
+//  Los límites de cada rueda parten de ±200 % del valor original y
+//  pueden fijarse a mano. Al cerrar sin aplicar, todo vuelve a como
+//  estaba: la ventana es un banco de pruebas, no un editor.
+// ═══════════════════════════════════════════════════════════
+let _vdOrig = null;     // valores originales de las cargas, para restaurar
+let _vdLim  = {};       // límites de cada rueda {id:{min,max,min2,max2}}
+let _vdGrupo = 0;       // grupo de dirección elegido; 'todo' = toda la estructura
+let _vdCarga = null;    // carga seleccionada para variar
+let _vdRaf = 0;         // recálculo agrupado por frame: giros rápidos no se apilan
+let _vdSeries = null;   // diagramas a la vista: {N, V, M} (2026-10-18)
+let _vdAncla = {};      // valor en el que se apoya la rejilla de cada rueda
+
+// Paso por defecto de una rueda: un número redondo (1, 2 o 5 por una potencia
+// de 10) cerca de 1/200 del recorrido. El alumno lo cambia en «paso».
+function _vdPasoDefecto(min, max){
+  const bruto = Math.max(1e-6, (max - min)/200);
+  const p10 = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const m = bruto/p10;
+  return +((m < 1.5 ? 1 : (m < 3.5 ? 2 : (m < 7.5 ? 5 : 10)))*p10).toPrecision(6);
+}
+
+function _vdLimDefecto(v){
+  // ±200 % del valor original. Con valor nulo la rueda quedaría muerta,
+  // así que se abre un rango simétrico razonable.
+  const a = Math.abs(v);
+  const medio = a > 1e-12 ? 2*a : 10;
+  return {min:+(v - medio).toFixed(6), max:+(v + medio).toFixed(6)};
+}
+
+function _vdModal(){
+  let ov = document.getElementById('vdOv');
+  if(ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'vdOv';
+  ov.className = 'modal-ov';
+  ov.innerHTML =
+      '<div class="modal vd">'
+    +   '<div class="vd-cab">'
+    +     '<div><h3>Diagramas interactivos</h3>'
+    +     '<p class="sub" style="margin-bottom:0">Mueve la rueda de una carga y mira cómo cambian '
+    +     'las reacciones y los diagramas elegidos.</p></div>'
+    +     '<button class="vd-x" onclick="cerrarVerDiagramas(false)" title="Cerrar" aria-label="Cerrar">&#10005;</button>'
+    +   '</div>'
+    // El control de la carga va arriba, compacto y fijo al desplazar la ventana
+    // (2026-10-18, petición del profesor): así el DCL y los diagramas elegidos
+    // se ven mientras se mueve la rueda.
+    +   '<div class="vd-cuerpo">'
+    +     '<div class="vd-control">'
+    +       '<div class="vd-carga-fila"><span class="vd-mini-tit">Carga a variar</span>'
+    +         '<select id="vdSelCarga" onchange="vdCambioCarga(this.value)"></select>'
+    +       '</div>'
+    +       '<div id="vdRuedas"></div>'
+    +     '</div>'
+    +     '<div class="vd-sec-tit">DCL de la estructura</div>'
+    +     '<div id="vdDCL" class="vd-dcl"></div>'
+    +     '<div class="vd-sec-tit">Tramo a analizar</div>'
+    +     '<div id="vdGrupos" class="vd-grupos"></div>'
+    +     '<div id="vdSeries" class="vd-grupos vd-series"></div>'
+    +     '<div id="vdDiag"></div>'
+    +   '</div>'
+    +   '<div class="vd-pie">'
+    +     '<button class="mbtn ghost" onclick="cerrarVerDiagramas(false)">Cerrar sin aplicar</button>'
+    +     '<button class="mbtn" onclick="cerrarVerDiagramas(true)">Aplicar cambios</button>'
+    +   '</div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  // En el teléfono, sus figuras se ensanchan para que la letra se lea (core).
+  bsaVigilarFigurasMovil('#vdOv .vd-cuerpo');
+  return ov;
+}
+
+function abrirVerDiagramas(){
+  if(!R || R.error){ aviso('Primero calcula la estructura.', 'error'); return; }
+  if(!cargas.length){ aviso('Coloca al menos una carga para poder variarla.', 'error'); return; }
+  _vdOrig = {};
+  cargas.forEach(c=>{ _vdOrig[c.id] = {mag:c.mag, mag2:c.mag2}; });
+  _vdLim = {};
+  _vdAncla = {};
+  cargas.forEach(c=>{
+    const L1 = _vdLimDefecto(c.mag);
+    _vdLim[c.id] = {min:L1.min, max:L1.max, paso:_vdPasoDefecto(L1.min, L1.max)};
+    if(c.tipo === 'T'){
+      const L2 = _vdLimDefecto(c.mag2 || 0);
+      Object.assign(_vdLim[c.id], {min2:L2.min, max2:L2.max, paso2:_vdPasoDefecto(L2.min, L2.max)});
+    }
+  });
+  _vdGrupo = 0;
+  _vdCarga = cargas[0].id;
+  // DFC y DMF a la vista; el DFN solo si la estructura tiene fuerza normal.
+  const hayN = R.internas && R.internas.some(t=>t.subs.some(su=>su.cN.some(v=>Math.abs(v) > 5e-9)));
+  _vdSeries = {N:!!hayN, V:true, M:true};
+  const ov = _vdModal();
+  ov.classList.add('show');
+  vdPintarSelectores();
+  vdPintarRuedas();
+  vdRender();
+}
+
+function cerrarVerDiagramas(aplicar){
+  const ov = document.getElementById('vdOv');
+  if(ov) ov.classList.remove('show');
+  if(!_vdOrig) return;
+  if(!aplicar){
+    // el banco de pruebas no toca la estructura: se restaura todo
+    cargas.forEach(c=>{
+      const o = _vdOrig[c.id];
+      if(o){ c.mag = o.mag; c.mag2 = o.mag2; }
+    });
+  }
+  _vdOrig = null;
+  // recalcula con los valores vigentes (originales o aplicados)
+  calcular();
+  if(aplicar) aviso('Cargas actualizadas con los valores de la ventana.', 'ok');
+}
+
+// Nombre corto y reconocible de una carga, para el selector.
+function vdNombreCarga(c){
+  const fam = {P:'Puntual vertical', PX:'Puntual horizontal',
+               U:'Uniforme', T:'Variable', M:'Momento'}[c.tipo] || 'Carga';
+  const donde = (c.destino === 'nudo')
+    ? (' en nudo ' + ((nodos.find(n=>n.id===c.nudo)||{}).nombre || '?'))
+    : (' en tramo ' + (tramos.some(t=>t.id===c.tramo)
+        ? nomTramo(tramos.find(t=>t.id===c.tramo)) : '?'));
+  const u = (c.tipo==='M') ? uMom() : (c.tipo==='U'||c.tipo==='T') ? uDist() : unitFor;
+  const val = (c.tipo==='T')
+    ? dec(c.mag,'f') + ' → ' + dec(c.mag2||0,'f')
+    : dec(c.mag, c.tipo==='M' ? 'mom' : 'f');
+  return fam + donde + ' · ' + val + ' ' + u;
+}
+
+function vdPintarSelectores(){
+  const gs = gruposDireccion(R);
+  if(_vdGrupo !== 'todo' && _vdGrupo >= gs.length) _vdGrupo = 0;
+  const gw = document.getElementById('vdGrupos');
+  const radio = (val, on, txt) => '<label class="vd-radio' + (on ? ' on' : '') + '">'
+    + '<input type="radio" name="vdG"' + (on ? ' checked' : '')
+    + ' onchange="vdCambioGrupo(' + (val === 'todo' ? '\'todo\'' : val) + ')"><span>' + txt + '</span></label>';
+  // Cada tramo por cambio de dirección y, al final, toda la estructura (2026-10-18).
+  gw.innerHTML = gs.map((g,i)=>radio(i, i === _vdGrupo, g.recorrido
+      + (g.oblicuo ? ' · ' + dec(g.ang,'ang') + '°' : (g.vertical ? ' · vertical' : ' · recto')))).join('')
+    + (gs.length > 1 ? radio('todo', _vdGrupo === 'todo', 'Toda la estructura') : '');
+  // Qué diagramas se ven: uno, dos o los tres.
+  const sw = document.getElementById('vdSeries');
+  if(sw) sw.innerHTML = '<span class="vd-mini-tit">Ver</span>' + ['N','V','M'].map(k=>{
+    const se = SERIES_DIAG[k], on = _vdSeries && _vdSeries[k];
+    return '<button type="button" class="vd-serie' + (on ? ' on' : '') + '" style="--sc:' + se.col + '" '
+      + 'onclick="vdAlternarSerie(\'' + k + '\')" title="' + se.tit + '">' + se.tit.split(' ')[0] + '</button>';
+  }).join('');
+  const sel = document.getElementById('vdSelCarga');
+  sel.innerHTML = cargas.map(c=>
+    '<option value="' + c.id + '"' + (c.id===_vdCarga ? ' selected' : '') + '>'
+    + vdNombreCarga(c) + '</option>').join('');
+}
+
+function vdCambioGrupo(i){
+  _vdGrupo = i;
+  vdPintarSelectores();
+  vdRender();
+}
+function vdAlternarSerie(k){
+  if(!_vdSeries) _vdSeries = {N:true, V:true, M:true};
+  _vdSeries[k] = !_vdSeries[k];
+  vdPintarSelectores();
+  vdRender();
+}
+function vdCambioCarga(id){
+  _vdCarga = parseInt(id);
+  vdPintarRuedas();
+}
+
+// ── Ruedas de la carga elegida ──
+// Una rueda por valor; la carga variable lleva dos, una por extremo.
+// Debajo de cada rueda, sus límites editables.
+// Rueda compacta (2026-10-18, petición del profesor): en una fila el valor con
+// sus botones − y + y el paso; en la otra, mín, la rueda y máx. La rueda avanza
+// de paso en paso a partir del valor vigente (45 → 45.05 → 45.10 con paso 0.05):
+// su rejilla se apoya en ese valor (`_vdAncla`) y no en el mínimo.
+function _vdDecPaso(p){ const s = String(+(+p).toPrecision(8)); const i = s.indexOf('.'); return i < 0 ? 0 : s.length - i - 1; }
+function _vdRejilla(v, mn, mx, paso){
+  const nAb = Math.max(0, Math.floor((v - mn)/paso + 1e-9)), nAr = Math.max(0, Math.floor((mx - v)/paso + 1e-9));
+  return {min:+(v - nAb*paso).toFixed(10), max:+(v + nAr*paso).toFixed(10)};
+}
+function vdPintarRuedas(){
+  const c = cargas.find(z=>z.id === _vdCarga);
+  const w = document.getElementById('vdRuedas');
+  if(!c){ w.innerHTML = ''; return; }
+  const lim = _vdLim[c.id];
+  const u = (c.tipo==='M') ? uMom() : (c.tipo==='U'||c.tipo==='T') ? uDist() : unitFor;
+  const fila = (campo, titulo, v, mn, mx, paso)=>{
+    _vdAncla[campo] = v;
+    const rj = _vdRejilla(v, mn, mx, paso);
+    const nd = Math.max(_vdDecPaso(paso), 2);
+    const a = '\'' + campo + '\'';
+    return '<div class="vd-rueda">'
+      + '<div class="vd-fila">'
+      +   '<span class="vd-nom">' + titulo + '</span>'
+      +   '<button type="button" class="vd-paso-btn" onclick="vdPaso(' + a + ', -1)" aria-label="Restar un paso">−</button>'
+      +   '<input type="number" step="any" class="vd-num vd-valor" id="vdN_' + campo + '" value="' + v.toFixed(nd)
+      +     '" onchange="vdValorExacto(' + a + ', this.value)">'
+      +   '<button type="button" class="vd-paso-btn" onclick="vdPaso(' + a + ', 1)" aria-label="Sumar un paso">+</button>'
+      +   '<span class="vd-u">' + u + '</span>'
+      +   '<label class="vd-paso">paso <input type="number" step="any" min="0" class="vd-num" value="' + paso
+      +     '" onchange="vdCambiarPaso(' + a + ', this.value)"></label>'
+      + '</div>'
+      + '<div class="vd-fila">'
+      +   '<input type="number" step="any" class="vd-num vd-lim" value="' + mn + '" title="Mínimo" aria-label="Mínimo"'
+      +     ' onchange="vdLimite(' + a + ', \'min\', this.value)">'
+      +   '<input type="range" class="vd-range" id="vdR_' + campo + '" min="' + rj.min + '" max="' + rj.max
+      +     '" step="' + paso + '" value="' + v + '" oninput="vdGiro(' + a + ', this.value)">'
+      +   '<input type="number" step="any" class="vd-num vd-lim" value="' + mx + '" title="Máximo" aria-label="Máximo"'
+      +     ' onchange="vdLimite(' + a + ', \'max\', this.value)">'
+      + '</div></div>';
+  };
+  let h = fila('mag', (c.tipo==='T' ? 'w₁' : 'Valor'), c.mag, lim.min, lim.max, lim.paso);
+  if(c.tipo === 'T')
+    h += fila('mag2', 'w₂', c.mag2 || 0, lim.min2, lim.max2, lim.paso2);
+  w.innerHTML = h;
+}
