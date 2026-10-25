@@ -50,7 +50,9 @@ function distanciaACarga(c, mx, my){
   }
   if(!enNudo){
     const s = Math.max(0, Math.min(g.L, sDesdePos(c, g, c.pos)));
-    [px,py] = aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
+    const P = puntoEnTramo(g, s);
+    [px,py] = aPantalla(P.x, P.y);
+    if(g.arco) g = geoDeCarga(c);      // radial y tangente en su punto (02-)
   }
   if(c.tipo==='M'){
     // Distancia al ARCO, no al disco: dentro del arco cae la punta de la flecha
@@ -83,11 +85,24 @@ function distanciaABloque(c, g, mx, my){
   const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
   const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9);
   const alt = 34, h1 = alt*w1/wm, h2 = alt*w2/wm;
-  const [ax,ay] = aPantalla(g.a.x+g.ux*z.s1, g.a.y+g.uy*z.s1);
-  const [bx,by] = aPantalla(g.a.x+g.ux*z.s2, g.a.y+g.uy*z.s2);
-  const d = dirCarga(c, g);
-  const ex = -d.x, ey = d.y;
-  const p = [[ax,ay], [ax+ex*h1, ay+ey*h1], [bx+ex*h2, by+ey*h2], [bx,by]];
+  let p;
+  if(g.arco){
+    // Sobre un arco, el bloque que pinta `dibujarRepartidaArco` (08-): el eje
+    // del trozo y la línea de las colas.
+    const n = 16, base = [], colas = [];
+    for(let i=0;i<=n;i++){
+      const s = z.s1 + z.len*i/n, P = puntoEnTramo(g, s), d = dirRepartidaArco(c, g, s);
+      const [X, Y] = aPantalla(P.x, P.y), h = h1 + (h2 - h1)*i/n;
+      base.push([X, Y]); colas.push([X - d.x*h, Y + d.y*h]);
+    }
+    p = base.concat(colas.reverse());
+  } else {
+    const [ax,ay] = aPantalla(g.a.x+g.ux*z.s1, g.a.y+g.uy*z.s1);
+    const [bx,by] = aPantalla(g.a.x+g.ux*z.s2, g.a.y+g.uy*z.s2);
+    const d = dirCarga(c, g);
+    const ex = -d.x, ey = d.y;
+    p = [[ax,ay], [ax+ex*h1, ay+ey*h1], [bx+ex*h2, by+ey*h2], [bx,by]];
+  }
   if(dentroDePoligono(mx, my, p)) return 0;
   let dm = Infinity;
   for(let i=0, j=p.length-1; i<p.length; j=i++)
@@ -128,6 +143,15 @@ function tramoEn(mx,my,tol){
   let mejor=null, dm=(tol===undefined) ? 12 : tol;
   for(const t of tramos){
     const g=geoTramo(t); if(!g) continue;
+    if(g.arco){
+      // Un tramo curvo: distancia a su eje muestreado.
+      const pts = ejeTramo(g, 48).map(p=>aPantalla(p.x, p.y));
+      for(let i=1;i<pts.length;i++){
+        const d = distanciaASegmento(mx, my, pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1]);
+        if(d<dm){ dm=d; mejor=t; }
+      }
+      continue;
+    }
     const [ax,ay]=aPantalla(g.a.x,g.a.y), [bx,by]=aPantalla(g.b.x,g.b.y);
     const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy; if(l2<1) continue;
     let s=((mx-ax)*dx+(my-ay)*dy)/l2; s=Math.max(0,Math.min(1,s));
@@ -217,6 +241,8 @@ function onDown(e){
     if(primerNodo !== null && primerNodo !== nn.id) addTramo(primerNodo, nn.id);
     primerNodo = nn.id; invalidarResultados(); refrescar(); return;
   }
+  // Tramo curvo (23-): dos toques, inicio y fin; luego la ventana del radio.
+  if(tool==='curvo'){ if(e.detail >= 2) return; toqueCurvo(n, wx, wy); return; }
   if(tool==='apoyo'){ if(n) abrirApoyo(n.id); return; }
   // Cuerda, biela o tope (22-): el segundo clic de un doble clic no cuenta.
   if(tool==='vinculo'){ if(e.detail >= 2) return; toqueVinculo(mx, my); return; }
@@ -243,6 +269,8 @@ function onMove(e){
   mouseW=aMundo(mx,my);
   // Trazando una cuerda o una biela: la línea sigue al puntero (22-).
   if(tool==='vinculo' && vinculoPrimerNudo!==null){ dibujar(); return; }
+  // …y lo mismo con el primer punto de un tramo curvo (23-).
+  if(tool==='curvo' && curvoPrimer){ dibujar(); return; }
 
   // ── Botón unificado "Mover / editar" (criterio cap9) ──
   if(gesto){
@@ -458,8 +486,13 @@ function partesDeCarga(c){
     const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
     const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9);
     const h1 = 34*w1/wm, h2 = 34*w2/wm;
-    const a = aPantalla(g.a.x+g.ux*z.s1, g.a.y+g.uy*z.s1);
-    const b = aPantalla(g.a.x+g.ux*z.s2, g.a.y+g.uy*z.s2);
+    const P1 = puntoEnTramo(g, z.s1), P2 = puntoEnTramo(g, z.s2);
+    const a = aPantalla(P1.x, P1.y), b = aPantalla(P2.x, P2.y);
+    if(g.arco){
+      const Pm = puntoEnTramo(g, (z.s1 + z.s2)/2), dm = dirRepartidaArco(c, g, (z.s1 + z.s2)/2);
+      const [mx, my] = aPantalla(Pm.x, Pm.y), hm = (h1 + h2)/2;
+      return [[a, b], [[mx - dm.x*hm/2, my + dm.y*hm/2]]];
+    }
     const d = dirCarga(c, g), ex = -d.x, ey = d.y;
     // El centro del bloque: una repartida a lo largo de todo el tramo no se
     // puede encerrar entera sin encerrar también sus nudos.
@@ -468,7 +501,9 @@ function partesDeCarga(c){
   }
   if(!enNudo){
     const s = Math.max(0, Math.min(g.L, sDesdePos(c, g, c.pos)));
-    [px,py] = aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
+    const P = puntoEnTramo(g, s);
+    [px,py] = aPantalla(P.x, P.y);
+    if(g.arco) g = geoDeCarga(c);
   }
   if(c.tipo==='M') return [[[px,py]]];
   const dir = dirCarga(c, g);
@@ -589,7 +624,7 @@ function onDbl(e){
   if(h.tipo==='nodo') abrirNudo(h.id);
   else if(h.tipo==='carga') editarCarga(h.id);
   else if(h.tipo==='vinculo') editarVinculo(h.id);
-  else abrirTramo(h.id);
+  else abrirTramo(h.id);                // un tramo curvo abre su ventana del radio
 }
 
 function setTool(t){
@@ -597,6 +632,7 @@ function setTool(t){
   // siquiera al rearme de 'carga' con otro tipo desde el menú.
   cancelarToqueCarga();
   tool=t; if(t!=='nudo') primerNodo=null;
+  if(t!=='curvo') curvoPrimer=null;
   // El tipo de carga elegido en el menú solo vive mientras dura su herramienta.
   if(t!=='carga') tipoCargaPendiente=null;
   // Igual el del vínculo; y un trazo a medias no sobrevive a ningún cambio.
@@ -612,6 +648,11 @@ function setTool(t){
   if(bd) bd.classList.toggle('active', t==='borrar');
   const bp = document.getElementById('btnPeso');
   if(bp) bp.classList.toggle('active', t==='peso');
+  // «Viga» queda marcada mientras se construye por nudos o con el tramo curvo.
+  const bv = document.getElementById('tViga');
+  if(bv) bv.classList.toggle('active', t==='nudo' || t==='curvo');
+  document.querySelectorAll('#menuViga .menu-btn').forEach(b=>
+    b.classList.toggle('active', (t==='nudo' && b.dataset.modo==='nudos') || (t==='curvo' && b.dataset.modo==='curvo')));
   // En el menú «Cargas» se marca el tipo armado; el reinicio se limita a su
   // propia rejilla para no borrar la marca de otros grupos.
   document.querySelectorAll('#menuCargas .menu-btn').forEach(b=>
@@ -624,6 +665,7 @@ function setTool(t){
       : 'Toca el tramo o el nudo donde va la carga.')
       + ' · Doble toque sobre una carga para editarla.',
     nudo:'Haz clic para colocar nudos; se van uniendo formando la viga.',
+    curvo:'Toca el inicio y el fin del arco (un nudo o un punto); después escribe el radio.',
     apoyo:'Haz clic en un nudo para asignarle apoyo o rótula.',
     vinculo:textoHerramientaVinculo(),
     sel:'Toca para seleccionar (varios) · mantén presionado y arrastra para mover · doble clic para editar.',
@@ -664,6 +706,8 @@ function modoConstruir(m){
   if(m==='nudos'){
     setTool('nudo');
     aviso('Haz clic en el lienzo para ir colocando los nudos. Cada nuevo nudo se une al anterior.');
+  } else if(m==='curvo'){
+    setTool('curvo');
   } else {
     nuevoTramoPorLongitud();
   }
@@ -775,6 +819,9 @@ function aplicarNudo(){
   cerrarNudo(); centrar(); refrescar();
 }
 function abrirTramo(id){
+  // Un tramo curvo no se edita por longitud e inclinación: su ventana pide el radio (23-).
+  const tc = tramos.find(z=>z.id===id);
+  if(esArco(tc)){ abrirArcoEdicion(id); return; }
   edTramo=id; const t=tramos.find(z=>z.id===id); const g=t&&geoTramo(t); if(!g) return;
   document.getElementById('trNom').textContent=nomTramo(t);
   document.getElementById('trL').value=+g.L.toFixed(6);

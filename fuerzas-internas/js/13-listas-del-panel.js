@@ -27,6 +27,11 @@ function pintarListas(){
     } else {
       le.innerHTML = tramos.length ? tramos.map(t=>{
         const g=geoTramo(t); if(!g) return '';
+        // Un tramo curvo (23-) se edita en su ventana: radio y lado.
+        if(g.arco) return '<div class="item-row'+(selTramo===t.id?' sel':'')+'">'
+          + '<div class="nm">'+nomTramo(t)+'</div>'
+          + '<button class="mini" style="flex:1" title="Editar el arco" onclick="abrirArcoEdicion('+t.id+')">R '+dec(g.arco.R,'len')+' · '+dec(Math.abs(g.arco.d)*180/Math.PI,'ang')+'° ✎</button>'
+          + '<button class="x" onclick="borrarTramo('+t.id+')">×</button></div>';
         return '<div class="item-row'+(selTramo===t.id?' sel':'')+'">'
         + '<div class="nm">'+nomTramo(t)+'</div>'
         + '<input class="mini" type="number" step="any" value="'+(+g.L.toFixed(4))+'" title="longitud" '

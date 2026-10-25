@@ -240,7 +240,10 @@ function areasDeGrupo(R, gg){
           + conU(dec(xs[0],'len'), uL));
       } else {
         const us = zs.map(z=>z - su.sa);
-        filas.push('V = 0:\\quad ' + polyTex([Va, -wa, c2], 'fuerza', 'u') + ' &= 0 \\;\\Rightarrow\\; u = '
+        // El polinomio va a la derecha del &: a la izquierda, «V = 0: polinomio»
+        // ensanchaba la columna de los nombres, y junto a la fila larga de M_máx
+        // el bloque se salía del papel (2026-10-25).
+        filas.push('V(u) &= ' + polyTex([Va, -wa, c2], 'fuerza', 'u') + ' = 0 \\;\\Rightarrow\\; u = '
           + us.map(u=>dec(u,'len')).join(';\\ ') + ',\\quad ' + sb + '_0 = '
           + xs.map(x=>dec(x,'len')).join(';\\ ') + '\\ \\text{' + uL + '}');
       }
@@ -376,8 +379,8 @@ function bloqueArranque(R, gg){
   const t0 = gg.tramos[0], su = t0.subs[0];
   const ch = cadenaDe(R, t0), prev = (t0.idx > 0) ? ch[t0.idx - 1] : null;
   const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
-  const N0 = polyVal(su.cN, su.sa), V0 = polyVal(su.cV, su.sa), M0 = polyVal(su.cM, su.sa);
-  const hayN = gg.tramos.some(t=>t.subs.some(s=>s.cN.some(v=>Math.abs(v) > 5e-9)));
+  const N0 = valorSub(su, 'N', su.sa), V0 = valorSub(su, 'V', su.sa), M0 = valorSub(su, 'M', su.sa);
+  const hayN = gg.tramos.some(t=>t.subs.some(s=>!subNulo(s, 'N')));
   return '\\noindent En $' + escLatex(gg.desde.nombre) + '$' + (prev ? ', desde $' + escLatex(prev.nombre) + '$' : '') + ':\n'
     + '\\[' + (hayN ? 'N_0 = ' + dec(N0,'fuerza') + '\\ \\text{' + uF + '},\\qquad ' : '')
     + 'V_0 = ' + dec(V0,'fuerza') + '\\ \\text{' + uF + '},\\qquad M_0 = ' + dec(M0,'momento') + '\\ \\text{' + uM + '}\\]\n';
@@ -619,6 +622,13 @@ function renderMetodoAreas(r){
     + ', enjuta ' + kx('\\tfrac13 b\\,h') + ', segmento parabólico ' + kx('\\tfrac23 b\\,f') + '.</div>';
   const uF = escLatex(unitFor), uM = escLatex(unidadMomento());
   gruposSolucion(r).forEach(gg=>{
+    // En un tramo curvo dV/ds y dM/ds llevan además N/R: el método de las áreas
+    // no vale y el arco se desarrolla por ecuaciones (23-).
+    if(gg.arco){
+      h += '<div class="hint-sm" style="margin:6px 0">En un tramo curvo no se usa el método de las áreas: se desarrolla por ecuaciones.</div>'
+         + htmlArcoEcuaciones(r, gg.tramos[0], r.internas.indexOf(gg.tramos[0]));
+      return;
+    }
     const m = areasDeGrupo(r, gg);
     h += '<div class="sub-tramo-cab">Tramo ' + gg.recorrido + ' — '
       + (gg.oblicuo ? 'inclinado ' + dec(gg.ang,'ang') + '°' : (gg.vertical ? 'vertical' : 'horizontal'))

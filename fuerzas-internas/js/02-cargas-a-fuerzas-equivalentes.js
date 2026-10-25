@@ -16,44 +16,71 @@ function puntoDeCarga(c){
   // Igual que en trozoCargado: pegada al nudo a efectos de cálculo.
   if(s < 1e-4*g.L) s = 0;
   if(g.L - s < 1e-4*g.L) s = g.L;
-  return {x:g.a.x + g.ux*s, y:g.a.y + g.uy*s};
+  const P = puntoEnTramo(g, s);      // en un tramo curvo, sobre el arco
+  return {x:P.x, y:P.y};
 }
 // Tramo cargado de una distribuida: [inicio, fin] medidos desde el nudo a.
 // ── Cómo se declara la posición de una carga ──
 // 'eje'    : distancia recorrida sobre el eje del tramo (lo de siempre).
-// 'coordX' : la abscisa x del punto; se busca el punto del eje con esa x.
-// 'coordY' : lo mismo con la ordenada y, útil en tramos verticales, donde
-//            la x no distingue puntos.
+// 'coordX' : Δx, la distancia en horizontal desde el nudo inicial del tramo
+//            (t.a); se busca el punto del eje que está ahí.
+// 'coordY' : lo mismo con Δy, útil en tramos verticales, donde Δx no
+//            distingue puntos.
 // Devolver siempre una distancia sobre el eje deja intacto todo el cálculo
 // posterior: solo cambia CÓMO el usuario declara el punto.
-// El marco lo fija la propia carga: 'global' = coordenadas del plano,
-// 'local' = medidas desde el nudo inicial del tramo (Δx, Δy).
+// Desde el 2026-10-24 (petición del profesor) Δx y Δy son SIEMPRE locales, sea
+// cual sea la dirección de la carga, y `pos` guarda Δ con su signo (ux·s). Hasta
+// esa fecha, con dirección del plano (vertical, horizontal, inclinada) y en el
+// par, `pos` era la coordenada x o y del plano: los archivos v2 o anteriores se
+// convierten al abrirlos (`convertirPosicionesDeArchivo`, 15-).
+// 'theta'  : en un tramo CURVO, el ángulo θ en grados desde su nudo inicial,
+//            medido en el centro del arco (2026-10-25, decisión del profesor).
 function sDesdePos(c, g, valor){
   const v = Number(valor) || 0;
   const modo = c.basePos || 'eje';
-  const local = (marcoDeCarga(c) === 'local');
+  if(modo === 'theta') return g.arco ? v*Math.PI/180*g.arco.R : 0;
   if(modo === 'coordX'){
     if(Math.abs(g.ux) < 1e-9) return 0;   // tramo vertical: la x no distingue puntos
-    return (local ? v : (v - g.a.x)) / g.ux;
+    return v / g.ux;
   }
   if(modo === 'coordY'){
     if(Math.abs(g.uy) < 1e-9) return 0;   // tramo horizontal: la y no distingue puntos
-    return (local ? v : (v - g.a.y)) / g.uy;
+    return v / g.uy;
   }
   return v;
 }
-// Operación inversa: dada una distancia sobre el eje, el valor que hay que
-// mostrar en el modo pedido. Con esto el cambio de modo CONVIERTE el número
-// en vez de limitarse a reinterpretarlo, que movía la carga de sitio.
-function posDesdeS(modo, g, s, local){
-  if(modo === 'coordX') return (local ? 0 : g.a.x) + g.ux*s;
-  if(modo === 'coordY') return (local ? 0 : g.a.y) + g.uy*s;
+// Operación inversa: dada una distancia sobre el eje, el valor que se guarda en
+// el modo pedido. Con esto el cambio de modo CONVIERTE el número en vez de
+// limitarse a reinterpretarlo, que movía la carga de sitio.
+function posDesdeS(modo, g, s){
+  if(modo === 'theta') return g.arco ? s/g.arco.R*180/Math.PI : 0;
+  if(modo === 'coordX') return g.ux*s;
+  if(modo === 'coordY') return g.uy*s;
+  return s;
+}
+// ── Lo que escribe el alumno en la ventana ──
+// Δx y Δy se escriben en valor absoluto, como en la ventana del punto de corte
+// (19-): son distancias desde el primer nudo, y en un tramo dibujado hacia la
+// izquierda o hacia abajo el signo de Δ no le dice nada al alumno. Estas dos
+// funciones pasan del campo a la distancia sobre el eje s, y al revés.
+function sDesdeCampo(modo, g, valor){
+  const v = Math.abs(Number(valor) || 0);
+  if(modo === 'theta') return g.arco ? v*Math.PI/180*g.arco.R : 0;
+  if(modo === 'coordX') return Math.abs(g.ux) < 1e-9 ? 0 : v/Math.abs(g.ux);
+  if(modo === 'coordY') return Math.abs(g.uy) < 1e-9 ? 0 : v/Math.abs(g.uy);
+  return Number(valor) || 0;
+}
+function campoDesdeS(modo, g, s){
+  if(modo === 'theta') return g.arco ? s/g.arco.R*180/Math.PI : 0;
+  if(modo === 'coordX') return Math.abs(g.ux)*s;
+  if(modo === 'coordY') return Math.abs(g.uy)*s;
   return s;
 }
 // Etiqueta que corresponde al modo, para la interfaz.
 function etiquetaPos(modo){
-  return modo === 'coordX' ? 'Coordenada x'
-       : modo === 'coordY' ? 'Coordenada y'
+  return modo === 'coordX' ? 'Δx desde el nudo inicial'
+       : modo === 'coordY' ? 'Δy desde el nudo inicial'
+       : modo === 'theta'  ? 'Ángulo θ desde el nudo inicial'
        : 'Distancia sobre el eje';
 }
 
@@ -100,10 +127,10 @@ function dirDeCarga(c){
   if(c.tipo === 'PX') return local ? 'axial' : 'x';
   return local ? 'perp' : 'y';
 }
-// El marco de las COORDENADAS de posición va con la dirección: una carga
-// referida al tramo se sitúa también con las coordenadas del tramo. La
-// inclinada NO es una de esas: su ángulo se mide desde el eje x del plano, así
-// que es tan global como la vertical y la horizontal.
+// Si la DIRECCIÓN de la carga se refiere al tramo ('local': perpendicular o
+// axial) o al plano ('global'). La inclinada es del plano: su ángulo se mide
+// desde el eje x. Hasta el 2026-10-24 decidía también desde dónde se medían Δx
+// y Δy; ahora la posición es siempre local y esto solo dice la dirección.
 function marcoDeCarga(c){
   const d = dirDeCarga(c);
   return (d === 'perp' || d === 'axial') ? 'local' : 'global';
@@ -115,10 +142,23 @@ function marcoDeCarga(c){
 function geoDeCarga(c){
   if(c.destino === 'nudo'){
     const t = tramos.find(z=>z.a === c.nudo || z.b === c.nudo);
-    return t ? geoTramo(t) : null;
+    const g = t ? geoTramo(t) : null;
+    return (g && g.arco) ? marcoLocalArco(g, t.a === c.nudo ? 0 : g.L) : g;
   }
   const t = tramos.find(z=>z.id === c.tramo);
-  return t ? geoTramo(t) : null;
+  const g = t ? geoTramo(t) : null;
+  // Una carga concentrada sobre un ARCO toma los ejes del arco en SU punto: su
+  // «perpendicular» es radial y su «axial», tangente. Una repartida curva se
+  // integra aparte (`accionesRepartidaArco`).
+  if(g && g.arco && c.tipo !== 'U' && c.tipo !== 'T') return marcoLocalArco(g, sDesdePos(c, g, c.pos));
+  return g;
+}
+// Los ejes de un arco en el punto a la distancia s: la tangente hacia b como
+// `ux`, `uy`, y el centro y el punto para la dirección radial (`dirCarga`).
+function marcoLocalArco(g, s){
+  const P = puntoEnTramo(g, Math.max(0, Math.min(g.L, s)));
+  return Object.assign({}, g, {ux:P.ux, uy:P.uy, nx:-P.uy, ny:P.ux,
+                               centro:{x:g.arco.cx, y:g.arco.cy}, punto:{x:P.x, y:P.y}});
 }
 // Vector unitario en el que actúa una magnitud positiva.
 function dirCarga(c, g){
@@ -136,6 +176,11 @@ function dirCarga(c, g){
   }
   if(!g) return {x:0, y:-1};
   if(d === 'axial') return {x:g.ux, y:g.uy};
+  // Sobre un arco, la perpendicular es RADIAL y positiva hacia el centro.
+  if(g.centro && g.punto){
+    const ex = g.centro.x - g.punto.x, ey = g.centro.y - g.punto.y, L = Math.hypot(ex, ey) || 1;
+    return {x:ex/L, y:ey/L};
+  }
   // Perpendicular al eje, apuntando "contra" la barra: para un tramo
   // horizontal debe coincidir con la vertical hacia abajo, así el cambio de
   // modo no altera el resultado en vigas rectas.
@@ -171,6 +216,7 @@ function accionesDeCarga(c){
   if(c.tipo === 'U' || c.tipo === 'T'){
     const z = trozoCargado(c);
     if(!z || z.len <= 1e-12) return [];
+    if(z.g.arco) return accionesRepartidaArco(c, z);
     const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
     const Ftot = (w1+w2)/2*z.len;
     const d = dirCarga(c, z.g);
@@ -196,6 +242,85 @@ function accionesDeCarga(c){
   }
   return [];
 }
+// ── Repartida sobre un ARCO (2026-10-25) ──
+// La intensidad es por unidad de LONGITUD DE ARCO (decisión del profesor), como
+// en un tramo recto y como el peso propio. La vertical, la horizontal y la
+// inclinada tienen dirección fija; la perpendicular es radial (hacia el centro)
+// y la axial, tangente: cambian a lo largo del arco. Fuerza y momento se
+// integran con Gauss–Legendre (exacto a la precisión de la máquina para estas
+// funciones suaves) y la resultante se sitúa sobre su línea de acción: en el
+// centroide de la carga si la dirección es fija, en el centro del arco si es
+// radial (todas sus fuerzas pasan por él).
+function _glNodos(n){
+  _glNodos.cache = _glNodos.cache || {};
+  if(_glNodos.cache[n]) return _glNodos.cache[n];
+  const x = [], w = [];
+  for(let i=1;i<=n;i++){
+    let z = Math.cos(Math.PI*(i - 0.25)/(n + 0.5)), dp = 0;
+    for(let it=0;it<100;it++){
+      let p0 = 1, p1 = z;
+      for(let k=2;k<=n;k++){ const p2 = ((2*k-1)*z*p1 - (k-1)*p0)/k; p0 = p1; p1 = p2; }
+      dp = n*(z*p1 - p0)/(z*z - 1);
+      const dz = p1/dp; z -= dz;
+      if(Math.abs(dz) < 1e-16) break;
+    }
+    x.push(z); w.push(2/((1 - z*z)*dp*dp));
+  }
+  return (_glNodos.cache[n] = {x, w});
+}
+// ∫ f(s) ds en [a, b] con 24 puntos de Gauss–Legendre.
+function integrarGL(f, a, b){
+  if(!(b > a)) return 0;
+  const {x, w} = _glNodos(24), m = (a + b)/2, h = (b - a)/2;
+  let S = 0;
+  for(let i=0;i<x.length;i++) S += w[i]*f(m + h*x[i]);
+  return S*h;
+}
+// Dirección de una repartida en el punto s de un arco (vector unitario de la
+// magnitud positiva).
+function dirRepartidaArco(c, g, s){
+  const d = dirDeCarga(c);
+  if(d === 'perp' || d === 'axial') return dirCarga(c, marcoLocalArco(g, s));
+  return dirCarga(c, g);
+}
+// Intensidad de la repartida en s (lineal entre los extremos del trozo cargado).
+function wRepartidaEn(c, z, s){
+  const w1 = c.mag, w2 = (c.tipo === 'U') ? c.mag : (c.mag2 || 0);
+  return (z.len > 1e-12) ? w1 + (w2 - w1)*(s - z.s1)/z.len : w1;
+}
+// Fuerza y momento (respecto de P) de la parte de la repartida entre s = a y b.
+function fuerzaRepartidaArco(c, z, a, b, P){
+  const g = z.g;
+  const fx = s => { const d = dirRepartidaArco(c, g, s); return wRepartidaEn(c, z, s)*d.x; };
+  const fy = s => { const d = dirRepartidaArco(c, g, s); return wRepartidaEn(c, z, s)*d.y; };
+  const Fx = integrarGL(fx, a, b), Fy = integrarGL(fy, a, b);
+  const Mo = integrarGL(s=>{ const Q = puntoEnTramo(g, s); return (Q.x - P.x)*fy(s) - (Q.y - P.y)*fx(s); }, a, b);
+  return {Fx, Fy, Mo};
+}
+function accionesRepartidaArco(c, z){
+  const g = z.g, O = {x:0, y:0};
+  const r = fuerzaRepartidaArco(c, z, z.s1, z.s2, O);
+  const F = Math.hypot(r.Fx, r.Fy);
+  if(F < 1e-12*Math.max(1, Math.abs(c.mag), Math.abs(c.mag2 || 0))){
+    const Pm = puntoEnTramo(g, (z.s1 + z.s2)/2);
+    return [{x:Pm.x, y:Pm.y, fx:0, fy:0, m:r.Mo}];
+  }
+  const d = dirDeCarga(c);
+  let Q;
+  if(d === 'y' || d === 'x' || d === 'ang'){
+    const W = integrarGL(s=>wRepartidaEn(c, z, s), z.s1, z.s2);
+    if(Math.abs(W) > 1e-12){
+      Q = {x:integrarGL(s=>wRepartidaEn(c, z, s)*puntoEnTramo(g, s).x, z.s1, z.s2)/W,
+           y:integrarGL(s=>wRepartidaEn(c, z, s)*puntoEnTramo(g, s).y, z.s1, z.s2)/W};
+    }
+  } else if(d === 'perp'){
+    Q = {x:g.arco.cx, y:g.arco.cy};
+  }
+  // Cualquier otro caso: el pie de la perpendicular desde el origen a la línea de acción.
+  if(!Q) Q = {x:r.Fy*r.Mo/(F*F), y:-r.Fx*r.Mo/(F*F)};
+  return [{x:Q.x, y:Q.y, fx:r.Fx, fy:r.Fy, m:0}];
+}
+
 // ── Peso propio ──
 // Un valor único en fuerza por unidad de longitud que se aplica a todos los
 // tramos, siempre en dirección vertical y sobre la longitud real del eje.

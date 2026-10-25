@@ -50,6 +50,9 @@ let nodoSeq = 0, tramoSeq = 0, cargaSeq = 0;
 // declaran aquí porque los usan piezas que se cargan antes (deshacer, dibujo).
 let vinculos = [], vinculoSeq = 0;
 let tipoVinculoPendiente = null, vinculoPrimerNudo = null;
+// Primer punto tocado con la herramienta «Tramo curvo» (23-), {id|null, x, y}:
+// lo lee el dibujo, que va antes.
+let curvoPrimer = null;
 let tool = 'pan', modoConstr = 'nudos', modoEdic = 'nudos';
 let selNodos = [], selTramos = [], selCargas = [];
 let selNodo = null, selTramo = null, primerNodo = null;
@@ -142,13 +145,90 @@ function nodo(id){ return nodos.find(n=>n.id===id); }
 function nomTramo(t){ const a=nodo(t.a), b=nodo(t.b); return (a&&b)? a.nombre+b.nombre : '?'; }
 
 // ── Geometría de un tramo ──
+// Un tramo CURVO (2026-10-25, petición del profesor) es un arco de circunferencia
+// entre sus dos nudos y guarda su FLECHA (`t.flecha`, con signo), como en presión
+// de fluidos: el radio, el lado y el arco mayor son una conversión de borde de su
+// ventana (`flechaDesdeRadio`, `radioDesdeFlecha`). En un arco, `L` es la LONGITUD
+// DEL ARCO —la distancia s sobre el eje, que es lo que miden las posiciones— y
+// `ux`, `uy`, `ang` son los de la cuerda; el punto y la tangente a una distancia s
+// los da `puntoEnTramo`, que vale para los dos. Sin `flecha` (o con 0) el tramo
+// es recto y todo sigue como siempre.
 function geoTramo(t){
   const a = nodo(t.a), b = nodo(t.b);
   if(!a||!b) return null;
   const dx = b.x-a.x, dy = b.y-a.y;
-  const L = Math.hypot(dx,dy) || 1e-9;
-  return {a, b, dx, dy, L, ux:dx/L, uy:dy/L, nx:-dy/L, ny:dx/L,
-          ang: Math.atan2(dy,dx)*180/Math.PI};
+  const c = Math.hypot(dx,dy) || 1e-9;
+  const arco = arcoDeTramo(t);
+  const L = arco ? arco.R*Math.abs(arco.d) : c;
+  return {a, b, dx, dy, L, ux:dx/c, uy:dy/c, nx:-dy/c, ny:dx/c,
+          ang: Math.atan2(dy,dx)*180/Math.PI, arco, cuerda:c};
+}
+function esArco(t){ return !!(t && Math.abs(+t.flecha || 0) > 1e-12); }
+// El arco de a a b con flecha f: centro (cx, cy), radio R, ángulo t1 del radio
+// que va a `a` y giro d (con signo) de `a` a `b`. Copia del de presión de
+// fluidos (01-), con el mismo convenio de la flecha: no se comparte (§5.4).
+function arcoEntre(a, b, f){
+  if(!a || !b || Math.abs(f || 0) < 1e-12) return null;
+  const dx = b.x-a.x, dy = b.y-a.y, c = Math.hypot(dx,dy);
+  if(c < 1e-12) return null;
+  const Rr = (c*c/4 + f*f)/(2*Math.abs(f));
+  const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+  const ux = dx/c, uy = dy/c, nx = -uy, ny = ux;
+  const h = Math.sqrt(Math.max(0, Rr*Rr - c*c/4));
+  const sg = f >= 0 ? 1 : -1;
+  const cx = mx - nx*h*sg, cy = my - ny*h*sg;
+  let t1 = Math.atan2(a.y-cy, a.x-cx), t2 = Math.atan2(b.y-cy, b.x-cx);
+  let d = t2 - t1;
+  while(d >  Math.PI) d -= 2*Math.PI;
+  while(d < -Math.PI) d += 2*Math.PI;
+  const mayor = Math.abs(f) > c/2;
+  if(mayor){ d = d > 0 ? d - 2*Math.PI : d + 2*Math.PI; }
+  const bx = (mayor ? -nx : nx)*sg, by = (mayor ? -ny : ny)*sg;
+  const tm = t1 + d/2;
+  if(Math.cos(tm)*bx + Math.sin(tm)*by < 0) d = d > 0 ? d - 2*Math.PI : d + 2*Math.PI;
+  return {cx, cy, R:Rr, t1, d, cuerda:c};
+}
+function arcoDeTramo(t){
+  if(!esArco(t)) return null;
+  return arcoEntre(nodo(t.a), nodo(t.b), +t.flecha);
+}
+// Radio, lado y arco mayor ↔ flecha. `lado` +1: se comba hacia la IZQUIERDA de
+// quien va de a a b; −1, hacia la derecha. Copias de las de presión (01-).
+function flechaDesdeRadio(c, R, lado, mayor){
+  const h = Math.sqrt(Math.max(0, R*R - c*c/4));
+  if(h < 1e-12*Math.max(1, R)) mayor = false;
+  return (mayor ? -1 : 1) * lado * (mayor ? R + h : R - h);
+}
+function radioDesdeFlecha(c, f){
+  const af = Math.abs(f);
+  if(af < 1e-12 || c < 1e-12) return null;
+  const mayor = af > c/2*(1 + 1e-12);
+  return {R:(c*c/4 + f*f)/(2*af), mayor, lado:Math.sign(f) * (mayor ? -1 : 1)};
+}
+// Punto del eje a la distancia s (sobre el eje, desde t.a) y su tangente unitaria
+// en el sentido de a hacia b. `g` es el de geoTramo.
+function puntoEnTramo(g, s){
+  if(!g.arco) return {x:g.a.x + g.ux*s, y:g.a.y + g.uy*s, ux:g.ux, uy:g.uy};
+  const A = g.arco, sg = A.d >= 0 ? 1 : -1, th = A.t1 + sg*s/A.R;
+  return {x:A.cx + A.R*Math.cos(th), y:A.cy + A.R*Math.sin(th),
+          ux:-sg*Math.sin(th), uy:sg*Math.cos(th)};
+}
+// Puntos que delimitan el dibujo: los nudos y, en los tramos curvos, su arco
+// (un arco sale de la caja de sus dos nudos).
+function puntosDelModelo(){
+  const pts = nodos.map(n=>({x:n.x, y:n.y}));
+  tramos.forEach(t=>{
+    if(!esArco(t)) return;
+    const g = geoTramo(t);
+    if(g) ejeTramo(g, 24).forEach(p=>pts.push({x:p.x, y:p.y}));
+  });
+  return pts;
+}
+// Muestras del eje de un tramo (n + 1 puntos), recto o curvo, de a hacia b.
+function ejeTramo(g, n){
+  const k = g.arco ? Math.max(n || 48, 8) : 1, pts = [];
+  for(let i=0;i<=k;i++) pts.push(puntoEnTramo(g, g.L*i/k));
+  return pts;
 }
 // ── La estructura como cadena principal más ramas (2026-10-04) ──
 // Hasta esa fecha el tema solo resolvía tramos uno detrás de otro: si a un nudo

@@ -26,6 +26,12 @@ function analizar(){
   // sola estructura.
   const est = descomponerEnCadenas();
   if(est.error) return {error:est.error};
+  // Sobre un tramo curvo solo hay ley cerrada para la repartida UNIFORME
+  // vertical, horizontal, inclinada o radial (la ventana no deja poner otras;
+  // pueden llegar de un archivo).
+  if(cargas.some(c=>(c.tipo==='U'||c.tipo==='T') && esArco(tramos.find(t=>t.id===c.tramo))
+     && ((c.tipo==='T' && Math.abs((c.mag2||0) - c.mag) > 1e-12) || dirDeCarga(c) === 'axial')))
+    return {error:'arco-carga'};
   const cad = est.cadenas[0].cad;
 
   const acc = todasLasAcciones();
@@ -262,38 +268,31 @@ function _internasDeCadena(res, cc, puntuales, N){
   const posPuntual = puntuales.map(a=>({a, s:posicionEnCadena(a, cc.cad)}));
   salida.puntuales = posPuntual;   // lo usa el DCL del método de ecuaciones
 
-  let acumL = 0;
-  cc.cad.forEach((e, idxE)=>{
-    const g = geoTramo(e.t);
-    const invert = (e.desde.id !== e.t.a);
-    const ux = invert ? -g.ux : g.ux, uy = invert ? -g.uy : g.uy;
-    const nx = -uy, ny = ux;
-
-    // Fuerzas internas en la sección a distancia s del nudo inicial del tramo.
-    // Es EXACTAMENTE el cálculo validado del muestreo; se extrae a una función
-    // para que el ajuste polinómico de los subtramos use el mismo motor.
-    const corteEn = (s)=>{
-      const P = {x:e.desde.x + ux*s, y:e.desde.y + uy*s};
-      let Fx=0, Fy=0, Mo=0;
-      const sGlobal = acumL + s;
-
-      // 1) acciones puntuales situadas antes de la sección
-      posPuntual.forEach(o=>{
-        if(o.s === null || o.s >= sGlobal - 1e-9) return;
-        Fx += o.a.fx; Fy += o.a.fy;
-        Mo += (o.a.x-P.x)*o.a.fy - (o.a.y-P.y)*o.a.fx + (o.a.m||0);
-      });
-
-      // 2) cargas distribuidas: solo la parte del trozo cargado que queda
-      //    antes de la sección. El trozo va de s1 a s2 dentro del tramo.
-      cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
-        const z = trozoCargado(c);
-        if(!z || z.len <= 1e-12) return;
-        const posTramo = cc.cad.findIndex(x=>x.t.id===c.tramo);
-        const posActual = cc.cad.findIndex(x=>x.t.id===e.t.id);
-        if(posTramo < 0 || posTramo > posActual) return;
-        const gc = z.g;
-        const inv = (cc.cad[posTramo].desde.id !== gc.a.id ? true : false);
+  // Repartidas que actúan antes de la sección: completas en los tramos de la
+  // cadena anteriores al de índice `posActual`, y en ese, la parte hasta `uCut`
+  // (distancia en el sentido del recorrido). Devuelve la fuerza y el momento
+  // respecto de P. Una repartida sobre un ARCO se integra (`fuerzaRepartidaArco`,
+  // 02-); en un tramo recto, con las integrales exactas de siempre.
+  const _cargasRep = cargasConPeso().filter(c=>c.tipo==='U'||c.tipo==='T');
+  const repartidasAntes = (P, posActual, uCut)=>{
+    let Fx=0, Fy=0, Mo=0;
+    _cargasRep.forEach(c=>{
+      const z = trozoCargado(c);
+      if(!z || z.len <= 1e-12) return;
+      const posTramo = cc.cad.findIndex(x=>x.t.id===c.tramo);
+      if(posTramo < 0 || posTramo > posActual) return;
+      const gc = z.g;
+      const inv = (cc.cad[posTramo].desde.id !== gc.a.id ? true : false);
+      if(gc.arco){
+        let a = z.s1, b = z.s2;
+        if(posTramo === posActual){ if(!inv) b = Math.min(b, uCut); else a = Math.max(a, gc.L - uCut); }
+        if(b <= a + 1e-12) return;
+        const rr = fuerzaRepartidaArco(c, z, a, b, P);
+        Fx += rr.Fx; Fy += rr.Fy; Mo += rr.Mo;
+        return;
+      }
+      {
+        const s = uCut;
         // límites del trozo medidos EN EL SENTIDO DEL RECORRIDO
         let r1 = inv ? (gc.L - z.s2) : z.s1;
         let r2 = inv ? (gc.L - z.s1) : z.s2;
@@ -328,8 +327,46 @@ function _internasDeCadena(res, cc, puntuales, N){
         // la parte constante multiplica a I0 y la que crece con u, a I1.
         Mo += ((origen.x-P.x)*dd.y - (origen.y-P.y)*dd.x)*Fp
             + (dirx*dd.y - diry*dd.x)*I1;
-      });
+      }
+    });
+    return {Fx, Fy, Mo};
+  };
+  // Acciones puntuales situadas antes de la posición `sGlobal` de la cadena:
+  // fuerza y momento respecto de P.
+  const puntualesAntes = (P, sGlobal)=>{
+    let Fx=0, Fy=0, Mo=0;
+    posPuntual.forEach(o=>{
+      if(o.s === null || o.s >= sGlobal - 1e-9) return;
+      Fx += o.a.fx; Fy += o.a.fy;
+      Mo += (o.a.x-P.x)*o.a.fy - (o.a.y-P.y)*o.a.fx + (o.a.m||0);
+    });
+    return {Fx, Fy, Mo};
+  };
 
+  let acumL = 0;
+  cc.cad.forEach((e, idxE)=>{
+    const g = geoTramo(e.t);
+    const invert = (e.desde.id !== e.t.a);
+    // Un tramo CURVO tiene su propio camino (`_internasDeArco`): N, V y M en
+    // función de θ, con senos y cosenos, en vez de polinomios en x.
+    if(g.arco){
+      salida.push(_internasDeArco(e, g, invert, idxE, acumL, cc, N, posPuntual, puntualesAntes, repartidasAntes));
+      acumL += g.L;
+      return;
+    }
+    const ux = invert ? -g.ux : g.ux, uy = invert ? -g.uy : g.uy;
+    const nx = -uy, ny = ux;
+
+    // Fuerzas internas en la sección a distancia s del nudo inicial del tramo.
+    // Es EXACTAMENTE el cálculo validado del muestreo; se extrae a una función
+    // para que el ajuste polinómico de los subtramos use el mismo motor.
+    const corteEn = (s)=>{
+      const P = {x:e.desde.x + ux*s, y:e.desde.y + uy*s};
+      const sGlobal = acumL + s;
+      // 1) acciones puntuales situadas antes de la sección y 2) la parte de las
+      //    cargas distribuidas que queda antes de ella.
+      const p1 = puntualesAntes(P, sGlobal), p2 = repartidasAntes(P, idxE, s);
+      const Fx = p1.Fx + p2.Fx, Fy = p1.Fy + p2.Fy, Mo = p1.Mo + p2.Mo;
       // Convenio estándar de estática: V positiva gira el segmento en sentido horario,
       // es decir V = +(ΣF)·n̂ del trozo anterior. N positiva en tracción y
       // M positiva cóncava hacia arriba se mantienen como estaban.
@@ -439,6 +476,21 @@ function posicionEnCadena(a, cad){
   for(const e of cad){
     const g = geoTramo(e.t);
     const invert = (e.desde.id !== e.t.a);
+    // Sobre un arco: el punto tiene que estar a la distancia R del centro y
+    // dentro del ángulo que barre el tramo; s = R·θ desde el nudo de entrada.
+    if(g.arco){
+      const ar = arcoRecorrido(e, g);
+      const dx = a.x - ar.cx, dy = a.y - ar.cy;
+      if(Math.abs(Math.hypot(dx, dy) - ar.R) < 1e-6*Math.max(1, ar.R)){
+        let phi = ar.sg*(Math.atan2(dy, dx) - ar.a0);
+        phi = ((phi % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+        if(2*Math.PI - phi < 1e-9) phi = 0;
+        const s = ar.R*phi;
+        if(s <= g.L + 1e-7) return acum + Math.min(s, g.L);
+      }
+      acum += g.L;
+      continue;
+    }
     const ux = invert ? -g.ux : g.ux, uy = invert ? -g.uy : g.uy;
     const s = (a.x-e.desde.x)*ux + (a.y-e.desde.y)*uy;
     const perp = Math.abs((a.x-e.desde.x)*(-uy) + (a.y-e.desde.y)*ux);
@@ -446,4 +498,163 @@ function posicionEnCadena(a, cad){
     acum += g.L;
   }
   return null;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TRAMOS CURVOS: N, V y M en función de θ (2026-10-25, petición del profesor)
+//  En un arco las leyes no son polinomios: con cargas concentradas, pares, la
+//  repartida de dirección fija (vertical, horizontal, peso propio; por unidad
+//  de longitud de arco) y la radial uniforme, cada una es una combinación de
+//      1,  θ,  cos θ,  sen θ,  θ cos θ,  θ sen θ
+//  con θ en radianes desde el nudo de ENTRADA del recorrido, medido en el centro
+//  del arco. Los coeficientes se escriben a mano a partir del equilibrio del
+//  trozo (no se ajustan: en un intervalo corto esa base está muy mal
+//  condicionada) y se contrastan con el equilibrio numérico en cada subtramo.
+//  Convenio: N = −(ΣF)·û, V = (ΣF)·n̂, M = −ΣM respecto del corte, con û la
+//  tangente en el sentido del recorrido y n̂ = û girado 90° antihorario, el mismo
+//  de los tramos rectos.
+// ═══════════════════════════════════════════════════════════
+// El arco en el sentido del recorrido: centro, radio, ángulo a0 del radio que va
+// al nudo de entrada y sentido sg del giro (+1 antihorario).
+function arcoRecorrido(e, g){
+  const A = g.arco, inv = (e.desde.id !== e.t.a), sgD = A.d >= 0 ? 1 : -1;
+  return {cx:A.cx, cy:A.cy, R:A.R, a0: inv ? A.t1 + A.d : A.t1, sg: inv ? -sgD : sgD, L:g.L};
+}
+// Punto, tangente û y normal n̂ del arco a la distancia u del nudo de entrada.
+function puntoArcoRec(ar, u){
+  const al = ar.a0 + ar.sg*u/ar.R, c = Math.cos(al), s = Math.sin(al);
+  return {x:ar.cx + ar.R*c, y:ar.cy + ar.R*s, ux:-ar.sg*s, uy:ar.sg*c, nx:-ar.sg*c, ny:-ar.sg*s, al};
+}
+function _leyesVacias(){ return {N:[0,0,0,0,0,0], V:[0,0,0,0,0,0], M:[0,0,0,0,0,0]}; }
+function _sumaLeyes(A, B){ ['N','V','M'].forEach(k=>{ for(let i=0;i<6;i++) A[k][i] += B[k][i]; }); return A; }
+// Con α = a0 + sg·θ (el ángulo del radio en el corte): a·cos α + b·sen α en la
+// base de θ, y lo mismo multiplicado por (θ − θ1).
+function _trigArco(ar){
+  const c0 = Math.cos(ar.a0), s0 = Math.sin(ar.a0), sg = ar.sg;
+  return {
+    ab:(f, a, b)=>{ f[2] += a*c0 + b*s0; f[3] += sg*(-a*s0 + b*c0); },
+    abTheta:(f, a, b, th1)=>{
+      const C = a*c0 + b*s0, D = sg*(-a*s0 + b*c0);
+      f[4] += C; f[5] += D; f[2] -= th1*C; f[3] -= th1*D;
+    }
+  };
+}
+// Una fuerza constante (Fx, Fy) con momento K respecto del centro del arco:
+// todo lo que actúa antes del subtramo (puntuales, repartidas ya completas).
+//   N = sg(Fx sen α − Fy cos α),  V = −sg(Fx cos α + Fy sen α),
+//   M = −K + R(Fy cos α − Fx sen α).
+function _leyesConstante(ar, Fx, Fy, K){
+  const L = _leyesVacias(), T = _trigArco(ar), sg = ar.sg, R = ar.R;
+  T.ab(L.N, -sg*Fy, sg*Fx);
+  T.ab(L.V, -sg*Fx, -sg*Fy);
+  L.M[0] += -K; T.ab(L.M, R*Fy, -R*Fx);
+  return L;
+}
+// Repartida de dirección fija d̂ e intensidad w por unidad de arco, que empieza
+// en θ1 y sigue más allá del corte: F = wR(θ − θ1)·d̂.
+function _leyesRepFija(ar, w, dx, dy, th1){
+  const L = _leyesVacias(), T = _trigArco(ar), sg = ar.sg, R = ar.R;
+  const al1 = ar.a0 + sg*th1, wR = w*R, wR2 = w*R*R;
+  T.abTheta(L.N, -sg*wR*dy, sg*wR*dx, th1);
+  T.abTheta(L.V, -sg*wR*dx, -sg*wR*dy, th1);
+  L.M[0] += wR2*sg*(dy*Math.sin(al1) + dx*Math.cos(al1));
+  T.ab(L.M, -wR2*sg*dx, -wR2*sg*dy);
+  T.abTheta(L.M, wR2*dy, -wR2*dx, th1);
+  return L;
+}
+// Repartida radial uniforme q (positiva hacia el centro) desde θ1: todas sus
+// fuerzas pasan por el centro.  N = −qR[1 − cos(α − α1)], V = qR sen(α − α1),
+// M = sg·qR²[1 − cos(α − α1)].
+function _leyesRepRadial(ar, q, th1){
+  const L = _leyesVacias(), T = _trigArco(ar), sg = ar.sg, R = ar.R;
+  const al1 = ar.a0 + sg*th1, ca = Math.cos(al1), sa = Math.sin(al1);
+  L.N[0] += -q*R;       T.ab(L.N, q*R*ca, q*R*sa);
+  T.ab(L.V, -q*R*sa, q*R*ca);
+  L.M[0] += sg*q*R*R;   T.ab(L.M, -sg*q*R*R*ca, -sg*q*R*R*sa);
+  return L;
+}
+// Lo que aporta una repartida activa en el subtramo; null si no tiene ley
+// cerrada (variable o tangente sobre un arco: la ventana no las deja poner).
+function _leyesRepartidaArco(ar, c, g, th1){
+  const d = dirDeCarga(c);
+  if(c.tipo === 'T' && Math.abs((c.mag2 || 0) - c.mag) > 1e-12) return null;
+  if(d === 'axial') return null;
+  if(d === 'perp') return _leyesRepRadial(ar, c.mag, th1);
+  const dd = dirCarga(c, g);
+  return _leyesRepFija(ar, c.mag, dd.x, dd.y, th1);
+}
+function _internasDeArco(e, g, invert, idxE, acumL, cc, N, posPuntual, puntualesAntes, repartidasAntes){
+  const ar = arcoRecorrido(e, g), L = g.L, R = ar.R, C = {x:ar.cx, y:ar.cy};
+  // Equilibrio numérico del trozo hasta u: el mismo de los tramos rectos.
+  const corteEn = u=>{
+    const P = puntoArcoRec(ar, u);
+    const p1 = puntualesAntes(P, acumL + u), p2 = repartidasAntes(P, idxE, u);
+    const Fx = p1.Fx + p2.Fx, Fy = p1.Fy + p2.Fy, Mo = p1.Mo + p2.Mo;
+    return {x:P.x, y:P.y, N:-(Fx*P.ux + Fy*P.uy), V:(Fx*P.nx + Fy*P.ny), M:-Mo};
+  };
+  // Repartidas de este arco (con el peso propio), con sus límites en el
+  // sentido del recorrido.
+  const propias = cargasConPeso().filter(c=>(c.tipo==='U'||c.tipo==='T') && c.tramo===e.t.id).map(c=>{
+    const z = trozoCargado(c);
+    if(!z || z.len <= 1e-12) return null;
+    return {c, z, r1: invert ? L - z.s2 : z.s1, r2: invert ? L - z.s1 : z.s2};
+  }).filter(Boolean);
+  const cortes = [0, L];
+  const marcar = v=>{ if(v > 1e-9 && v < L - 1e-9 && !cortes.some(x=>Math.abs(x - v) < 1e-9)) cortes.push(v); };
+  posPuntual.forEach(o=>{
+    if(o.s === null) return;
+    const sl = o.s - acumL;
+    if(sl > -1e-9 && sl < L + 1e-9) marcar(sl);
+  });
+  propias.forEach(p=>{ marcar(p.r1); marcar(p.r2); });
+  cortes.sort((a,b)=>a - b);
+  const limpiar = f=>{ const m = Math.max(1e-12, ...f.map(Math.abs)); return f.map(v=>Math.abs(v) < 1e-10*Math.max(1, m) ? 0 : v); };
+  const subs = [];
+  for(let q=0;q<cortes.length-1;q++){
+    const sa = cortes[q], sb = cortes[q+1];
+    if(sb - sa < 1e-9) continue;
+    // Lo constante en el subtramo, reducido al centro del arco: las puntuales
+    // hasta su inicio (incluidas las de ese punto), las repartidas de los tramos
+    // anteriores y las de este arco que ya terminaron.
+    const pc = puntualesAntes(C, acumL + sa + 2e-9);
+    const rp = repartidasAntes(C, idxE - 1, Infinity);
+    let Fx = pc.Fx + rp.Fx, Fy = pc.Fy + rp.Fy, K = pc.Mo + rp.Mo;
+    const leyes = _leyesVacias();
+    let cerrada = true;
+    propias.forEach(p=>{
+      if(p.r2 <= sa + 1e-9){
+        const rr = fuerzaRepartidaArco(p.c, p.z, p.z.s1, p.z.s2, C);
+        Fx += rr.Fx; Fy += rr.Fy; K += rr.Mo;
+      } else if(p.r1 <= sa + 1e-9){
+        const l = _leyesRepartidaArco(ar, p.c, g, p.r1/R);
+        if(l) _sumaLeyes(leyes, l); else cerrada = false;
+      }
+    });
+    _sumaLeyes(leyes, _leyesConstante(ar, Fx, Fy, K));
+    const su = {sa, sb, trig:true, R, fN:limpiar(leyes.N), fV:limpiar(leyes.V), fM:limpiar(leyes.M), cerrada};
+    // Se contrasta con el equilibrio numérico: si la ley escrita no lo
+    // reproduce, el informe diría otra cosa que el cálculo.
+    [0.15, 0.5, 0.85].forEach(t=>{
+      const u = sa + (sb - sa)*t, r = corteEn(u);
+      const esc = Math.max(1, Math.abs(r.N), Math.abs(r.V), Math.abs(r.M));
+      ['N','V','M'].forEach(k=>{
+        const va = trigVal(su['f' + k], u/R);
+        if(Math.abs(va - r[k]) > 1e-6*esc)
+          console.warn('Tramo curvo: la ley de ' + k + ' no reproduce el equilibrio', nomTramo(e.t), {u, ley:va, equilibrio:r[k]});
+      });
+    });
+    subs.push(su);
+  }
+  const puntos = [];
+  for(let i=0;i<=N;i++){
+    const bruto = L*i/N, eps = L*1e-4;
+    const u = Math.min(L - eps, Math.max(eps, bruto));
+    const su = subs.find(z=>u >= z.sa - 1e-12 && u <= z.sb + 1e-12) || subs[subs.length-1];
+    const P = puntoArcoRec(ar, u), th = u/R;
+    puntos.push({s:bruto, x:P.x, y:P.y, N:trigVal(su.fN, th), V:trigVal(su.fV, th), M:trigVal(su.fM, th)});
+  }
+  const dx = e.hasta.x - e.desde.x, dy = e.hasta.y - e.desde.y, c = Math.hypot(dx, dy) || 1e-9;
+  return {tramo:e.t, nombre:nomTramo(e.t), L, ang:Math.atan2(dy, dx)*180/Math.PI,
+          invert, s0:acumL, puntos, subs, desde:e.desde, hasta:e.hasta,
+          ux:dx/c, uy:dy/c, cadena:cc.id, idx:idxE, arco:ar};
 }

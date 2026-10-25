@@ -665,6 +665,9 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 /* Grupos de opción como botones, en vez de desplegables: con dos o tres
    alternativas cortas se leen todas de un vistazo y se tocan mejor. */
 .cg-grupo{margin:9px 0 8px;}
+/* Subtítulo de cada fila del grupo de dirección (del plano / respecto del tramo) */
+.cg-subcap{font-size:9.5px;font-weight:600;color:var(--muted);margin:5px 0 3px;}
+.seg-btn:disabled,.seg-btn:disabled:hover{color:#c3cad3;cursor:not-allowed;background:#f7f8fa;}
 .cg-seg{display:flex;gap:0;border:1px solid var(--border2);border-radius:8px;
   overflow:hidden;background:#fff;}
 .seg-btn{flex:1;padding:7px 6px;border:none;background:#fff;cursor:pointer;

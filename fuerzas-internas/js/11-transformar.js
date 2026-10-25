@@ -100,15 +100,16 @@ function applyTransformar(){
   // Todo —nudos, apoyos y cargas— entra en UN solo paso de deshacer.
   registrarCambio();
   const movidos = new Set(t.destinos.map(d=>d.id));
-  // Las cargas de tramo situadas por COORDENADA (coordX / coordY) guardan en
-  // pos y posFin un número que solo tiene sentido con la geometría del momento:
-  // `sDesdePos` le resta la del nudo inicial (marco global) o lo divide por la
-  // componente del eje (marco local). Al mover o girar el tramo, ese número ya
-  // no cae sobre él y la carga se pegaba a un extremo (una repartida podía
-  // quedarse con largo cero y desaparecer). Por eso, ANTES de mover nada, se
-  // anota la distancia sobre el eje de cada una —sin recortar— y después se
-  // vuelve a escribir con la geometría nueva: la carga conserva su sitio en la
-  // pieza. Sobre el eje ('eje') la posición ya es relativa y no hace falta.
+  // Las cargas de tramo situadas por Δx o Δy (coordX / coordY) guardan en pos y
+  // posFin un número que solo tiene sentido con la geometría del momento:
+  // `sDesdePos` lo divide por la componente del eje. Al GIRAR el tramo esa
+  // componente cambia y la carga se corría o se pegaba a un extremo (una
+  // repartida podía quedarse con largo cero y desaparecer). Por eso, ANTES de
+  // mover nada, se anota la distancia sobre el eje de cada una —sin recortar— y
+  // después se vuelve a escribir con la geometría nueva: la carga conserva su
+  // sitio en la pieza. Al solo mover, Δ no cambia (desde el 2026-10-24 se mide
+  // desde el primer nudo del tramo) y la reescritura deja el mismo número.
+  // Sobre el eje ('eje') la posición ya es relativa y no hace falta.
   const porCoord = [];
   cargas.forEach(c=>{
     if(c.destino === 'nudo') return;
@@ -178,7 +179,7 @@ function applyTransformar(){
     // vector original girado, la carga se ha invertido (le pasa a la 'perp';
     // la 'axial' sigue al eje y nunca se invierte). Como la magnitud no cambia
     // de signo, pasa a dirección del plano con el vector girado —lo mismo que
-    // una 'y' girada 180°—; la posición se reexpresa abajo en marco global,
+    // una 'y' girada 180°—; su posición, si va por Δx o Δy, se reexpresa abajo
     // conservando s. Si no se ha invertido, sigue siendo 'perp'.
     localAntes.forEach(r=>{
       const d1 = dirCarga(r.c, geoDeCarga(r.c));
@@ -198,9 +199,8 @@ function applyTransformar(){
     if(modo === 'coordX' && Math.abs(g.ux) < 1e-6)      modo = 'coordY';
     else if(modo === 'coordY' && Math.abs(g.uy) < 1e-6) modo = 'coordX';
     c.basePos = modo;
-    const local = (marcoDeCarga(c) === 'local');
-    c.pos = limpiar(posDesdeS(modo, g, r.s1, local));
-    if(r.s2 !== null) c.posFin = limpiar(posDesdeS(modo, g, r.s2, local));
+    c.pos = limpiar(posDesdeS(modo, g, r.s1));
+    if(r.s2 !== null) c.posFin = limpiar(posDesdeS(modo, g, r.s2));
   });
   invalidarResultados();              // 12-: oculta el panel del modelo anterior
   closeTransformar(); refrescar();

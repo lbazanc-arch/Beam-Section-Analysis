@@ -21,7 +21,8 @@ function renderError(r){
   let t;
   if(r.error==='sin-viga') t = 'Todavía no hay ningún tramo. Usa <b>Viga</b> en la barra de herramientas.';
   else if(r.error==='no-conexa') t = 'Hay tramos sueltos: todos deben estar unidos por sus nudos en una sola estructura.';
-  else if(r.error==='anillo') t = 'Los tramos forman un <b>anillo cerrado</b>: este tema resuelve vigas y pórticos abiertos, sin anillos.';
+  else if(r.error==='arco-carga') t = 'Sobre un <b>tramo curvo</b> solo se resuelven cargas repartidas <b>uniformes</b> (verticales, horizontales, inclinadas o radiales). Cambia la triangular o la tangente de ese tramo.';
+  else if(r.error==='anillo') t ='Los tramos forman un <b>anillo cerrado</b>: este tema resuelve vigas y pórticos abiertos, sin anillos.';
   else if(r.error==='determinacion'){
     const d=r.diag, g=d.inc-d.eq;
     t = 'Hay <b>'+d.inc+' incógnita(s)</b>'

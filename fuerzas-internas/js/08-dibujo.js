@@ -66,6 +66,7 @@ function dibujar(){
   // tramos
   tramos.forEach(t=>{
     const g = geoTramo(t); if(!g) return;
+    if(g.arco){ dibujarTramoArco(t, g); return; }
     const [ax,ay]=aPantalla(g.a.x,g.a.y), [bx,by]=aPantalla(g.b.x,g.b.y);
     if(selTramo===t.id || marcado(selTramos,t.id)){
       ctx.strokeStyle='rgba(37,99,235,.28)'; ctx.lineWidth=13;
@@ -196,6 +197,8 @@ function dibujar(){
     ctx.textAlign = 'start';
   }
 
+  // El primer punto de un tramo curvo a medio dibujar (23-).
+  dibujarCurvoPendiente();
   // leyenda mínima, plegable desde Visualización (propuesta 2)
   if(VIS.leyenda) dibujarLeyenda();
   // Segunda pasada: con la geometría completa en el registro, cada texto busca
@@ -378,8 +381,9 @@ function puntosDeCargas(soloTramos){
     if(c.tipo === 'U' || c.tipo === 'T'){
       const z = trozoCargado(c);
       if(!z || z.len <= 1e-12) return;
-      pts.push({x:g.a.x + g.ux*z.s1, y:g.a.y + g.uy*z.s1});   // inicio
-      pts.push({x:g.a.x + g.ux*z.s2, y:g.a.y + g.uy*z.s2});   // fin
+      const P1 = puntoEnTramo(g, z.s1), P2 = puntoEnTramo(g, z.s2);
+      pts.push({x:P1.x, y:P1.y});   // inicio
+      pts.push({x:P2.x, y:P2.y});   // fin
     } else {
       const P = puntoDeCarga(c);
       if(P) pts.push({x:P.x, y:P.y});
@@ -452,6 +456,13 @@ function dibujarApoyo(n){
     tramos.forEach(t=>{
       const o = (t.a === n.id) ? nodo(t.b) : (t.b === n.id ? nodo(t.a) : null);
       if(!o) return;
+      // En un tramo curvo cuenta la TANGENTE en el nudo, no la cuerda.
+      const g = esArco(t) ? geoTramo(t) : null;
+      if(g && g.arco){
+        const T = puntoEnTramo(g, t.a === n.id ? 0 : g.L), sg = (t.a === n.id) ? 1 : -1;
+        sx += sg*T.ux; sy += -sg*T.uy; cuenta++;
+        return;
+      }
       const [ox, oy] = aPantalla(o.x, o.y);
       const L = Math.hypot(ox-px, oy-py) || 1;
       sx += (ox-px)/L; sy += (oy-py)/L; cuenta++;
@@ -1130,7 +1141,15 @@ function dibujarCarga(c){
     t = tramos.find(z=>z.id===c.tramo); g = t && geoTramo(t);
     if(!g) return;
     const s = Math.max(0, Math.min(g.L, sDesdePos(c, g, c.pos)));
-    [px, py] = aPantalla(g.a.x+g.ux*s, g.a.y+g.uy*s);
+    const P = puntoEnTramo(g, s);          // sobre el arco, si el tramo es curvo
+    [px, py] = aPantalla(P.x, P.y);
+    // Una carga concentrada sobre un arco toma los ejes del arco en su punto
+    // (radial y tangente: `geoDeCarga`, 02-).
+    if(g.arco && c.tipo !== 'U' && c.tipo !== 'T') g = geoDeCarga(c);
+  }
+  if(c.tipo !== 'P' && c.tipo !== 'PX' && c.tipo !== 'M' && g && g.arco){
+    dibujarRepartidaArco(c, g);
+    return;
   }
   if(marcado(selCargas, c.id)){
     ctx.fillStyle='rgba(37,99,235,.20)';
@@ -1266,4 +1285,88 @@ function dibujarCarga(c){
              (ax+bx)/2 + ex*(alt+9), (ay+by)/2 + ey*(alt+9), '#b07d1a', ex, ey, null, {prio:3});
     }
   }
+}
+// ── Tramo CURVO en el lienzo (2026-10-25) ──
+// El eje es un arco (muestreado), con su resalte, la banda del peso propio por
+// fuera y el nombre junto al punto medio, del lado de fuera del arco. Con
+// «Cotas y valores», el centro O y el radio R acotado, como en presión.
+function dibujarTramoArco(t, g){
+  const pts = ejeTramo(g, 64).map(p=>aPantalla(p.x, p.y));
+  const sel = (selTramo===t.id || marcado(selTramos,t.id));
+  const trazo = (col, w)=>{ ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); pts.forEach((p,i)=>i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); };
+  if(sel) trazo('rgba(37,99,235,.28)', 13);
+  trazo('#1e3a8a', 6);
+  for(let i=1;i<pts.length;i++) _ocSeg(pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1], sel ? 7 : 3.6, 'tramo');
+  const [cxp, cyp] = aPantalla(g.arco.cx, g.arco.cy);
+  // Normal hacia FUERA del arco en cada muestra (en pantalla).
+  const fuera = p=>{ const dx = p[0] - cxp, dy = p[1] - cyp, L = Math.hypot(dx, dy) || 1; return [dx/L, dy/L]; };
+  const _pp = VIS.peso ? pesoDe(t) : null;
+  if(_pp){
+    ctx.save();
+    ctx.strokeStyle = (pesoActivo === _pp.id) ? '#b07d1a' : 'rgba(176,125,26,.45)'; ctx.lineWidth = 3;
+    const off = pts.map(p=>{ const [nx, ny] = fuera(p); return [p[0] + nx*5, p[1] + ny*5]; });
+    ctx.beginPath(); off.forEach((p,i)=>i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+    ctx.restore();
+    for(let i=1;i<off.length;i++) _ocSeg(off[i-1][0], off[i-1][1], off[i][0], off[i][1], 2.6, 'peso');
+  }
+  const m = pts[Math.floor(pts.length/2)], [nx, ny] = fuera(m);
+  rotulo(nomTramo(t), m[0] + nx*15, m[1] + ny*15, '#1e3a8a', nx, ny, '800 11px Inter,sans-serif', {prio:2, alto:14, padX:8});
+  if(VIS.cotas){
+    // Centro O y radio hasta el punto medio, a trazos y tenue.
+    ctx.save();
+    ctx.strokeStyle = 'rgba(15,92,86,.55)'; ctx.lineWidth = 1; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(cxp, cyp); ctx.lineTo(m[0], m[1]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#0f5c56'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(cxp - 5, cyp); ctx.lineTo(cxp + 5, cyp); ctx.moveTo(cxp, cyp - 5); ctx.lineTo(cxp, cyp + 5); ctx.stroke();
+    ctx.restore();
+    _ocDisco(cxp, cyp, 6, 'cota');
+    const lx = (cxp + m[0])/2, ly = (cyp + m[1])/2;
+    rotulo('R = ' + dec(g.arco.R,'len') + ' ' + unitLen, lx, ly, '#0f5c56', -ny, nx, '700 10px Inter,sans-serif', {prio:6, padX:5});
+    rotulo('O', cxp + 9, cyp + 9, '#0f5c56', 0.7, 0.7, '700 10px Inter,sans-serif', {prio:6});
+  }
+}
+// ── Repartida sobre un tramo CURVO (2026-10-25) ──
+// Flechas a lo largo del arco, cada una en su dirección (fija o radial) y con
+// su intensidad, y la línea que une sus colas; el bloque deja su sitio en el
+// registro trozo a trozo, para no vedar el interior del arco a los rótulos.
+function dibujarRepartidaArco(c, g){
+  const z = trozoCargado(c);
+  if(!z || z.len <= 1e-12) return;
+  const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
+  const wm = Math.max(Math.abs(w1), Math.abs(w2), 1e-9), alt = 34;
+  const n = Math.max(6, Math.min(16, Math.round(z.len/g.L*16)));
+  const base = [], colas = [], dirs = [];
+  for(let i=0;i<=n;i++){
+    const s = z.s1 + z.len*i/n, P = puntoEnTramo(g, s), d = dirRepartidaArco(c, g, s);
+    const [X, Y] = aPantalla(P.x, P.y);
+    const h = alt*(w1 + (w2 - w1)*i/n)/wm;
+    base.push([X, Y]); dirs.push([-d.x, d.y]);           // hacia donde se levanta, en pantalla
+    colas.push([X - d.x*h, Y + d.y*h]);
+  }
+  if(marcado(selCargas, c.id)){
+    ctx.fillStyle = 'rgba(37,99,235,.20)';
+    ctx.beginPath(); base.forEach((p,i)=>i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    colas.slice().reverse().forEach(p=>ctx.lineTo(p[0], p[1])); ctx.closePath(); ctx.fill();
+  }
+  ctx.strokeStyle = '#e0a83c'; ctx.fillStyle = '#e0a83c'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); colas.forEach((p,i)=>i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(base[0][0], base[0][1]); ctx.lineTo(colas[0][0], colas[0][1]);
+  ctx.moveTo(base[n][0], base[n][1]); ctx.lineTo(colas[n][0], colas[n][1]); ctx.stroke();
+  for(let i=0;i<=n;i++){
+    const [X, Y] = base[i], [ex, ey] = dirs[i], [qx, qy] = colas[i];
+    const h = Math.hypot(qx - X, qy - Y);
+    if(h < 6) continue;
+    // La flecha llega al eje: punta en el punto, en el sentido de la carga.
+    const sg = (w1 + (w2 - w1)*i/n) < 0 ? -1 : 1, fx = -ex*sg, fy = -ey*sg;
+    ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(X - fx*4, Y - fy*4); ctx.stroke();
+    const hx = (sg > 0) ? X : qx, hy = (sg > 0) ? Y : qy;
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(Math.atan2(fy, fx));
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-7,-3.2); ctx.lineTo(-7,3.2); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  for(let i=0;i<n;i++) _ocPoli(_ocEnvolvente([base[i], base[i+1], colas[i+1], colas[i]]), 'carga');
+  const m = Math.floor(n/2), [mx, my] = colas[m], [ex, ey] = dirs[m];
+  const txt = (Math.abs(w1 - w2) > 1e-9 ? dec(Math.abs(w1),'f') + '–' + dec(Math.abs(w2),'f') : dec(Math.abs(w1),'f')) + ' ' + uDist();
+  rotulo(txt, mx + ex*9, my + ey*9, '#b07d1a', ex, ey, null, {prio:3});
 }

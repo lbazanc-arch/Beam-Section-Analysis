@@ -27,6 +27,11 @@ function tikzViga(conReacciones, sel){
   const OR = (sel && sel.origen) ? sel.origen : {x:0, y:0, nombre:'O'};
   let minx=Infinity, maxx=-Infinity, miny=Infinity, maxy=-Infinity;
   _nd.forEach(n=>{ minx=Math.min(minx,n.x); maxx=Math.max(maxx,n.x); miny=Math.min(miny,n.y); maxy=Math.max(maxy,n.y); });
+  // Un tramo curvo (23-) sale de la caja de sus nudos: entra su arco entero.
+  _tr.forEach(t=>{
+    const g = esArco(t) ? geoTramo(t) : null;
+    if(g) ejeTramo(g, 24).forEach(p=>{ minx=Math.min(minx,p.x); maxx=Math.max(maxx,p.x); miny=Math.min(miny,p.y); maxy=Math.max(maxy,p.y); });
+  });
   const spanX = Math.max(maxx-minx, 1e-6);
   const k = Math.min(2.2, 8/spanX);
   const Xn = x => (x-minx)*k, Yn = y => y*k;
@@ -59,12 +64,44 @@ function tikzViga(conReacciones, sel){
   _tr.forEach(t=>{
     const a = nodo(t.a), b = nodo(t.b);
     if(!a||!b) return;
+    const gA = esArco(t) ? geoTramo(t) : null;
+    if(gA){
+      // el arco, como polilínea fina, y cada trozo reservado
+      const pts = ejeTramo(gA, 48);
+      out += '\\draw[line width=1.6pt, color=bsaAcc2, line join=round] ' + pts.map(p=>'(' + F(Xn(p.x)) + ',' + F(Yn(p.y)) + ')').join(' -- ') + ';\n';
+      for(let i=1;i<pts.length;i++) tzOcuparTrazo(Xn(pts[i-1].x), Yn(pts[i-1].y), Xn(pts[i].x), Yn(pts[i].y), 0.06);
+      return;
+    }
     out += '\\draw[line width=1.6pt, color=bsaAcc2] (' + F(Xn(a.x)) + ',' + F(Yn(a.y)) + ') -- (' + F(Xn(b.x)) + ',' + F(Yn(b.y)) + ');\n';
     tzOcuparTrazo(Xn(a.x), Yn(a.y), Xn(b.x), Yn(b.y), 0.06);
   });
   // Cuerdas, bielas y topes (22-): en el modelo, todos con su símbolo; en un DCL,
   // solo los que unen dos nudos del trozo, como barra (los anclados son ya su
   // fuerza). Sus nombres se colocan con los demás rótulos.
+  // En el modelo, el radio de cada tramo curvo: del centro O al punto medio del
+  // arco, a trazos (si O cae lejos del dibujo, solo un trozo hacia él).
+  const pendRadios = [];
+  if(!conReacciones) _tr.forEach(t=>{
+    const g = esArco(t) ? geoTramo(t) : null;
+    if(!g) return;
+    const A = g.arco, M = puntoEnTramo(g, g.L/2);
+    const mx = Xn(M.x), my = Yn(M.y), ox = Xn(A.cx), oy = Yn(A.cy);
+    const dentro = A.cx >= minx - 0.1*spanX && A.cx <= maxx + 0.1*spanX && A.cy >= miny - 0.1*spanX && A.cy <= maxy + 0.1*spanX;
+    const lr = Math.hypot(ox - mx, oy - my) || 1;
+    const fx = dentro ? ox : mx + (ox - mx)/lr*1.2, fy = dentro ? oy : my + (oy - my)/lr*1.2;
+    out += '\\draw[bsaMuted, line width=.4pt, dashed] (' + F(mx) + ',' + F(my) + ') -- (' + F(fx) + ',' + F(fy) + ');\n';
+    tzOcuparTrazo(mx, my, fx, fy, 0.04);
+    if(dentro){
+      out += '\\draw[bsaMuted, line width=.5pt] (' + F(ox-0.08) + ',' + F(oy) + ') -- (' + F(ox+0.08) + ',' + F(oy) + ') (' + F(ox) + ',' + F(oy-0.08) + ') -- (' + F(ox) + ',' + F(oy+0.08) + ');\n';
+      tzOcupar(ox-0.1, oy-0.1, ox+0.1, oy+0.1);
+      pendRadios.push({x:ox + 0.16, y:oy - 0.16, txt:'$O_{' + escLatex(nomTramo(t)) + '}$', opts:'font=\\tiny, color=bsaMuted', dir:[1, -1]});
+    }
+    const ux = (fx - mx)/(Math.hypot(fx - mx, fy - my) || 1), uy = (fy - my)/(Math.hypot(fx - mx, fy - my) || 1);
+    const lab = '$R = ' + dec(A.R,'len') + '$\\,' + escLatex(unitLen), op = 'font=\\tiny, color=bsaMuted';
+    const xm = (mx + fx)/2, ym = (my + fy)/2, w = tzAncho(lab, op)/2 + 0.08;
+    pendRadios.push({x:xm - uy*w, y:ym + ux*w, txt:lab, opts:op, dir:[-uy, ux],
+      candidatos:[{x:xm - uy*w, y:ym + ux*w}, {x:xm + uy*w, y:ym - ux*w}, {x:xm - uy*w + ux*0.3, y:ym + ux*w + uy*0.3}, {x:xm + uy*w - ux*0.3, y:ym - ux*w - uy*0.3}]});
+  });
   const _vin = tikzVinculos(Xn, Yn, !!conReacciones, _idsVis ? _ndIds : null, F);
   out += _vin.tikz;
   const pendVin = _vin.pend.map(p=>({x:p.x, y:p.y, txt:p.txt, opts:'font=\\tiny, color=' + p.col, dir:[p.dx, p.dy]}));
@@ -251,6 +288,37 @@ function tikzViga(conReacciones, sel){
       const t = tramos.find(tt=>tt.id===c.tramo);
       const g = t && geoTramo(t);
       if(!g) return;
+      if(g.arco){
+        // Sobre un arco (23-): el bloque sigue el arco, levantado en contra de la
+        // carga en cada punto (vertical, horizontal o radial).
+        const n = 24, alt = 0.6, opD = 'font=\\tiny, color=bsaDist';
+        const P = [];
+        for(let i=0;i<=n;i++){
+          const s = z.s1 + z.len*i/n, Q = puntoEnTramo(g, s), d = dirRepartidaArco(c, g, s);
+          const h = alt*Math.sign(c.mag || 1);
+          P.push({x:Xn(Q.x), y:Yn(Q.y), ex:-d.x, ey:-d.y, h});
+        }
+        const cola = P.map(p=>({x:p.x + p.ex*p.h, y:p.y + p.ey*p.h}));
+        out += '\\draw[color=bsaDist, line join=round] ' + P.map(p=>'(' + F(p.x) + ',' + F(p.y) + ')').join(' -- ')
+             + ' -- ' + cola.slice().reverse().map(p=>'(' + F(p.x) + ',' + F(p.y) + ')').join(' -- ') + ' -- cycle;\n';
+        for(let i=0;i<=n;i+=4){
+          const p = P[i], q = cola[i];
+          out += '\\draw[-{Latex[length=1.6mm]}, color=bsaDist, line width=.8pt] (' + F(q.x) + ',' + F(q.y) + ') -- ('
+               + F(p.x + p.ex*0.05*Math.sign(p.h)) + ',' + F(p.y + p.ey*0.05*Math.sign(p.h)) + ');\n';
+        }
+        for(let i=1;i<=n;i++) tzOcuparBloque(P[i-1], P[i], (P[i-1].ex + P[i].ex)/2, (P[i-1].ey + P[i].ey)/2, P[i-1].h, P[i].h);
+        const lab = porNombre ? '$' + nombreCargaFI(c) + '$' : dec(Math.abs(c.mag),'f') + '\\,' + escLatex(uDist());
+        if(porNombre) valores.push({nom:nombreCargaFI(c), val:dec(Math.abs(c.mag),'f') + uTx(escLatex(uDist()))});
+        const cand = [];
+        [n >> 1, n >> 2, (3*n) >> 2].forEach(i=>{
+          const q = cola[i], p = P[i], sg = Math.sign(p.h) || 1;
+          const sep = Math.abs(p.ex)*tzAncho(lab, opD)/2 + Math.abs(p.ey)*tzAlto(lab, opD)/2 + 0.07;
+          for(let j=0;j<8;j++) cand.push({x:q.x + p.ex*sg*(sep + 0.06*j), y:q.y + p.ey*sg*(sep + 0.06*j)});
+        });
+        const pm = P[n >> 1];
+        pendRepartidas.push({x:cand[0].x, y:cand[0].y, txt:lab, opts:opD, dir:[pm.ex, pm.ey], candidatos:cand});
+        return;
+      }
       const ax = Xn(g.a.x+g.ux*z.s1), ay = Yn(g.a.y+g.uy*z.s1);
       const bx = Xn(g.a.x+g.ux*z.s2), by = Yn(g.a.y+g.uy*z.s2);
       const w1 = c.mag, w2 = (c.tipo==='U')? c.mag : (c.mag2||0);
@@ -403,7 +471,7 @@ function tikzViga(conReacciones, sel){
   // repartidas antes, su valor ocupaba la cola de la puntual. Se colocan AQUÍ,
   // antes de las cotas, porque las cotas arrancan más allá de todo lo reservado.
   let rotulos = '';
-  pendNudos.concat(pendVin, pendPares, pendPuntuales, pendW, pendRepartidas, pendReac).forEach(r=>{
+  pendNudos.concat(pendVin, pendPares, pendPuntuales, pendW, pendRepartidas, pendReac, pendRadios).forEach(r=>{
     rotulos += r.candidatos
       ? tzTextoEn(r.candidatos, r.txt, r.opts, r.dir[0], r.dir[1], r.origen)
       : tzTexto(r.x, r.y, r.txt, r.opts, r.dir[0], r.dir[1]);
@@ -647,7 +715,7 @@ function construirLatex(){
   }
   // Solo los tramos elegidos al calcular (20-); las reacciones, completas.
   const grupos = gruposSolucion(R);
-  const hayN = R.internas.some(seg=>seg.subs.some(su=>su.cN.some(v=>Math.abs(v)>5e-9)));
+  const hayN = R.internas.some(seg=>seg.subs.some(su=>!subNulo(su, 'N')));
 
   let tex = preambulo;
   tex += '\\begin{center}\n'
@@ -723,11 +791,15 @@ function construirLatex(){
       if(gg.idx > 0)
         tex += '\\vspace{8pt}\\noindent{\\color{bsaAcc2}\\rule{\\linewidth}{.8pt}}\\vspace{5pt}\n';
       tex += '\\subpaso{Tramo ' + escLatex(gg.recorrido) + '\\quad '
-        + (gg.oblicuo ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : (gg.vertical ? 'vertical' : 'horizontal'))
+        + (gg.arco ? 'curvo, $R = ' + dec(gg.arco.R,'len') + '$\\,' + uL + ', arco de $' + dec(gg.L/gg.arco.R*180/Math.PI,'ang') + '^\\circ$'
+                   : (gg.oblicuo ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : (gg.vertical ? 'vertical' : 'horizontal')))
         + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL + '}\n';
       tex += textoRama(R, grupos, gg, 'inicio');
+      // En un arco N, V y M se acoplan (dV/ds lleva N/R): no hay figuras de
+      // áreas y se desarrolla por ecuaciones (23-).
+      if(gg.arco) tex += desarrolloArcoTex(R, grupos, gg, figCaption);
       // Con figuras conocidas, sin integrales (2026-10-18, 21-).
-      tex += areasTex(R, grupos, gg, figCaption);
+      else tex += areasTex(R, grupos, gg, figCaption);
       tex += textoRama(R, grupos, gg, 'fin');
     });
   } else {
@@ -738,10 +810,17 @@ function construirLatex(){
     if(gg.idx > 0)
       tex += '\\vspace{8pt}\\noindent{\\color{bsaAcc2}\\rule{\\linewidth}{.8pt}}\\vspace{5pt}\n';
     tex += '\\subpaso{Tramo ' + escLatex(gg.recorrido) + '\\quad '
-      + (gg.oblicuo ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : (gg.vertical ? 'vertical' : 'horizontal'))
+      + (gg.arco ? 'curvo, $R = ' + dec(gg.arco.R,'len') + '$\\,' + uL + ', arco de $' + dec(gg.L/gg.arco.R*180/Math.PI,'ang') + '^\\circ$'
+                 : (gg.oblicuo ? 'inclinado ' + dec(gg.ang,'ang') + '$^\\circ$' : (gg.vertical ? 'vertical' : 'horizontal')))
       + '\\quad $L = ' + dec(gg.L,'len') + '$\\,' + uL
-      + '\\quad abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre) + '}\n';
+      + (gg.arco ? '\\quad ángulo $\\theta$ desde ' + escLatex(gg.desde.nombre)
+                 : '\\quad abscisa $' + sb + '$ desde ' + escLatex(gg.desde.nombre)) + '}\n';
     tex += textoRama(R, grupos, gg, 'inicio');
+    if(gg.arco){
+      tex += desarrolloArcoTex(R, grupos, gg, figCaption);
+      tex += textoRama(R, grupos, gg, 'fin');
+      return;
+    }
     // El tramo anterior no se eligió: N, V y M de su nudo de arranque, como dato.
     tex += bloqueArranque(R, gg);
     gg.tramos.forEach(seg=>{
@@ -760,12 +839,20 @@ function construirLatex(){
   // Aquí iba, por tramo, una tabla con la forma que debe tener cada diagrama
   // (constante, lineal, parábola). El propio diagrama ya la muestra.
   grupos.forEach(gg=>{
+    // Un tramo curvo: sobre el arco y desarrollados frente a θ (23-).
+    if(gg.arco){
+      tex += diagramasArcoTex(R, gg);
+      tex += figCaption('Tramo curvo ' + escLatex(gg.recorrido) + ': diagramas '
+        + (gg.tramos.some(t2=>t2.subs.some(su=>!subNulo(su, 'N'))) ? 'DFN, ' : '')
+        + 'DFC y DMF sobre el arco (ordenada positiva hacia $\\hat{n}$) y frente a $\\theta$.');
+      return;
+    }
     // Un tramo inclinado o vertical se dibuja con su inclinación (2026-10-05).
     if(gg.inclinado) tex += diagramasInclinadosTex(R, gg);
     else tex += '\\begin{center}\\begin{tikzpicture}\n' + tikzDiagramasGrupo(R, gg)
          + '\\end{tikzpicture}\\end{center}\n';
     tex += figCaption('Tramo ' + escLatex(gg.recorrido) + (gg.inclinado ? ' (con su inclinación; ejes $\\hat{u}$, $\\hat{n}$ del tramo)' : '')
-      + ': esquema y diagramas ' + (gg.tramos.some(t2=>t2.subs.some(su=>su.cN.some(v=>Math.abs(v)>5e-9))) ? 'DFN, ' : '') + 'DFC y DMF.');
+      + ': esquema y diagramas ' + (gg.tramos.some(t2=>t2.subs.some(su=>!subNulo(su, 'N'))) ? 'DFN, ' : '') + 'DFC y DMF.');
   });
 
   // ══ 5. Paso 4: comprobaciones ══

@@ -13,6 +13,10 @@ function elegirTipoCarga(tipo){
 // {destino:'nudo', nudo:id}. La llama `ejecutarToqueCarga` (09-) con lo que se
 // tocó, al vencer la espera del toque o desde `onDbl` si no había carga debajo.
 function nuevaCarga(tipo, destino){
+  // Sobre un tramo curvo la repartida es uniforme (23-): una triangular no
+  // tiene ley cerrada en θ.
+  const tc = destino && destino.destino === 'tramo' ? tramos.find(z=>z.id === destino.tramo) : null;
+  if(tipo === 'T' && esArco(tc)){ aviso('En un tramo curvo la carga repartida es uniforme: elige «Uniforme».', 'error'); return; }
   edCarga = {nuevo:true, tipo};
   abrirCargaModal(tipo, null, destino);
 }
@@ -78,9 +82,20 @@ function abrirCargaModal(tipo, c, destino){
     : distrib ? ('Magnitud ('+uDist()+')') : ('Magnitud ('+unitFor+')');
 
   const g0 = tDest ? geoTramo(tDest) : null;
-  document.getElementById('cgPos').value = c ? c.pos : 0;
+  // Los campos de posición dicen la distancia desde el primer nudo del tramo,
+  // con Δx y Δy en valor absoluto (`campoDesdeS`, 02-); el modelo guarda Δ con
+  // su signo, así que se convierte al abrir, pasando por la distancia sobre el eje.
+  // Sobre un tramo CURVO la posición es el ángulo θ desde su primer nudo
+  // (2026-10-25, decisión del profesor), sea cual sea el modo guardado.
+  const enArco = !!(g0 && g0.arco);
+  const modo0 = (c && c.basePos) || 'eje';
+  const modoVista = enArco ? 'theta' : modo0;
+  const aCampo = v => (c && g0) ? _redondo(campoDesdeS(modoVista, g0, sDesdePos(c, g0, v)), 6) : v;
+  document.getElementById('cgPos').value = c ? aCampo(c.pos) : 0;
   document.getElementById('cgFin').value = (c && c.posFin!==undefined && c.posFin!==null)
-      ? c.posFin : (g0 ? +g0.L.toFixed(4) : 0);
+      ? aCampo(c.posFin) : (g0 ? +campoDesdeS(modoVista, g0, g0.L).toFixed(4) : 0);
+  _posAlAbrir = c ? {c, pos:c.pos, posFin:c.posFin, campoPos:document.getElementById('cgPos').value,
+                     campoFin:document.getElementById('cgFin').value, modo:modo0} : null;
   document.getElementById('cgMag').value = c ? c.mag : 10;
   document.getElementById('cgMag2').value = c ? (c.mag2||0) : 0;
 
@@ -105,17 +120,44 @@ function abrirCargaModal(tipo, c, destino){
   if(_e) _e.value = (c && c.entrada === 'comp') ? 'comp' : 'ang';
   _compVisible = false;       // los campos Fx, Fy son de la ventana anterior
   const _b = document.getElementById('cgBase');
-  if(_b) _b.value = (c && c.basePos) || 'eje';
+  if(_b) _b.value = modoVista;
   // Se fija el modo de partida ANTES de refrescar etiquetas, para que al
   // abrir no se dispare una conversión de valores que ya están en su modo.
-  _baseAnterior = (c && c.basePos) || 'eje';
+  _baseAnterior = modoVista;
   if(typeof cambioBasePos === 'function') cambioBasePos();
   // El momento no tiene dirección que elegir: gira en el plano.
   const _grDir = document.getElementById('cgGrupoDir');
   if(_grDir) _grDir.style.display = (tipo === 'M') ? 'none' : '';
+  _direccionesDisponibles(tipo, _dirIni, enArco);
   setDirCarga(_dirIni);
   cambioDestinoCarga();
   document.getElementById('cargaModal').classList.add('show');
+}
+// Qué botones de dirección se ofrecen. Una repartida no se CREA inclinada
+// (2026-10-25, decisión del profesor: en el curso las repartidas son verticales,
+// horizontales o perpendiculares); el botón solo aparece si la carga que se
+// edita ya lo es —un archivo, o una vertical que Transformar giró con la
+// estructura—, para que la ventana enseñe su dirección y se pueda cambiar.
+// Sobre un ARCO (23-) la perpendicular es «Radial» (hacia el centro) y la axial
+// «Tangente»; una repartida sobre un arco es vertical o radial (2026-10-25,
+// alcance elegido por el profesor), salvo que la carga editada ya sea de otra.
+function _direccionesDisponibles(tipo, dirIni, enArco){
+  const distrib = (tipo === 'U' || tipo === 'T');
+  const btn = v => document.querySelector('#cgSegDir .seg-btn[data-v="' + v + '"]');
+  const ver = (v, si) => { const b = btn(v); if(b) b.style.display = si ? '' : 'none'; };
+  ver('ang', !distrib || dirIni === 'ang');
+  ver('x', !(distrib && enArco) || dirIni === 'x');
+  ver('axial', !(distrib && enArco) || dirIni === 'axial');
+  // La última visible de cada fila cierra la fila y no lleva raya a su derecha.
+  document.querySelectorAll('#cgSegDir .cg-seg').forEach(fila=>{
+    const vis = [...fila.querySelectorAll('.seg-btn')].filter(b=>b.style.display !== 'none');
+    vis.forEach((b, i)=>{ b.style.borderRight = (i === vis.length - 1) ? 'none' : ''; });
+  });
+  const bp = btn('perp'), ba = btn('axial');
+  if(bp) bp.innerHTML = enArco ? '&#8659; Radial' : '&#8659; Perpendicular';
+  if(ba) ba.innerHTML = enArco ? '&#8658; Tangente' : '&#8658; Axial';
+  const cap = document.querySelectorAll('#cgSegDir .cg-subcap')[1];
+  if(cap) cap.textContent = enArco ? 'Respecto del arco' : 'Respecto del tramo · para tramos inclinados';
 }
 // Ajusta las filas de la ventana al destino FIJADO al abrirla (ya no hay
 // selector que lo cambie).
@@ -134,6 +176,21 @@ function cambioDestinoCarga(){
   if(ayuda) ayuda.style.display = enNudo ? 'none' : '';
   const grupoBase = document.getElementById('cgSegBase');
   if(grupoBase && grupoBase.parentElement) grupoBase.parentElement.style.display = enNudo ? 'none' : '';
+  // La posición se mide desde el primer nudo del tramo, y el título lo nombra.
+  // En un tramo horizontal Δy no distingue puntos (ni Δx en uno vertical): ese
+  // botón queda deshabilitado en vez de avisar al pulsarlo.
+  const t = enNudo ? null : _tramoModal(), g = t && geoTramo(t);
+  const capPos = document.getElementById('cgCapPos');
+  if(capPos) capPos.textContent = g ? 'Posición desde el nudo ' + g.a.nombre : 'Posición';
+  // Sobre un arco solo cuenta el ángulo θ (23-); en un tramo recto, el ángulo no existe.
+  const enArco = !!(g && g.arco);
+  if(grupoBase) grupoBase.querySelectorAll('.seg-btn').forEach(b=>{
+    const muerto = !!g && ((b.dataset.v === 'coordX' && Math.abs(g.ux) < 1e-9)
+                        || (b.dataset.v === 'coordY' && Math.abs(g.uy) < 1e-9));
+    b.disabled = muerto;
+    b.title = muerto ? ('En este tramo ' + (b.dataset.v === 'coordX' ? 'Δx' : 'Δy') + ' no cambia.') : '';
+    b.style.display = (enArco === (b.dataset.v === 'theta')) ? '' : 'none';
+  });
   dibujarCroquisTramo();
 }
 
@@ -425,38 +482,55 @@ function dibujarCroquisTramo(){
   const t = _tramoModal();
   const g = t && geoTramo(t);
   if(!g){ cont.innerHTML='<div style="font-size:10.5px;color:#66727e;padding:14px 6px">Sin tramo.</div>'; return; }
+  // Un tramo curvo tiene su propio croquis: el arco, su centro y θ (23-).
+  if(g.arco){ cont.innerHTML = croquisCargaArco(g); return; }
 
   const W2=240, M=34;
   const dx=g.b.x-g.a.x, dy=g.b.y-g.a.y;
+  // Con «Δx» o «Δy» en un tramo inclinado, el croquis acota lo que se escribe
+  // (`_guiaPosCroquis`) en lugar de L y de las dos proyecciones; la de Δy va a la
+  // derecha y necesita ese margen. En un tramo recto Δx o Δy es la distancia
+  // sobre el eje y basta el rótulo de siempre.
+  const _modo = (document.getElementById('cgBase')||{}).value || 'eje';
+  const incl = Math.abs(dx)>1e-9 && Math.abs(dy)>1e-9;
+  const guia = incl && (_modo === 'coordX' || _modo === 'coordY');
+  const MD = (guia && _modo === 'coordY') ? 30 : 0;
   // primera pasada con el alto máximo; luego el alto se ciñe al dibujo
   const H2max = 215;
-  let k = Math.min((W2-2*M)/Math.max(Math.abs(dx),1e-6),
+  let k = Math.min((W2-2*M-MD)/Math.max(Math.abs(dx),1e-6),
                    (H2max-2*M-30)/Math.max(Math.abs(dy),1e-6), 90);
   // Una puntual inclinada lleva su ángulo en la cola de la flecha: necesita más
   // alto que la franja de siempre para que el arco y su valor no se corten.
   const _angP = edCarga && (edCarga.tipo === 'P' || edCarga.tipo === 'PX') && _dirModal() === 'ang';
   const H2 = Math.max(_angP ? 160 : 110, Math.min(H2max, Math.abs(dy)*k + 2*M + 30));
-  const cx=W2/2, cy=H2/2-6;
+  const cx=W2/2-(dx >= 0 ? MD : -MD)/2, cy=H2/2-6;
   const ax=cx-dx*k/2, ay=cy+dy*k/2, bx=cx+dx*k/2, by=cy-dy*k/2;
   let s='<svg viewBox="0 0 '+W2+' '+H2+'" style="width:100%;height:auto;display:block">';
   s+='<rect width="'+W2+'" height="'+H2+'" fill="#fff"/>';
   // proyecciones si el tramo es inclinado
-  const incl = Math.abs(dx)>1e-9 && Math.abs(dy)>1e-9;
+  let cajaAngTramo = null;          // el rótulo del ángulo, para que nada lo pise
   if(incl){
     s+='<line x1="'+ax+'" y1="'+ay+'" x2="'+bx+'" y2="'+ay+'" stroke="#ccd2d8" stroke-width="1" stroke-dasharray="3,3"/>';
     s+='<line x1="'+bx+'" y1="'+ay+'" x2="'+bx+'" y2="'+by+'" stroke="#ccd2d8" stroke-width="1" stroke-dasharray="3,3"/>';
-    s+='<text x="'+((ax+bx)/2)+'" y="'+(ay+13)+'" font-family="Inter,sans-serif" font-size="9" fill="#66727e" text-anchor="middle">Δx = '+dec(Math.abs(dx),'len')+'</text>';
-    s+='<text x="'+Math.min(bx+5, W2-56)+'" y="'+((ay+by)/2)+'" font-family="Inter,sans-serif" font-size="9" fill="#66727e">Δy = '+dec(Math.abs(dy),'len')+'</text>';
+    if(!guia){
+      s+='<text x="'+((ax+bx)/2)+'" y="'+(ay+13)+'" font-family="Inter,sans-serif" font-size="9" fill="#66727e" text-anchor="middle">Δx = '+dec(Math.abs(dx),'len')+'</text>';
+      s+='<text x="'+Math.min(bx+5, W2-56)+'" y="'+((ay+by)/2)+'" font-family="Inter,sans-serif" font-size="9" fill="#66727e">Δy = '+dec(Math.abs(dy),'len')+'</text>';
+    }
     // ángulo
     const r=22, a0=0, a1=Math.atan2(-(by-ay), bx-ax);
     s+='<path d="M '+(ax+r)+' '+ay+' A '+r+' '+r+' 0 0 '+(a1>0?0:1)+' '+(ax+r*Math.cos(a1))+' '+(ay-r*Math.sin(a1))+'" fill="none" stroke="#8b5cf6" stroke-width="1.4"/>';
     s+='<text x="'+(ax+r+4)+'" y="'+(ay-6)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#8b5cf6">'+dec(g.ang,'ang')+'°</text>';
+    cajaAngTramo = _cajaTextoCroquis(ax+r+4, ay-6, dec(g.ang,'ang')+'°', 'start', 9);
   }
-  // el tramo
+  // el tramo, con un anillo en su primer nudo: desde ahí se mide la posición
+  // (como en la ventana del punto de corte). Cada nombre va del lado contrario
+  // al otro nudo, para que no caiga sobre el tramo ni sobre el anillo.
   s+='<line x1="'+ax+'" y1="'+ay+'" x2="'+bx+'" y2="'+by+'" stroke="#1e3a8a" stroke-width="5" stroke-linecap="round"/>';
   s+='<circle cx="'+ax+'" cy="'+ay+'" r="4" fill="#1e3a8a"/><circle cx="'+bx+'" cy="'+by+'" r="4" fill="#1e3a8a"/>';
-  s+='<text x="'+(ax-9)+'" y="'+(ay+4)+'" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">'+g.a.nombre+'</text>';
-  s+='<text x="'+(bx+5)+'" y="'+(by+4)+'" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24">'+g.b.nombre+'</text>';
+  s+='<circle cx="'+ax+'" cy="'+ay+'" r="8.5" fill="none" stroke="#0f766e" stroke-width="1.6"/>';
+  const _izq = bx >= ax;
+  s+='<text x="'+(_izq ? ax-12 : ax+12)+'" y="'+(ay+4)+'" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24" text-anchor="'+(_izq ? 'end' : 'start')+'">'+g.a.nombre+'</text>';
+  s+='<text x="'+(_izq ? bx+6 : bx-6)+'" y="'+(by+4)+'" font-family="Inter,sans-serif" font-size="10" font-weight="800" fill="#1b1f24" text-anchor="'+(_izq ? 'start' : 'end')+'">'+g.b.nombre+'</text>';
   // cota diagonal (longitud real). Una puntual inclinada SALE del punto en su
   // dirección: si cae del lado de la cota, la cota pasa al otro lado.
   const ox=-(by-ay), oy=(bx-ax), on=Math.hypot(ox,oy)||1;
@@ -465,19 +539,19 @@ function dibujarCroquisTramo(){
     const d0 = dirCarga({dir:'ang', ang:_magAngModal().ang}, g);
     if((d0.x*ox - d0.y*oy)/on > 0.2){ px = -px; py = -py; }
   }
-  s+='<line x1="'+(ax+px)+'" y1="'+(ay+py)+'" x2="'+(bx+px)+'" y2="'+(by+py)+'" stroke="#1b1f24" stroke-width="1"/>';
-  let am=Math.atan2((by+py)-(ay+py), (bx+px)-(ax+px));
-  if(am>Math.PI/2||am<-Math.PI/2) am+=Math.PI;
-  s+='<g transform="translate('+((ax+bx)/2+px)+','+((ay+by)/2+py)+') rotate('+(am*180/Math.PI)+')">'
-    +'<text y="-4" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#1b1f24" text-anchor="middle">L = '+dec(g.L,'len')+' '+unitLen+'</text></g>';
+  if(!guia){
+    s+='<line x1="'+(ax+px)+'" y1="'+(ay+py)+'" x2="'+(bx+px)+'" y2="'+(by+py)+'" stroke="#1b1f24" stroke-width="1"/>';
+    let am=Math.atan2((by+py)-(ay+py), (bx+px)-(ax+px));
+    if(am>Math.PI/2||am<-Math.PI/2) am+=Math.PI;
+    s+='<g transform="translate('+((ax+bx)/2+px)+','+((ay+by)/2+py)+') rotate('+(am*180/Math.PI)+')">'
+      +'<text y="-4" font-family="Inter,sans-serif" font-size="9.5" font-weight="700" fill="#1b1f24" text-anchor="middle">L = '+dec(g.L,'len')+' '+unitLen+'</text></g>';
+  }
   // marca del trozo cargado o del punto
   const distrib = edCarga && (edCarga.tipo==='U'||edCarga.tipo==='T');
-  // Los campos pueden estar en coordenadas (y en marco local o global), así
-  // que hay que CONVERTIRLOS a distancia sobre el eje antes de situar la
-  // marca. Leerlos en crudo hacía que con Δy negativa el croquis no pintara
-  // nada, porque interpretaba -1.2 como una distancia fuera del tramo.
-  const _modo  = (document.getElementById('cgBase')||{}).value || 'eje';
-  const _aS = v => sDesdePos({basePos:_modo, dir:_dirModal()}, g, v);
+  // Los campos dicen distancia sobre el eje, Δx o Δy desde el primer nudo
+  // (`sDesdeCampo`, 02-): se pasan a distancia sobre el eje antes de situar la
+  // marca.
+  const _aS = v => sDesdeCampo(_modo, g, v);
   const p1 = _aS(parseFloat(document.getElementById('cgPos').value)||0);
   const p2 = distrib ? _aS(parseFloat(document.getElementById('cgFin').value)||0) : p1;
   const f1 = Math.max(0, Math.min(1, p1/g.L)), f2 = Math.max(0, Math.min(1, p2/g.L));
@@ -525,8 +599,35 @@ function dibujarCroquisTramo(){
     const qmx=(q1x+q2x)/2, qmy=(q1y+q2y)/2, cm=colas[NF/2];
     let ex=cm[0]-qmx, ey=cm[1]-qmy; const el=Math.hypot(ex,ey);
     if(el > 2){ ex/=el; ey/=el; } else { ex=-px/17; ey=-py/17; }
-    const lxR = cm[0]+ex*10, lyR = cm[1]+ey*10 + (ey > 0.3 ? 8 : (ey < -0.3 ? 0 : 3));
-    s+='<text x="'+lxR.toFixed(1)+'" y="'+lyR.toFixed(1)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#b07d1a" text-anchor="middle">cargado '+dec(Math.abs(p2-p1),'len')+'</text>';
+    // En un tramo inclinado la línea de las colas también lo está, y a 10 px de
+    // la cola central el rótulo pisaba las flechas de un lado: se aleja hasta
+    // que no toca ninguna.
+    const segsR = [[ax, ay, bx, by]];
+    for(let i=0;i<colas.length;i++){
+      const t = i/NF;
+      segsR.push([colas[i][0], colas[i][1], q1x+(q2x-q1x)*t, q1y+(q2y-q1y)*t]);
+      if(i) segsR.push([colas[i-1][0], colas[i-1][1], colas[i][0], colas[i][1]]);
+    }
+    const txtR = 'cargado '+dec(Math.abs(p2-p1),'len');
+    let lxR = cm[0]+ex*10, lyR = cm[1]+ey*10 + (ey > 0.3 ? 8 : (ey < -0.3 ? 0 : 3));
+    // Sitios, por orden: alejándose de la cola central y, si ahí no cabe, encima,
+    // debajo y a los lados de todo el dibujo de la carga, empezando por el lado
+    // hacia el que apuntan las colas.
+    const sitiosR = [];
+    for(let d = 10; d <= 70; d += 4) sitiosR.push([cm[0]+ex*d, cm[1]+ey*d + (ey > 0.3 ? 8 : (ey < -0.3 ? 0 : 3))]);
+    const xsR = segsR.flatMap(sg=>[sg[0], sg[2]]), ysR = segsR.flatMap(sg=>[sg[1], sg[3]]);
+    const bxR = [Math.min(...xsR), Math.min(...ysR), Math.max(...xsR), Math.max(...ysR)];
+    const wR = txtR.length*9*0.62, mxR = (bxR[0]+bxR[2])/2, myR = (bxR[1]+bxR[3])/2 + 3;
+    [[ex, ey], [0, -1], [0, 1], [-1, 0], [1, 0]].sort((u, v)=>(v[0]*ex+v[1]*ey) - (u[0]*ex+u[1]*ey)).forEach(([ux, uy])=>{
+      if(Math.abs(uy) > 0.7) sitiosR.push([mxR, uy < 0 ? bxR[1] - 5 : bxR[3] + 12]);
+      else if(Math.abs(ux) > 0.7) sitiosR.push([ux < 0 ? bxR[0] - wR/2 - 5 : bxR[2] + wR/2 + 5, myR]);
+    });
+    for(const [x, y] of sitiosR){
+      const cj = _cajaTextoCroquis(x, y, txtR, 'middle', 9);
+      if(cj.x0 < 1 || cj.x1 > W2-1 || cj.y0 < 1 || cj.y1 > H2-1) continue;
+      if(!_choquesCroquis(cj, segsR, cajaAngTramo ? [cajaAngTramo] : [])){ lxR = x; lyR = y; break; }
+    }
+    s+='<text x="'+lxR.toFixed(1)+'" y="'+lyR.toFixed(1)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#b07d1a" text-anchor="middle">'+txtR+'</text>';
   } else if(!distrib){
     const qx=ax+(bx-ax)*f1, qy=ay+(by-ay)*f1;
     if(tipoC === 'M'){
@@ -574,13 +675,94 @@ function dibujarCroquisTramo(){
     // de longitud: puestas las dos en el centro del tramo, se pisaban.
     const _uL = Math.hypot(bx-ax, by-ay) || 1;
     const _sep = (tipoC === 'M') ? 31 : 15;   // el par ocupa un arco de radio 15
-    s+='<text x="'+(qx - px*0.45 + (bx-ax)/_uL*_sep).toFixed(1)+'" y="'+(qy - py*0.45 + (by-ay)/_uL*_sep + 3).toFixed(1)
+    if(!guia) s+='<text x="'+(qx - px*0.45 + (bx-ax)/_uL*_sep).toFixed(1)+'" y="'+(qy - py*0.45 + (by-ay)/_uL*_sep + 3).toFixed(1)
       +'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'+ROJO+'" text-anchor="middle">'+dec(p1,'len')+'</text>';
+  }
+  if(guia){
+    const enX = (_modo === 'coordX');
+    const marca = (f, v) => ({x:ax+(bx-ax)*f, y:ay+(by-ay)*f, v});
+    const marcas = [marca(f1, campoDesdeS(_modo, g, p1))];
+    if(distrib) marcas.push(marca(f2, campoDesdeS(_modo, g, p2)));
+    // El nombre del otro nudo va del lado de la cota de Δy: su línea de
+    // referencia horizontal arranca pasado él, sin tacharlo.
+    const wB = String(g.b.nombre).length*10*0.7;
+    const nomB = _izq ? {x0:bx+6, x1:bx+6+wB} : {x0:bx-6-wB, x1:bx-6};
+    s += _guiaPosCroquis(enX, {x:ax, y:ay}, {x:bx, y:by, v:Math.abs(enX ? dx : dy), nombre:nomB}, marcas);
   }
   s+='</svg>';
   cont.innerHTML=s;
 }
+// ── Cota de lo que se escribe con «Δx» o «Δy» (2026-10-24) ──
+// En un tramo inclinado, la posición dada por Δx o Δy se acota desde el primer
+// nudo del tramo (A), como en la ventana del punto de corte (19-): una línea
+// que sale de A con una marca en cada punto escrito —el de la puntual, o el
+// inicio y el final de la repartida— y otra, en gris, en el otro nudo, cada una
+// con su distancia desde A. La de Δx va por debajo de todo, para que sus líneas
+// de referencia no se monten sobre las flechas de las cargas verticales, que
+// llegan por arriba; la de Δy, pasado el otro nudo (B), lejos del ángulo que
+// se acota en A.
+function _guiaPosCroquis(enX, A, B, marcas){
+  const GUIA = '#0f766e', GRIS = '#7b8794', F = v => v.toFixed(1);
+  const lin = (x1,y1,x2,y2,c,w,d)=>'<line x1="'+F(x1)+'" y1="'+F(y1)+'" x2="'+F(x2)+'" y2="'+F(y2)
+    +'" stroke="'+c+'" stroke-width="'+w+'"'+(d ? ' stroke-dasharray="'+d+'"' : '')+'/>';
+  const punta = (x,y,ex,ey,c)=>'<path d="M '+F(x)+' '+F(y)+' L '+F(x-ex*5.5-ey*2.5)+' '+F(y-ey*5.5+ex*2.5)
+    +' L '+F(x-ex*5.5+ey*2.5)+' '+F(y-ey*5.5-ex*2.5)+' Z" fill="'+c+'"/>';
+  const txt = (x,y,t,c,anc)=>'<text x="'+F(x)+'" y="'+F(y)+'" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="'
+    +c+'" text-anchor="'+anc+'">'+t+'</text>';
+  // El otro nudo cierra la línea; un punto escrito que cae en él no se repite.
+  const todas = marcas.map(m=>Object.assign({c:GUIA}, m));
+  const enB = todas.find(m=>Math.hypot(m.x-B.x, m.y-B.y) < 0.5);
+  if(enB) enB.esB = true;
+  else todas.push({x:B.x, y:B.y, v:B.v, c:GRIS, esB:true});
+  const d = m => enX ? Math.abs(m.x - A.x) : Math.abs(m.y - A.y);
+  todas.sort((p, q)=>d(p) - d(q));
+  const lejos = todas[todas.length-1];
+  let s = '';
+  if(enX){
+    const yc = Math.max(A.y, B.y) + 18, sx = (lejos.x >= A.x) ? 1 : -1;
+    s += lin(A.x, A.y + 9, A.x, yc + 4, GRIS, .8, '3 3');
+    todas.forEach(m=>{ s += lin(m.x, m.y + 5, m.x, yc + 4, m.c, .8, '3 3'); });
+    s += lin(A.x, yc, lejos.x, yc, GUIA, 1.2) + '<circle cx="'+F(A.x)+'" cy="'+F(yc)+'" r="2.2" fill="'+GUIA+'"/>';
+    // Valores debajo de cada marca; si dos se pisarían, el segundo baja una fila.
+    let finPrev = -1e9, fila = 0;
+    todas.forEach(m=>{
+      if(d(m) > 6) s += punta(m.x, yc, sx, 0, m.c);
+      const t = dec(m.v,'len'), w = t.length*9*0.6;
+      const x0 = m.x - w/2, x1 = m.x + w/2, a = sx > 0 ? x0 : -x1, b = sx > 0 ? x1 : -x0;
+      fila = (a < finPrev + 3) ? fila + 1 : 0;
+      finPrev = b;
+      s += txt(m.x, yc + 12 + fila*10, t, m.c, 'middle');
+    });
+    s += txt(A.x - sx*5, yc + 3, 'Δx', GUIA, sx > 0 ? 'end' : 'start');
+  } else {
+    // Del lado del otro nudo, pasado él y su nombre; las líneas de referencia
+    // salen de cada punto hacia ese lado (las de B, pasado su nombre).
+    const lado = (B.x >= A.x) ? 1 : -1;
+    const xc = lado > 0 ? Math.max(A.x + 18, B.x + 18, B.nombre.x1 + 6)
+                        : Math.min(A.x - 18, B.x - 18, B.nombre.x0 - 6);
+    const sy = (lejos.y >= A.y) ? 1 : -1;
+    const ini = m => m.esB ? (lado > 0 ? B.nombre.x1 + 3 : B.nombre.x0 - 3) : m.x + lado*5;
+    s += lin(A.x + lado*9, A.y, xc + lado*4, A.y, GRIS, .8, '3 3');
+    todas.forEach(m=>{ s += lin(ini(m), m.y, xc + lado*4, m.y, m.c, .8, '3 3'); });
+    s += lin(xc, A.y, xc, lejos.y, GUIA, 1.2) + '<circle cx="'+F(xc)+'" cy="'+F(A.y)+'" r="2.2" fill="'+GUIA+'"/>';
+    // Valores al lado de cada marca, hacia fuera; si dos se pisarían, el segundo se aparta.
+    let finPrev = -1e9;
+    todas.forEach(m=>{
+      if(d(m) > 6) s += punta(xc, m.y, 0, sy, m.c);
+      let y = m.y + 3;
+      const a = sy > 0 ? y - 8 : -(y + 2);
+      if(a < finPrev + 2){ const dy = finPrev + 2 - a; y += sy*dy; }
+      finPrev = sy > 0 ? y + 2 : -(y - 8);
+      s += txt(xc + lado*5, y, dec(m.v,'len'), m.c, lado > 0 ? 'start' : 'end');
+    });
+    s += txt(xc, A.y - sy*6 + (sy > 0 ? 0 : 7), 'Δy', GUIA, 'middle');
+  }
+  return s;
+}
 let _baseAnterior = 'eje';
+// Posición guardada de la carga que se edita y lo que enseñaban sus campos al
+// abrir: si no se tocan, `aplicarCarga` conserva el número del modelo.
+let _posAlAbrir = null;
 // Marca visualmente el botón activo de un grupo segmentado.
 function marcarSeg(idGrupo, valor){
   const g = document.getElementById(idGrupo);
@@ -694,35 +876,15 @@ function _notaAnguloCroquis(){
 function setDirCarga(v){
   const h = document.getElementById('cgDir');
   if(!h) return;
-  const antes = h.value;
-  // Cambiar de marco cambia el SIGNIFICADO de las coordenadas, así que hay
-  // que reexpresarlas; si no, la carga saltaría de sitio al pulsar el botón.
-  const modo = (document.getElementById('cgBase')||{}).value || 'eje';
-  // Solo importa el cambio de MARCO (global <-> local): pasar de vertical a
-  // horizontal no toca las coordenadas.
-  if(_marcoDeDir(antes) !== _marcoDeDir(v) && modo !== 'eje'){
-    const t = _tramoModal();
-    const g = t && geoTramo(t);
-    if(g){
-      const conv = (id)=>{
-        const el = document.getElementById(id);
-        if(!el) return;
-        const val = parseFloat(el.value);
-        if(!isFinite(val)) return;
-        const sEje = sDesdePos({basePos:modo, dir:antes}, g, val);
-        el.value = +posDesdeS(modo, g, sEje, _marcoDeDir(v) === 'local').toFixed(4);
-      };
-      conv('cgPos');
-      if(document.getElementById('cgTdFin').style.display !== 'none') conv('cgFin');
-    }
-  }
+  // La posición de la ventana es siempre local (Δx, Δy desde el primer nudo),
+  // así que cambiar de dirección ya no reexpresa los campos: el cambio de marco
+  // del modelo lo resuelve `aplicarCarga` al guardar.
   h.value = v;
   marcarSeg('cgSegDir', v);
   // El ángulo, o las componentes, solo tienen sentido en la inclinada.
   _mostrarEntrada();
   const t = _tramoModal();
   const g = t && geoTramo(t);
-  const recto = !g || Math.abs(g.ang) < 0.05;
   const hint = document.getElementById('cgHintDir');
   const distrib2 = edCarga && (edCarga.tipo==='U'||edCarga.tipo==='T');
   if(hint){
@@ -730,15 +892,13 @@ function setDirCarga(v){
     // La inclinada es global, y su ayuda ya dice desde dónde se mide el ángulo:
     // añadirle la coletilla del marco la partiría en dos líneas.
     // Una carga de nudo tampoco lleva coordenadas que explicar.
-    if(v === 'ang' && _entradaModal() === 'comp')
+    if(g && g.arco && (v === 'perp' || v === 'axial'))
+      txt = (v === 'perp') ? 'Radial, positiva hacia el centro del arco.' : 'Tangente al arco, positiva hacia el nudo final.';
+    else if(v === 'ang' && _entradaModal() === 'comp')
       txt = 'Fx positiva a la derecha, Fy positiva hacia abajo.';
     else if(v === 'ang' || !t){ /* la ayuda basta */ }
-    else if(_marcoDeDir(v) === 'local'){
-      txt += ' Las coordenadas se miden entonces desde el nudo inicial del tramo.';
-      if(recto) txt += ' En un tramo horizontal, «Perpendicular» coincide con «Vertical».';
-    } else {
-      txt += ' Las coordenadas son las del plano.';
-    }
+    else if(_marcoDeDir(v) === 'local' && g && !(Math.abs(g.ux) > 1e-9 && Math.abs(g.uy) > 1e-9))
+      txt += ' En este tramo coincide con «' + ((v === 'perp') === (Math.abs(g.uy) < 1e-9) ? 'Vertical' : 'Horizontal') + '».';
     if(distrib2 && (v === 'x' || v === 'y' || v === 'ang'))
       txt += ' La intensidad se reparte sobre la <b>longitud real del eje</b> del tramo, '
            + 'no sobre su proyección.';
@@ -752,10 +912,9 @@ function setDirCarga(v){
       ? 'Positivo en sentido antihorario.'
       : 'Un valor negativo invierte el sentido de la flecha.';
   }
-  // Las etiquetas de la matriz dependen del marco: se refrescan aquí.
+  // Refresca las etiquetas de la matriz; la dirección no cambia los campos.
   if(typeof cambioBasePos === 'function' && document.getElementById('cgBase')){
-    const _m = document.getElementById('cgBase').value;
-    _baseAnterior = _m;          // ya se convirtió arriba: no reconvertir
+    _baseAnterior = document.getElementById('cgBase').value;
     cambioBasePos();
   }
   if(edCarga) dibujarCroquisTramo();
@@ -784,14 +943,12 @@ function cambioBasePos(){
         sel.value = _baseAnterior;
         return;
       }
-      const marco = _marcoDeDir(_dirModal());
       const conv = (id)=>{
         const el = document.getElementById(id);
         if(!el) return;
         const v = parseFloat(el.value);
         if(!isFinite(v)) return;
-        const s = sDesdePos({basePos:_baseAnterior, dir:_dirModal()}, g, v);
-        el.value = +posDesdeS(modo, g, s, marco === 'local').toFixed(4);
+        el.value = _redondo(campoDesdeS(modo, g, sDesdeCampo(_baseAnterior, g, v)), 4);
       };
       conv('cgPos');
       if(document.getElementById('cgTdFin').style.display !== 'none') conv('cgFin');
@@ -799,20 +956,17 @@ function cambioBasePos(){
     _baseAnterior = modo;
   }
 
+  // Las tres formas miden desde el primer nudo del tramo (2026-10-24): sobre
+  // el eje, en horizontal (Δx) o en vertical (Δy). Ya no hay coordenadas del plano.
   marcarSeg('cgSegBase', modo);
   const th = document.getElementById('cgThDist');
-  const mk = _marcoDeDir(_dirModal()) === 'local';
-  if(th) th.textContent = (modo === 'eje') ? 'Distancia'
-        : (modo === 'coordX' ? (mk ? 'Δx' : 'Coord. x')
-                             : (mk ? 'Δy' : 'Coord. y'));
+  if(th) th.textContent = (modo === 'eje') ? 'Distancia' : (modo === 'theta' ? 'θ (°)' : (modo === 'coordX' ? 'Δx' : 'Δy'));
   const l = document.getElementById('cgLblPos');
-  const _marco = _marcoDeDir(_dirModal());
+  const tL = _tramoModal(), gL = tL && geoTramo(tL), nA = gL ? gL.a.nombre : 'inicial';
   if(l) l.textContent = (modo === 'eje')
-    ? 'Distancias medidas sobre el eje del tramo, desde su nudo inicial.'
-    : (_marco === 'local'
-        ? ((modo === 'coordX' ? 'Δx' : 'Δy') + ' desde el nudo inicial del tramo.')
-        : ((modo === 'coordX' ? 'Abscisa x' : 'Ordenada y')
-           + ' del punto, en coordenadas del plano.'));
+    ? 'Distancia sobre el eje del tramo, desde el nudo ' + nA + '.'
+    : (modo === 'theta') ? 'Ángulo θ desde el nudo ' + nA + ', medido en el centro del arco.'
+    : (modo === 'coordX' ? 'Distancia horizontal' : 'Distancia vertical') + ' desde el nudo ' + nA + '.';
   if(edCarga) dibujarCroquisTramo();
 }
 function cerrarCarga(){ document.getElementById('cargaModal').classList.remove('show'); edCarga=null; }
@@ -860,22 +1014,39 @@ function aplicarCarga(){
     // Cómo se escribió la inclinada, para reabrirla igual. No entra en el cálculo.
     entrada: _compVisible ? 'comp' : 'ang'
   };
-  if(distrib && Math.abs(datos.posFin-datos.pos) < 1e-9){
-    aviso('El inicio y el fin de la carga no pueden coincidir.', 'error'); return;
-  }
-  // Con posiciones dadas por coordenada es fácil salirse del tramo sin darse
-  // cuenta; entonces la carga quedaría con longitud nula y no se vería.
-  if(distrib){
-    const _t = tramos.find(z=>z.id===datos.tramo), _g = _t && geoTramo(_t);
-    if(_g){
-      const s1 = Math.max(0, Math.min(_g.L, sDesdePos(datos, _g, datos.pos)));
-      const s2 = Math.max(0, Math.min(_g.L, sDesdePos(datos, _g, datos.posFin)));
-      if(Math.abs(s2-s1) < 1e-9){
-        aviso('Con esas posiciones la carga queda fuera del tramo: revisa el '
-            + 'modo de "Posición dada por".', 'error');
-        return;
-      }
+  // Lo escrito es una distancia desde el primer nudo del tramo (sobre el eje, Δx
+  // o Δy, en valor absoluto: `sDesdeCampo`, 02-); el modelo guarda Δ con su
+  // signo (`posDesdeS`), así que se convierte aquí, pasando por la distancia
+  // sobre el eje. Si los campos no se tocaron, se deja el número guardado tal
+  // cual: el redondeo con que se enseñan no puede mover la carga.
+  const _t = (destino === 'tramo') ? tramos.find(z=>z.id===datos.tramo) : null, _g = _t && geoTramo(_t);
+  if(_g){
+    const modo = datos.basePos;
+    const s1 = sDesdeCampo(modo, _g, datos.pos);
+    const s2 = distrib ? sDesdeCampo(modo, _g, datos.posFin) : s1;
+    if(distrib && Math.abs(s2-s1) < 1e-9){
+      aviso('El inicio y el fin de la carga no pueden coincidir.', 'error'); return;
     }
+    // Una posición fuera del tramo se pegaba en silencio a su extremo. Se admite
+    // una milésima del largo, que es un largo escrito redondeado.
+    const tol = 1e-3*_g.L;
+    if([s1, s2].some(s=>s < -tol || s > _g.L + tol)){
+      const nom = (modo === 'eje') ? 'la distancia' : (modo === 'theta' ? 'θ' : (modo === 'coordX' ? 'Δx' : 'Δy'));
+      const fin = (modo === 'theta') ? dec(campoDesdeS(modo, _g, _g.L),'ang') + '°'
+                                     : dec(campoDesdeS(modo, _g, _g.L),'len') + ' ' + unitLen;
+      aviso('Fuera del tramo: ' + nom + ' va de 0 a ' + fin + ' desde el nudo ' + _g.a.nombre + '.', 'error');
+      return;
+    }
+    if(_g.arco && edCarga.tipo === 'T' && Math.abs(datos.mag2 - datos.mag) > 1e-12){
+      aviso('En un tramo curvo la carga repartida es uniforme.', 'error'); return;
+    }
+    const aModelo = s => _redondo(posDesdeS(modo, _g, s), 9);
+    const ant = (_posAlAbrir && _posAlAbrir.c === edCarga && _posAlAbrir.modo === modo) ? _posAlAbrir : null;
+    const campoPos = document.getElementById('cgPos').value, campoFin = document.getElementById('cgFin').value;
+    datos.pos = (ant && ant.campoPos === campoPos) ? ant.pos : aModelo(s1);
+    if(distrib) datos.posFin = (ant && ant.campoFin === campoFin) ? ant.posFin : aModelo(s2);
+  } else if(distrib && Math.abs(datos.posFin-datos.pos) < 1e-9){
+    aviso('El inicio y el fin de la carga no pueden coincidir.', 'error'); return;
   }
   const _tipo = (edCarga.tipo === 'PX') ? 'P' : edCarga.tipo;
   registrarCambio();          // antes de tocar el modelo, como borrarCarga

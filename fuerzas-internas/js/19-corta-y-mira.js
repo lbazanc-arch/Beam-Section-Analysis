@@ -28,6 +28,15 @@ function abrirCorteMundo(t, wx, wy, exacto){
   // ux, uy ya vienen orientados en el sentido del recorrido de la cadena
   const ux = ti.ux, uy = ti.uy;
   let s = (wx - ti.desde.x)*ux + (wy - ti.desde.y)*uy;
+  // En un tramo curvo, el punto se lleva al arco por su ángulo desde el centro.
+  if(ti.arco){
+    const ar = ti.arco;
+    let phi = ar.sg*(Math.atan2(wy - ar.cy, wx - ar.cx) - ar.a0);
+    phi = ((phi % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+    const tot = ti.L/ar.R;
+    if(phi > tot) phi = (phi - tot < 2*Math.PI - phi) ? tot : 0;   // fuera del arco: al extremo más cercano
+    s = ar.R*phi;
+  }
   // nunca exactamente sobre un nudo: ahí la sección no está definida
   const m0 = exacto ? 1e-9 : 0.03;
   s = Math.max(m0*ti.L, Math.min((1-m0)*ti.L, s));
@@ -60,8 +69,10 @@ function pintarCorte(){
   if(bi){ bi.innerHTML = 'Lado izquierdo <small>(' + ini + ' → corte)</small>'; bi.classList.toggle('active', !der); }
   if(bd){ bd.innerHTML = 'Lado derecho <small>(corte → ' + fin + ')</small>'; bd.classList.toggle('active', der); }
   const cc = cadenaDe(R, ti);
-  if(sub) sub.innerHTML = 'Sección en <b>(' + dec(info.P.x,'len') + '; ' + dec(info.P.y,'len') + ')</b>, a <b>' + dec(s,'len') + ' ' + unitLen + '</b> de ' + ti.desde.nombre
-    + ' sobre el tramo ' + ti.desde.nombre + ti.hasta.nombre
+  if(sub) sub.innerHTML = 'Sección en <b>(' + dec(info.P.x,'len') + '; ' + dec(info.P.y,'len') + ')</b>, '
+    + (ti.arco ? 'en <b>θ = ' + dec(s/ti.arco.R*180/Math.PI,'ang') + '°</b> desde ' + ti.desde.nombre + ' sobre el arco '
+               : 'a <b>' + dec(s,'len') + ' ' + unitLen + '</b> de ' + ti.desde.nombre + ' sobre el tramo ')
+    + ti.desde.nombre + ti.hasta.nombre
     + (ti.cadena ? '. ' : ' (abscisa global ' + dec(ti.s0 + s,'len') + ' ' + unitLen + '). ')
     + 'Se conserva el trozo ' + (der ? 'a la derecha' : 'a la izquierda') + ' del corte y en la cara cortada se ponen N, V y M en el sentido positivo del convenio; '
     + 'el signo del valor dice el sentido real.'
@@ -78,13 +89,16 @@ function cerrarCorte(){ const m = document.getElementById('corteModal'); if(m) m
 // resto de la estructura: lo contrario de lo que la rama le transmite.
 function datosCorte(r, ti, s, lado){
   const der = (lado === 'der');
-  const ux = ti.ux, uy = ti.uy;
+  // Ejes del corte: los del tramo o, en un arco (23-), la tangente y la normal
+  // de ese punto.
+  const PA = ti.arco ? puntoArcoRec(ti.arco, s) : null;
+  const ux = PA ? PA.ux : ti.ux, uy = PA ? PA.uy : ti.uy;
   const nx = -uy, ny = ux;
-  const P = {x:ti.desde.x + ux*s, y:ti.desde.y + uy*s};
+  const P = PA ? {x:PA.x, y:PA.y} : {x:ti.desde.x + ux*s, y:ti.desde.y + uy*s};
   const sGlobal = ti.s0 + s;
-  // N, V, M en la sección, del polinomio del subtramo que la contiene
+  // N, V, M en la sección, de la ley del subtramo que la contiene
   const sub = ti.subs.find(q=>s >= q.sa - 1e-9 && s <= q.sb + 1e-9) || ti.subs[ti.subs.length-1];
-  const N = polyVal(sub.cN, s), V = polyVal(sub.cV, s), M = polyVal(sub.cM, s);
+  const N = valorSub(sub, 'N', s), V = valorSub(sub, 'V', s), M = valorSub(sub, 'M', s);
   // acciones puntuales (cargas, pares y reacciones) del trozo
   // Todo dentro de la cadena del tramo (01-): una rama llega como la acción que
   // transmite en su nudo de unión, que está entre los puntuales.
@@ -113,6 +127,22 @@ function datosCorte(r, ti, s, lado){
     const hi = (!der && posTramo === posActual) ? s : gc.L;
     const ua = Math.max(r1, lo), ub = Math.min(r2, hi);
     if(ub <= ua + 1e-12) return;
+    // Sobre un arco (23-): se integra la parte del trozo y se dibuja muestreada.
+    if(gc.arco){
+      const a = inv ? gc.L - ub : ua, b = inv ? gc.L - ua : ub;
+      const rr = fuerzaRepartidaArco(c, z, a, b, P);
+      Fx += rr.Fx; Fy += rr.Fy; Mo += rr.Mo;
+      const pts = [];
+      for(let i=0;i<=8;i++){
+        const sT = a + (b - a)*i/8, Q = puntoEnTramo(gc, sT), d = dirRepartidaArco(c, gc, sT);
+        pts.push({x:Q.x, y:Q.y, dx:d.x, dy:d.y, w:wRepartidaEn(c, z, sT)});
+      }
+      const Fm = Math.hypot(rr.Fx, rr.Fy);
+      repartidas.push({arco:true, pts, a:pts[0], b:pts[pts.length-1], wa:pts[0].w, wb:pts[pts.length-1].w,
+        dd:Fm > 1e-12 ? {x:rr.Fx/Fm, y:rr.Fy/Fm} : {x:0, y:-1}, Fp:Fm, esT:c.tipo==='T',
+        recortada: der ? ua > r1 + 1e-9 : ub < r2 - 1e-9, res:_puntoResultanteArco(gc, a, b, P, rr)});
+      return;
+    }
     const w1 = c.mag, w2 = (c.tipo==='U') ? c.mag : (c.mag2||0);
     const wIni = inv ? w2 : w1, wFinT = inv ? w1 : w2;
     const largo = r2 - r1;
@@ -139,7 +169,35 @@ function datosCorte(r, ti, s, lado){
   // N a lo largo de +u, V de −n y M antihorario. Trozo derecho, lo contrario.
   const sg = der ? -1 : 1;
   const resU = Fx*ux + Fy*uy + sg*N, resN = Fx*nx + Fy*ny - sg*V, resM = Mo + sg*M;
-  return {P, ux, uy, nx, ny, s, sGlobal, N, V, M, puntuales, repartidas, resU, resN, resM, ti, lado:der ? 'der' : 'izq'};
+  // F: la suma de lo que actúa sobre el trozo (Mo respecto de P), sin la cara.
+  return {P, ux, uy, nx, ny, s, sGlobal, N, V, M, puntuales, repartidas, resU, resN, resM, ti, lado:der ? 'der' : 'izq',
+          F:{x:Fx, y:Fy, M:Mo}};
+}
+
+// Dónde se dibuja la resultante de la parte [a, b] de una repartida sobre un
+// arco: el punto del arco por el que pasa su línea de acción (la que da su
+// momento Mo respecto de P) o, si no lo corta, el pie de la perpendicular desde
+// el punto medio de la parte. Cualquiera de los dos da el mismo momento.
+function _puntoResultanteArco(g, a, b, P, rr){
+  const F = Math.hypot(rr.Fx, rr.Fy), Pm = puntoEnTramo(g, (a + b)/2);
+  if(F < 1e-12) return {x:Pm.x, y:Pm.y};
+  // distancia con signo de un punto a la línea de acción
+  const dist = Q => ((Q.x - P.x)*rr.Fy - (Q.y - P.y)*rr.Fx - rr.Mo)/F;
+  let mejor = null, dPrev = null, sPrev = a;
+  for(let i=0;i<=48;i++){
+    const sT = a + (b - a)*i/48, Q = puntoEnTramo(g, sT), d = dist(Q);
+    if(dPrev !== null && dPrev*d <= 0){
+      // bisección entre sPrev y sT
+      let s1 = sPrev, s2 = sT, d1 = dPrev;
+      for(let k=0;k<40;k++){ const sm = (s1 + s2)/2, dm = dist(puntoEnTramo(g, sm)); if(d1*dm <= 0) s2 = sm; else { s1 = sm; d1 = dm; } }
+      const Qm = puntoEnTramo(g, (s1 + s2)/2);
+      mejor = {x:Qm.x, y:Qm.y}; break;
+    }
+    dPrev = d; sPrev = sT;
+  }
+  if(mejor) return mejor;
+  const d = dist(Pm);
+  return {x:Pm.x - d*rr.Fy/F, y:Pm.y + d*rr.Fx/F};
 }
 
 // ── El DCL del trozo, en SVG (mismo trazo que el DCL global de la ventana de diagramas) ──
@@ -165,6 +223,15 @@ function svgDCLCorte(r, ti, s, info){
   const mete = (x,y)=>{ minx=Math.min(minx,x); maxx=Math.max(maxx,x); miny=Math.min(miny,y); maxy=Math.max(maxy,y); };
   ptsCota.forEach(q=>mete(q.x,q.y));
   info.puntuales.forEach(a=>mete(a.x,a.y));
+  // un arco puede salirse de sus nudos: entra entero en el encuadre
+  const segsA = cadenaDe(r, ti);
+  cadC.forEach((e,i)=>{
+    const sg2 = segsA[i];
+    if(!enTrozo(i) || !sg2 || !sg2.arco) return;
+    const u0 = (der && i === posActual) ? s : 0, u1 = (!der && i === posActual) ? s : sg2.L;
+    for(let k=0;k<=24;k++){ const q = puntoArcoRec(sg2.arco, u0 + (u1 - u0)*k/24); mete(q.x, q.y); }
+  });
+  info.repartidas.forEach(d=>{ if(d.arco) d.pts.forEach(q=>mete(q.x, q.y)); });
   const span0 = Math.max(maxx-minx, maxy-miny, 1e-6);
   const unicos = v => { const o = v.slice().sort((p,q)=>p-q), u = [];
     o.forEach(z=>{ if(!u.length || z - u[u.length-1] > 1e-6*span0) u.push(z); }); return u; };
@@ -211,6 +278,27 @@ function svgDCLCorte(r, ti, s, info){
   // repartidas recortadas, detrás de la barra
   const wmax = Math.max(1e-9, ...info.repartidas.map(d=>Math.max(Math.abs(d.wa),Math.abs(d.wb))));
   info.repartidas.forEach(d=>{
+    if(d.arco){
+      // sobre un arco: flechas en cada punto muestreado y la línea de sus colas
+      const base = d.pts.map(p=>({x:SX(p.x), y:SY(p.y)}));
+      const colas = d.pts.map((p,i)=>{ const h = 26*p.w/wmax; return {x:base[i].x - p.dx*h, y:base[i].y + p.dy*h}; });
+      sv += '<path d="M '+base.map(q=>F1(q.x)+' '+F1(q.y)).join(' L ')+' L '+colas.slice().reverse().map(q=>F1(q.x)+' '+F1(q.y)).join(' L ')+' Z" fill="#b8860b" fill-opacity=".14"/>';
+      sv += '<polyline points="'+colas.map(q=>F1(q.x)+','+F1(q.y)).join(' ')+'" fill="none" stroke="#b8860b" stroke-width="1.8"/>';
+      d.pts.forEach((p,i)=>{
+        if(i % 2) return;
+        const c = colas[i], X = base[i].x, Y = base[i].y, h = Math.hypot(c.x - X, c.y - Y);
+        if(h > 4) sv += flecha(c.x, c.y, X + (c.x - X)/h*3, Y + (c.y - Y)/h*3, '#b8860b', 1.6);
+      });
+      const ca = colas[0], cb = colas[colas.length-1];
+      if(Math.abs(d.wa) > 5e-9) sv += texto(ca.x, ca.y - 5, dec(Math.abs(d.wa),'f'), '#8a6508', 9.5, 700, 'middle');
+      if(Math.abs(d.wb) > 5e-9 && (d.esT || d.recortada || Math.abs(d.wb-d.wa) > 1e-9)) sv += texto(cb.x, cb.y - 5, dec(Math.abs(d.wb),'f'), '#8a6508', 9.5, 700, 'middle');
+      if(d.Fp > 1e-12){
+        const Rx = SX(d.res.x), Ry = SY(d.res.y), ex = d.dd.x, ey = -d.dd.y;
+        sv += flecha(Rx-ex*40, Ry-ey*40, Rx-ex*4, Ry-ey*4, '#8a6508', 1.4);
+        sv += texto(Rx-ex*50, Ry-ey*50+3, dec(d.Fp,'f'), '#8a6508', 9.5, 700, 'middle', true);
+      }
+      return;
+    }
     const A={x:SX(d.a.x),y:SY(d.a.y)}, B={x:SX(d.b.x),y:SY(d.b.y)};
     const ox=-d.dd.x, oy=d.dd.y;
     const ha=26*d.wa/wmax, hb=26*d.wb/wmax;
@@ -230,8 +318,18 @@ function svgDCLCorte(r, ti, s, info){
     sv += texto(Rx-ex*50, Ry-ey*50+3, dec(Math.abs(d.Fp),'f'), '#8a6508', 9.5, 700, 'middle', true);
   });
   // barra del trozo
+  const segsC = cadenaDe(r, ti);
   cadC.forEach((e,i)=>{
     if(!enTrozo(i)) return;
+    const sg2 = segsC[i];
+    if(sg2 && sg2.arco){
+      // el arco, muestreado, entre los extremos que son del trozo
+      const u0 = (der && i === posActual) ? s : 0, u1 = (!der && i === posActual) ? s : sg2.L;
+      const n = Math.max(2, Math.ceil(32*(u1 - u0)/Math.max(sg2.L, 1e-9)));
+      const pts = Array.from({length:n + 1}, (_, k)=>puntoArcoRec(sg2.arco, u0 + (u1 - u0)*k/n));
+      sv += '<polyline points="'+pts.map(q=>F1(SX(q.x))+','+F1(SY(q.y))).join(' ')+'" fill="none" stroke="#26415e" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/>';
+      return;
+    }
     const ini = (der && i === posActual) ? P : e.desde;
     const fin = (!der && i === posActual) ? P : e.hasta;
     sv += linea(SX(ini.x), SY(ini.y), SX(fin.x), SY(fin.y), '#26415e', 4.6);
@@ -419,7 +517,7 @@ function _pcModal(){
     +       '<div class="pc-nota">Toca el tramo en el croquis; la distancia se mide desde su primer nudo.</div>'
     +       '<div class="pc-info" id="pcTramoInfo"></div>'
     +       '<div class="cg-grupo" id="pcMedidaGrupo"><div class="cg-seg" id="pcMedida">'
-    +         seg('medida', 's', 'Sobre el eje') + seg('medida', 'dx', 'Δx') + seg('medida', 'dy', 'Δy')
+    +         seg('medida', 's', 'Sobre el eje') + seg('medida', 'dx', 'Δx') + seg('medida', 'dy', 'Δy') + seg('medida', 'th', 'Ángulo θ')
     +       '</div></div>'
     +       campo('pcValor', 'Distancia')
     +     '</div>'
@@ -466,11 +564,35 @@ function pcLeerCampos(){
 }
 
 // Geometría del tramo tal como se dibujó: de su primer nudo (a) al segundo (b).
+// Un tramo curvo (23-) lleva además su arco: L es entonces la longitud del arco
+// y la posición se da por el ángulo θ en su centro o por la longitud de arco.
 function _pcGeo(t){
   const A = nodo(t.a), B = nodo(t.b);
-  const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1e-12;
-  const horiz = Math.abs(dy) <= 1e-9*L, vert = Math.abs(dx) <= 1e-9*L;
-  return {A, B, dx, dy, L, horiz, vert, incl:!horiz && !vert};
+  const dx = B.x - A.x, dy = B.y - A.y;
+  const gt = geoTramo(t), arco = gt && gt.arco ? gt.arco : null;
+  const L = arco ? gt.L : (Math.hypot(dx, dy) || 1e-12);
+  const horiz = !arco && Math.abs(dy) <= 1e-9*L, vert = !arco && Math.abs(dx) <= 1e-9*L;
+  return {A, B, dx, dy, L, horiz, vert, incl:!arco && !horiz && !vert, arco, gt};
+}
+// El punto a la distancia s (desde el primer nudo, sobre el eje) de un tramo.
+function _pcPunto(g, s){
+  if(g.arco){ const Q = puntoEnTramo(g.gt, s); return {x:Q.x, y:Q.y, ux:Q.ux, uy:Q.uy}; }
+  return {x:g.A.x + g.dx*s/g.L, y:g.A.y + g.dy*s/g.L, ux:g.dx/g.L, uy:g.dy/g.L};
+}
+// Distancia de (x, y) al tramo y la s de su punto más cercano (dentro de [0, L]).
+function _pcProyectar(g, x, y){
+  if(g.arco){
+    const A = g.arco, sg = A.d >= 0 ? 1 : -1, tot = Math.abs(A.d);
+    let phi = sg*(Math.atan2(y - A.cy, x - A.cx) - A.t1);
+    phi = ((phi % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+    const dentro = phi <= tot;
+    if(!dentro) phi = (phi - tot < 2*Math.PI - phi) ? tot : 0;
+    const s = A.R*phi, Q = _pcPunto(g, s);
+    return {s, dentro: dentro && s > 0 && s < g.L, d:Math.hypot(Q.x - x, Q.y - y)};
+  }
+  const s = ((x - g.A.x)*g.dx + (y - g.A.y)*g.dy)/g.L;
+  const sc = Math.max(0, Math.min(g.L, s)), Q = _pcPunto(g, sc);
+  return {s, dentro: s > 0 && s < g.L, d:Math.hypot(Q.x - x, Q.y - y)};
 }
 const _pcNombre = t => nodo(t.a).nombre + nodo(t.b).nombre;
 
@@ -488,29 +610,34 @@ function puntoCorteVentana(){
     // coordenadas escritas con pocos decimales en un tramo inclinado).
     let mejor = null, cerca = null;
     tramos.forEach(t=>{
-      const g = _pcGeo(t);
-      const s = ((x - g.A.x)*g.dx + (y - g.A.y)*g.dy)/g.L;
-      const sc = Math.max(0, Math.min(g.L, s));
-      const d = Math.hypot(g.A.x + g.dx*sc/g.L - x, g.A.y + g.dy*sc/g.L - y);
-      if(!cerca || d < cerca.d) cerca = {t, d};
-      if(s > 0 && s < g.L && d <= 0.005*g.L && (!mejor || d < mejor.d)) mejor = {t, s, d, g};
+      const g = _pcGeo(t), q = _pcProyectar(g, x, y);
+      if(!cerca || q.d < cerca.d) cerca = {t, d:q.d};
+      if(q.dentro && q.d <= 0.005*g.L && (!mejor || q.d < mejor.d)) mejor = {t, s:q.s, d:q.d, g};
     });
     if(!mejor) return {err:'Ese punto no está sobre ningún tramo. El más cercano es ' + _pcNombre(cerca.t) + ', a ' + dec(cerca.d,'len') + ' ' + unitLen + '.'};
-    const g = mejor.g;
-    return {t:mejor.t, s:mejor.s, x:g.A.x + g.dx*mejor.s/g.L, y:g.A.y + g.dy*mejor.s/g.L};
+    const Q = _pcPunto(mejor.g, mejor.s);
+    return {t:mejor.t, s:mejor.s, x:Q.x, y:Q.y};
   }
   const t = tramos.find(z=>z.id === _pc.tramo);
   if(!t) return {err:'Toca un tramo en el croquis.', vacio:true};
   const g = _pcGeo(t);
-  const med = g.incl ? _pc.medida : 's';
+  const med = _pcMedida(g);
   const v = num(_pc.valor);
-  if(!isFinite(v)) return {t, err:'Escribe la distancia.', vacio:true};
-  const total = med === 'dx' ? Math.abs(g.dx) : (med === 'dy' ? Math.abs(g.dy) : g.L);
+  if(!isFinite(v)) return {t, err:med === 'th' ? 'Escribe el ángulo.' : 'Escribe la distancia.', vacio:true};
+  const tot = g.arco ? Math.abs(g.arco.d)*180/Math.PI : 0;
+  const total = med === 'dx' ? Math.abs(g.dx) : (med === 'dy' ? Math.abs(g.dy) : (med === 'th' ? tot : g.L));
   const va = Math.abs(v);
   if(va <= 1e-9*total || va >= total*(1 - 1e-9))
-    return {t, err:'Debe quedar entre 0 y ' + dec(total,'len') + ' ' + unitLen + ', sin llegar a los nudos.'};
+    return {t, err:'Debe quedar entre 0 y ' + (med === 'th' ? dec(total,'ang') + '°' : dec(total,'len') + ' ' + unitLen) + ', sin llegar a los nudos.'};
   const s = va*g.L/total;
-  return {t, s, x:g.A.x + g.dx*s/g.L, y:g.A.y + g.dy*s/g.L};
+  const Q = _pcPunto(g, s);
+  return {t, s, x:Q.x, y:Q.y};
+}
+// La medida con la que se da la posición en el tramo: en un arco, θ o la
+// longitud de arco; en uno inclinado, la elegida; si no, sobre el eje.
+function _pcMedida(g){
+  if(g.arco) return _pc.medida === 'th' ? 'th' : 's';
+  return g.incl && _pc.medida !== 'th' ? _pc.medida : 's';
 }
 
 function pintarPuntoCorte(){
@@ -535,13 +662,22 @@ function pintarPuntoCorte(){
     const g = _pcGeo(t);
     const ang = Math.atan2(Math.abs(g.dy), Math.abs(g.dx))*180/Math.PI;
     document.getElementById('pcTramoInfo').innerHTML = 'Tramo <b>' + _pcNombre(t) + '</b> · '
-      + (g.horiz ? 'horizontal' : (g.vert ? 'vertical' : 'inclinado ' + dec(ang,'ang') + '°'))
+      + (g.arco ? 'curvo · R = ' + dec(g.arco.R,'len') + ' ' + unitLen + ' · arco de ' + dec(Math.abs(g.arco.d)*180/Math.PI,'ang') + '°'
+                : (g.horiz ? 'horizontal' : (g.vert ? 'vertical' : 'inclinado ' + dec(ang,'ang') + '°')))
       + ' · L = ' + dec(g.L,'len') + ' ' + unitLen
       + (g.incl ? ' · Δx = ' + dec(Math.abs(g.dx),'len') + ' · Δy = ' + dec(Math.abs(g.dy),'len') : '');
-    document.getElementById('pcMedidaGrupo').style.display = g.incl ? '' : 'none';
-    const med = g.incl ? _pc.medida : 's';
-    document.getElementById('pcValorLab').textContent =
-      (med === 'dx' ? 'Δx desde ' : (med === 'dy' ? 'Δy desde ' : 'Distancia desde ')) + g.A.nombre + ' (' + unitLen + ')';
+    document.getElementById('pcMedidaGrupo').style.display = (g.incl || g.arco) ? '' : 'none';
+    // En un arco: θ o la longitud de arco; en uno inclinado: el eje, Δx o Δy.
+    ov.querySelectorAll('#pcMedida .seg-btn').forEach(b=>{
+      const m = b.dataset.medida;
+      b.style.display = (g.arco ? (m === 's' || m === 'th') : m !== 'th') ? '' : 'none';
+      if(m === 's') b.textContent = g.arco ? 'Longitud de arco' : 'Sobre el eje';
+      b.classList.toggle('active', m === _pcMedida(g));
+    });
+    const med = _pcMedida(g);
+    document.getElementById('pcValorLab').textContent = med === 'th'
+      ? 'θ desde ' + g.A.nombre + ', en el centro del arco (°)'
+      : (med === 'dx' ? 'Δx desde ' : (med === 'dy' ? 'Δy desde ' : (g.arco ? 'Longitud de arco desde ' : 'Distancia desde '))) + g.A.nombre + ' (' + unitLen + ')';
   }
   if(!punto) return;
   const p = puntoCorteVentana();
@@ -549,8 +685,9 @@ function pintarPuntoCorte(){
   if(p.err) res.innerHTML = p.vacio ? p.err : '<span class="pc-err">' + p.err + '</span>';
   else {
     const g = _pcGeo(p.t);
-    res.innerHTML = 'Corte en <b>(' + dec(p.x,'len') + '; ' + dec(p.y,'len') + ')</b>, tramo <b>' + _pcNombre(p.t)
-      + '</b>, a ' + dec(p.s,'len') + ' ' + unitLen + ' de ' + g.A.nombre + ' sobre su eje.';
+    res.innerHTML = 'Corte en <b>(' + dec(p.x,'len') + '; ' + dec(p.y,'len') + ')</b>, tramo <b>' + _pcNombre(p.t) + '</b>, '
+      + (g.arco ? 'en θ = ' + dec(p.s/g.arco.R*180/Math.PI,'ang') + '° desde ' + g.A.nombre + ' (arco de ' + dec(p.s,'len') + ' ' + unitLen + ').'
+                : 'a ' + dec(p.s,'len') + ' ' + unitLen + ' de ' + g.A.nombre + ' sobre su eje.');
   }
   dibujarCroquisPuntoCorte(p);
 }
@@ -563,8 +700,11 @@ function dibujarCroquisPuntoCorte(p){
   const porTramo = _pc.via === 'tramo';
   let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
   const mete = (x,y)=>{ x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); };
-  nodos.forEach(n=>mete(n.x, n.y));
+  puntosDelModelo().forEach(n=>mete(n.x, n.y));
   if(!porTramo) mete(0, 0);
+  // con un arco elegido, también su centro O, desde el que se mide θ
+  const tA = porTramo ? tramos.find(z=>z.id === _pc.tramo) : null, gA = tA ? _pcGeo(tA) : null;
+  if(gA && gA.arco) mete(gA.arco.cx, gA.arco.cy);
   const W = Math.round(Math.max(300, Math.min(560, (caja.clientWidth || 560) - 10))), M = porTramo ? 62 : 42;
   const sx = Math.max(x1-x0, 1e-6), sy = Math.max(y1-y0, 0);
   let k = (W-2*M)/sx;
@@ -591,11 +731,12 @@ function dibujarCroquisPuntoCorte(p){
     const a = nodo(t.a), b = nodo(t.b);
     if(!a || !b) return;
     const on = t.id === sel;
-    const xa=X(a.x), ya=Y(a.y), xb=X(b.x), yb=Y(b.y);
+    const gt = geoTramo(t);
+    const pts = (gt && gt.arco ? ejeTramo(gt, 40) : [a, b]).map(q=>f(X(q.x)) + ',' + f(Y(q.y))).join(' ');
     s += '<g' + (porTramo ? ' class="selT-tramo' + (on ? ' on' : '') + '" onclick="pcElegirTramo(' + t.id + ')"' : '') + '>'
-      + (porTramo ? '<line x1="' + f(xa) + '" y1="' + f(ya) + '" x2="' + f(xb) + '" y2="' + f(yb) + '" stroke="transparent" stroke-width="26" stroke-linecap="round"/>' : '')
-      + '<line x1="' + f(xa) + '" y1="' + f(ya) + '" x2="' + f(xb) + '" y2="' + f(yb) + '" stroke="' + (on ? 'var(--acc)' : '#c3cad3')
-      + '" stroke-width="' + (on ? 6 : 4) + '" stroke-linecap="round"/></g>';
+      + (porTramo ? '<polyline points="' + pts + '" fill="none" stroke="transparent" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>' : '')
+      + '<polyline points="' + pts + '" fill="none" stroke="' + (on ? 'var(--acc)' : '#c3cad3')
+      + '" stroke-width="' + (on ? 6 : 4) + '" stroke-linecap="round" stroke-linejoin="round"/></g>';
   });
   // El primer nudo del tramo elegido, con un anillo: desde ahí se mide.
   const tSel = porTramo ? tramos.find(z=>z.id === sel) : null;
@@ -622,8 +763,8 @@ function dibujarCroquisPuntoCorte(p){
   });
   // El corte: una raya roja perpendicular al tramo, como en el DCL.
   if(p && !p.err){
-    const g = _pcGeo(p.t);
-    const cx = X(p.x), cy = Y(p.y), nx = -g.dy/g.L, ny = -g.dx/g.L;   // normal en pantalla
+    const Q = _pcPunto(_pcGeo(p.t), p.s);
+    const cx = X(p.x), cy = Y(p.y), nx = -Q.uy, ny = -Q.ux;   // normal en pantalla
     s += '<line x1="' + f(cx+nx*13) + '" y1="' + f(cy+ny*13) + '" x2="' + f(cx-nx*13) + '" y2="' + f(cy-ny*13) + '" stroke="#d94f5c" stroke-width="3" stroke-linecap="round"/>';
   }
   s += '</svg>';
@@ -635,14 +776,42 @@ function dibujarCroquisPuntoCorte(p){
 // hasta el centro del tramo, como ejemplo.
 function _pcGuiaMedida(t, p, X, Y, f){
   const g = _pcGeo(t), A = g.A;
-  const med = g.incl ? _pc.medida : 's';
+  const med = _pcMedida(g);
   const ok = p && !p.err && p.t && p.t.id === t.id;
-  const Q = ok ? {x:p.x, y:p.y} : {x:A.x + g.dx/2, y:A.y + g.dy/2};
+  const Q = ok ? {x:p.x, y:p.y} : _pcPunto(g, g.L/2);
   const ax = X(A.x), ay = Y(A.y), qx = X(Q.x), qy = Y(Q.y);
   const GUIA = '#0f766e', EJE = '#7b8794';
   const lin = (x1,y1,x2,y2,c,w,d)=>'<line x1="'+f(x1)+'" y1="'+f(y1)+'" x2="'+f(x2)+'" y2="'+f(y2)+'" stroke="'+c+'" stroke-width="'+w+'"'+(d?' stroke-dasharray="'+d+'"':'')+'/>';
   const punta = (x,y,ex,ey,c)=>'<path d="M '+f(x)+' '+f(y)+' L '+f(x-ex*6-ey*2.8)+' '+f(y-ey*6+ex*2.8)+' L '+f(x-ex*6+ey*2.8)+' '+f(y-ey*6-ex*2.8)+' Z" fill="'+c+'"/>';
   const txt = (x,y,t,c,anc)=>'<text x="'+f(x)+'" y="'+f(y)+'" font-family="Inter,sans-serif" font-size="11" font-weight="800" fill="'+c+'" text-anchor="'+(anc||'middle')+'" font-style="italic">'+t+'</text>';
+  if(g.arco){
+    // Un arco: los radios de O al primer nudo y al punto, y θ entre ellos; o,
+    // con la longitud de arco, la cota curva por fuera del arco.
+    const Ar = g.arco, ox = X(Ar.cx), oy = Y(Ar.cy), sQ = ok ? p.s : g.L/2;
+    let s = lin(ox, oy, ax, ay, EJE, 1.1, '4 3') + lin(ox, oy, qx, qy, EJE, 1.1, '4 3')
+          + '<path d="M'+f(ox-5)+' '+f(oy)+'h10M'+f(ox)+' '+f(oy-5)+'v10" stroke="#0f5c56" stroke-width="1.4"/>'
+          + txt(ox + 10, oy + 15, 'O', '#0f5c56', 'start');
+    if(med === 'th'){
+      const rTh = Math.min(34, 0.45*Math.hypot(ax - ox, ay - oy)), n = 24, pts = [];
+      for(let i=0;i<=n;i++){ const P = _pcPunto(g, sQ*i/n), L2 = Math.hypot(X(P.x) - ox, Y(P.y) - oy) || 1; pts.push([ox + (X(P.x) - ox)/L2*rTh, oy + (Y(P.y) - oy)/L2*rTh]); }
+      s += '<polyline points="' + pts.map(q=>f(q[0]) + ',' + f(q[1])).join(' ') + '" fill="none" stroke="' + GUIA + '" stroke-width="1.4"/>';
+      const e = pts[n], e2 = pts[n-1], el = Math.hypot(e[0]-e2[0], e[1]-e2[1]) || 1;
+      s += punta(e[0], e[1], (e[0]-e2[0])/el, (e[1]-e2[1])/el, GUIA);
+      const m = pts[n >> 1], dm = Math.hypot(m[0] - ox, m[1] - oy) || 1;
+      s += txt(ox + (m[0] - ox)/dm*(rTh + 14), oy + (m[1] - oy)/dm*(rTh + 14) + 4,
+               'θ' + (ok ? ' = ' + dec(sQ/Ar.R*180/Math.PI,'ang') + '°' : ''), GUIA);
+    } else {
+      const n = 32, pts = [];
+      for(let i=0;i<=n;i++){ const P = _pcPunto(g, sQ*i/n), L2 = Math.hypot(X(P.x) - ox, Y(P.y) - oy) || 1; pts.push([ox + (X(P.x) - ox)/L2*(L2 + 16), oy + (Y(P.y) - oy)/L2*(L2 + 16)]); }
+      s += '<polyline points="' + pts.map(q=>f(q[0]) + ',' + f(q[1])).join(' ') + '" fill="none" stroke="' + GUIA + '" stroke-width="1.3"/>';
+      const e = pts[n], e2 = pts[n-1], el = Math.hypot(e[0]-e2[0], e[1]-e2[1]) || 1;
+      const b = pts[0], b2 = pts[1], bl = Math.hypot(b[0]-b2[0], b[1]-b2[1]) || 1;
+      s += punta(e[0], e[1], (e[0]-e2[0])/el, (e[1]-e2[1])/el, GUIA) + punta(b[0], b[1], (b[0]-b2[0])/bl, (b[1]-b2[1])/bl, GUIA);
+      const m = pts[n >> 1], dm = Math.hypot(m[0] - ox, m[1] - oy) || 1;
+      s += txt(m[0] + (m[0] - ox)/dm*14, m[1] + (m[1] - oy)/dm*14 + 4, 's' + (ok ? ' = ' + dec(sQ,'len') : ''), GUIA);
+    }
+    return s;
+  }
   const cota = (x1,y1,x2,y2)=>{
     const L = Math.hypot(x2-x1, y2-y1) || 1, ex = (x2-x1)/L, ey = (y2-y1)/L;
     return lin(x1,y1,x2,y2,GUIA,1.3) + (L > 14 ? punta(x2,y2,ex,ey,GUIA) + punta(x1,y1,-ex,-ey,GUIA) : '');

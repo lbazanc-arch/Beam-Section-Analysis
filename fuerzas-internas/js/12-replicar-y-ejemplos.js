@@ -64,7 +64,7 @@ function _cargaAlTramoInvertido(nc, gc, ge){
   if((modo === 'coordX' && Math.abs(ge.ux) < 1e-9) || (modo === 'coordY' && Math.abs(ge.uy) < 1e-9)) modo = 'eje';
   const out = Object.assign({}, nc);
   if(modo !== (nc.basePos || 'eje')) out.basePos = modo;
-  const L = ge.L, aPos = s=>posDesdeS(modo, ge, s, local);
+  const L = ge.L, aPos = s=>posDesdeS(modo, ge, s);
   const sIni = sDesdePos(nc, gc, nc.pos);
   if(nc.tipo === 'U' || nc.tipo === 'T'){
     const conFin = (nc.posFin !== undefined && nc.posFin !== null);
@@ -150,17 +150,11 @@ function planReplicar(dx, dy, nrep){
       marcar(p.selTramos, destino.id);
       cargasTramo.forEach(c=>{
         if(c.tramo!==id) return;
+        // La posición, sobre el eje o por Δx/Δy, es relativa al primer nudo del
+        // tramo (desde el 2026-10-24 también con dirección del plano) y la réplica
+        // es una traslación pura: se copia tal cual. Hasta esa fecha una Δ del
+        // plano era absoluta y aquí se le sumaba el desplazamiento.
         let nc = Object.assign({}, c, {id:++p.cargaSeq, tramo:destino.id, nudo:null});
-        // Una posición dada por coordenada del PLANO (coordX o coordY en marco
-        // global) es absoluta: `sDesdePos` le resta la del nudo inicial. Copiada
-        // tal cual quedaba fuera del tramo nuevo y se pegaba a un extremo. La
-        // réplica es una traslación pura, así que basta sumar el desplazamiento;
-        // sobre el eje o en marco local la posición ya es relativa al tramo.
-        const d = c.basePos==='coordX' ? dx*i : c.basePos==='coordY' ? dy*i : 0;
-        if(d && marcoDeCarga(c)!=='local'){
-          nc.pos = (Number(c.pos)||0) + d;
-          if(c.posFin!==undefined && c.posFin!==null) nc.posFin = (Number(c.posFin)||0) + d;
-        }
         if(gc) nc = _cargaAlTramoInvertido(nc, gc, ge);
         p.cargas.push(nc); marcar(p.selCargas, nc.id);
       });
@@ -391,6 +385,45 @@ const EJEMPLOS = [
       cargas.push({id:++cargaSeq, tipo:'P', destino:'tramo', tramo:tramos[0].id, pos:3, mag:10, mag2:0});
       vinculos.push({id:++vinculoSeq, tipo:'cuerda', a:B.id, b:null, ang:135});
     }
+  },
+  // Tramos curvos (23-, 2026-10-25), resueltos a mano (ver VERIFICACIONES). La
+  // posición de una carga sobre un arco es el ángulo θ desde su nudo inicial.
+  {
+    id:'arco',
+    nom:'Arco semicircular con carga en la clave',
+    desc:'R = 4 m · A fijo, B móvil · P = 20 kN vertical en θ = 90°.',
+    esperado:'R<sub>yA</sub> = R<sub>B</sub> = 10 kN · M = 40 kN·m en la clave',
+    armar(N){
+      const A=N(-4,0), B=N(4,0);
+      addTramo(A.id,B.id); tramos[0].flecha = 4;
+      A.apoyo='simple'; B.apoyo='movil';
+      cargas.push({id:++cargaSeq, tipo:'P', dir:'y', destino:'tramo', tramo:tramos[0].id, nudo:null, basePos:'theta', pos:90, mag:20, mag2:0});
+    }
+  },
+  {
+    id:'arcoRadial',
+    nom:'Arco semicircular con presión radial',
+    desc:'R = 4 m · A fijo, B móvil · q = 3 kN/m radial, hacia el centro, en todo el arco.',
+    esperado:'N = −12 kN en todo el arco · V = M = 0',
+    armar(N){
+      const A=N(-4,0), B=N(4,0);
+      addTramo(A.id,B.id); tramos[0].flecha = 4;
+      A.apoyo='simple'; B.apoyo='movil';
+      cargas.push({id:++cargaSeq, tipo:'U', dir:'perp', destino:'tramo', tramo:tramos[0].id, nudo:null, basePos:'theta', pos:0, posFin:180, mag:3, mag2:3});
+    }
+  },
+  {
+    id:'arcoPortico',
+    nom:'Pórtico con dintel en arco',
+    desc:'Pilares de 3 m · dintel semicircular R = 4 m · A fijo, D móvil · P = 20 kN en la clave.',
+    esperado:'R<sub>yA</sub> = R<sub>D</sub> = 10 kN · N = −10 kN en los pilares · M = 40 kN·m en la clave',
+    armar(N){
+      const A=N(-4,-3), B=N(-4,0), C=N(4,0), D=N(4,-3);
+      addTramo(A.id,B.id); addTramo(B.id,C.id); addTramo(C.id,D.id);
+      tramos[1].flecha = 4;
+      A.apoyo='simple'; D.apoyo='movil';
+      cargas.push({id:++cargaSeq, tipo:'P', dir:'y', destino:'tramo', tramo:tramos[1].id, nudo:null, basePos:'theta', pos:90, mag:20, mag2:0});
+    }
   }
 ];
 
@@ -423,18 +456,22 @@ function _vinculoDe(r, nombre){
 }
 function _momentoEnNudo(r, nombre){
   for(const t of r.internas){
-    if(t.desde.nombre === nombre && t.subs.length) return polyVal(t.subs[0].cM, t.subs[0].sa);
+    if(t.desde.nombre === nombre && t.subs.length) return valorSub(t.subs[0], 'M', t.subs[0].sa);
   }
   for(const t of r.internas){
-    if(t.hasta.nombre === nombre && t.subs.length){ const su = t.subs[t.subs.length-1]; return polyVal(su.cM, su.sb); }
+    if(t.hasta.nombre === nombre && t.subs.length){ const su = t.subs[t.subs.length-1]; return valorSub(su, 'M', su.sb); }
   }
   return null;
 }
 function _maxAbsSerie(t, clave){
-  const campo = {N:'cN', V:'cV', M:'cM'}[clave];
   let m = 0;
-  t.subs.forEach(su=>{ for(let i=0;i<=12;i++){ const v = Math.abs(polyVal(su[campo], su.sa + (su.sb-su.sa)*i/12)); if(v > m) m = v; } });
+  t.subs.forEach(su=>{ for(let i=0;i<=24;i++){ const v = Math.abs(valorSub(su, clave, su.sa + (su.sb-su.sa)*i/24)); if(v > m) m = v; } });
   return m;
+}
+// Valor de N, V o M al principio de un tramo (su nudo de entrada).
+function _valorAlInicio(r, nombreTramo, clave){
+  const t = r.internas.find(z=>z.nombre === nombreTramo || z.desde.nombre + z.hasta.nombre === nombreTramo);
+  return (t && t.subs.length) ? valorSub(t.subs[0], clave, t.subs[0].sa) : null;
 }
 const VERIFICACIONES = {
   simple(r){
@@ -487,6 +524,42 @@ const VERIFICACIONES = {
       {q:'R_xA', esp:5, obt:_reaccionDe(r,'A','Rx')},
       {q:'R_yA', esp:5, obt:_reaccionDe(r,'A','Ry')},
       {q:'M en B (extremo colgado)', esp:0, obt:_momentoEnNudo(r,'B'), abs:1e-6}
+    ];
+  },
+  // Arco semicircular R = 4, P = 20 kN en la clave: R_y = P/2 en cada apoyo,
+  // M = (P/2)·R·(1 − cos θ), que vale P·R/2 = 40 en la clave; N(0) = −P/2.
+  arco(r){
+    const t = r.internas[0];
+    return [
+      {q:'R_yA', esp:10, obt:_reaccionDe(r,'A','Ry')},
+      {q:'R_xA', esp:0, obt:_reaccionDe(r,'A','Rx'), abs:1e-6},
+      {q:'R_B', esp:10, obt:_reaccionDe(r,'B','Ry')},
+      {q:'M en la clave', esp:40, obt:_maxAbsSerie(t,'M')},
+      {q:'N en A', esp:-10, obt:_valorAlInicio(r,'AB','N')}
+    ];
+  },
+  // Presión radial uniforme q = 3 en el semicírculo: es el antifunicular, así
+  // que N = −q·R = −12 en todo el arco y V = M = 0.
+  arcoRadial(r){
+    const t = r.internas[0];
+    return [
+      {q:'R_yA', esp:12, obt:_reaccionDe(r,'A','Ry')},
+      {q:'R_B', esp:12, obt:_reaccionDe(r,'B','Ry')},
+      {q:'N en A', esp:-12, obt:_valorAlInicio(r,'AB','N')},
+      {q:'max |M|', esp:0, obt:_maxAbsSerie(t,'M'), abs:1e-6},
+      {q:'max |V|', esp:0, obt:_maxAbsSerie(t,'V'), abs:1e-6}
+    ];
+  },
+  // Pórtico con dintel semicircular y P = 20 kN en la clave: sin reacción
+  // horizontal los pilares no flectan; N en ellos = −10 y M en la clave = 40.
+  arcoPortico(r){
+    const arco = r.internas.find(z=>z.arco);
+    return [
+      {q:'R_yA', esp:10, obt:_reaccionDe(r,'A','Ry')},
+      {q:'R_D', esp:10, obt:_reaccionDe(r,'D','Ry')},
+      {q:'N en el pilar AB', esp:-10, obt:_valorAlInicio(r,'AB','N')},
+      {q:'max |M| en el pilar AB', esp:0, obt:_maxAbsSerie(r.internas[0],'M'), abs:1e-6},
+      {q:'M en la clave', esp:40, obt:arco ? _maxAbsSerie(arco,'M') : null}
     ];
   }
 };

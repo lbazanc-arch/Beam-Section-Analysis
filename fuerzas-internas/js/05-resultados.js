@@ -27,6 +27,92 @@ function setMetodo7(m){
 }
 
 function polyVal(c,x){ return (((c[3]||0)*x + (c[2]||0))*x + (c[1]||0))*x + (c[0]||0); }
+// ── Leyes de un tramo CURVO (2026-10-25) ──
+// f = [f0..f5] en la base 1, θ, cos θ, sen θ, θ cos θ, θ sen θ (θ en radianes
+// desde el nudo de entrada; 03-, `_internasDeArco`). Un subtramo curvo lleva
+// `trig:true`, `R` y `fN`, `fV`, `fM` en vez de `cN`, `cV`, `cM`.
+function trigVal(f, th){
+  const c = Math.cos(th), s = Math.sin(th);
+  return f[0] + f[1]*th + f[2]*c + f[3]*s + f[4]*th*c + f[5]*th*s;
+}
+function trigDer(f, th){
+  const c = Math.cos(th), s = Math.sin(th);
+  return f[1] - f[2]*s + f[3]*c + f[4]*(c - th*s) + f[5]*(s + th*c);
+}
+// Valor de N, V o M ('N', 'V', 'M') de un subtramo, recto o curvo, a la
+// distancia s del inicio de su tramo; y su derivada respecto de s.
+function valorSub(su, k, s){ return su.trig ? trigVal(su['f' + k], s/su.R) : polyVal(su['c' + k], s); }
+function derivSub(su, k, s){
+  if(su.trig) return trigDer(su['f' + k], s/su.R)/su.R;
+  const c = su['c' + k]; let v = 0; for(let i=c.length-1;i>=1;i--) v = v*s + i*c[i]; return v;
+}
+// ¿Tiene ley nula? (en un recto, todos sus coeficientes; en un arco, igual).
+function subNulo(su, k, tol){
+  const f = su.trig ? su['f' + k] : su['c' + k];
+  return f.every(v=>Math.abs(v) <= (tol === undefined ? 5e-9 : tol));
+}
+// En un arco los coeficientes de una ley nula o constante no tienen por qué
+// anularse uno a uno (se compensan): el ruido de redondeo daría ceros y
+// extremos falsos. Se mira lo que vale la ley, no sus coeficientes.
+function _leyArcoPlana(su, k, cero){
+  const f = su['f' + k], esc = 1e-9*Math.max(1, ...f.map(Math.abs));
+  let lo = Infinity, hi = -Infinity;
+  for(let i=0;i<=48;i++){ const v = valorSub(su, k, su.sa + (su.sb - su.sa)*i/48); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  return cero ? Math.max(Math.abs(lo), Math.abs(hi)) <= esc : hi - lo <= esc;
+}
+// Extremos interiores de una ley en (sa, sb): donde su derivada cambia de signo.
+function extremosSub(su, k){
+  if(!su.trig){
+    const c = su['c' + k];
+    return raicesEn([c[1]||0, 2*(c[2]||0), 3*(c[3]||0)], su.sa, su.sb);
+  }
+  if(_leyArcoPlana(su, k, false)) return [];
+  const out = [], n = 96, d = s=>derivSub(su, k, s);
+  let s0 = su.sa, d0 = d(s0);
+  for(let i=1;i<=n;i++){
+    const s1 = su.sa + (su.sb - su.sa)*i/n, d1 = d(s1);
+    if(d0 === 0 && i > 1) out.push(s0);
+    else if(d0*d1 < 0){
+      let a = s0, b = s1, fa = d0;
+      for(let it=0;it<60;it++){ const m = (a + b)/2, fm = d(m); if(fa*fm <= 0) b = m; else { a = m; fa = fm; } }
+      out.push((a + b)/2);
+    }
+    s0 = s1; d0 = d1;
+  }
+  return out.filter(s=>s > su.sa + 1e-9 && s < su.sb - 1e-9);
+}
+// Ceros de una ley en [sa, sb] (en un arco, por bisección sobre un muestreo).
+function cerosSub(su, k){
+  if(!su.trig) return raicesEn(su['c' + k], su.sa, su.sb);
+  if(_leyArcoPlana(su, k, true)) return [];
+  const out = [], n = 96, f = s=>valorSub(su, k, s);
+  let s0 = su.sa, f0 = f(s0);
+  for(let i=1;i<=n;i++){
+    const s1 = su.sa + (su.sb - su.sa)*i/n, f1 = f(s1);
+    if(f0*f1 < 0){
+      let a = s0, b = s1, fa = f0;
+      for(let it=0;it<60;it++){ const m = (a + b)/2, fm = f(m); if(fa*fm <= 0) b = m; else { a = m; fa = fm; } }
+      out.push((a + b)/2);
+    }
+    s0 = s1; f0 = f1;
+  }
+  return out;
+}
+// La ley de un arco escrita para el informe y la pantalla: «−10.00 sen θ + …».
+// `dt` como en `dec` ('f' o 'mom'); `sim` el símbolo del ángulo.
+function trigTex(f, dt, sim){
+  sim = sim || '\\theta';
+  const base = ['', sim, '\\cos ' + sim, '\\operatorname{sen} ' + sim,
+                sim + '\\cos ' + sim, sim + '\\operatorname{sen} ' + sim];
+  let s = '';
+  f.forEach((v, i)=>{
+    const txt = dec(Math.abs(v), dt);
+    if(Math.abs(v) < 5e-12 || /^0(\.0+)?$/.test(txt)) return;
+    const sg = v < 0 ? '-' : '+';
+    s += (s ? ' ' + sg + ' ' : (sg === '-' ? '-' : '')) + txt + (i ? '\\,' + base[i] : '');
+  });
+  return s || '0';
+}
 function polyIntDef(c,a,b){
   const F = x => (c[0]||0)*x + (c[1]||0)*x*x/2 + (c[2]||0)*x*x*x/3 + (c[3]||0)*x*x*x*x/4;
   return F(b) - F(a);
@@ -160,13 +246,27 @@ function svgDCL(r, ti, sub){
                                          nom:segsC[k2].desde.nombre});
   const nodosInc = cadPts.slice();
   cadPts.push({x:P.x, y:P.y});
+  // El eje del trozo tal como es: un tramo CURVO anterior se dibuja con su arco
+  // (23-), no con su cuerda. Para un trozo todo recto es la misma polilínea.
+  const ejePts = [];
+  for(let k2=0;k2<tiC;k2++){
+    const e = ejeSegmento(segsC[k2]);
+    (ejePts.length ? e.slice(1) : e).forEach(p=>ejePts.push({x:p.x, y:p.y}));
+  }
+  if(!ejePts.length) ejePts.push({x:t.desde.x, y:t.desde.y});
+  ejePts.push({x:P.x, y:P.y});
 
   const acciones = puntualesDe(r, t).filter(o=>o.s!==null && o.s < sCutG - 1e-9);
 
   const distr = [];
+  // Las repartidas sobre un tramo curvo anterior van aparte, muestreadas (23-).
+  const distrArco = repartidasEnTrozo(r, t, sCutG).filter(d=>{
+    const tr = tramos.find(z=>z.id === d.c.tramo); return esArco(tr);
+  });
   cargas.filter(c=>c.tipo==='U'||c.tipo==='T').forEach(c=>{
     const pos = cadC.findIndex(z=>z.t.id===c.tramo);
     if(pos < 0 || pos > tiC) return;
+    if(segsC[pos].arco) return;
     const z = trozoCargado(c);
     if(!z || z.len <= 1e-12) return;
     const el = segsC[pos];
@@ -190,7 +290,8 @@ function svgDCL(r, ti, sub){
   let minx=Infinity,maxx=-Infinity,miny=Infinity,maxy=-Infinity;
   const mete = p => { minx=Math.min(minx,p.x); maxx=Math.max(maxx,p.x);
                       miny=Math.min(miny,p.y); maxy=Math.max(maxy,p.y); };
-  cadPts.forEach(mete); distr.forEach(d=>{ mete(d.a); mete(d.b); });
+  cadPts.forEach(mete); ejePts.forEach(mete); distr.forEach(d=>{ mete(d.a); mete(d.b); });
+  distrArco.forEach(d=>d.pts.forEach(mete));
   const span = Math.max(maxx-minx, 1e-6), spanY = Math.max(maxy-miny, 0);
   const W2=540, MX=64, MTOP=88, MBOT=108;   // sitio para las cotas escalonadas
   let kk = (W2-2*MX)/span;
@@ -243,9 +344,9 @@ function svgDCL(r, ti, sub){
     _reservar(cx-13, cy+5, cx+7, cy+22);      // hueco del nombre, bajo el nudo
     _reservar(cx-7, cy-7, cx+7, cy+7);        // el propio círculo del nudo
   });
-  for(let q=0;q<cadPts.length-1;q++){
-    const x1=SX(cadPts[q].x), y1=SY(cadPts[q].y);
-    const x2=SX(cadPts[q+1].x), y2=SY(cadPts[q+1].y);
+  for(let q=0;q<ejePts.length-1;q++){
+    const x1=SX(ejePts[q].x), y1=SY(ejePts[q].y);
+    const x2=SX(ejePts[q+1].x), y2=SY(ejePts[q+1].y);
     // franja estrecha a lo largo del eje: evita rótulos montados en la barra
     const pasos = 6;
     for(let m=0;m<pasos;m++){
@@ -292,9 +393,19 @@ function svgDCL(r, ti, sub){
     }
   });
 
+  // ── repartidas sobre un tramo curvo anterior: flechas hacia el eje y sus colas
+  distrArco.forEach(d=>{
+    const wm = Math.max(1e-9, ...d.pts.map(p=>Math.abs(p.w)));
+    const colas = d.pts.map(p=>{ const h = 26*p.w/wm; return [SX(p.x) - p.dx*h, SY(p.y) + p.dy*h]; });
+    sv += '<polyline points="'+colas.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')+'" fill="none" stroke="#b8860b" stroke-width="1.6"/>';
+    d.pts.forEach((p, i)=>{
+      const X = SX(p.x), Y = SY(p.y), c = colas[i];
+      if(Math.hypot(c[0]-X, c[1]-Y) > 5) sv += flecha(c[0], c[1], X - (c[0]-X)*0.1, Y - (c[1]-Y)*0.1, '#b8860b', 1.5);
+    });
+  });
   // ── barra
-  for(let k2=0;k2<cadPts.length-1;k2++)
-    sv += linea(SX(cadPts[k2].x),SY(cadPts[k2].y),SX(cadPts[k2+1].x),SY(cadPts[k2+1].y),'#26415e',4.6);
+  sv += '<polyline points="'+ejePts.map(p=>SX(p.x).toFixed(1)+','+SY(p.y).toFixed(1)).join(' ')
+      + '" fill="none" stroke="#26415e" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/>';
 
   // ── nudos incluidos
   nodosInc.forEach(nn=>{

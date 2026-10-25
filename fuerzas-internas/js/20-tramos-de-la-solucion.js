@@ -99,7 +99,7 @@ function pintarSeleccionTramos(){
   const todo = document.getElementById('selTodo');
   if(todo) todo.checked = tramos.every(t=>_selPend.has(t.id));
   let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
-  nodos.forEach(n=>{ x0=Math.min(x0,n.x); x1=Math.max(x1,n.x); y0=Math.min(y0,n.y); y1=Math.max(y1,n.y); });
+  puntosDelModelo().forEach(n=>{ x0=Math.min(x0,n.x); x1=Math.max(x1,n.x); y0=Math.min(y0,n.y); y1=Math.max(y1,n.y); });
   // El ancho del dibujo es el de su caja: en el teléfono las letras no encogen.
   const W = Math.round(Math.max(300, Math.min(560, (caja.clientWidth || 560) - 10))), M = 40;
   const sx = Math.max(x1-x0, 1e-6), sy = Math.max(y1-y0, 0);
@@ -116,11 +116,13 @@ function pintarSeleccionTramos(){
     const a = nodo(t.a), b = nodo(t.b);
     if(!a || !b) return;
     const on = _selPend.has(t.id);
-    const xa=X(a.x), ya=Y(a.y), xb=X(b.x), yb=Y(b.y);
+    // un tramo curvo se dibuja con su arco (23-)
+    const gt = geoTramo(t);
+    const pts = (gt && gt.arco ? ejeTramo(gt, 40) : [a, b]).map(q=>f(X(q.x)) + ',' + f(Y(q.y))).join(' ');
     s += '<g class="selT-tramo' + (on ? ' on' : '') + '" onclick="alternarTramoSel(' + t.id + ')">'
-      + '<line x1="' + f(xa) + '" y1="' + f(ya) + '" x2="' + f(xb) + '" y2="' + f(yb) + '" stroke="transparent" stroke-width="26" stroke-linecap="round"/>'
-      + '<line x1="' + f(xa) + '" y1="' + f(ya) + '" x2="' + f(xb) + '" y2="' + f(yb) + '" stroke="' + (on ? 'var(--acc)' : '#c3cad3')
-      + '" stroke-width="' + (on ? 6 : 4) + '" stroke-linecap="round"/>'
+      + '<polyline points="' + pts + '" fill="none" stroke="transparent" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>'
+      + '<polyline points="' + pts + '" fill="none" stroke="' + (on ? 'var(--acc)' : '#c3cad3')
+      + '" stroke-width="' + (on ? 6 : 4) + '" stroke-linecap="round" stroke-linejoin="round"/>'
       + '</g>';
   });
   // Apoyos, como señal para reconocer la estructura (sin su ángulo).
@@ -164,7 +166,7 @@ function pintarSeleccionTramos(){
       let gs = [];
       try{ gs = gruposSolucion(_selPrevia); } finally { tramosSolucion = guardada; }
       res.innerHTML = 'Se desarrollará: ' + gs.map(g=>'<b>' + g.recorrido + '</b> ('
-        + (g.oblicuo ? 'inclinado ' + dec(g.ang,'ang') + '°' : (g.vertical ? 'vertical' : 'horizontal')) + ')').join(' · ');
+        + (g.arco ? 'curvo' : (g.oblicuo ? 'inclinado ' + dec(g.ang,'ang') + '°' : (g.vertical ? 'vertical' : 'horizontal'))) + ')').join(' · ');
     }
   }
 }

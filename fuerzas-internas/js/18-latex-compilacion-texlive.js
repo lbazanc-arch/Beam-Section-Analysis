@@ -134,10 +134,10 @@ function _cssInformeRapidoFI(){
 // El encaje de la figura (cajaDibujoInforme, encajarDibujoInforme,
 // lienzoTemporalInforme, marcoLienzoInforme) vive en core/comun.js.
 
-// Caja del modelo en coordenadas del mundo: los nudos.
+// Caja del modelo en coordenadas del mundo: los nudos y el arco de los tramos curvos.
 function _cajaModeloFI(){
   if(!nodos.length) return null;
-  const xs = nodos.map(n=>n.x), ys = nodos.map(n=>n.y);
+  const pm = puntosDelModelo(), xs = pm.map(n=>n.x), ys = pm.map(n=>n.y);
   return {x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)};
 }
 
@@ -241,7 +241,7 @@ function manejarEsc(){
     cargaModal:'cerrarCarga', unitsModal:'closeUnitsModal',
     decModal:'closeDecModal', guardarModal:'cerrarGuardar', histModal:'cerrarHistorial', ejModal:'cerrarEjemplos', pesoModal:'cerrarPeso',
     corteModal:'cerrarCorte', puntoCorteModal:'cerrarPuntoCorte', selTramosModal:'cerrarSeleccionTramos', vinculoModal:'cerrarVinculo',
-    transModal:'closeTransformar', repModal:'closeReplicar'};
+    transModal:'closeTransformar', repModal:'closeReplicar', arcoModal:'cerrarArco'};
   for(const id in cierres){
     const m = document.getElementById(id);
     if(m && m.classList.contains('show')){
@@ -256,6 +256,8 @@ function manejarEsc(){
   if(panDrag || gesto || pinchDist!==null){ cancelarGestoEnCurso(); dibujar(); return; }
   // 4) La cadena de dibujo por nudos pendiente
   if(primerNodo!==null){ primerNodo=null; dibujar(); return; }
+  // …o el primer punto de un tramo curvo (23-)
+  if(curvoPrimer!==null){ curvoPrimer=null; dibujar(); return; }
   // …o el trazo de una cuerda o biela a medias (22-)
   if(vinculoPrimerNudo!==null){ cancelarTrazoVinculo(); return; }
   // 5) La selección actual

@@ -35,6 +35,8 @@ function renderMetodoEcuaciones(r){
   const _grupos = gruposSolucion(r);
   r.internas.forEach((t,ti)=>{
     if(!tramoEnSolucion(t)) return;      // solo los tramos elegidos (20-)
+    // Un tramo curvo: leyes en función de θ (23-).
+    if(t.arco){ h += htmlArcoEcuaciones(r, t, ti); return; }
     // Grupo (recta continua) al que pertenece este tramo: de él salen el
     // origen de la abscisa y su símbolo.
     const gt = _grupos.find(g=>g.tramos.indexOf(t) >= 0) || _grupos[0];
@@ -167,7 +169,7 @@ function renderResultados(r){
     if(!tramoEnSolucion(t)) return;
     const mx = arr => arr.reduce((m,p)=>Math.abs(p)>Math.abs(m)?p:m, 0);
     h += '<tr><td><b>'+t.nombre+'</b></td><td class="r">'+nl(t.L)+' '+unitLen+'</td>'
-      + '<td class="r">'+dec(t.ang,'ang')+'°</td>'
+      + '<td class="r">'+(t.arco ? 'curvo, R = '+nl(t.arco.R)+' '+unitLen : dec(t.ang,'ang')+'°')+'</td>'
       + '<td class="r">'+f(mx(t.puntos.map(p=>p.N)))+'</td>'
       + '<td class="r">'+f(mx(t.puntos.map(p=>p.V)))+'</td>'
       + '<td class="r">'+fm(mx(t.puntos.map(p=>p.M)))+'</td></tr>';
@@ -183,7 +185,7 @@ function renderResultados(r){
     + 'y pulsa Generar; cada uno lleva sus tres diagramas con su propia abscisa.</div>'
     + '<div class="vis-row" id="grupoSel">'
     + grupos.map(g=>'<label class="vis-item"><input type="checkbox" data-g="'+g.idx+'" checked>'
-        + '<span>' + g.recorrido + (g.oblicuo ? ' · ' + dec(g.ang,'ang') + '°' : (g.vertical ? ' · vertical' : ' · recto'))
+        + '<span>' + g.recorrido + (g.arco ? ' · curvo' : (g.oblicuo ? ' · ' + dec(g.ang,'ang') + '°' : (g.vertical ? ' · vertical' : ' · recto')))
         + '</span></label>').join('')
     + '</div>'
     + '<div style="display:flex;gap:7px;margin:9px 0 12px">'
@@ -219,14 +221,15 @@ function muestrearSerie(r, clave, lista, base0){
   let anterior = null;      // {x, v} final de la rama previa
   (lista || r.internas).forEach(t=>{
     t.subs.forEach(sub=>{
+      // grado real: si es lineal bastan los extremos; si es curvo se afina.
+      // En un tramo curvo (23-) la ley tiene senos y cosenos: siempre se afina.
       const c = sub[campo];
-      // grado real: si es lineal bastan los extremos; si es curvo se afina
-      const grado = c.reduce((g,v,i)=>Math.abs(v)>1e-12?i:g, 0);
+      const grado = sub.trig ? 9 : c.reduce((g,v,i)=>Math.abs(v)>1e-12?i:g, 0);
       const n = grado >= 2 ? 24 : 1;
       const pts = [];
       for(let i=0;i<=n;i++){
         const sl = sub.sa + (sub.sb-sub.sa)*i/n;
-        pts.push({x: t.s0 - (base0||0) + sl, v: polyVal(c, sl)});
+        pts.push({x: t.s0 - (base0||0) + sl, v: valorSub(sub, clave, sl)});
       }
       const ini = pts[0];
       if(anterior && Math.abs(ini.v - anterior.v) > 1e-7*Math.max(1,Math.abs(anterior.v)))
@@ -282,6 +285,14 @@ function htmlDiagramasGrupos(r, idxs){
   return estr + idxs.map(i=>{
     const g = grupos[i];
     if(!g) return '';
+    // Un tramo curvo: sobre el arco y, debajo, desarrollados en función de θ.
+    if(g.arco) return '<div style="margin-bottom:16px">'
+      + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">'
+      + 'Tramo ' + g.recorrido + ' — curvo · R = ' + dec(g.arco.R,'len') + ' ' + unitLen
+      + ' · arco de ' + dec(g.L/g.arco.R*180/Math.PI,'ang') + '° · ángulo <i>θ</i> desde ' + g.desde.nombre + '</div>'
+      + htmlDiagramasOrientados(r, g)
+      + '<div class="proc-block">' + svgDiagramas(r, g) + '</div>'
+      + htmlExtremosGrupo(r, g) + '</div>';
     return '<div style="margin-bottom:16px">'
       + '<div style="font-weight:800;font-size:11.5px;color:var(--acc);margin-bottom:5px">'
       + 'Tramo ' + g.recorrido + ' — '

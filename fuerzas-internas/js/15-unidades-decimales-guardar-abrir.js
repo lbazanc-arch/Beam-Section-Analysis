@@ -30,9 +30,14 @@ function applyUnits(){
   // él, deshacer devolvía la viga de 4 m con la unidad nueva y se leía 4 cm.
   registrarCambio();
   nodos.forEach(n=>{ n.x*=kL; n.y*=kL; });
+  // La flecha de un tramo curvo es una longitud (23-).
+  tramos.forEach(t=>{ if(esArco(t)) t.flecha = +t.flecha*kL; });
   cargas.forEach(c=>{
-    c.pos=esc(c.pos,kL);
-    c.posFin=esc(c.posFin,kL);                         // fin de la repartida: antes no se escalaba
+    // Sobre un arco la posición es un ÁNGULO (θ en grados): no cambia con la unidad.
+    if(c.basePos !== 'theta'){
+      c.pos=esc(c.pos,kL);
+      c.posFin=esc(c.posFin,kL);                       // fin de la repartida: antes no se escalaba
+    }
     if(c.tipo==='M') c.mag=esc(c.mag,kF*kL);          // momento = fuerza x longitud
     else if(c.tipo==='U'||c.tipo==='T'){ c.mag=esc(c.mag,kF/kL); c.mag2=esc(c.mag2,kF/kL); }  // fuerza por unidad
     else c.mag=esc(c.mag,kF);
@@ -95,7 +100,11 @@ const BSA_PREFIJO = 'fuerzas-internas-';    // el tema va en el nombre, y el for
 // LA REACCIÓN —antes era hacia dónde colgaba el símbolo, 180° de diferencia— y
 // el apoyo simple ganó un ángulo de dibujo. Los archivos v1 se convierten al
 // abrirlos, en `convertirApoyosDeArchivo`.
-const BSA_VERSION = 2;
+// v3 (2026-10-24): la posición de una carga dada por Δx o Δy (`basePos`
+// coordX / coordY) se mide SIEMPRE desde el primer nudo de su tramo; hasta la v2,
+// con dirección del plano y en el par, era la coordenada x o y del plano. Los
+// archivos anteriores se convierten al abrirlos, en `convertirPosicionesDeArchivo`.
+const BSA_VERSION = 3;
 
 function nombreArchivoSeguro(nombre){
   // Sin caracteres que rompan el nombre de archivo en Windows/macOS/Android.
@@ -255,6 +264,27 @@ function convertirApoyosDeArchivo(lista, version){
       n.apAng = ((+n.apAng + 180) % 360 + 360) % 360;
   });
 }
+// Hasta la v2, una carga de tramo situada por coordenada con dirección del PLANO
+// (vertical, horizontal, inclinada, y el par) guardaba en pos y posFin la
+// coordenada x o y del plano; las de dirección perpendicular o axial ya
+// guardaban Δ desde el nudo inicial. Desde la v3 todas guardan Δ: a las primeras
+// se les resta la coordenada del nudo inicial. Va después de cargar nudos y
+// tramos, y con las cargas ya normalizadas (la dirección de las antiguas sale de
+// `normalizarCargas`). La carga queda en el mismo punto del tramo.
+function convertirPosicionesDeArchivo(lista, version){
+  if((+version || 1) >= 3) return;
+  (lista || []).forEach(c=>{
+    if(!c || c.destino === 'nudo') return;
+    if(c.basePos !== 'coordX' && c.basePos !== 'coordY') return;
+    if(marcoDeCarga(c) === 'local') return;
+    const t = tramos.find(z=>z.id === c.tramo), a = t && nodo(t.a);
+    if(!a) return;
+    const o = (c.basePos === 'coordX') ? a.x : a.y;
+    const resta = v => +((Number(v) || 0) - o).toFixed(10);
+    c.pos = resta(c.pos);
+    if(c.posFin !== undefined && c.posFin !== null) c.posFin = resta(c.posFin);
+  });
+}
 // `version` es la del PAQUETE (`datos.version`), no la del estado: dice en qué
 // convención vienen escritos los campos que llegan.
 function cargarEstadoDesdeArchivo(e, nombreArchivo, version){
@@ -268,6 +298,7 @@ function cargarEstadoDesdeArchivo(e, nombreArchivo, version){
     convertirApoyosDeArchivo(nodos, version);
     tramos=(e.tramos||[]).slice();
     cargas=normalizarCargas((e.cargas||[]).map(c=>Object.assign({}, c)));
+    convertirPosicionesDeArchivo(cargas, version);
     pesos=(e.pesos||[]).map(p=>Object.assign({}, p));
     // Cuerdas, bielas y topes (22-, 2026-10-18); un archivo anterior no los trae.
     vinculos=(e.vinculos||[]).map(v=>Object.assign({}, v));
@@ -309,7 +340,8 @@ function estadoActual(){
   // la interfaz. Un archivo sin `pesos` abre con la lista vacía.
   return {nodos:nodos.map(n=>({id:n.id,x:n.x,y:n.y,apoyo:n.apoyo,rotula:n.rotula,
                                apAng:n.apAng, apAngDib:n.apAngDib})),
-          tramos:tramos.map(t=>({id:t.id,a:t.a,b:t.b,pesoId:t.pesoId})),
+          tramos:tramos.map(t=>esArco(t) ? {id:t.id,a:t.a,b:t.b,pesoId:t.pesoId,flecha:+t.flecha}
+                                         : {id:t.id,a:t.a,b:t.b,pesoId:t.pesoId}),
           cargas:cargas.slice(),
           pesos:pesos.map(p=>({id:p.id,nom:p.nom,val:p.val})),
           vinculos:vinculos.map(v=>({id:v.id,tipo:v.tipo,a:v.a,b:(v.b === undefined ? null : v.b),ang:v.ang})),

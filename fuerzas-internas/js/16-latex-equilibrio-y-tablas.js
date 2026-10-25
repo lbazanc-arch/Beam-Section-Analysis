@@ -68,6 +68,26 @@ function _sumaTex(terms, ceroTxt){
   if(!terms.length) return ceroTxt || '0';
   return terms.map((t,i)=>(i===0 ? (t.v<0?'-':'') : (t.v<0?' - ':' + ')) + t.tex).join('');
 }
+// Ancho aproximado con que se VE un trozo de TeX matemático, en caracteres: una
+// \tfrac cuenta como uno, un exponente un poco menos, los espacios finos nada y
+// cada + − = algo más que un carácter por el aire que lleva. Contar los
+// caracteres del código sobrestima las fracciones: «½·0.67x²·⅓x» son 40 de
+// código y se ve como 10. Calibrado el 2026-10-25 contra el registro de
+// texlive.net: una fila de 70 se salía 33 pt; las de 53 de los ejemplos caben.
+function _anchoTex(s){
+  return String(s)
+    .replace(/\\tfrac\{[^{}]*\}\{[^{}]*\}/g, 'F')
+    .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, (m,a,b)=>a.length > b.length ? a : b)
+    .replace(/\^\{([^{}]*)\}/g, (m,a)=>a.slice(0, Math.ceil(a.length*0.6)))
+    .replace(/\\[,;!:]/g, '')
+    .replace(/\\qquad/g, 'xxxx').replace(/\\quad/g, 'xx')
+    .replace(/\\text\{([^{}]*)\}/g, '$1')
+    .replace(/\\[a-zA-Z]+/g, 'c')
+    .replace(/[{}]/g, '')
+    .replace(/ /g, '')
+    .replace(/[+=]/g, 'xx').replace(/([\w)])-/g, '$1xx')
+    .length;
+}
 // Ecuación larga partida en filas de align*, para que no se salga del margen.
 function _alineada(filas){
   return '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
@@ -560,8 +580,11 @@ function bloqueQuiebre(R, grupos, gg, info){
   if(!prev || !info.ctes) return '';
   const segP = prev.tramos[prev.tramos.length - 1];
   const subP = segP.subs[segP.subs.length - 1];
-  const Nm = polyVal(subP.cN, subP.sb), Vm = polyVal(subP.cV, subP.sb), Mm = polyVal(subP.cM, subP.sb);
-  const u1 = {x:segP.ux, y:segP.uy}, u2 = {x:gg.tramos[0].ux, y:gg.tramos[0].uy};
+  const Nm = valorSub(subP, 'N', subP.sb), Vm = valorSub(subP, 'V', subP.sb), Mm = valorSub(subP, 'M', subP.sb);
+  // En un arco (23-) cuenta la tangente en el nudo, no la cuerda.
+  const tg = (seg, s) => seg.arco ? puntoArcoRec(seg.arco, s) : seg;
+  const q1 = tg(segP, segP.L), q2 = tg(gg.tramos[0], 0);
+  const u1 = {x:q1.ux, y:q1.uy}, u2 = {x:q2.ux, y:q2.uy};
   const D = Math.atan2(u1.x*u2.y - u1.y*u2.x, u1.x*u2.x + u1.y*u2.y);
   const cD = Math.cos(D), sD = Math.sin(D);
   const Nr = Nm*cD - Vm*sD, Vr = Nm*sD + Vm*cD;
@@ -758,10 +781,17 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
   // Momentos respecto del corte S, antihorario positivo: la M interna del
   // trozo izquierdo es antihoraria, y cada fuerza hacia arriba situada a la
   // izquierda del corte da momento horario (por eso entra con signo cambiado).
-  let filaM = '\\circlearrowleft\\!+\\ \\sum M_{S} = 0:\\quad & M';
+  // Se parte cada tres términos y TAMBIÉN por el ancho con que se ve
+  // (`_anchoTex`): tres términos de repartidas cortadas (½·w·(r − a)²·⅓(r − a))
+  // en una fila se salían 33 pt del papel (2026-10-25). El tope deja sitio al
+  // «= 0» final.
+  let filaM = '\\circlearrowleft\\!+\\ \\sum M_{S} = 0:\\quad & M', largoM = 1, desdeM = 0;
   tM.forEach((t,i)=>{
-    if(i > 0 && i % 3 === 0) filaM += ' \\\\\n &\\qquad ';
-    filaM += (t.v < 0 ? ' + ' : ' - ') + t.tex;
+    const trozo = (t.v < 0 ? ' + ' : ' - ') + t.tex, ancho = _anchoTex(trozo);
+    if(i > 0 && ((i - desdeM) >= 3 || largoM + ancho > 58)){
+      filaM += ' \\\\\n &\\qquad '; largoM = 4; desdeM = i;
+    }
+    filaM += trozo; largoM += ancho;
   });
   pares.push([filaM + ' = 0', '& M(' + sb + ') = ' + polyTex(gM,'momento',sb) + '\\ \\text{' + uM + '}']);
   out += _ecuaciones(pares);
@@ -1338,6 +1368,21 @@ function tikzDiagramaGrupo(R, gg, clave, color, W, HH, titulo, giro){
   gg.tramos.forEach(t2=>{
     const off2 = t2.s0 - gg.s0;
     t2.subs.forEach(su=>{
+      // Un arco (23-): ceros por bisección y, en M, sus extremos donde dM/ds = 0
+      // (en un arco no coinciden con V = 0).
+      if(su.trig){
+        cerosSub(su, clave).forEach(v=>{
+          const xg = off2 + v;
+          if(xg > 1e-6 && xg < L-1e-6) marcas.push({x:xg, tipo:'cero'});
+        });
+        if(clave === 'M') extremosSub(su, 'M').forEach(v=>{
+          const xg = off2 + v;
+          if(xg < 1e-6 || xg > L-1e-6) return;
+          const vm = valorSub(su, 'M', v), d0 = derivSub(su, 'M', Math.max(su.sa, v - 1e-4*(su.sb - su.sa)));
+          marcas.push({x:xg, tipo: d0 > 0 ? 'max' : 'min', v:vm});
+        });
+        return;
+      }
       const c = clave==='N' ? su.cN : (clave==='V' ? su.cV : su.cM);
       raicesEn(c, su.sa, su.sb).forEach(v=>{
         const xg = off2 + v;
@@ -1389,12 +1434,15 @@ function tikzDiagramaGrupo(R, gg, clave, color, W, HH, titulo, giro){
   if(marcas.length){
     // primero los rótulos de abscisa (se apartan hacia abajo si chocan) y
     // después la cadena de cotas, ya por debajo de todos ellos
+    // En un arco la abscisa es θ, en grados, y no lleva cadena de cotas.
+    const absc = x => gg.arco ? '\\theta=' + dec(x/gg.arco.R*180/Math.PI,'ang') + '^{\\circ}' : sb0 + '=' + dec(x,'len');
     marcas.forEach(mk=>{
-      const et2 = mk.tipo === 'cero' ? '$' + sb0 + '=' + dec(mk.x,'len') + '$'
-        : (mk.tipo === 'max' ? 'máx' : 'mín') + ' $' + sb0 + '=' + dec(mk.x,'len') + '$';
+      const et2 = mk.tipo === 'cero' ? '$' + absc(mk.x) + '$'
+        : (mk.tipo === 'max' ? 'máx' : 'mín') + ' $' + absc(mk.x) + '$';
       out += tzTexto(X(mk.x), -HH-0.72, et2, 'font=\\tiny, color=' +
                      (mk.tipo==='cero'?'black!65':color), 0, -1);
     });
+    if(gg.arco) return out;
     const xs = [0, ...marcas.map(m=>m.x), L];
     const cc = tzCadenaCotas([...new Set(xs.map(v=>+v.toFixed(4)))], X, -HH-1.30,
                              'black!60', {maxNiveles:4});

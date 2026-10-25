@@ -79,19 +79,15 @@ function vdLimite(campo, extremo, valor){
 // Candidatos: extremos de cada subtramo y raíces de la derivada del
 // polinomio; con ellos el máximo y el mínimo son exactos, no muestreados.
 function extremosSerie(gg, clave){
-  const campo = {N:'cN', V:'cV', M:'cM'}[clave];
   let mx = null, mn = null;
   gg.tramos.forEach(t=>{
     const off = t.s0 - gg.s0;
     t.subs.forEach(su=>{
-      const c = su[campo];
-      const cand = [su.sa, su.sb];
-      const der = [c[1]||0, 2*(c[2]||0), 3*(c[3]||0)];
-      raicesEn(der, su.sa, su.sb).forEach(v=>{
-        if(v > su.sa + 1e-9 && v < su.sb - 1e-9) cand.push(v);
-      });
+      // En un arco las leyes no son polinomios: `extremosSub` (05-) busca los
+      // cambios de signo de la derivada.
+      const cand = [su.sa, su.sb].concat(extremosSub(su, clave));
       cand.forEach(v=>{
-        const val = polyVal(c, v), X = off + v;
+        const val = valorSub(su, clave, v), X = off + v;
         if(!mx || val > mx.v + 1e-12) mx = {v:val, x:X};
         if(!mn || val < mn.v - 1e-12) mn = {v:val, x:X};
       });
@@ -109,6 +105,8 @@ function htmlExtremosGrupo(r, gg, claves){
     {k:'M', col:'#8b5cf6', nom:'DMF', tU:()=>uMom()}
   ].filter(se=>!claves || claves.indexOf(se.k) >= 0);
   const sb = gg.simbolo;
+  // En un arco la posición se dice por su ángulo θ, en grados.
+  const pos = x => gg.arco ? dec(x/gg.arco.R*180/Math.PI, 'ang') + '°' : dec(x, 'len') + ' ' + unitLen;
   return '<div class="vd-stats">' + series.map(se=>{
     const e = extremosSerie(gg, se.k);
     if(!e.mx) return '';
@@ -116,9 +114,9 @@ function htmlExtremosGrupo(r, gg, claves){
     return '<div class="vd-stat" style="border-left-color:' + se.col + '">'
       + '<div class="vd-stat-t" style="color:' + se.col + '">' + se.nom + '</div>'
       + '<div>máx = <b>' + dec(e.mx.v, dt) + '</b> ' + se.tU()
-      + ' en <i>' + sb + '</i> = ' + dec(e.mx.x, 'len') + ' ' + unitLen + '</div>'
+      + ' en <i>' + sb + '</i> = ' + pos(e.mx.x) + '</div>'
       + '<div>mín = <b>' + dec(e.mn.v, dt) + '</b> ' + se.tU()
-      + ' en <i>' + sb + '</i> = ' + dec(e.mn.x, 'len') + ' ' + unitLen + '</div>'
+      + ' en <i>' + sb + '</i> = ' + pos(e.mn.x) + '</div>'
       + '</div>';
   }).join('') + '</div>';
 }
@@ -386,13 +384,14 @@ function gruposDireccion(r, soloSol){
     // misma recta si esa diferencia es casi nula.
     const d = ult ? ((t.ang - ult.ang + 540) % 360) - 180 : 999;
     // Solo dentro de la misma cadena (01-): una rama empieza siempre un grupo.
-    const mismaRecta = ult && Math.abs(d) < TOL_ANG_GRUPO
+    // Un tramo CURVO es siempre un grupo propio (23-).
+    const mismaRecta = ult && Math.abs(d) < TOL_ANG_GRUPO && !t.arco && !ult.arco
                     && (ult.cadena || 0) === (t.cadena || 0) && ult.hasta === t.desde;
     if(mismaRecta){
       ult.tramos.push(t); ult.L += t.L; ult.hasta = t.hasta;
     } else {
       g.push({tramos:[t], ang:t.ang, L:t.L, s0:t.s0, desde:t.desde, hasta:t.hasta,
-              cadena:t.cadena || 0});
+              cadena:t.cadena || 0, arco:t.arco || null});
     }
   });
   g.forEach((gr,i)=>{
@@ -416,8 +415,9 @@ function gruposDireccion(r, soloSol){
     gr.oblicuo = resto > TOL_ANG_GRUPO && resto < 90 - TOL_ANG_GRUPO;
     gr.vertical = !gr.oblicuo && Math.abs(Math.abs(gr.ang) - 90) < TOL_ANG_GRUPO;
     // En un tramo inclinado la abscisa no es x ni y, sino la resultante de
-    // ambos catetos: se llama r para dejarlo claro.
-    gr.simbolo = gr.inclinado ? 'r' : 'x';
+    // ambos catetos: se llama r para dejarlo claro. En un arco, el ángulo θ.
+    gr.simbolo = gr.arco ? 'θ' : (gr.inclinado ? 'r' : 'x');
+    if(gr.arco){ gr.inclinado = true; gr.oblicuo = false; gr.vertical = false; }
     gr.nombre = gr.desde.nombre + gr.hasta.nombre;
     gr.recorrido = gr.tramos.map(t=>t.desde.nombre).join('') + gr.hasta.nombre;
   });
@@ -456,10 +456,7 @@ function fiHoverMover(ev, gid){
   const delta = 0.05*d.total;
   // V y M se leen siempre, aunque su diagrama no esté a la vista (2026-10-18).
   const vals = {};
-  ['N','V','M'].forEach(k=>{
-    const c = sub[{N:'cN', V:'cV', M:'cM'}[k]];
-    vals[k] = {v:polyVal(c, xl), dv:polyDerVal(c, xl)};
-  });
+  ['N','V','M'].forEach(k=>{ vals[k] = {v:valorSub(sub, k, xl), dv:derivSub(sub, k, xl)}; });
   d.series.forEach(se=>{
     const {v, dv} = vals[se.k];
     const PY = y => se.yc - y*se.esc;
@@ -472,7 +469,13 @@ function fiHoverMover(ev, gid){
     if(pc){ pc.setAttribute('cx', X.toFixed(1)); pc.setAttribute('cy', PY(v).toFixed(1)); }
   });
   const w = -vals.V.dv;
-  const txt = d.simb + ' = ' + dec(xg,'len') + ' ' + unitLen
+  // En un arco las relaciones w–V–M llevan además N/R: solo se leen los valores.
+  const txt = d.arco
+    ? 'θ = ' + dec(xg/d.arco.R*180/Math.PI,'ang') + '°'
+      + '   |   N = ' + dec(vals.N.v,'f') + ' ' + unitFor
+      + '   |   V = ' + dec(vals.V.v,'f') + ' ' + unitFor
+      + '   |   M = ' + dec(vals.M.v,'mom') + ' ' + uMom()
+    : d.simb + ' = ' + dec(xg,'len') + ' ' + unitLen
     + '   |   w = ' + dec(w,'f') + ' ' + unitFor + '/' + unitLen + ' (pendiente de V = −w)'
     + '   |   V = ' + dec(vals.V.v,'f') + ' ' + unitFor + ' (pendiente de M = V)'
     + '   |   M = ' + dec(vals.M.v,'mom') + ' ' + uMom();
@@ -499,7 +502,11 @@ function svgDiagramas(r, grupo, claves){
   s += '<rect width="'+W2+'" height="'+H+'" fill="#fff"/>';
   const anchoUtil = W2 - 2*M;
   const PX = x => M + x/total*anchoUtil;
-  Object.assign(_reg, {lista, base0, total, M, anchoUtil, simb});
+  // En un arco la abscisa es θ (en grados): se dibuja sobre s = R·θ, que es
+  // proporcional, y solo cambian los rótulos.
+  const arcoG = grupo && grupo.arco ? grupo.arco : null;
+  const absc = x => arcoG ? dec(x/arcoG.R*180/Math.PI,'ang') + '°' : dec(x,'len');
+  Object.assign(_reg, {lista, base0, total, M, anchoUtil, simb, arco:arcoG});
 
   series.forEach((se, si)=>{
     const y0 = 26 + si*(alto+sep);
@@ -567,11 +574,13 @@ function svgDiagramas(r, grupo, claves){
       lista.forEach(t=>{
         const off = t.s0 - base0;
         t.subs.forEach(su=>{
-          const der = [su.cM[1]||0, 2*(su.cM[2]||0), 3*(su.cM[3]||0)];
-          raicesEn(der, su.sa, su.sb).forEach(v=>{
+          // En un arco el extremo de M no es donde V = 0 (dM/ds = V solo en
+          // tramos rectos): ahí no se rotula.
+          if(su.trig) return;
+          extremosSub(su, 'M').forEach(v=>{
             if(v <= su.sa + 1e-9 || v >= su.sb - 1e-9) return;
-            const Xe = PX(off + v), Ye = PY(polyVal(su.cM, v));
-            const arriba = polyVal(su.cM, v) >= 0;
+            const Xe = PX(off + v), Ye = PY(valorSub(su, 'M', v));
+            const arriba = valorSub(su, 'M', v) >= 0;
             s += '<line x1="'+Xe.toFixed(1)+'" y1="'+Ye.toFixed(1)+'" x2="'+Xe.toFixed(1)+'" y2="'+(arriba ? Ye-22 : Ye+22).toFixed(1)+'" stroke="'+se.col+'" stroke-width=".8" stroke-dasharray="2,2"/>';
             s += '<text x="'+Xe.toFixed(1)+'" y="'+(arriba ? Ye-25 : Ye+31).toFixed(1)+'" font-family="Inter,sans-serif" font-size="8.5" font-style="italic" fill="'+se.col+'" text-anchor="middle">V = 0 → M extremo</text>';
           });
@@ -622,14 +631,22 @@ function svgDiagramas(r, grupo, claves){
     const X = PX(ac3);
     const nd = t.desde ? t.desde.nombre : '';
     s += '<text x="'+X.toFixed(1)+'" y="'+yTxt+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="700" fill="#1b1f24" text-anchor="middle">'+nd+'</text>'
-      + '<text x="'+X.toFixed(1)+'" y="'+yPos+'" font-family="Inter,sans-serif" font-size="8" fill="#8892a0" text-anchor="middle">'+dec(ac3,'len')+'</text>';
+      + '<text x="'+X.toFixed(1)+'" y="'+yPos+'" font-family="Inter,sans-serif" font-size="8" fill="#8892a0" text-anchor="middle">'+absc(ac3)+'</text>';
     ac3 += t.L;
   });
   const ultimo = lista[lista.length-1];
   if(ultimo){
     const X = PX(total);
     s += '<text x="'+X.toFixed(1)+'" y="'+yTxt+'" font-family="Inter,sans-serif" font-size="10.5" font-weight="700" fill="#1b1f24" text-anchor="middle">'+ultimo.hasta.nombre+'</text>'
-      + '<text x="'+X.toFixed(1)+'" y="'+yPos+'" font-family="Inter,sans-serif" font-size="8" fill="#8892a0" text-anchor="middle">'+dec(total,'len')+'</text>';
+      + '<text x="'+X.toFixed(1)+'" y="'+yPos+'" font-family="Inter,sans-serif" font-size="8" fill="#8892a0" text-anchor="middle">'+absc(total)+'</text>';
+  }
+  // En un arco, marcas intermedias cada 30° para leer θ.
+  if(arcoG){
+    const tot = total/arcoG.R*180/Math.PI;
+    for(let gr = 30; gr < tot - 8; gr += 30){
+      const X = PX(gr*Math.PI/180*arcoG.R);
+      s += '<text x="'+X.toFixed(1)+'" y="'+yPos+'" font-family="Inter,sans-serif" font-size="8" fill="#8892a0" text-anchor="middle">'+gr+'°</text>';
+    }
   }
   s += '<text x="'+(W2-M+18)+'" y="'+yTxt+'" font-family="Inter,sans-serif" font-size="10.5" '
     + 'font-style="italic" font-weight="700" fill="#3c4652">'+simb+'</text>';
@@ -669,21 +686,25 @@ function svgDiagramaOrientado(r, clave, lista){
   // Muestras de cada subtramo: punto del eje (mundo), valor y normal.
   const trozos = [];
   let vmax = 0, xs = [], ys = [];
+  // Eje de un tramo: dos puntos en un recto; el arco muestreado en uno curvo.
+  const ejeDe = t => t.arco ? Array.from({length:33}, (_, i)=>puntoArcoRec(t.arco, t.L*i/32)) : [t.desde, t.hasta];
   lista.forEach(t=>{
     const nx = -t.uy, ny = t.ux;
-    xs.push(t.desde.x, t.hasta.x); ys.push(t.desde.y, t.hasta.y);
+    ejeDe(t).forEach(p=>{ xs.push(p.x); ys.push(p.y); });
     t.subs.forEach(su=>{
-      const c = su[se.campo];
-      const grado = c.reduce((g,v,i)=>Math.abs(v) > 1e-12 ? i : g, 0);
-      const n = grado >= 2 ? 24 : 1, pts = [];
+      // En un arco la ordenada va por la normal de CADA punto (radial).
+      const curva = su.trig || (su.cN && su[se.campo].reduce((g,v,i)=>Math.abs(v) > 1e-12 ? i : g, 0) >= 2);
+      const n = curva ? 24 : 1, pts = [];
       for(let i=0;i<=n;i++){
-        const s = su.sa + (su.sb - su.sa)*i/n, v = polyVal(c, s);
-        pts.push({x:t.desde.x + t.ux*s, y:t.desde.y + t.uy*s, v});
+        const s = su.sa + (su.sb - su.sa)*i/n, v = valorSub(su, clave, s);
+        if(t.arco){ const P = puntoArcoRec(t.arco, s); pts.push({x:P.x, y:P.y, v, nx:P.nx, ny:P.ny}); }
+        else pts.push({x:t.desde.x + t.ux*s, y:t.desde.y + t.uy*s, v});
         vmax = Math.max(vmax, Math.abs(v));
       }
       trozos.push({pts, nx, ny, t});
     });
   });
+  const NX = (p, tr) => p.nx !== undefined ? p.nx : tr.nx, NY = (p, tr) => p.ny !== undefined ? p.ny : tr.ny;
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const D = Math.max(maxX - minX, maxY - minY, 1e-9);
   const nulo = vmax < 1e-7;
@@ -691,7 +712,7 @@ function svgDiagramaOrientado(r, clave, lista){
   // Envolvente en el mundo: eje y curva.
   const env = {x0:minX, x1:maxX, y0:minY, y1:maxY};
   trozos.forEach(tr=>tr.pts.forEach(p=>{
-    const cx = p.x + tr.nx*p.v*escW, cy = p.y + tr.ny*p.v*escW;
+    const cx = p.x + NX(p, tr)*p.v*escW, cy = p.y + NY(p, tr)*p.v*escW;
     env.x0 = Math.min(env.x0, cx); env.x1 = Math.max(env.x1, cx);
     env.y0 = Math.min(env.y0, cy); env.y1 = Math.max(env.y1, cy);
   }));
@@ -713,7 +734,7 @@ function svgDiagramaOrientado(r, clave, lista){
   trozos.forEach((tr, i)=>{
     if(nulo) return;
     const ejes = tr.pts.map(p=>[X(p.x), Y(p.y)]);
-    const curva = tr.pts.map(p=>[X(p.x + tr.nx*p.v*escW), Y(p.y + tr.ny*p.v*escW)]);
+    const curva = tr.pts.map(p=>[X(p.x + NX(p, tr)*p.v*escW), Y(p.y + NY(p, tr)*p.v*escW)]);
     tr.curva = curva;
     const poli = ejes.concat(curva.slice().reverse()).map(q=>F(q[0])+','+F(q[1])).join(' ');
     s += '<polygon points="'+poli+'" fill="'+se.col+'" fill-opacity=".14" stroke="none"/>';
@@ -730,7 +751,7 @@ function svgDiagramaOrientado(r, clave, lista){
   // Ejes de los tramos y nudos, encima del relleno.
   const nudos = {};
   lista.forEach(t=>{
-    s += '<line x1="'+F(X(t.desde.x))+'" y1="'+F(Y(t.desde.y))+'" x2="'+F(X(t.hasta.x))+'" y2="'+F(Y(t.hasta.y))+'" stroke="#2b3440" stroke-width="2.4" stroke-linecap="round"/>';
+    s += '<polyline points="'+ejeDe(t).map(p=>F(X(p.x))+','+F(Y(p.y))).join(' ')+'" fill="none" stroke="#2b3440" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
     nudos[t.desde.nombre] = t.desde; nudos[t.hasta.nombre] = t.hasta;
   });
   // Registro de cajas para que los rótulos no se pisen.
@@ -772,7 +793,7 @@ function svgDiagramaOrientado(r, clave, lista){
   // Los trazos (ejes y curvas) también estorban: un valor encima de una línea
   // no se lee, sobre todo donde dos diagramas se cruzan en una esquina.
   const trazos = [];
-  lista.forEach(t=>trazos.push([[X(t.desde.x), Y(t.desde.y)], [X(t.hasta.x), Y(t.hasta.y)]]));
+  lista.forEach(t=>{ const e = ejeDe(t); for(let i=1;i<e.length;i++) trazos.push([[X(e[i-1].x), Y(e[i-1].y)], [X(e[i].x), Y(e[i].y)]]); });
   trozos.forEach(tr=>{ for(let i=1;i<(tr.curva||[]).length;i++) trazos.push([tr.curva[i-1], tr.curva[i]]); });
   const pisaTrazo = c => trazos.some(([a, b2])=>{
     const L = Math.hypot(b2[0]-a[0], b2[1]-a[1]), n = Math.max(1, Math.ceil(L/3));
@@ -789,9 +810,10 @@ function svgDiagramaOrientado(r, clave, lista){
     if(vistos.some(w=>Math.abs(w.v - q.v) < 5e-3*Math.max(1, Math.abs(q.v)) && Math.hypot(w.x - q.x, w.y - q.y) < 0.12*D)) return;
     vistos.push(q);
     const txt = dec(q.v, se.u), w = 6*txt.length + 6, h = 13;
-    const cx = X(q.x + tr.nx*q.v*escW), cy = Y(q.y + tr.ny*q.v*escW);
+    const qnx = NX(q, tr), qny = NY(q, tr);
+    const cx = X(q.x + qnx*q.v*escW), cy = Y(q.y + qny*q.v*escW);
     // Dirección hacia fuera del diagrama (en pantalla la y va hacia abajo).
-    const sg = q.v >= 0 ? 1 : -1, ux = tr.nx*sg, uy = -tr.ny*sg;
+    const sg = q.v >= 0 ? 1 : -1, ux = qnx*sg, uy = -qny*sg;
     const tx = tr.t.ux, ty = -tr.t.uy;
     // Candidatos: hacia fuera del diagrama a tres distancias y, en cada una, corrido
     // a lo largo del tramo. Primero uno que no pise ni rótulos ni trazos; si no lo
@@ -821,7 +843,7 @@ function svgDiagramaOrientado(r, clave, lista){
 // `claves` (opcional): solo esos diagramas (los botones DFN, DFC, DMF de «Ver
 // diagramas»); sin ella, como siempre.
 function htmlDiagramasEstructura(r, claves){
-  const hayN = r.internas.some(t=>t.subs.some(su=>su.cN.some(v=>Math.abs(v) > 5e-9)));
+  const hayN = r.internas.some(t=>t.subs.some(su=>!subNulo(su, 'N')));
   return (claves || (hayN ? ['N','V','M'] : ['V','M'])).map(k=>'<div class="proc-block" style="margin-bottom:8px">'
     + svgDiagramaOrientado(r, k, r.internas) + '</div>').join('');
 }
