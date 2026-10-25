@@ -68,6 +68,9 @@ function dibujar(){
     const g = geoTramo(t); if(!g) return;
     if(g.arco){ dibujarTramoArco(t, g); return; }
     const [ax,ay]=aPantalla(g.a.x,g.a.y), [bx,by]=aPantalla(g.b.x,g.b.y);
+    // Marcos (25-): cada miembro lleva su color, como un halo bajo el eje.
+    ctx.save(); ctx.globalAlpha = .34; ctx.strokeStyle = colorMiembroDe(t); ctx.lineWidth = 13; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke(); ctx.restore();
     if(selTramo===t.id || marcado(selTramos,t.id)){
       ctx.strokeStyle='rgba(232,145,74,.28)'; ctx.lineWidth=13;
       ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
@@ -1313,6 +1316,8 @@ function dibujarTramoArco(t, g){
   const sel = (selTramo===t.id || marcado(selTramos,t.id));
   const trazo = (col, w)=>{ ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath(); pts.forEach((p,i)=>i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); };
+  // Marcos (25-): el halo con el color de su miembro.
+  ctx.save(); ctx.globalAlpha = .34; trazo(colorMiembroDe(t), 13); ctx.restore();
   if(sel) trazo('rgba(232,145,74,.28)', 13);
   trazo('#1e3a8a', 6);
   for(let i=1;i<pts.length;i++) _ocSeg(pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1], sel ? 7 : 3.6, 'tramo');

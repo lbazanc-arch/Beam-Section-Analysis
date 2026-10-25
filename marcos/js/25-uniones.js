@@ -58,6 +58,73 @@ function elegirUnion(u){
   else { n.union = u; if(u !== 'deslizante') delete n.desliza; }
   invalidarResultados(); pintarUnionNudo(); actualizarPrevApoyo(); refrescar();
 }
+// ═══════════════════════════════════════════════════════════
+//  LOS MIEMBROS SE VEN Y SE CAMBIAN (2026-10-25, ejercicios PC4 del profesor)
+//  Qué tramos forman un miembro lo decide el dibujo (un tirón, un miembro),
+//  pero un marco se dibuja a trozos: hacía falta verlo y poder corregirlo.
+//  Cada miembro lleva en el lienzo un halo de su color, y al marcar tramos con
+//  Mover / editar aparece una barra sobre el lienzo: «Unir en un miembro» (los
+//  tramos marcados, conectados y sin anillo, pasan a ser una sola pieza) y
+//  «Separar» (cada tramo marcado, un miembro propio: entre ellos, pasador).
+// ═══════════════════════════════════════════════════════════
+const PALETA_MIEMBROS = ['#3b82f6', '#16a34a', '#a855f7', '#db2777', '#0891b2', '#ca8a04', '#64748b', '#dc2626'];
+function colorMiembroDe(t){
+  const orden = [];
+  tramos.forEach(z=>{ const m = miembroDeTramo(z); if(orden.indexOf(m) < 0) orden.push(m); });
+  return PALETA_MIEMBROS[Math.max(0, orden.indexOf(miembroDeTramo(t))) % PALETA_MIEMBROS.length];
+}
+function _tramosMarcados(){ return selTramos.map(id=>tramos.find(t=>t.id === id)).filter(Boolean); }
+// Nombre de un conjunto de tramos (sus nudos en orden de recorrido).
+function _nombreTramos(ts){
+  const nds = [];
+  ts.forEach(t=>[t.a, t.b].forEach(id=>{ if(nds.indexOf(id) < 0) nds.push(id); }));
+  return _nombreCuerpo({tramos:ts, nudos:nds});
+}
+function pintarBarraMiembros(){
+  const area = document.getElementById('canvasArea');
+  if(!area) return;
+  let b = document.getElementById('barraMiembros');
+  const ts = _tramosMarcados();
+  if(!ts.length || tool !== 'sel'){ if(b) b.style.display = 'none'; return; }
+  if(!b){ b = document.createElement('div'); b.id = 'barraMiembros'; b.className = 'barra-miembros'; area.appendChild(b); }
+  const ms = [...new Set(ts.map(miembroDeTramo))];
+  const delMiembro = m=>tramos.filter(t=>miembroDeTramo(t) === m);
+  let txt;
+  if(ms.length === 1){
+    const todo = delMiembro(ms[0]);
+    txt = (todo.length === ts.length ? 'Miembro <b>' : 'Del miembro <b>') + _nombreTramos(todo) + '</b>';
+  } else txt = ts.length + ' tramos de ' + ms.length + ' miembros';
+  b.innerHTML = '<span>' + txt + '</span>'
+    + (ts.length >= 2 && ms.length >= 2 ? '<button type="button" class="mbtn" onclick="unirEnMiembro()">Unir en un miembro</button>' : '')
+    + (ts.some(t=>delMiembro(miembroDeTramo(t)).length > 1) ? '<button type="button" class="mbtn ghost" onclick="separarMiembros()">Separar</button>' : '');
+  b.style.display = '';
+}
+function unirEnMiembro(){
+  const ts = _tramosMarcados();
+  if(ts.length < 2) return;
+  // Conectados por sus nudos y sin anillo: una pieza que se pueda soldar.
+  const nds = new Set(); ts.forEach(t=>{ nds.add(t.a); nds.add(t.b); });
+  const vistos = new Set([ts[0].a]), pila = [ts[0].a];
+  while(pila.length){ const id = pila.pop(); ts.forEach(t=>{ if(t.a !== id && t.b !== id) return; const o = t.a === id ? t.b : t.a; if(!vistos.has(o)){ vistos.add(o); pila.push(o); } }); }
+  if(vistos.size !== nds.size){ aviso('Los tramos marcados no están unidos entre sí: no pueden formar un solo miembro.', 'error'); return; }
+  if(ts.length !== nds.size - 1){ aviso('Los tramos marcados forman un anillo cerrado: un miembro así no se resuelve con la estática.', 'error'); return; }
+  registrarCambio();
+  const m = ++miembroSeq;
+  ts.forEach(t=>{ t.miembro = m; });
+  cadenaMiembro = null;
+  invalidarResultados(); refrescar();
+  aviso('Ahora ' + _nombreTramos(ts) + ' es un solo miembro.');
+}
+function separarMiembros(){
+  const ts = _tramosMarcados();
+  if(!ts.length) return;
+  registrarCambio();
+  ts.forEach(t=>{ t.miembro = ++miembroSeq; });
+  cadenaMiembro = null;
+  invalidarResultados(); refrescar();
+  aviso(ts.length === 1 ? 'El tramo ' + nomTramo(ts[0]) + ' es ahora un miembro aparte.' : 'Cada tramo marcado es ahora un miembro aparte.');
+}
+
 function elegirTramoDeslizante(id){
   const n = nodo(edApoyo); if(!n || n.desliza === id) return;
   registrarCambio();

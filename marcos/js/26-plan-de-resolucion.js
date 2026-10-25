@@ -110,7 +110,46 @@ function planReaccionesMarco(r){
     const nr = _rango(usadas.concat([c]).map(f=>f.coef), colsR);
     if(nr > rg){ usadas.push(c); rg = nr; }
   });
+  // Solo vale si se resuelve como en clase: de una en una, o como mucho tres
+  // ecuaciones juntas. Si obliga a un sistema mayor (el marco de los ejercicios
+  // PC4, P1: siete reacciones acopladas), las reacciones salen mejor
+  // desmembrando desde el miembro que se resuelve solo (2026-10-25).
+  if(rg >= nR && !_secuenciable(usadas, colsR))
+    return {filas:filas, completo:false, punto:O};
   return {filas:usadas, completo: rg >= nR, punto:O};
+}
+// ¿Se resuelven estas ecuaciones por grupos de a lo sumo tres, cada grupo con
+// tantas incógnitas nuevas como ecuaciones?
+function _secuenciable(eqs, cols){
+  const sabidas = new Set(), quedan = eqs.slice();
+  const nuevas = es=>{ const s = new Set(); es.forEach(e=>cols.forEach(j=>{ if(Math.abs(e.coef[j]) > EPS_PLAN && !sabidas.has(j)) s.add(j); })); return [...s]; };
+  let guard = 0;
+  while(quedan.length && guard++ < 50){
+    let hecho = false;
+    for(let k=1;k<=3 && !hecho;k++){
+      const idx = [];
+      const prueba = (ini, prof)=>{
+        if(hecho) return;
+        if(prof === k){
+          const g = idx.map(i=>quedan[i]), U = nuevas(g);
+          if(U.length === k && _rango(g.map(e=>e.coef), U) === k){
+            U.forEach(j=>sabidas.add(j));
+            idx.slice().sort((a,b)=>b-a).forEach(i=>quedan.splice(i, 1));
+            hecho = true;
+          }
+          return;
+        }
+        for(let i=ini;i<quedan.length && !hecho;i++){ idx.push(i); prueba(i+1, prof+1); idx.pop(); }
+      };
+      prueba(0, 0);
+    }
+    if(!hecho){
+      // Lo que queda sin incógnitas nuevas son comprobaciones.
+      if(quedan.every(e=>!nuevas([e]).length)) return true;
+      return false;
+    }
+  }
+  return cols.every(j=>sabidas.has(j));
 }
 
 // ── 2. Desmembrado: el orden de los cuerpos y pasadores ──

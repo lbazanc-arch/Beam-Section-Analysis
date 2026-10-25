@@ -68,6 +68,7 @@ function pintarListas(){
     if(selCargas.length) p.push(selCargas.length+' carga'+(selCargas.length>1?'s':''));
     si.textContent = p.length ? ('Seleccionado: '+p.join(', ')) : 'Nada seleccionado';
   }
+  pintarBarraMiembros();      // marcos: unir o separar los tramos marcados (25-)
 }
 // ═══════════════════════════════════════════════════════════
 //  ÁRBOL DE CARGAS

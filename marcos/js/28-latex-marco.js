@@ -120,9 +120,19 @@ function tikzDCLCuerpoTex(R, k, conocidas){
   return out + leyendaFigFI(valores);
 }
 
-// Una ecuación del plan (26-) en una fila de align*.
+// Una ecuación del plan (26-) en filas de align*: como mucho tres términos por
+// fila (las de un lado de un pasador llevan muchas reacciones y se salían).
 function _filaEcTex(R, eq, conocidas){
-  return cabeceraEcuacion(eq).replace(' = 0', '') + ' = 0:\\quad & ' + ecuacionTex(R, eq, conocidas);
+  const {ts, cte, esM} = terminosEcuacion(R, eq, conocidas);
+  const piezas = ts.map(t=>({neg:t.neg, tex:t.tex}));
+  if(Math.abs(cte) > 5e-10*Math.max(1, Math.abs(cte))) piezas.push({neg:cte < 0, tex:dec(Math.abs(cte), esM ? 'momento' : 'fuerza')});
+  let s = cabeceraEcuacion(eq).replace(' = 0', '') + ' = 0:\\quad & ';
+  if(!piezas.length) return s + '0 = 0';
+  piezas.forEach((q, i)=>{
+    if(i && i % 3 === 0) s += ' \\\\\n &\\qquad ';
+    s += (i ? (q.neg ? ' - ' : ' + ') : (q.neg ? '-' : '')) + q.tex;
+  });
+  return s + ' = 0';
 }
 function _valorTex(q){
   const esM = q.tipo === 'reac' && q.u.tipo === 'M' && q.u.ang === undefined;
@@ -141,7 +151,8 @@ function pasoReaccionesMarcoTex(R, figCaption){
   let out = '\\begin{center}\\bsaEncajar{\\begin{tikzpicture}[scale=1]\n' + tikzViga(true) + '\\end{tikzpicture}}\\end{center}\n';
   out += figCaption('DCL del marco completo.');
   if(!pr.completo) out += '\\noindent Con el marco entero no bastan: las reacciones salen del desmembrado.\\par\n';
-  const filas = pr.filas.map(fl=>(fl.titulo === 'lado' ? '\\text{(lado ' + escLatex(fl.nombreLado) + ')}\\ ' : '') + _filaEcTex(R, fl, null));
+  // La de un lado de un pasador lleva antes, en su fila, qué miembros son ese lado.
+  const filas = pr.filas.map(fl=>(fl.titulo === 'lado' ? '&\\text{Lado ' + escLatex(fl.nombreLado) + ':} \\\\\n' : '') + _filaEcTex(R, fl, null));
   out += '\\begin{align*}\n' + filas.join(' \\\\[6pt]\n') + '\n\\end{align*}\n';
   if(pr.completo) out += _valoresTex(R.unk.filter(q=>q.tipo === 'reac'));
   return {tex:out, completo:pr.completo};
