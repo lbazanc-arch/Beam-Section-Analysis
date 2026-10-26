@@ -306,7 +306,13 @@ function analizarPresa(p){
   const Bw = g.base.x1 - g.base.x0;
   let SW = 0, SFx = 0, SFy = 0, M = 0;
   pesosP.forEach(q=>{ SW += q.W; q.brazo = q.cx - O.x; q.m = -q.W*q.brazo; M += q.m; });
-  agua.forEach(c=>{ c.m = (c.P.x-O.x)*c.Fy - (c.P.y-O.y)*c.Fx; c.brazo = Math.abs(c.m)/c.F; SFx += c.Fx; SFy += c.Fy; M += c.m; });
+  agua.forEach(c=>{ c.m = (c.P.x-O.x)*c.Fy - (c.P.y-O.y)*c.Fx; c.brazo = Math.abs(c.m)/c.F; SFx += c.Fx; SFy += c.Fy; M += c.m;
+    // Por componentes, con brazos en x y en y desde O (2026-10-25, directriz del
+    // profesor: nada de distancias perpendiculares oblicuas).
+    c.comps = [];
+    if(Math.abs(c.Fx*(c.P.y - O.y)) > 1e-9) c.comps.push({nom:'E_{' + c.k + 'x}', F:Math.abs(c.Fx), brazo:Math.abs(c.P.y - O.y), m:-c.Fx*(c.P.y - O.y), eje:'y'});
+    if(Math.abs(c.Fy*(c.P.x - O.x)) > 1e-9) c.comps.push({nom:'E_{' + c.k + 'y}', F:Math.abs(c.Fy), brazo:Math.abs(c.P.x - O.x), m:c.Fy*(c.P.x - O.x), eje:'x'});
+  });
   const N = SW - SFy;                 // ΣFy: N − ΣW + ΣE_y = 0
   const Fr = -SFx;                    // ΣFx: F + ΣE_x = 0
   const d = N > 1e-12 ? -M/N : NaN;   // ΣM_O: N·d + ΣM = 0
@@ -1142,12 +1148,12 @@ function presasHtml(numInicial){
     // ── Momentos respecto de O, con sus brazos ──
     const nM = r.agua.length ? (r.res ? 5 : 4) : 2;
     h += paso(nM, 'Momentos respecto de O');
-    h += '<table class="tabla"><thead><tr><th>Fuerza</th><th class="r">Valor (' + uF + ')</th><th class="r">Brazo d (' + uL + ')</th><th class="r">M<sub>O</sub> = ±F·d (' + uF + '·' + uL + ')</th><th>Giro</th></tr></thead><tbody>';
+    h += '<table class="tabla"><thead><tr><th>Fuerza</th><th class="r">Valor (' + uF + ')</th><th class="r">Brazo (' + uL + ')</th><th class="r">M<sub>O</sub> = ±F·brazo (' + uF + '·' + uL + ')</th><th>Giro</th></tr></thead><tbody>';
     const giro = m => Math.abs(m) < 1e-9 ? '—' : (m > 0 ? '↺ antihorario' : '↻ horario');
     r.pesos.forEach(q=>{ h += '<tr><td><b>' + kx('W_{' + q.k + '}') + '</b></td><td class="r">' + f(q.W) + '</td><td class="r">' + nl(Math.abs(q.brazo)) + '</td><td class="r">' + f(q.m) + '</td><td>' + giro(q.m) + '</td></tr>'; });
-    r.agua.forEach(c=>{ h += '<tr><td><b>' + kx('E_{' + c.k + '}') + '</b></td><td class="r">' + f(c.F) + '</td><td class="r">' + nl(c.brazo) + '</td><td class="r">' + f(c.m) + '</td><td>' + giro(c.m) + '</td></tr>'; });
+    r.agua.forEach(c=>c.comps.forEach(q=>{ h += '<tr><td><b>' + kx(q.nom) + '</b></td><td class="r">' + f(q.F) + '</td><td class="r">' + kx((q.eje === 'x' ? '\\Delta x = ' : '\\Delta y = ') + nl(q.brazo)) + '</td><td class="r">' + f(q.m) + '</td><td>' + giro(q.m) + '</td></tr>'; }));
     h += '<tr class="fila-total"><td colspan="3">Σ M<sub>O</sub> de las cargas</td><td class="r">' + f(r.M) + '</td><td>' + giro(r.M) + '</td></tr></tbody></table>';
-    h += '<div class="hint-sm">' + kx('d') + ': distancia perpendicular de O a la línea de acción de cada fuerza; antihorario positivo. F no da momento: actúa a lo largo de la base.</div>';
+    h += '<div class="hint-sm">Brazos desde O: ' + kx('\\Delta x') + ' para las fuerzas verticales y ' + kx('\\Delta y') + ' para las horizontales; cada empuje, por sus componentes. Antihorario positivo; F no da momento: actúa a lo largo de la base.</div>';
     // ── Equilibrio ──
     h += paso(nM + 1, 'Equilibrio: reacciones en la base');
     h += '<div class="proc-block" style="padding:9px 12px">';
@@ -1176,7 +1182,7 @@ function resultantePresaHtml(r){
   let h = '<div class="proc-block res-unica" style="padding:9px 12px;margin-top:4px;border-left:3px solid ' + COL_RES + '">';
   h += fila('R_x = \\sum E_x = ' + suma(r.agua.map(c=>c.Fx).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Rx) + '\\ \\text{' + uF + '}');
   h += fila('R_y = \\sum E_y = ' + suma(r.agua.map(c=>c.Fy).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Ry) + '\\ \\text{' + uF + '}');
-  const tm = r.agua.filter(c=>Math.abs(c.m) > 1e-9);
+  const tm = [].concat(...r.agua.map(c=>c.comps));
   const sumM = '\\sum M_O = ' + (tm.length > 1 ? tm.map((c,i)=>(i===0 ? (c.m<0?'-':'') : (c.m<0?' - ':' + ')) + f(c.F) + '(' + nl(c.brazo) + ')').join('') + ' = ' : '') + f(ru.Mo) + '\\ \\text{' + uF + '}\\cdot\\text{' + uL + '}';
   if(ru.par){
     h += fila(sumM);
@@ -1215,7 +1221,7 @@ function latexResultantePresa(r, h){
   const filas = [];
   filas.push('R_x &= \\sum E_x = ' + suma(r.agua.map(c=>c.Fx).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Rx) + UF);
   filas.push('R_y &= \\sum E_y = ' + suma(r.agua.map(c=>c.Fy).filter(v=>Math.abs(v) > 1e-9)) + f(ru.Ry) + UF);
-  const tm = r.agua.filter(c=>Math.abs(c.m) > 1e-9);
+  const tm = [].concat(...r.agua.map(c=>c.comps));
   let fm = '\\circlearrowleft{+}\\ \\sum M_O &= ';
   tm.forEach((c,i)=>{ if(i > 0 && i % 3 === 0) fm += ' \\\\\n &\\qquad '; fm += (i===0 ? (c.m<0?'-':'') : (c.m<0?' - ':' + ')) + f(c.F) + '(' + nl(c.brazo) + ')'; });
   filas.push(fm + (tm.length ? '' : '0'));
@@ -1460,10 +1466,11 @@ function latexPresas(h, numInicial){
     tex += latexResultantePresa(r, h);
     tex += '\\subpaso{Momentos respecto de $O$}\n';
     tex += h.tablaCaption('Momentos de las cargas respecto de $O$. Fuerzas en ' + uF + ', brazos en ' + uL + ', momentos en ' + uF + '$\\cdot$' + uL + '.');
-    tex += '\\begin{tablacentrada}\\begin{tabular}{lrrrl}\n\\hline\nFuerza & Valor & Brazo $d$ & $M_O$ & Giro \\\\\n\\hline\n';
+    tex += '\\begin{tablacentrada}\\begin{tabular}{lrrrl}\n\\hline\nFuerza & Valor & Brazo & $M_O$ & Giro \\\\\n\\hline\n';
     const giro = m => Math.abs(m) < 1e-9 ? '---' : (m > 0 ? 'antihorario' : 'horario');
-    r.pesos.forEach(q=>{ tex += '$W_{' + q.k + '}$ & ' + f(q.W) + ' & ' + nl(Math.abs(q.brazo)) + ' & $' + f(q.m) + '$ & ' + giro(q.m) + ' \\\\\n'; });
-    r.agua.forEach(c=>{ tex += '$E_{' + c.k + '}$ & ' + f(c.F) + ' & ' + nl(c.brazo) + ' & $' + f(c.m) + '$ & ' + giro(c.m) + ' \\\\\n'; });
+    r.pesos.forEach(q=>{ tex += '$W_{' + q.k + '}$ & ' + f(q.W) + ' & $\\Delta x = ' + nl(Math.abs(q.brazo)) + '$ & $' + f(q.m) + '$ & ' + giro(q.m) + ' \\\\\n'; });
+    // Cada empuje por sus componentes, con su brazo en x o en y desde O (2026-10-25).
+    r.agua.forEach(c=>c.comps.forEach(q=>{ tex += '$' + q.nom + '$ & ' + f(q.F) + ' & $' + (q.eje === 'x' ? '\\Delta x' : '\\Delta y') + ' = ' + nl(q.brazo) + '$ & $' + f(q.m) + '$ & ' + giro(q.m) + ' \\\\\n'; }));
     tex += '\\hline\n\\multicolumn{3}{l}{$\\Sigma M_O$ de las cargas} & $' + f(r.M) + '$ & ' + giro(r.M) + ' \\\\\n\\hline\n\\end{tabular}\\end{tablacentrada}\n';
     tex += '\\subpaso{Equilibrio}\n';
     const ex = r.agua.filter(c=>Math.abs(c.Fx) > 1e-9), ey = r.agua.filter(c=>Math.abs(c.Fy) > 1e-9);

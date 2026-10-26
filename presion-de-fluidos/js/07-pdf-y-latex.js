@@ -986,11 +986,12 @@ function construirLatex(){
         filas.push('\\tan ' + letraR + ' &= \\frac{|R_' + (ru.ag.desdeV ? 'x' : 'y') + '|}{|R_' + (ru.ag.desdeV ? 'y' : 'x') + '|} = \\frac{' + f(Math.abs(ru.ag.desdeV ? ru.Rx : ru.Ry)) + '}{' + f(Math.abs(ru.ag.desdeV ? ru.Ry : ru.Rx)) + '}\\ \\Rightarrow\\ ' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ\\ \\text{(con la ' + ejeAng + ')}');
       if(ru.corta){
         const N = escLatex(ru.N.nombre);
-        const ts = ru.terminos.filter(q=>q.brazo > 1e-9);
+        // Por componentes salvo a lo largo de su propio tramo (2026-10-25).
+        const ts = terminosMomentoNum(ru.N, ru.cargas);
         let fm = '\\circlearrowleft{+}\\ \\sum M_{' + N + '} &= ';
         ts.forEach((q,i)=>{
           if(i > 0 && i % 3 === 0) fm += ' \\\\\n &\\qquad ';
-          fm += (i===0 ? (q.m<0?'-':'') : (q.m<0?' - ':' + ')) + f(q.c.F) + '(' + nl(q.brazo) + ')';
+          fm += (i===0 ? (q.m<0?'-':'') : (q.m<0?' - ':' + ')) + q.tex;
         });
         filas.push(fm + (ts.length ? '' : '0'));
         filas.push('&= ' + f(ru.MN) + UM);
@@ -1004,11 +1005,14 @@ function construirLatex(){
             + '. Su l\\\'inea de acci\\\'on corta el tramo ' + tr + ' en $P_R$, a $s = ' + nl(ru.s) + '$' + UL + ' de ' + N
             + (ru.zR !== null ? ' y a $z_R = ' + nl(ru.zR) + '$' + UL + ' bajo la superficie libre' : '') + '.}\n';
         } else {
-          filas.push('d &= \\frac{|\\sum M_{' + N + '}|}{R} = \\frac{' + f(Math.abs(ru.MN)) + '}{' + f(ru.F) + '} = ' + nl(ru.dR) + UL);
+          // La línea de acción por componentes (sin cotas diagonales): de N a P_R.
+          const dxR = ru.P.x - ru.N.x, dyR = ru.P.y - ru.N.y;
+          filas.push('R_y\\,\\Delta x - R_x\\,\\Delta y &= \\sum M_{' + N + '}:\\quad (' + f(ru.Ry) + ')(' + nl(dxR) + ') - (' + f(ru.Rx) + ')(' + nl(dyR) + ') = ' + f(ru.MN) + UM);
+          filas.push('P_R &= (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')' + UL);
           tex += lamina(esquemaResultanteTikZ(r, false, letraR), 'Resultante \\\'unica $R$ en $P_R$. Cotas en ' + uL + '.' + (inclinada ? ' $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$.' : ''));
           tex += '\\begin{align*}\n' + filas.join(' \\\\\n') + '\n\\end{align*}\n';
           tex += '\\resultado{$R = ' + f(ru.F) + '$' + UF + ' ' + iconoSentidoTex(ru.dir.x, ru.dir.y) + (inclinada ? ' a $' + letraR + ' = ' + dec(ru.ag.grados,'ang') + '^\\circ$ de la ' + ejeAng : '')
-            + '. Su l\\\'inea de acci\\\'on pasa a $d = ' + nl(ru.dR) + '$' + UL + ' de ' + N + ' y corta el arco ' + escLatex(nomTramo(ru.t)) + ' en $P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')$'
+            + '. Su l\\\'inea de acci\\\'on corta el arco ' + escLatex(nomTramo(ru.t)) + ' en $P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')$'
             + (ru.zR !== null ? ', a $z_R = ' + nl(ru.zR) + '$' + UL + ' bajo la superficie libre' : '') + '.}\n';
         }
       } else {

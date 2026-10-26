@@ -74,6 +74,14 @@ function partesMomento(C, P, dir, sub){
   return out;
 }
 
+// Los términos de la ΣM de unas fuerzas respecto de C, ya en números, con el
+// mismo criterio: «F (d)» a lo largo del tramo o «F sen θ (Δx)» por componentes.
+function terminosMomentoNum(C, fuerzas){
+  const out = [];
+  fuerzas.forEach(c=>partesMomento(C, c.P, c.dir, c.k).forEach(q=>out.push({m:q.m*c.F, tex:dec(c.F,'f') + q.numT + '\\,(' + dec(q.brazo,'len') + ')'})));
+  return out;
+}
+
 // ── Términos de cada ecuación, en LaTeX (los comparten pantalla y PDF) ──
 // Cada término es {v, lit, sus}: v da el signo real, `lit` es la expresión
 // con símbolos y `sus` la misma con los números (ambas en valor absoluto).
@@ -202,7 +210,7 @@ function resultanteUnicaHtml(r){
     + _gr(ag.grados) + '\\ \\text{(con la ' + (ag.desdeV ? 'vertical' : 'horizontal') + ')}\\ ' + iconoSentidoTex(ru.dir.x, ru.dir.y).replace(/\$/g,''));
   if(ru.corta){
     const N = ru.N.nombre;
-    const ts = ru.terminos.filter(q=>q.brazo > 1e-9).map((q,i)=>(i===0 ? (q.m<0?'-':'') : (q.m<0?' - ':' + ')) + f(q.c.F) + '(' + nl(q.brazo) + ')');
+    const ts = terminosMomentoNum(ru.N, ru.cargas).map((q,i)=>(i===0 ? (q.m<0?'-':'') : (q.m<0?' - ':' + ')) + q.tex);
     h += fila('\\circlearrowleft{+}\\ \\sum M_{' + N + '} = ' + (ts.join('') || '0') + ' = ' + f(ru.MN) + '\\ \\text{' + uF + '}\\cdot\\text{' + uL + '}');
     if(ru.recto){
       const otro = ru.otro.nombre;
@@ -210,8 +218,12 @@ function resultanteUnicaHtml(r){
       h += fila('s = \\dfrac{|\\sum M_{' + N + '}|}{R_n} = \\dfrac{' + f(Math.abs(ru.MN)) + '}{' + f(Math.abs(ru.Rn)) + '} = ' + nl(ru.s) + '\\ \\text{' + uL + '}');
       h += '<div class="hint-sm">' + kx('\\beta') + ': ángulo entre ' + kx('R') + ' y el tramo ' + N + otro + '; ' + kx('s') + ' desde ' + N + ' sobre ' + N + otro + '.</div>';
     } else {
-      h += fila('d = \\dfrac{|\\sum M_{' + N + '}|}{R} = ' + nl(ru.dR) + '\\ \\text{' + uL + '}\\qquad P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')');
-      h += '<div class="hint-sm">' + kx('d') + ': distancia de ' + N + ' a la línea de acción, que corta el arco ' + nomTramo(ru.t) + ' en ' + kx('P_R') + '.</div>';
+      // Sin cotas diagonales (2026-10-25): la línea de acción por componentes,
+      // R_y Δx − R_x Δy = ΣM_N, con Δx, Δy de N a P_R.
+      const dx = ru.P.x - ru.N.x, dy = ru.P.y - ru.N.y;
+      h += fila('R_y\\,\\Delta x - R_x\\,\\Delta y = \\sum M_{' + N + '}:\\quad (' + f(ru.Ry) + ')(' + nl(dx) + ') - (' + f(ru.Rx) + ')(' + nl(dy) + ') = ' + f(ru.MN));
+      h += fila('P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')\\ \\text{' + uL + '}');
+      h += '<div class="hint-sm">' + kx('\\Delta x,\\ \\Delta y') + ': de ' + N + ' a ' + kx('P_R') + ', donde la línea de acción corta el arco ' + nomTramo(ru.t) + '.</div>';
     }
   } else {
     h += fila('\\sum M_O = ' + f(ru.Mo) + '\\ \\text{' + uF + '}\\cdot\\text{' + uL + '}\\qquad P_R = (' + nl(ru.P.x) + ';\\ ' + nl(ru.P.y) + ')');

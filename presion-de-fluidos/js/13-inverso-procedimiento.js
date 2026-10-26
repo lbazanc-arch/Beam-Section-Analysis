@@ -166,6 +166,41 @@ function _intervaloInv(ys, ref, nivStar){
   return {Ha: a - ref, Hb: b - ref};
 }
 
+// ¿Está el punto C sobre el tramo recto `seg` (de A a B)?
+function _enSegmentoInv(C, seg){
+  const A = seg.A, B = seg.B, L = Math.hypot(B.x - A.x, B.y - A.y);
+  if(L < 1e-12) return false;
+  const ux = (B.x - A.x)/L, uy = (B.y - A.y)/L, tol = 1e-7*Math.max(1, L);
+  const s0 = (C.x - A.x)*ux + (C.y - A.y)*uy;
+  return Math.abs((C.x - A.x)*uy - (C.y - A.y)*ux) < tol && s0 > -tol && s0 < L + tol;
+}
+// Las dos partes del momento de una fuerza de dirección `dir` aplicada en
+// E0 + t·s(h), respecto de C: F_y·Δx(h) y −F_x·Δy(h). Cada una lleva su eje,
+// el factor de su componente (k, con signo), su brazo como polinomio (positivo
+// en el nivel hallado) y su signo.
+function _compsInv(C, E0, t, sPoly, dir, hs){
+  const out = [];
+  const ax = PH.add([E0.x - C.x], PH.esc(sPoly, t.x)), ay = PH.add([E0.y - C.y], PH.esc(sPoly, t.y));
+  [['x', dir.y, ax], ['y', -dir.x, ay]].forEach(([eje, k, arm])=>{
+    if(Math.abs(k) < 1e-12 || PH.limpio(arm).every(v=>Math.abs(v) < 1e-12)) return;
+    const va = PH.val(arm, hs), sa = Math.sign(va) || 1;
+    out.push({eje, k, brazo:PH.esc(arm, sa), signo:(Math.sign(k*va) || 1)});
+  });
+  return out;
+}
+// El brazo escrito: (1.20) si es un número, [1.20 + 0.60h] si depende de h.
+const _brazoTexInv = b => PH.limpio(b).length > 1 ? '\\left[' + polyHTex(b) + '\\right]' : '(' + polyHTex(b) + ')';
+// Las partes del momento de una incógnita respecto de C, con el mismo criterio:
+// a lo largo del tramo (una) o por componentes (dos). `u`: {nodo, d, coef} del plan.
+function _piezasIncInv(C, u){
+  if(!u || !u.nodo || !u.d || tramoComun(C, u.nodo, u.d)) return [{m:u ? u.coef : 0, c:1, brazo:Math.abs(u ? u.coef : 0)}];
+  const dx = u.nodo.x - C.x, dy = u.nodo.y - C.y, out = [];
+  if(Math.abs(u.d.y*dx) > 1e-12) out.push({m:u.d.y*dx, c:Math.abs(u.d.y), brazo:Math.abs(dx), eje:'x'});
+  if(Math.abs(u.d.x*dy) > 1e-12) out.push({m:-u.d.x*dy, c:Math.abs(u.d.x), brazo:Math.abs(dy), eje:'y'});
+  return out.length ? out : [{m:u.coef, c:1, brazo:Math.abs(u.coef)}];
+}
+const _piezaTexInv = (q, cola) => (Math.abs(q.c - 1) < 1e-9 ? '' : _numInv(q.c) + '\\times') + dec(q.brazo,'len') + '\\,' + cola;
+
 // Términos de una ecuación a partir de las partes y de las fuerzas constantes.
 // `que`: {tipo:'M', C} o {tipo:'Fx'|'Fy'}.
 function _terminosInv(segs, constantes, que, z, ref, nivStar, hs){
@@ -194,7 +229,11 @@ function _terminosInv(segs, constantes, que, z, ref, nivStar, hs){
         term = PH.mul(q.F, arm);
         const sg = Math.sign(PH.val(arm, hs)) || 1;
         brazo = PH.esc(arm, sg);                              // el brazo, positivo
-        partes.push({nom, tipo:q.tipo, banda:q.banda, F:q.F, brazo, signo:sg, seg, s:q.s, E0:q.E0, t:q.t, dir:q.dir});
+        // Sin cotas diagonales (2026-10-25, directriz del profesor): a lo largo
+        // del tramo solo si el centro está en ese mismo tramo; si no, por
+        // componentes, F_y por Δx(h) y F_x por Δy(h), desde el centro.
+        const comps = _enSegmentoInv(que.C, seg) ? null : _compsInv(que.C, q.E0, q.t, q.s, q.dir, hs);
+        partes.push({nom, tipo:q.tipo, banda:q.banda, F:q.F, brazo, signo:sg, seg, s:q.s, E0:q.E0, t:q.t, dir:q.dir, comps});
       } else {
         const k = que.tipo === 'Fx' ? q.dir.x : q.dir.y;
         term = PH.esc(q.F, k);
@@ -215,6 +254,11 @@ function _terminosInv(segs, constantes, que, z, ref, nivStar, hs){
     if(Math.abs(v) < 1e-12) return;
     cf.v = v;
     cf.brazo = que.tipo === 'M' ? Math.abs(v)/Math.max(1e-12, cf.F) : null;
+    if(que.tipo === 'M'){
+      const Fm = Math.hypot(cf.Fx, cf.Fy) || 1, dir = {x:cf.Fx/Fm, y:cf.Fy/Fm};
+      cf.comps = (cf.t && !arcoDeTramo(cf.t) && tramoComun(que.C, cf.P, dir)) ? null
+        : _compsInv(que.C, cf.P, {x:0, y:0}, [0], dir, 0).map(c=>Object.assign(c, {F:Math.abs(c.k)*cf.F}));
+    }
     P = PH.add(P, [v]);
     usadas.push(cf);
   });
@@ -428,13 +472,15 @@ const _coefTexInv = k => Math.abs(Math.abs(k) - 1) < 1e-9 ? '' : _numInv(Math.ab
 function _terminoTexInv(que, q){
   const F = polyHTex(q.F);
   if(que.tipo === 'M'){
-    const br = polyHTex(q.brazo);
-    return {s:q.signo, tex: _envolverInv(F) + '\\,' + (PH.limpio(q.brazo).length > 1 ? '\\left[' + br + '\\right]' : '(' + br + ')')};
+    // Por componentes: F(h)·(factor)·Δx(h) y F(h)·(factor)·Δy(h).
+    if(q.comps) return q.comps.map(c=>({s:c.signo, tex:_envolverInv(F) + (Math.abs(Math.abs(c.k) - 1) < 1e-9 ? '' : '\\,(' + _numInv(Math.abs(c.k)) + ')') + '\\,' + _brazoTexInv(c.brazo)}));
+    return {s:q.signo, tex: _envolverInv(F) + '\\,' + _brazoTexInv(q.brazo)};
   }
   const k = Math.abs(q.comp);
   return {s:q.signo, tex: _envolverInv(F) + (Math.abs(k - 1) < 1e-9 ? '' : '\\,(' + _numInv(k) + ')')};
 }
 function _constanteTexInv(que, cf){
+  if(que.tipo === 'M' && cf.comps) return cf.comps.map(c=>({s:c.signo, tex:dec(c.F, 'f') + '\\,' + _brazoTexInv(c.brazo)}));
   if(que.tipo === 'M') return {s:Math.sign(cf.v) || 1, tex: dec(cf.F, 'f') + '\\,(' + dec(cf.brazo,'len') + ')'};
   return {s:Math.sign(cf.v) || 1, tex: dec(Math.abs(cf.v),'f')};
 }
@@ -443,18 +489,34 @@ function _constanteTexInv(que, cf){
 // una intermedia, con su nombre.
 function _filasPasoInv(paso, pr){
   const ts = [];
-  paso.partes.forEach(q=>ts.push(_terminoTexInv(paso.que, q)));
-  paso.constantes.forEach(cf=>ts.push(_constanteTexInv(paso.que, cf)));
-  paso.prev.forEach(pv=>ts.push({s:Math.sign(pv.coef) || 1, tex:_coefTexInv(pv.coef) + pv.simb + '(h)'}));
+  const mete = x => [].concat(x).forEach(t=>ts.push(t));
+  paso.partes.forEach(q=>mete(_terminoTexInv(paso.que, q)));
+  paso.constantes.forEach(cf=>mete(_constanteTexInv(paso.que, cf)));
+  // Una incógnita en una ΣM, por componentes como las demás fuerzas.
+  const esM = paso.que.tipo === 'M';
+  const piezas = j => _piezasIncInv(paso.que.C, (paso.us || []).find(q=>q.j === j));
+  paso.prev.forEach(pv=>{
+    if(esM) piezas(pv.j).forEach(q=>ts.push({s:Math.sign(q.m) || 1, tex:_piezaTexInv(q, pv.simb + '(h)')}));
+    else ts.push({s:Math.sign(pv.coef) || 1, tex:_coefTexInv(pv.coef) + pv.simb + '(h)'});
+  });
   if(paso.final){
     if(Math.abs(pr.X) > 1e-12 && paso.coef){
-      const v = paso.coef*pr.X;
-      ts.push({s:Math.sign(v) || 1, tex:_coefTexInv(paso.coef) + '(' + dec(Math.abs(pr.X),'f') + ')'});
+      if(esM) piezas(paso.j).forEach(q=>ts.push({s:Math.sign(q.m*pr.X) || 1, tex:_piezaTexInv(q, '(' + dec(Math.abs(pr.X),'f') + ')')}));
+      else { const v = paso.coef*pr.X; ts.push({s:Math.sign(v) || 1, tex:_coefTexInv(paso.coef) + '(' + dec(Math.abs(pr.X),'f') + ')'}); }
     }
-  } else ts.push({s:Math.sign(paso.coef) || 1, tex:_coefTexInv(paso.coef) + paso.simb});
-  const filas = [];
-  for(let i=0;i<ts.length;i+=3)
-    filas.push(ts.slice(i, i+3).map((t, k)=>((i + k === 0) ? (t.s < 0 ? '-' : '') : (t.s < 0 ? ' - ' : ' + ')) + t.tex).join(''));
+  } else if(esM) piezas(paso.j).forEach(q=>ts.push({s:Math.sign(q.m) || 1, tex:_piezaTexInv(q, paso.simb)}));
+  else ts.push({s:Math.sign(paso.coef) || 1, tex:_coefTexInv(paso.coef) + paso.simb});
+  // Filas de a lo sumo tres términos y que no pasen de un largo visible: por
+  // componentes, cada término lleva su factor y su brazo y tres ya no cabían.
+  const filas = [], ancho = t => t.replace(/\\[a-zA-Z]+/g, '').replace(/[{}\\,^]/g, '').length;
+  let fila = '', nT = 0, largo = 0;
+  ts.forEach((t, i)=>{
+    const w = ancho(t.tex) + 3;
+    if(nT && (nT === 3 || largo + w > 58)){ filas.push(fila); fila = ''; nT = 0; largo = 0; }
+    fila += ((i === 0) ? (t.s < 0 ? '-' : '') : (t.s < 0 ? ' - ' : ' + ')) + t.tex;
+    nT++; largo += w;
+  });
+  if(fila) filas.push(fila);
   return filas;
 }
 // Las líneas (LaTeX) de una ecuación de la cadena, con su despeje.
@@ -497,7 +559,7 @@ function _validezTexInv(pr){
 // ecuación de momentos de la cadena, el punto de momentos y el brazo de cada
 // fuerza (d₁, d₂…), con su expresión en la leyenda.
 function figuraInversoDatos(pr){
-  const d = {lineas:[], poligono:null, nudos:[], flechas:[], brazos:[], centros:[], nivel:pr.ref + pr.raiz.h, ref:pr.ref};
+  const d = {lineas:[], poligono:null, nudos:[], flechas:[], brazos:[], xy:[], centros:[], nivel:pr.ref + pr.raiz.h, ref:pr.ref};
   if(pr.presa){
     const g = geomPresa(presa(pr.c.pid));
     d.poligono = g.verts.map(q=>({x:q.x, y:q.y}));
@@ -543,11 +605,27 @@ function figuraInversoDatos(pr){
       if(Math.hypot(Q.x - C.x, Q.y - C.y) < 1e-6) return;
       d.brazos.push({C, Q, P, nom:'d_{' + (++k) + '}', val});
     };
-    pasoM.partes.forEach(q=>{ const f = d.flechas.find(x=>x.nom === q.nom); if(f) brazo(f.P, f.dir, polyHTex(q.brazo)); });
-    pasoM.constantes.forEach(cf=>{ const Fm = Math.hypot(cf.Fx, cf.Fy) || 1; brazo(cf.P, {x:cf.Fx/Fm, y:cf.Fy/Fm}, dec(cf.brazo,'len')); });
+    // En x y en y desde el centro, salvo a lo largo de su propio tramo (2026-10-25).
+    let nxB = 0, nyB = 0;
+    const xy = (P, c, val) => {
+      const nom = c.eje === 'x' ? '\\Delta x_{' + (++nxB) + '}' : '\\Delta y_{' + (++nyB) + '}';
+      d.xy.push({C, P, eje:c.eje, nom, val});
+    };
+    pasoM.partes.forEach(q=>{
+      const f = d.flechas.find(x=>x.nom === q.nom); if(!f) return;
+      if(q.comps) q.comps.forEach(c=>xy(f.P, c, polyHTex(c.brazo)));
+      else brazo(f.P, f.dir, polyHTex(q.brazo));
+    });
+    pasoM.constantes.forEach(cf=>{
+      const Fm = Math.hypot(cf.Fx, cf.Fy) || 1;
+      if(cf.comps) cf.comps.forEach(c=>xy(cf.P, c, polyHTex(c.brazo)));
+      else brazo(cf.P, {x:cf.Fx/Fm, y:cf.Fy/Fm}, dec(cf.brazo,'len'));
+    });
     (pasoM.us || []).forEach(u=>{
       const inc = pr.r.inc[u.j];
-      brazo({x:inc.n.x, y:inc.n.y}, inc.dir, dec(Math.abs(u.coef),'len'));
+      const pz = _piezasIncInv(C, u);
+      if(pz.some(q=>q.eje)) pz.forEach(q=>xy({x:u.nodo.x, y:u.nodo.y}, q, dec(q.brazo,'len')));
+      else brazo({x:inc.n.x, y:inc.n.y}, inc.dir, dec(Math.abs(u.coef),'len'));
     });
   }
   // Cada brazo se dibuja como una COTA apartada de la estructura, del lado
@@ -575,7 +653,7 @@ const _TKCOL_INV = {presion:'bsaPres', presion2:'bsaPres!70!black', peso:'bsaPes
 // LaTeX corto (F_{1}^{\square}, R_{xB}, d_{1}) a SVG con subíndices.
 function _texASvgInv(t){
   const sim = s => s.replace(/\\square/g, '□').replace(/\\triangle/g, '△').replace(/\\perp/g, '⊥').replace(/\\parallel/g, '∥').replace(/[{}]/g, '');
-  const m = /^([A-Za-z]+)(?:_\{([^}]*)\})?(?:\^\{([^}]*)\})?('?)$/.exec(t);
+  const m = /^([A-Za-zΔ]+)(?:_\{([^}]*)\})?(?:\^\{([^}]*)\})?('?)$/.exec(t);
   if(!m) return sim(t);
   let s = m[1] + m[4];
   if(m[2]) s += '<tspan font-size="75%" dy="3">' + sim(m[2]) + '</tspan>';
@@ -593,7 +671,8 @@ function esquemaInversoSVG(pr){
   const minx = Math.min(...pts.map(q=>q.x)), maxx = Math.max(...pts.map(q=>q.x));
   const miny = Math.min(...pts.map(q=>q.y)), maxy = Math.max(...pts.map(q=>q.y));
   const k = Math.min(230/Math.max(maxx - minx, 1e-6), 190/Math.max(maxy - miny, 1e-6), 70);
-  const M = {l:130, r:150 + d.brazos.length*17, t:40, b:50};
+  const nX = d.xy.filter(b=>b.eje === 'x').length, nY = d.xy.filter(b=>b.eje === 'y').length;
+  const M = {l:130, r:150 + d.brazos.length*17 + nY*30, t:40, b:50 + nX*22};
   const W = (maxx - minx)*k + M.l + M.r, H = (maxy - miny)*k + M.t + M.b;
   const X = x => M.l + (x - minx)*k, Y = y => M.t + (maxy - y)*k;
   const f = v => v.toFixed(1);
@@ -627,6 +706,27 @@ function esquemaInversoSVG(pr){
     s += '<line x1="' + f(c1.x) + '" y1="' + f(c1.y) + '" x2="' + f(c2.x) + '" y2="' + f(c2.y) + '" stroke="#0b3f3a" stroke-width="0.9" marker-start="url(#invf-cota)" marker-end="url(#invf-cota)"/>';
     s += '<text x="' + f((c1.x + c2.x)/2 + b.n.x*9) + '" y="' + f((c1.y + c2.y)/2 - b.n.y*9 + 4) + '" font-size="12" font-style="italic" text-anchor="middle" fill="#0b3f3a">' + _texASvgInv(b.nom) + '</text>';
   });
+  // brazos en x (debajo de todo) y en y (a la derecha), un nivel por brazo
+  {
+    const yBase = Y(miny) + 46, xBase = X(maxx) + 120 + d.brazos.length*17;
+    let ix = 0, iy = 0;
+    d.xy.forEach(b=>{
+      const xc = X(b.C.x), yc = Y(b.C.y), xp = X(b.P.x), yp = Y(b.P.y);
+      if(b.eje === 'x'){
+        const yy = yBase + (ix++)*22;
+        s += '<line x1="' + f(xc) + '" y1="' + f(Y(miny) + 8) + '" x2="' + f(xc) + '" y2="' + f(yy + 4) + '" stroke="#9aa3ad" stroke-width="0.6" stroke-dasharray="2 2"/>';
+        s += '<line x1="' + f(xp) + '" y1="' + f(Y(miny) + 8) + '" x2="' + f(xp) + '" y2="' + f(yy + 4) + '" stroke="#9aa3ad" stroke-width="0.6" stroke-dasharray="2 2"/>';
+        s += '<line x1="' + f(xc) + '" y1="' + f(yy) + '" x2="' + f(xp) + '" y2="' + f(yy) + '" stroke="#0b3f3a" stroke-width="0.9" marker-start="url(#invf-cota)" marker-end="url(#invf-cota)"/>';
+        s += '<text x="' + f((xc + xp)/2) + '" y="' + f(yy - 4) + '" font-size="12" font-style="italic" text-anchor="middle" fill="#0b3f3a">' + _texASvgInv(b.nom.replace(/\\Delta /, 'Δ')) + '</text>';
+      } else {
+        const xx = xBase + (iy++)*30;
+        s += '<line x1="' + f(X(maxx) + 8) + '" y1="' + f(yc) + '" x2="' + f(xx + 4) + '" y2="' + f(yc) + '" stroke="#9aa3ad" stroke-width="0.6" stroke-dasharray="2 2"/>';
+        s += '<line x1="' + f(X(maxx) + 8) + '" y1="' + f(yp) + '" x2="' + f(xx + 4) + '" y2="' + f(yp) + '" stroke="#9aa3ad" stroke-width="0.6" stroke-dasharray="2 2"/>';
+        s += '<line x1="' + f(xx) + '" y1="' + f(yc) + '" x2="' + f(xx) + '" y2="' + f(yp) + '" stroke="#0b3f3a" stroke-width="0.9" marker-start="url(#invf-cota)" marker-end="url(#invf-cota)"/>';
+        s += '<text x="' + f(xx + 4) + '" y="' + f((yc + yp)/2 + 4) + '" font-size="12" font-style="italic" fill="#0b3f3a">' + _texASvgInv(b.nom.replace(/\\Delta /, 'Δ')) + '</text>';
+      }
+    });
+  }
   // fuerzas
   d.flechas.forEach(a=>{
     const px = X(a.P.x) + (a.lado ? a.lado.x*10 : 0), py = Y(a.P.y) - (a.lado ? a.lado.y*10 : 0), dx = a.dir.x, dy = -a.dir.y, L = 46;
@@ -654,9 +754,9 @@ function procesoInversoHtml(pr){
   // el esquema, con los brazos de la ecuación de momentos
   if(pr.figura){
     h += '<div class="inv-paso">Esquema (dibujado con h = ' + dec(pr.raiz.h,'len') + ' ' + uL + ')</div>' + esquemaInversoSVG(pr);
-    if(pr.figura.brazos.length)
+    if(pr.figura.brazos.length || pr.figura.xy.length)
       h += '<div class="hint-sm">Brazos respecto de ' + escLatex(pr.figura.centros[0].nombre) + ': '
-        + pr.figura.brazos.map(b=>kx(b.nom + ' = ' + b.val)).join(' · ') + ' (' + uL + ')</div>';
+        + pr.figura.brazos.concat(pr.figura.xy).map(b=>kx(b.nom + ' = ' + b.val)).join(' · ') + ' (' + uL + ')</div>';
   }
   if(pr.nodosP && pr.nodosP.length){
     h += '<div class="inv-paso">① Presiones</div><div class="eq-row"><div class="eq-body">'
@@ -860,8 +960,30 @@ function tkpDCLInverso(pr){
     o += '\\filldraw[fill=white, draw=bsaAcc2, line width=.9pt] (' + F(X(c.x)) + ',' + F(Y(c.y)) + ') circle (0.10);\n';
     if(pr.presa) o += tkpTexto(X(c.x) + 0.25, Y(c.y) - 0.3, '\\textbf{' + escLatex(c.nombre) + '}', 'font=\\scriptsize, color=bsaAcc2', 1, -1);
   });
-  if(d.brazos.length)
-    o += bsaLeyendaBrazosTikz(d.brazos.map(b=>({nom:b.nom, val:b.val + '\\,\\text{' + escLatex(unitLen) + '}'})));
+  // brazos en x (debajo de todo) y en y (a la derecha), un nivel por brazo
+  if(d.xy.length){
+    const e = _tkpCajas.reduce((a, c)=>({x0:Math.min(a.x0, c.x0), y0:Math.min(a.y0, c.y0), x1:Math.max(a.x1, c.x1), y1:Math.max(a.y1, c.y1)}),
+                               {x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity});
+    let ix = 0, iy = 0;
+    d.xy.forEach(b=>{
+      const xc = X(b.C.x), yc = Y(b.C.y), xp = X(b.P.x), yp = Y(b.P.y);
+      if(b.eje === 'x'){
+        const yy = e.y0 - 0.45 - (ix++)*0.40;
+        o += '\\draw[black!40, dashed, line width=.3pt] (' + F(xc) + ',' + F(e.y0 - 0.05) + ') -- (' + F(xc) + ',' + F(yy - 0.12) + ');\n';
+        o += '\\draw[black!40, dashed, line width=.3pt] (' + F(xp) + ',' + F(e.y0 - 0.05) + ') -- (' + F(xp) + ',' + F(yy - 0.12) + ');\n';
+        o += '\\draw[bsaAcc2, line width=.5pt, {Latex[length=1.2mm]}-{Latex[length=1.2mm]}] (' + F(xc) + ',' + F(yy) + ') -- (' + F(xp) + ',' + F(yy) + ');\n';
+        o += tkpTextoFijo((xc + xp)/2, yy, '$' + b.nom + '$', 'font=\\tiny, color=bsaAcc2');
+      } else {
+        const xx = e.x1 + 0.45 + (iy++)*0.42;
+        o += '\\draw[black!40, dashed, line width=.3pt] (' + F(e.x1 + 0.05) + ',' + F(yc) + ') -- (' + F(xx + 0.12) + ',' + F(yc) + ');\n';
+        o += '\\draw[black!40, dashed, line width=.3pt] (' + F(e.x1 + 0.05) + ',' + F(yp) + ') -- (' + F(xx + 0.12) + ',' + F(yp) + ');\n';
+        o += '\\draw[bsaAcc2, line width=.5pt, {Latex[length=1.2mm]}-{Latex[length=1.2mm]}] (' + F(xx) + ',' + F(yc) + ') -- (' + F(xx) + ',' + F(yp) + ');\n';
+        o += tkpTextoFijo(xx, (yc + yp)/2, '$' + b.nom + '$', 'font=\\tiny, color=bsaAcc2, rotate=90');
+      }
+    });
+  }
+  if(d.brazos.length || d.xy.length)
+    o += bsaLeyendaBrazosTikz(d.brazos.concat(d.xy).map(b=>({nom:b.nom, val:b.val + '\\,\\text{' + escLatex(unitLen) + '}'})));
   return o;
 }
 
