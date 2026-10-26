@@ -381,3 +381,34 @@ function fuerzasInternasMarco(res){
   salida.cadenas = todas;
   return salida;
 }
+
+// ── Grado de indeterminación estática con la fórmula de clase (2026-10-25,
+// petición del profesor): GIE = 3·b − (v_i + v_e). b: miembros, más cada biela
+// (o cuerda) entre dos nudos, que es una barra más. v_i: en cada pasador al que
+// llegan n barras, 2(n − 1); uno deslizante transmite una fuerza menos. v_e: las
+// reacciones de cada apoyo y un vínculo por cada cuerda, biela o tope anclado.
+// GIE = 0, isostático; < 0, hiperestático; > 0, inestable. Es el mismo recuento
+// que el del motor (ecuaciones − incógnitas), contado de otra manera. ──
+function gieMarco(){
+  const cuerpos = cuerposDelMarco(), P = pasadoresDelMarco(cuerpos);
+  const validos = vinculos.filter(vinculoValido);
+  const bielas = validos.filter(v=>v.b !== null && v.b !== undefined);
+  const b = cuerpos.length + bielas.length;
+  const vi = [], ve = [];
+  nodos.forEach(n=>{
+    const nc = (P.cuerposEnNudo[n.id] || []).length;
+    const nb = nc + bielas.filter(v=>v.a === n.id || v.b === n.id).length;
+    if(nc && nb >= 2){
+      const pin = P.pines.find(p=>p.n.id === n.id), desl = !!(pin && pin.desl);
+      vi.push({nombre:n.nombre, n:nb, v:2*(nb - 1) - (desl ? 1 : 0), desl});
+    }
+    const g = GRADOS[n.apoyo || 'libre'];
+    if(nc && g > 0) ve.push({nombre:n.nombre, tipo:NOMBRE_APOYO[n.apoyo].split(' /')[0], v:g});
+  });
+  validos.filter(v=>v.b === null || v.b === undefined)
+    .forEach(v=>ve.push({nombre:(nodo(v.a) || {}).nombre || '?', tipo:VIN_TIPOS[v.tipo].nom, v:1}));
+  const sVi = vi.reduce((s, q)=>s + q.v, 0), sVe = ve.reduce((s, q)=>s + q.v, 0);
+  const gie = 3*b - (sVi + sVe);
+  return {b, miembros:cuerpos.length, bielas:bielas.length, nombres:cuerpos.map(c=>c.nombre), vi, ve, sVi, sVe, gie,
+          lectura: gie === 0 ? 'isostático' : (gie < 0 ? 'hiperestático de grado ' + (-gie) : 'inestable: le falta' + (gie > 1 ? 'n ' + gie + ' vínculos' : ' 1 vínculo'))};
+}

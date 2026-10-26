@@ -757,6 +757,7 @@ function construirLatex(){
     });
     tex += '\\hline\n\\end{tabular}\\end{center}}\n';
   }
+  tex += gieTex();
   if(verInternasMarco){
     tex += '\\subpaso{Convenio de signos}\n';
     tex += '\\begin{center}\\begin{tikzpicture}[scale=.62]\n' + tikzConvenio()

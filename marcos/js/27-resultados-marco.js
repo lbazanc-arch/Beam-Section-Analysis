@@ -29,8 +29,20 @@ function renderErrorMarco(r){
                : 'Sobran ' + g + ': el marco es hiperestático y no se resuelve solo con la estática.');
   }
   else t = 'Los apoyos y las uniones no impiden el movimiento: el marco es un mecanismo. Revísalos.';
+  const gie = (r.error === 'determinacion' || r.error === 'singular') ? gieHtml(r.diag) : '';
   return '<div class="res-section"><div class="res-title"><div class="num">!</div>No se puede resolver</div>'
-       + '<div class="verdict bad"><div class="verdict-t">Equilibrio</div>' + t + '</div></div>';
+       + '<div class="verdict bad"><div class="verdict-t">Equilibrio</div>' + t + '</div>' + gie + '</div>';
+}
+
+// GIE = 3b − (vi + ve), con lo que se cuenta en cada sumando (24-, gieMarco).
+function gieHtml(d){
+  const g = gieMarco();
+  if(d && d.eq - d.inc !== g.gie) console.warn('Marcos: el GIE (' + g.gie + ') no casa con ecuaciones − incógnitas (' + (d.eq - d.inc) + ')');
+  const lst = a=>a.map(q=>'<b>' + q.nombre + '</b>: ' + q.v + (q.n ? ' (' + q.n + ' barras' + (q.desl ? ', deslizante' : '') + ')' : ' (' + q.tipo.toLowerCase() + ')')).join(' · ');
+  return _filaEc('\\text{GIE} = 3b - (v_i + v_e) = 3(' + g.b + ') - (' + g.sVi + ' + ' + g.sVe + ') = ' + g.gie
+           + '\\quad\\Rightarrow\\quad \\text{' + g.lectura + '}')
+    + '<div class="hint-sm" style="margin-top:4px">b = ' + g.miembros + (g.miembros === 1 ? ' miembro' : ' miembros') + (g.bielas ? ' + ' + g.bielas + ' entre nudos (biela o cuerda)' : '')
+    + (g.vi.length ? '<br>v<sub>i</sub>: ' + lst(g.vi) : '<br>v<sub>i</sub> = 0') + '<br>v<sub>e</sub>: ' + lst(g.ve) + '</div>';
 }
 
 function _filaEc(tex){ return '<div class="eq-row"><div class="eq-body">' + kx(tex) + '</div></div>'; }
@@ -51,7 +63,8 @@ function renderResultadosMarco(r){
     + '<div class="verdict ok"><div class="verdict-t">Resultado</div>Marco isostático: <b>' + d.inc + ' incógnitas</b> ('
     + d.reac + ' de apoyos' + (d.vin ? ' y vínculos' : '') + ' y ' + (d.inc - d.reac) + ' de pasador) y <b>' + d.eq
     + ' ecuaciones</b> (3 por cada uno de los ' + d.cuerpos + ' miembros' + (d.generales ? ' y 2 por cada pasador general' : '') + ').</div>'
-    + '<div class="hint-sm" style="margin-top:6px">Miembros: ' + lstC + (lstP ? '<br>Pasadores: ' + lstP : '') + '</div></div>';
+    + '<div class="hint-sm" style="margin-top:6px">Miembros: ' + lstC + (lstP ? '<br>Pasadores: ' + lstP : '') + '</div>'
+    + '<div class="proc-block" style="margin-top:8px">' + gieHtml(d) + '</div></div>';
 
   // 2 · Reacciones con el marco entero
   const pr = planReaccionesMarco(r);

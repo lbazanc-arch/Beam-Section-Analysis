@@ -9,7 +9,7 @@ function calcular(){
   ra.style.display = 'block';
   if(hint) hint.style.display = 'none';
   rp.style.display = 'block';
-  if(R.error){ rp.innerHTML = renderErrorMarco(R); dibujar(); return; }
+  if(R.error){ rp.innerHTML = renderErrorMarco(R); try{ renderKatex(rp); }catch(e){} dibujar(); return; }
   R.internas = fuerzasInternasMarco(R);
   rp.innerHTML = renderResultadosMarco(R);
   try{ renderKatex(rp); }catch(e){}

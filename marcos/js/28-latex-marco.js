@@ -145,6 +145,18 @@ function _valoresTex(qs){
   return '\\begin{gather*}\n' + filas.join(' \\\\\n') + '\n\\end{gather*}\n';
 }
 
+// GIE = 3b − (vi + ve), con lo que se cuenta en cada sumando (24-, gieMarco).
+function gieTex(){
+  const g = gieMarco();
+  const lst = a=>a.map(q=>escLatex(q.nombre) + ': ' + q.v
+    + (q.n ? ' (' + q.n + ' barras' + (q.desl ? ', deslizante' : '') + ')' : ' (' + escLatex(q.tipo.toLowerCase()) + ')')).join('; ');
+  return '\\subpaso{Grado de indeterminación estática}\n'
+    + '\\[ \\text{GIE} = 3b - (v_i + v_e) = 3(' + g.b + ') - (' + g.sVi + ' + ' + g.sVe + ') = ' + g.gie
+    + '\\quad\\Rightarrow\\quad \\text{' + escLatex(g.lectura) + '} \\]\n'
+    + '{\\small\\noindent $b = ' + g.b + '$: ' + g.nombres.map(escLatex).join(', ') + (g.bielas ? ' y ' + g.bielas + ' entre nudos (biela o cuerda)' : '')
+    + '\\\\\n$v_i$: ' + (g.vi.length ? lst(g.vi) : '0') + '\\\\\n$v_e$: ' + lst(g.ve) + '\\par}\n';
+}
+
 // ── Paso 1: reacciones con el marco entero ──
 function pasoReaccionesMarcoTex(R, figCaption){
   const pr = planReaccionesMarco(R);
