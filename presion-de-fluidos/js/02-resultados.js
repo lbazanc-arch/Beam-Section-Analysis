@@ -33,6 +33,47 @@ function _dondeIncognita(u, negrita){
   return u.n2 ? ' entre ' + b(u.n.nombre) + ' y ' + b(u.n2.nombre) : ' en ' + b(u.n.nombre);
 }
 
+// ── Brazos de un momento (2026-10-25, directriz del profesor): sin cotas
+//    diagonales. La distancia a lo largo de un tramo solo vale si el centro de
+//    momentos y el punto de la fuerza están en el MISMO tramo recto y la fuerza
+//    es normal a él (la distancia es del tramo); si no, la fuerza va por
+//    componentes, F_y por su brazo horizontal y F_x por el vertical, que son
+//    las cotas en x (abajo) y en y (a un lado) de su figura (tkpBrazos, 07-). ──
+function tramoComun(C, P, dir){
+  const tol = 1e-7*Math.max(1, Math.abs(C.x), Math.abs(C.y), Math.abs(P.x), Math.abs(P.y));
+  for(const t of tramos){
+    if(arcoDeTramo(t)) continue;
+    const a = nodo(t.a), b = nodo(t.b);
+    if(!a || !b) continue;
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    if(L < 1e-12) continue;
+    const ux = (b.x - a.x)/L, uy = (b.y - a.y)/L;
+    const sobre = Q => { const s0 = (Q.x - a.x)*ux + (Q.y - a.y)*uy;
+      return Math.abs((Q.x - a.x)*uy - (Q.y - a.y)*ux) < tol && s0 > -tol && s0 < L + tol; };
+    if(sobre(C) && sobre(P) && Math.abs(dir.x*ux + dir.y*uy) < 1e-6) return t;
+  }
+  return null;
+}
+// Las partes del momento de la fuerza unidad `dir` aplicada en P respecto de C:
+// una, con el brazo a lo largo del tramo (`arm` nulo), o dos, por componentes.
+// Cada parte: m (momento con signo), brazo, y el factor trigonométrico de su
+// componente, con letra (litT) y con número (numT).
+function partesMomento(C, P, dir, sub){
+  const m = (P.x - C.x)*dir.y - (P.y - C.y)*dir.x;
+  if(Math.abs(m) < 1e-9*Math.max(1, Math.hypot(P.x - C.x, P.y - C.y))) return [];
+  if(tramoComun(C, P, dir)) return [{m, brazo:Math.abs(m), litT:'', numT:'', arm:null}];
+  const out = [], dx = P.x - C.x, dy = P.y - C.y;
+  const trig = comp=>{
+    const c = comp === 'y' ? dir.y : dir.x;
+    if(Math.abs(Math.abs(c) - 1) < 1e-9) return {lit:'', num:''};
+    const {fn, ang} = _trigDir({tipo: comp === 'y' ? 'Fy' : 'Fx'}, dir);
+    return {lit:fn + letraAngulo(dir), num:fn + ' ' + _gr(ang)};
+  };
+  if(Math.abs(dir.y*dx) > 1e-9){ const tg = trig('y'); out.push({m:dir.y*dx, brazo:Math.abs(dx), litT:tg.lit, numT:tg.num, arm:'\\Delta x_{' + sub + '}', eje:'x'}); }
+  if(Math.abs(dir.x*dy) > 1e-9){ const tg = trig('x'); out.push({m:-dir.x*dy, brazo:Math.abs(dy), litT:tg.lit, numT:tg.num, arm:'\\Delta y_{' + sub + '}', eje:'y'}); }
+  return out;
+}
+
 // ── Términos de cada ecuación, en LaTeX (los comparten pantalla y PDF) ──
 // Cada término es {v, lit, sus}: v da el signo real, `lit` es la expresión
 // con símbolos y `sus` la misma con los números (ambas en valor absoluto).
@@ -46,10 +87,12 @@ function terminosCarga(ec, c){
     const {fn, ang} = _trigDir(ec, c.dir);
     return {v:comp, lit:c.nombre + fn + letraAngulo(c.dir), sus:F + fn + ' ' + _gr(ang)};
   }
-  // momento respecto del centro de la ecuación
+  // momento respecto del centro de la ecuación: a lo largo del tramo o por
+  // componentes (partesMomento); una lista de términos.
   const br = brazoRespecto(ec.centro, c.P, c.dir);
   if(br.brazo < 1e-7*Math.max(1, c.len)) return null;
-  return {v:br.m*c.F, lit:c.nombre + '\\,d_{' + c.k + '}', sus:F + '\\,(' + dec(br.brazo,'len') + ')', brazo:br.brazo};
+  return partesMomento(ec.centro, c.P, c.dir, c.k).map(q=>({v:q.m*c.F,
+    lit:c.nombre + q.litT + '\\,' + (q.arm || 'd_{' + c.k + '}'), sus:F + q.numT + '\\,(' + dec(q.brazo,'len') + ')', brazo:q.brazo}));
 }
 function terminosIncognita(ec, u, j){
   const s = simbIncognita(u);
@@ -66,7 +109,9 @@ function terminosIncognita(ec, u, j){
   if(br.brazo < 1e-7*Math.max(1, Math.abs(br.n.x), Math.abs(br.n.y))) return null;
   // El brazo de un vínculo lleva su nombre (d_{TAC}): el del nudo chocaría con
   // el de una reacción en el mismo nudo.
-  return {j, coef:br.m, lit:s + '\\,d_{' + (u.tipo === 'V' ? nombreVinculoPlano(u.vin) : br.n.nombre) + '}', sus:s + '\\,(' + dec(br.brazo,'len') + ')', factor:'(' + dec(br.brazo,'len') + ')', brazo:br.brazo};
+  const sub = (u.tipo === 'V' ? nombreVinculoPlano(u.vin) : br.n.nombre);
+  return partesMomento(ec.centro, br.n, br.d, sub).map(q=>({j, coef:q.m, lit:s + q.litT + '\\,' + (q.arm || 'd_{' + sub + '}'),
+    sus:s + q.numT + '\\,(' + dec(q.brazo,'len') + ')', factor:q.numT + '(' + dec(q.brazo,'len') + ')', brazo:q.brazo}));
 }
 function _sumaTerminos(lista, clave){
   if(!lista.length) return '0';
@@ -84,8 +129,10 @@ function _iconoEc(ec){
 function ecuacionDelPaso(r, paso){
   asignarLetrasAngulos(r);      // las mismas letras en pantalla y en el PDF
   const ec = r.plan.ecs[paso.e];
-  const cargasT = ec.ts.map(t=>terminosCarga(ec, t.carga)).filter(Boolean);
-  const incT = ec.us.map(u=>terminosIncognita(ec, r.inc[u.j], u.j)).filter(Boolean);
+  // Un momento por componentes da dos términos por fuerza: se aplanan.
+  const plano = l=>[].concat(...l.filter(Boolean).map(x=>[].concat(x)));
+  const cargasT = plano(ec.ts.map(t=>terminosCarga(ec, t.carga)));
+  const incT = plano(ec.us.map(u=>terminosIncognita(ec, r.inc[u.j], u.j)));
   const lit = [];
   incT.forEach(t=>lit.push({v: t.coef, lit: t.lit}));
   cargasT.forEach(t=>lit.push({v: t.v, lit: t.lit}));
@@ -104,10 +151,11 @@ function ecuacionDelPaso(r, paso){
   cargasT.forEach(t=>{ sumaConocida += t.v; sus.push({v: t.v, sus: t.sus}); });
   let despeje = null;
   if(paso.tipo === 'despeje'){
-    const t = incT.find(q=>q.j === paso.j);
+    const ts = incT.filter(q=>q.j === paso.j);
     const u = r.inc[paso.j];
     const valor = r.val[paso.j];
-    despeje = {simb: simbIncognita(u), valor, factor: t ? t.factor : '1', coef: t ? t.coef : 1, sumaConocida};
+    despeje = {simb: simbIncognita(u), valor, factor: ts.length === 1 ? ts[0].factor : '1',
+               coef: ts.length ? ts.reduce((a, q)=>a + q.coef, 0) : 1, sumaConocida};
   }
   return {ec, icono:_iconoEc(ec), literal:_sumaTerminos(lit,'lit') + ' = 0',
           sustituida:_sumaTerminos(sus,'sus') + ' = 0', despeje, incT, cargasT};

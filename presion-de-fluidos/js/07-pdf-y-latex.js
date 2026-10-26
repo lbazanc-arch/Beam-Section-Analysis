@@ -565,19 +565,22 @@ function tkpDCL(r, sel){
   return out;
 }
 
-// ── Figura de brazos de una ecuación de momentos (R10): el centro marcado y,
-//    para cada fuerza que produce momento, su línea de acción a trazos y la
-//    perpendicular desde el centro con su cota ──
-// Con `conLeyenda` (2026-10-04, petición del profesor) cada brazo lleva solo su
-// nombre ($d_1$) y los valores van en una leyenda al costado del DCL
-// (bsaLeyendaBrazosTikz, core). Se pasa a ese modo solo si, con los valores
-// escritos, alguno tuvo que apartarse de su cota (el registro lo alejó con guía).
+// ── Figura de brazos de una ecuación de momentos (R10): el centro marcado y
+//    cada fuerza que produce momento, con sus brazos acotados DESDE EL CENTRO
+//    (2026-10-25, directriz del profesor: sin cotas diagonales). En x, abajo, y
+//    en y, a un lado (el más cercano al centro), cada brazo en su nivel, del más
+//    corto al más largo, como el DCL de fuerzas internas; la ecuación toma la
+//    fuerza por componentes con esos brazos (partesMomento, 02-). Solo si el
+//    centro y la fuerza están en el mismo tramo recto y la fuerza es normal a
+//    él, el brazo es la distancia a lo largo del tramo, acotada a su lado. ──
+// Con `conLeyenda` cada cota lleva solo su nombre ($d_1$, $\Delta x_1$) y los
+// valores van en la leyenda «Brazos» (bsaLeyendaBrazosTikz, core). Se pasa a ese
+// modo solo si alguno no cabe en su cota.
 function tkpBrazos(r, ec, sel, conLeyenda){
   tkpReiniciar();
-  let desplazado = false;
   const caja = _cajaModelo();
   const {X, Y} = caja;
-  const F = v => v.toFixed(3);
+  const F = v => v.toFixed(3), uL = escLatex(unitLen);
   let out = '';
   const trVis = sel ? tramos.filter(t=>sel.tramos.indexOf(t.id) >= 0) : tramos;
   trVis.forEach(t=>{
@@ -586,66 +589,92 @@ function tkpBrazos(r, ec, sel, conLeyenda){
     out += '\\draw[bsaMuted!70, line width=1.2pt] ' + pts.map(p=>'(' + F(X(p.x)) + ',' + F(Y(p.y)) + ')').join(' -- ') + ';\n';
     for(let i=1;i<pts.length;i++) tkpOcuparTrazo(X(pts[i-1].x), Y(pts[i-1].y), X(pts[i].x), Y(pts[i].y), 0.06);
   });
-  const C = ec.centro;
-  out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.9pt] (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') circle (0.11);\n';
-  out += tkpTexto(X(C.x) + 0.3, Y(C.y) + 0.3, '\\textbf{' + escLatex(C.nombre) + '}', 'font=\\scriptsize, color=bsaAcc2', 1, 1);
+  const C = ec.centro, cx = X(C.x), cy = Y(C.y);
+  out += '\\filldraw[fill=white, draw=bsaAcc2, line width=.9pt] (' + F(cx) + ',' + F(cy) + ') circle (0.11);\n';
+  tkpOcupar(cx - 0.13, cy - 0.13, cx + 0.13, cy + 0.13);
+  out += tkpTexto(cx + 0.3, cy + 0.3, '\\textbf{' + escLatex(C.nombre) + '}', 'font=\\scriptsize, color=bsaAcc2', 1, 1);
   const filas = [];
-  ec.ts.forEach(t=>filas.push({P:t.carga.P, dir:t.carga.dir, nombre:t.carga.nombre, sub:String(t.carga.k), col:(t.carga.esPeso ? 'bsaPeso' : 'bsaPres'), brazo:t.brazo}));
+  ec.ts.forEach(t=>filas.push({P:t.carga.P, dir:t.carga.dir, nombre:t.carga.nombre, sub:String(t.carga.k), col:(t.carga.esPeso ? 'bsaPeso' : 'bsaPres')}));
   // El brazo de cada incógnita lo da la fuerza que produce el momento (u.nodo,
   // u.d del plan): en un vínculo que cruza la rótula, la del nudo de ese lado (14-).
   ec.us.forEach(u=>{
     const q = r.inc[u.j], nU = u.nodo || q.n, dU = u.d || q.dir, s = r.val[u.j] >= 0 ? 1 : -1;
     filas.push({P:{x:nU.x, y:nU.y}, dir:{x:dU.x*s, y:dU.y*s}, nombre:simbIncognita(q), sub:(q.tipo === 'V' ? nombreVinculoPlano(q.vin) : nU.nombre),
-                col:(q.tipo === 'V' ? VIN_TIPOS[q.vin.tipo].colTex : 'bsaReac'), brazo:u.brazo});
+                col:(q.tipo === 'V' ? VIN_TIPOS[q.vin.tipo].colTex : 'bsaReac')});
   });
-  // Brazos sobre la misma recta desde C (p. ej., fuerzas verticales): cotas
-  // corridas, cada rótulo en el trozo que añade su brazo, como en las cotas de
-  // fuerzas internas; si no, dos rótulos centrados en el mismo sitio se pisan.
-  filas.forEach(f=>{
-    const s = (f.P.x - C.x)*f.dir.x + (f.P.y - C.y)*f.dir.y;
-    f.bx = X(f.P.x - f.dir.x*s) - X(C.x); f.by = Y(f.P.y - f.dir.y*s) - Y(C.y);
-    f.bl = Math.hypot(f.bx, f.by);
-    f.clave = f.bl > 1e-6 ? Math.round(Math.atan2(f.by, f.bx)*180/Math.PI) : 'nulo';
-  });
-  {
-    const grupos = {};
-    filas.forEach(f=>{ (grupos[f.clave] = grupos[f.clave] || []).push(f); });
-    Object.values(grupos).forEach(g=>{
-      g.sort((a,b)=>a.bl - b.bl);
-      let ant = 0;
-      g.forEach(f=>{ f.t0 = ant; ant = f.bl; });
-    });
-  }
+  // Cada fuerza, una flecha corta que llega a su punto y su nombre.
+  const diag = [], xs = [], ys = [];
   filas.forEach(f=>{
     const px = X(f.P.x), py = Y(f.P.y);
-    // pie de la perpendicular desde C a la línea de acción
-    const dx = f.P.x - C.x, dy = f.P.y - C.y;
-    const s = dx*f.dir.x + dy*f.dir.y;
-    const Qx = f.P.x - f.dir.x*s, Qy = f.P.y - f.dir.y*s;      // pie, en el mundo
-    const qx = X(Qx), qy = Y(Qy);
-    // línea de acción prolongada hasta el pie, a trazos
-    out += '\\draw[' + f.col + '!70, dashed, line width=.5pt] (' + F(px) + ',' + F(py) + ') -- (' + F(qx) + ',' + F(qy) + ');\n';
-    // flecha corta de la fuerza en su punto
     out += '\\draw[-{Latex[length=1.8mm]}, ' + f.col + ', line width=1pt] (' + F(px - f.dir.x*0.9) + ',' + F(py - f.dir.y*0.9) + ') -- (' + F(px - f.dir.x*0.05) + ',' + F(py - f.dir.y*0.05) + ');\n';
     tkpOcuparTrazo(px - f.dir.x*0.9, py - f.dir.y*0.9, px, py, 0.08);
     out += tkpTexto(px - f.dir.x*1.15, py - f.dir.y*1.15, '$' + f.nombre + '$', 'font=\\scriptsize, color=' + f.col, -f.dir.x, -f.dir.y);
-    // brazo: del centro al pie, con cota
-    out += '\\draw[bsaAcc2, line width=.6pt] (' + F(X(C.x)) + ',' + F(Y(C.y)) + ') -- (' + F(qx) + ',' + F(qy) + ');\n';
-    const tm = f.bl > 1e-6 ? (f.t0 + f.bl)/2/f.bl : 0.5;
-    const mx = X(C.x) + (qx - X(C.x))*tm, my = Y(C.y) + (qy - Y(C.y))*tm;
-    const nx = -(qy - Y(C.y)), ny = (qx - X(C.x)); const nn = Math.hypot(nx,ny) || 1;
-    const rot = tkpTexto(mx + nx/nn*0.22, my + ny/nn*0.22,
-                         conLeyenda ? '$d_{' + f.sub + '}$' : '$d_{' + f.sub + '} = ' + dec(f.brazo,'len') + '$',
-                         'font=\\tiny, color=bsaAcc2', nx/nn, ny/nn);
-    if(rot.indexOf('gray!55') >= 0) desplazado = true;
-    out += rot;
-    // marca de perpendicular
-    out += '\\draw[bsaAcc2, line width=.4pt] (' + F(qx) + ',' + F(qy) + ') circle (0.03);\n';
+    partesMomento(C, f.P, f.dir, f.sub).forEach(q=>{
+      if(!q.arm) diag.push({f, brazo:q.brazo});
+      else if(q.eje === 'x') xs.push({v:f.P.x, f, brazo:q.brazo});
+      else ys.push({v:f.P.y, f, brazo:q.brazo});
+    });
   });
-  if(!conLeyenda && desplazado && filas.length > 1) return tkpBrazos(r, ec, sel, true);
-  if(conLeyenda)
-    out += bsaLeyendaBrazosTikz(filas.map(f=>({nom:'d_{' + f.sub + '}',
-      val:dec(f.brazo,'len') + '\\,\\text{' + escLatex(unitLen) + '}'})));
+  // Una cota por posición distinta (dos fuerzas en el mismo sitio la comparten).
+  const unicas = l=>{ const o = []; l.sort((a, b)=>a.brazo - b.brazo).forEach(q=>{ if(!o.some(z=>Math.abs(z.v - q.v) < 1e-6)) o.push(q); }); return o; };
+  const cx0 = unicas(xs), cy0 = unicas(ys);
+  const etq = (q, nom, ult)=>conLeyenda ? '$' + nom + '$' : '$' + dec(q.brazo,'len') + '$' + (ult ? '\\,' + uL : '');
+  const leyenda = [];
+  const nombre = (q, nom)=>{ if(conLeyenda && !leyenda.some(z=>z.nom === nom)) leyenda.push({nom, val:dec(q.brazo,'len') + '\\,\\text{' + uL + '}'}); return nom; };
+  let noCabe = false;
+  // A lo largo del tramo: del centro al punto, paralela al tramo, un nivel por
+  // fuerza y todas del mismo lado: el seco (hacia donde empuja el líquido). Si
+  // alguna flecha llega desde ese lado, las cotas empiezan pasada la flecha.
+  // Por tramo: con el centro en un nudo, dos tramos pueden tener las suyas.
+  const porTramo = {};
+  diag.forEach(q=>{ const t = tramoComun(C, q.f.P, q.f.dir); (porTramo[t ? t.id : 0] = porTramo[t ? t.id : 0] || []).push(q); });
+  Object.values(porTramo).forEach(grupo=>{
+  const ref = grupo.find(q=>!/bsaReac|!/.test(q.f.col)) || grupo[0];
+  const nS = {x:ref.f.dir.x, y:ref.f.dir.y};
+  const base0 = grupo.some(q=>-(q.f.dir.x*nS.x + q.f.dir.y*nS.y) > 0.5) ? 1.5 : 0.32;
+  grupo.sort((a, b)=>a.brazo - b.brazo).forEach((q, i)=>{
+    const f = q.f, ex = nS.x, ey = nS.y, off = base0 + 0.34*i;
+    const ax = cx + ex*off, ay = cy + ey*off, bx = X(f.P.x) + ex*off, by = Y(f.P.y) + ey*off;
+    out += '\\draw[black!45, line width=.35pt, dashed] (' + F(cx + ex*0.12) + ',' + F(cy + ey*0.12) + ') -- (' + F(ax + ex*0.1) + ',' + F(ay + ey*0.1) + ');\n';
+    out += '\\draw[black!45, line width=.35pt, dashed] (' + F(X(f.P.x) + ex*0.12) + ',' + F(Y(f.P.y) + ey*0.12) + ') -- (' + F(bx + ex*0.1) + ',' + F(by + ey*0.1) + ');\n';
+    out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] (' + F(ax) + ',' + F(ay) + ') -- (' + F(bx) + ',' + F(by) + ');\n';
+    tkpOcuparTrazo(ax, ay, bx, by, 0.05);
+    const t = etq(q, nombre(q, 'd_{' + f.sub + '}'), true);
+    if(tkpAncho(t, 'font=\\scriptsize') + 0.1 > Math.hypot(bx - ax, by - ay)) noCabe = true;
+    out += tkpTexto((ax + bx)/2 + ex*0.16, (ay + by)/2 + ey*0.16, t, 'font=\\scriptsize, color=black!75', ex, ey);
+  });
+  });
+  // En x, debajo de todo; en y, al lado más cercano al centro. Las guías salen
+  // de fuera del dibujo, para no cruzar flechas ni rótulos.
+  const ext = ()=>_tkpCajas.reduce((e, c)=>({x0:Math.min(e.x0, c.x0), y0:Math.min(e.y0, c.y0), x1:Math.max(e.x1, c.x1), y1:Math.max(e.y1, c.y1)}),
+                                  {x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity});
+  if(cx0.length){
+    const e = ext(), base = e.y0 - 0.45;
+    out += '\\draw[black!45, line width=.35pt, dashed] (' + F(cx) + ',' + F(Math.min(cy - 0.15, e.y0 - 0.05)) + ') -- (' + F(cx) + ',' + F(base - (cx0.length - 1)*0.40 - 0.15) + ');\n';
+    cx0.forEach((q, i)=>{
+      const yy = base - i*0.40, x1 = X(q.v);
+      out += '\\draw[black!45, line width=.35pt, dashed] (' + F(x1) + ',' + F(e.y0 - 0.05) + ') -- (' + F(x1) + ',' + F(yy - 0.15) + ');\n';
+      out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] (' + F(cx) + ',' + F(yy) + ') -- (' + F(x1) + ',' + F(yy) + ');\n';
+      const t = etq(q, nombre(q, '\\Delta x_{' + q.f.sub + '}'), i === cx0.length - 1);
+      if(tkpAncho(t, 'font=\\scriptsize') + 0.1 > Math.abs(x1 - cx)) noCabe = true;
+      out += tkpTextoFijo((cx + x1)/2, yy, t, 'font=\\scriptsize, color=black!75');
+    });
+  }
+  if(cy0.length){
+    const e = ext(), der = (e.x1 - cx) <= (cx - e.x0), sg = der ? 1 : -1;
+    const base = der ? e.x1 + 0.45 : e.x0 - 0.45, borde = der ? e.x1 + 0.05 : e.x0 - 0.05;
+    out += '\\draw[black!45, line width=.35pt, dashed] (' + F(cx + sg*0.15) + ',' + F(cy) + ') -- (' + F(base + sg*((cy0.length - 1)*0.42 + 0.15)) + ',' + F(cy) + ');\n';
+    cy0.forEach((q, i)=>{
+      const xx = base + sg*i*0.42, y1 = Y(q.v);
+      out += '\\draw[black!45, line width=.35pt, dashed] (' + F(borde) + ',' + F(y1) + ') -- (' + F(xx + sg*0.15) + ',' + F(y1) + ');\n';
+      out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] (' + F(xx) + ',' + F(cy) + ') -- (' + F(xx) + ',' + F(y1) + ');\n';
+      const t = etq(q, nombre(q, '\\Delta y_{' + q.f.sub + '}'), true);
+      if(tkpAncho(t, 'font=\\scriptsize') + 0.1 > Math.abs(y1 - cy)) noCabe = true;
+      out += tkpTextoFijo(xx, (cy + y1)/2, t, 'font=\\scriptsize, color=black!75, rotate=90');
+    });
+  }
+  if(!conLeyenda && noCabe && (diag.length + cx0.length + cy0.length) > 1) return tkpBrazos(r, ec, sel, true);
+  if(conLeyenda) out += bsaLeyendaBrazosTikz(leyenda);
   return out;
 }
 
