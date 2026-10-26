@@ -804,6 +804,9 @@ body{font-family:Inter,'Helvetica Neue',Arial,sans-serif;background:var(--bg);co
 .selT-tramo{cursor:pointer;}
 .selT-tramo:hover line:last-child{stroke-width:7;}
 .selT-res{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.5;}
+.selT-opc{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--text);
+  border:1px solid var(--border); border-radius:9px; background:#fff; padding:8px 11px; cursor:pointer; margin-top:10px;}
+.selT-opc input{width:16px; height:16px; flex:none; accent-color:var(--acc);}
 /* Corta y mira: ventana del punto de corte (19-, 2026-10-22). */
 #puntoCorteModal .modal.pc{max-width:600px; max-height:92vh; overflow-y:auto;}
 .pc-campos{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}

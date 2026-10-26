@@ -735,7 +735,8 @@ function construirLatex(){
   let tex = preambulo;
   tex += '\\begin{center}\n'
     + '  {\\LARGE\\bfseries\\color{bsaAcc} Marcos}\\\\[3pt]\n'
-    + '  {\\large\\color{bsaAcc2} Reacciones, fuerzas en los pasadores y diagramas de fuerza normal, cortante y momento}\\\\[3pt]\n'
+    + '  {\\large\\color{bsaAcc2} Reacciones, fuerzas en los pasadores'
+    + (verInternasMarco ? ' y diagramas de fuerza normal, cortante y momento' : '') + '}\\\\[3pt]\n'
     + '  {\\small\\color{bsaMuted} Informe generado: ' + escLatex(dt) + '}\n'
     + '\\end{center}\n\\vspace{6pt}\n\n';
 
@@ -756,10 +757,12 @@ function construirLatex(){
     });
     tex += '\\hline\n\\end{tabular}\\end{center}}\n';
   }
-  tex += '\\subpaso{Convenio de signos}\n';
-  tex += '\\begin{center}\\begin{tikzpicture}[scale=.62]\n' + tikzConvenio()
-       + '\\end{tikzpicture}\\end{center}\n';
-  tex += figCaption('Sentidos positivos de $N$, $V$ y $M$.');
+  if(verInternasMarco){
+    tex += '\\subpaso{Convenio de signos}\n';
+    tex += '\\begin{center}\\begin{tikzpicture}[scale=.62]\n' + tikzConvenio()
+         + '\\end{tikzpicture}\\end{center}\n';
+    tex += figCaption('Sentidos positivos de $N$, $V$ y $M$.');
+  }
 
   // ══ 2. Paso 1: reacciones ══
   tex += '\\seccion{2. Paso 1 --- Reacciones (todo el marco)}\n';
@@ -803,6 +806,8 @@ function construirLatex(){
   tex += desmembradoTex(R, _pr.completo, figCaption);
   tex += '\\seccion{4. Paso 3 --- DCL de los miembros}\n';
   tex += dclFinalesTex(R, figCaption);
+  // Sin fuerzas internas (20-, «Miembros de la solución»): el informe acaba aquí.
+  if(!verInternasMarco) return tex + colofonLatexBSA() + '\n\\end{document}\n';
 
   // ══ 3. Paso 2: el método elegido ══
   // El PDF sigue el método que el alumno escogió en la columna de control

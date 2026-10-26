@@ -87,6 +87,8 @@ function renderResultadosMarco(r){
     + ', momentos en ' + uMom() + ', cotas en ' + unitLen + ').</div>';
   elegidos.forEach(c=>{ h += '<div class="sub-tramo-cab">Miembro ' + c.nombre + '</div>' + svgDCLCuerpo(r, c.k); });
   h += '</div>';
+  // Sin fuerzas internas (20-, «Miembros de la solución»), aquí acaba.
+  if(!verInternasMarco) return h;
 
   // 5 · Fuerzas internas de los miembros elegidos
   h += '<div class="res-section"><div class="res-title"><div class="num">5</div>'

@@ -13,6 +13,10 @@
 let tramosSolucion = null;
 let _selPend = null;        // la selección mientras la ventana está abierta (Set de ids)
 let _selPrevia = null;      // R provisional, solo para la vista previa de los grupos
+// Marcos (2026-10-25, petición del profesor): las fuerzas internas (N, V, M) y
+// sus diagramas de los miembros elegidos, en pantalla y en el PDF, se pueden
+// quitar: a veces solo se piden las reacciones y las fuerzas en los pasadores.
+let verInternasMarco = true;
 
 // ¿Sale este tramo (un elemento de R.internas) en la solución?
 function tramoEnSolucion(seg){
@@ -42,6 +46,8 @@ function _selModal(){
     +   '<span>Todos los miembros</span></label>'
     +   '<div id="selTramosSVG" class="selT-svg"></div>'
     +   '<div id="selTramosRes" class="selT-res"></div>'
+    +   '<label class="selT-opc"><input type="checkbox" id="selInternas">'
+    +   '<span>Fuerzas internas y diagramas <b>N · V · M</b> de estos miembros (pantalla y PDF)</span></label>'
     +   '<div class="modal-btns">'
     +     '<button class="mbtn ghost" onclick="cerrarSeleccionTramos()">Cancelar</button>'
     +     '<button class="mbtn" onclick="confirmarSeleccionTramos()">Resolver</button>'
@@ -53,7 +59,6 @@ function _selModal(){
 
 // Lo que llama el botón Calcular. Con un solo cuerpo no hay nada que elegir.
 function resolverConSeleccion(){
-  if(cuerposDelMarco().length <= 1){ tramosSolucion = null; calcular(); return; }
   // Se calcula antes, para enseñar cómo quedarán los grupos. Si la estructura
   // no se puede resolver, Calcular enseña el motivo como siempre.
   let Rp = null;
@@ -67,6 +72,8 @@ function resolverConSeleccion(){
   _selPend = new Set(tramosSolucion ? tramosSolucion.filter(id=>ids.indexOf(id) >= 0) : ids);
   if(!_selPend.size) ids.forEach(id=>_selPend.add(id));
   _selModal().classList.add('show');
+  const ci = document.getElementById('selInternas');
+  if(ci) ci.checked = verInternasMarco;
   pintarSeleccionTramos();
 }
 function cerrarSeleccionTramos(){
@@ -78,6 +85,8 @@ function confirmarSeleccionTramos(){
   if(!_selPend || !_selPend.size){ aviso('Elige al menos un miembro.', 'error'); return; }
   const todos = tramos.every(t=>_selPend.has(t.id));
   tramosSolucion = todos ? null : tramos.map(t=>t.id).filter(id=>_selPend.has(id));
+  const ci = document.getElementById('selInternas');
+  if(ci) verInternasMarco = ci.checked;
   cerrarSeleccionTramos();
   calcular();
 }
