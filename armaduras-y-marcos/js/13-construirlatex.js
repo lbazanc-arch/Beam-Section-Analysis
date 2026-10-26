@@ -50,6 +50,26 @@ function _filaArm(izq, terms, cola, porFila){
   });
   return s + (cola || '');
 }
+// Los términos de una ΣM del método de secciones, por componentes: cada fuerza
+// da Fy·Δx − Fx·Δy con Δx, Δy desde el centro de momentos, que son las cotas de
+// su figura de brazos. La incógnita lleva su coseno director (4 decimales).
+function _terminosMomentoArm(p, nomF){
+  const C = p.centro, t = [], f4 = v => (Math.round(v*10000)/10000).toFixed(4);
+  const dx = p.d.px - C.x, dy = p.d.py - C.y;
+  const inc = (c, d) => (Math.abs(Math.abs(c) - 1) < 1e-9 ? '' : f4(Math.abs(c)) + '\\times') + dec(Math.abs(d),'len') + '\\,' + nomF;
+  if(Math.abs(p.d.uy*dx) > 1e-9) t.push({v:p.d.uy*dx, tex:inc(p.d.uy, dx)});
+  if(Math.abs(p.d.ux*dy) > 1e-9) t.push({v:-p.d.ux*dy, tex:inc(p.d.ux, dy)});
+  p.detalle.forEach(x=>{
+    const ddx = x.x - C.x, ddy = x.y - C.y;
+    if(Math.abs(x.fy*ddx) > 1e-9) t.push({v:x.fy*ddx, tex:dec(Math.abs(x.fy),'f') + '\\times' + dec(Math.abs(ddx),'len')});
+    if(Math.abs(x.fx*ddy) > 1e-9) t.push({v:-x.fx*ddy, tex:dec(Math.abs(x.fx),'f') + '\\times' + dec(Math.abs(ddy),'len')});
+  });
+  // Autocontrol: lo escrito suma lo mismo que el motor.
+  const coef = t.filter(q=>q.tex.indexOf(nomF) >= 0).reduce((s, q)=>s + q.v, 0);
+  if(Math.abs(coef - p.coef) > 1e-6*Math.max(1, Math.abs(p.coef)))
+    console.warn('Informe LaTeX: la ΣM por componentes no reproduce el brazo de ' + nomF, {coef, motor:p.coef});
+  return t;
+}
 // Coeficiente en valor absoluto, listo para ir delante de un símbolo.
 function _coefAbs(c){
   const a = Math.abs(c);
@@ -500,8 +520,12 @@ function construirLatex(){
       tex += figura(dcl.tikz, ESC_PORCION, 'Porci\\\'on aislada por el corte.' + _angulosArm(dcl.angulos));
       items.forEach((p, i)=>{
         const nk = ++eqN;
-        const terms = [{v:p.coef, tex:_coefAbs(p.coef) + 'F_{' + nomB(p.d.barra) + '}'}]
+        let terms = [{v:p.coef, tex:_coefAbs(p.coef) + 'F_{' + nomB(p.d.barra) + '}'}]
           .concat(p.detalle.map(x=>({v:x.val, tex:dec(Math.abs(x.val),'f')})));
+        // ΣM por componentes, con los brazos en x y en y de su figura (2026-10-25,
+        // directriz del profesor): F_y por su brazo horizontal y F_x por el
+        // vertical; una barra inclinada, con su coseno director delante.
+        if(p.tipo === 'momento') terms = _terminosMomentoArm(p, 'F_{' + nomB(p.d.barra) + '}');
         let etq;
         if(p.tipo === 'momento'){
           const c = etqC[i], nomC = c ? c.tex : 'O';

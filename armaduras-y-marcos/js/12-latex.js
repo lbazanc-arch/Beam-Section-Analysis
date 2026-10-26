@@ -762,7 +762,7 @@ function tikzBrazosMomento(O, fuerzas, tx, ty, ext, reg){
   let s = '';
   // Si el punto de momentos no cae sobre un nudo dibujado, se marca: sin verlo,
   // las cotas arrancarían de la nada.
-  if(!nodos.some(n=>Math.abs(n.x - O.x) < 1e-6 && Math.abs(n.y - O.y) < 1e-6)){
+  if(!(ext && ext.sinMarca) && !nodos.some(n=>Math.abs(n.x - O.x) < 1e-6 && Math.abs(n.y - O.y) < 1e-6)){
     s += '\\filldraw[black!65] (' + F(x0) + ',' + F(y0) + ') circle (1.6pt);\n';
     if(reg){ reg.caja(x0, y0, 0.12/e, 0.12/e, 'punto', {nudo:'O'}); s += _rotuloNudo(reg, x0, y0, O.nombre || 'O', 'bsaNudo, text=black!65', 'O'); }
     else s += '\\node[bsaNudo, below left] at (' + F(x0) + ',' + F(y0) + ') {' + escLatex(O.nombre || 'O') + '};\n';
@@ -1074,74 +1074,18 @@ function tikzBrazosCorte(lado, datosCorte, item, nombreCentro, escala){
     r.res.forEach(({f, c}) => lineas.push({f:f.f, tramo:{rx:c.rx, ry:c.ry, t1:c.hueco + Lf}}));
   });
   s += _dibujarArcos(arcos, gen, reg, angulos);
-  // Brazo de cada fuerza: la cota desde C hasta el pie de la perpendicular.
-  // Primero todas las líneas de cota y después todos sus textos: cuando varias
-  // cotas salen del mismo centro sobre la misma recta, el texto de la corta caía
-  // sobre la línea de la larga, y como esa línea se dibujaba después, lo tachaba.
-  // Ahora el texto (con fondo blanco) va encima y evita, si puede, las otras cotas.
-  const trazos = [], pies = [], textosCota = [];
-  lineas.forEach(({f, tramo})=>{
-    const brazo = Math.abs((C.x-f.x)*f.uy - (C.y-f.y)*f.ux);
-    if(brazo < 1e-6) return;
-    const tp = ((C.x-f.x)*tramo.rx + (C.y-f.y)*tramo.ry)*k;   // pie, a lo largo del rayo de la flecha (unidades de figura)
-    const px = X(f.x), py = Y(f.y), fx0 = px + tramo.rx*tp, fy0 = py + tramo.ry*tp;
-    // Línea de acción a trazos hasta el pie, desde donde acaba la flecha.
-    if(tp > tramo.t1) trazos.push([px + tramo.rx*tramo.t1, py + tramo.ry*tramo.t1, fx0, fy0, f.col]);
-    else if(tp < 0) trazos.push([px, py, fx0, fy0, f.col]);
-    // Dos fuerzas con la misma línea de acción (la carga y la barra de un mismo
-    // nudo) comparten brazo: la cota se dibuja una vez. Antes salía «3.00 m 3.00 m».
-    if(pies.some(p => Math.hypot(p[0]-fx0, p[1]-fy0) < 1e-4)) return;
-    pies.push([fx0, fy0]);
-    s += '\\draw[<->, >=stealth, bsaMuted, line width=0.5pt] (' + F(cx) + ',' + F(cy) + ') -- (' + F(fx0) + ',' + F(fy0) + ');\n';
-    const idCota = textosCota.length;
-    reg.seg(cx, cy, fx0, fy0, 0.02/esc, 'cota', {idCota});
-    textosCota.push({brazo, fx0, fy0, idCota});
-  });
-  // Si algún valor no encuentra sitio limpio (ni sobre su línea ni a un lado),
-  // todas las cotas se nombran ($d_1$…) y los valores van en una leyenda al
-  // costado (2026-10-04). Se prueba antes de escribir nada.
-  const sitioLimpio = (txt, fx0, fy0, idCota) => {
-    const cj = _cajaRotuloArm(txt, 'scriptsize', esc);
-    const Lc = Math.hypot(fx0-cx, fy0-cy) || 1e-9, nx = -(fy0-cy)/Lc, ny = (fx0-cx)/Lc;
-    const enT = t => [cx + (fx0-cx)*t, cy + (fy0-cy)*t];
-    const libre = p => !reg.choca(_polCaja(p[0], p[1], cj.w, cj.h), 0.02/esc,
-                  it => it.tipo !== 'barra' && (it.tipo !== 'cota' || it.idCota !== idCota));
-    const ts = [0.5, 0.35, 0.65, 0.22, 0.78];
-    const dn = (Math.abs(nx)*cj.w + Math.abs(ny)*cj.h)/2 + 0.04/esc;
-    return ts.map(enT).some(libre)
-        || ts.map(enT).some(p => libre([p[0] + nx*dn, p[1] + ny*dn]) || libre([p[0] - nx*dn, p[1] - ny*dn]));
-  };
-  const conLeyenda = textosCota.length > 1
-    && !textosCota.every(q => sitioLimpio(dec(q.brazo,'len') + '\\,' + escLatex(unitLen), q.fx0, q.fy0, q.idCota));
-  const filasLeyenda = [];
-  textosCota.forEach(({brazo, fx0, fy0, idCota}) => {
-    let txt = dec(brazo,'len') + '\\,' + escLatex(unitLen);
-    if(conLeyenda){
-      const kk = filasLeyenda.length + 1;
-      filasLeyenda.push({nom:'d_{' + kk + '}', val:dec(brazo,'len') + '\\,\\text{' + escLatex(unitLen) + '}'});
-      txt = '$d_{' + kk + '}$';
-    }
-    const cj = _cajaRotuloArm(txt, 'scriptsize', esc);
-    const Lc = Math.hypot(fx0-cx, fy0-cy) || 1e-9, nx = -(fy0-cy)/Lc, ny = (fx0-cx)/Lc;
-    const enT = t => [cx + (fx0-cx)*t, cy + (fy0-cy)*t];
-    const libre = (p, conCotas) => !reg.choca(_polCaja(p[0], p[1], cj.w, cj.h), 0.02/esc,
-                  it => it.tipo !== 'barra' && (it.tipo !== 'cota' || (conCotas && it.idCota !== idCota)));
-    const ts = [0.5, 0.35, 0.65, 0.22, 0.78];
-    // Sobre su línea sin tocar otra cota; si no, a un lado de ella; y si tampoco,
-    // sobre su línea como antes (el fondo blanco la tapa).
-    const dn = (Math.abs(nx)*cj.w + Math.abs(ny)*cj.h)/2 + 0.04/esc;
-    let pos = ts.map(enT).find(p => libre(p, true));
-    if(!pos) pos = ts.map(enT).reduce((a, p) => a.concat([[p[0] + nx*dn, p[1] + ny*dn], [p[0] - nx*dn, p[1] - ny*dn]]), [])
-                   .find(p => libre(p, true));
-    if(!pos) pos = ts.map(enT).find(p => libre(p, false)) || enT(0.5);
-    s += '\\node[bsaCota, text=bsaMuted] at (' + F(pos[0]) + ',' + F(pos[1]) + ') {' + txt + '};\n';
-    reg.caja(pos[0], pos[1], cj.w, cj.h, 'rotulo');
-  });
+  // Brazos en horizontal y en vertical desde C, uno por nivel, como en el DCL
+  // global (2026-10-25, directriz del profesor: los brazos se acotan solo en x
+  // y en y; antes, la perpendicular a la línea de acción). La ecuación escribe
+  // cada fuerza inclinada por sus dos componentes, con estos mismos brazos.
   nl.forEach(n=>{ s += _rotuloNudo(reg, X(n.x), Y(n.y), n.nombre, 'bsaNudo, text=black!70', n.id); });
   if(!enPorcion) s += _rotuloNudo(reg, cx, cy, nombreCentro, 'bsaNudo, text=black!65', 'C');
   pend.forEach(p=>{ s += _rotuloTrasExtremo(p.ex, p.ey, p.dx, p.dy, p.txt, 'bsaRot, text=' + p.col, esc, reg, p.largo); });
-  trazos.forEach(t=>{ s += _trazoEvitando(reg, t[0], t[1], t[2], t[3], _tinte(t[4], 60) + ', dashed, line width=0.45pt'); });
-  s += bsaLeyendaBrazosTikz(filasLeyenda);
+  // Las cotas, después de los rótulos (así quedan por debajo de todo) y con las
+  // guías desde la porción, no desde la armadura entera.
+  const yTopB = Math.min(...nl.map(n=>Y(n.y)), cy) - 0.10/esc;
+  s += tikzBrazosMomento(C, lineas.map(({f})=>({x:f.x, y:f.y, fx:f.ux, fy:f.uy})), x=>F(X(x)), y=>F(Y(y)), {sinMarca:true, yTop:yTopB}, reg);
+  s += tikzBrazosMomento.leyenda;
   return {tikz:s, enPorcion, angulos};
 }
 
