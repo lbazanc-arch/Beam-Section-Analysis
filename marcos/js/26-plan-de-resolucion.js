@@ -1,16 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 //  MARCOS — CÓMO SE ESCRIBE LA RESOLUCIÓN (2026-10-25)
-//  El motor (24-) resuelve todo de una vez; aquí se ordena como en clase:
-//  1. Reacciones con el marco entero: ΣFx, ΣFy y ΣM respecto del apoyo con más
-//     incógnitas. Si hay más reacciones que tres, se añaden ecuaciones de UN
-//     LADO de un pasador: ΣM respecto del pasador de lo que queda a un lado (sus
-//     fuerzas no dan momento), y en un deslizante también ΣF a lo largo del
-//     tramo por el que corre. Solo entran las que de verdad aportan (rango).
-//  2. Desmembrado: se van resolviendo los cuerpos (tres ecuaciones) y los
-//     pasadores generales (dos) que en cada momento tienen tantas incógnitas
-//     como ecuaciones independientes, empezando por el de menos incógnitas; en
-//     un cuerpo, ΣM respecto del punto por el que pasan más incógnitas.
-//  Si algo no sale así (raro), lo que queda se resuelve como sistema.
+//  El motor (24-) resuelve todo de una vez; aquí se ordena como en clase, un
+//  DCL detrás de otro y cada uno con SUS ecuaciones (`planMarco`).
 // ═══════════════════════════════════════════════════════════
 const EPS_PLAN = 1e-9;
 
@@ -53,157 +44,115 @@ function _ecuacionSobre(r, dentro, e, P, dir){
   coef.forEach((v, j)=>{ if(Math.abs(v) < 1e-12*esc) coef[j] = 0; });
   return {coef, cte, e, P, dir};
 }
-// Cuerpos que quedan a un lado del pasador p, partiendo del cuerpo k (sin cruzar p).
-function _ladoDelPasador(r, p, k){
-  const lado = new Set([k]), cola = [k];
-  while(cola.length){
-    const c = cola.shift();
-    r.pines.forEach(q=>{
-      if(q === p || q.cuerpos.indexOf(c) < 0) return;
-      q.cuerpos.forEach(o=>{ if(!lado.has(o)){ lado.add(o); cola.push(o); } });
-    });
-  }
-  return lado;
-}
-
-// ── 1. Reacciones ──
-function planReaccionesMarco(r){
-  const nR = r.inc.length, colsR = r.inc.map((u, j)=>j);
-  const todo = ()=>true;
-  // Punto de momentos: el nudo donde se juntan más reacciones de fuerza.
-  const cuenta = {};
-  r.inc.forEach(u=>{ if(u.tipo === 'M' && u.ang === undefined) return; if(u.tipo === 'V') return; cuenta[u.n.id] = (cuenta[u.n.id] || 0) + 1; });
-  let O = null, mx = -1;
-  nodos.forEach(n=>{ if((cuenta[n.id] || 0) > mx){ mx = cuenta[n.id] || 0; O = n; } });
-  if(!O || mx <= 0) O = {x:0, y:0, nombre:'O', id:null};
-  const filas = [
-    Object.assign(_ecuacionSobre(r, todo, 'x'), {titulo:'marco', cuerpos:null}),
-    Object.assign(_ecuacionSobre(r, todo, 'y'), {titulo:'marco', cuerpos:null}),
-    Object.assign(_ecuacionSobre(r, todo, 'm', O), {titulo:'marco', cuerpos:null, punto:O})
-  ];
-  // Candidatas de un lado de cada pasador.
-  const cand = [];
-  r.pines.forEach(p=>{
-    p.cuerpos.forEach(k=>{
-      const lado = _ladoDelPasador(r, p, k);
-      if(lado.size === r.cuerpos.length) return;
-      const dentroPin = new Set(r.pines.filter(q=>q !== p && q.cuerpos.every(c=>lado.has(c))).map(q=>q.i));
-      const dentro = d=>(d.cuerpo !== undefined) ? lado.has(d.cuerpo) : dentroPin.has(d.pin);
-      const nom = [...lado].map(c=>r.cuerpos[c].nombre).join(', ');
-      const eqs = [Object.assign(_ecuacionSobre(r, dentro, 'm', p.n), {punto:p.n})];
-      if(p.desl){
-        const t = tangenteEnNudo(p.desl.tramo, p.n.id);
-        eqs.push(Object.assign(_ecuacionSobre(r, dentro, 't', null, t), {dirNombre:nomTramo(p.desl.tramo)}));
-      }
-      eqs.forEach(eq=>{
-        // Solo vale si no le entra ninguna fuerza de pasador.
-        if(eq.coef.some((v, j)=>j >= nR && Math.abs(v) > EPS_PLAN)) return;
-        if(!eq.coef.some((v, j)=>j < nR && Math.abs(v) > EPS_PLAN)) return;
-        cand.push(Object.assign(eq, {titulo:'lado', cuerpos:[...lado], nombreLado:nom, pin:p}));
-      });
-    });
-  });
-  const usadas = filas.slice();
-  let rg = _rango(usadas.map(f=>f.coef), colsR);
-  cand.forEach(c=>{
-    if(rg >= nR) return;
-    const nr = _rango(usadas.concat([c]).map(f=>f.coef), colsR);
-    if(nr > rg){ usadas.push(c); rg = nr; }
-  });
-  // Solo vale si se resuelve como en clase: de una en una, o como mucho tres
-  // ecuaciones juntas. Si obliga a un sistema mayor (el marco de los ejercicios
-  // PC4, P1: siete reacciones acopladas), las reacciones salen mejor
-  // desmembrando desde el miembro que se resuelve solo (2026-10-25).
-  if(rg >= nR && !_secuenciable(usadas, colsR))
-    return {filas:filas, completo:false, punto:O};
-  return {filas:usadas, completo: rg >= nR, punto:O};
-}
-// ¿Se resuelven estas ecuaciones por grupos de a lo sumo tres, cada grupo con
-// tantas incógnitas nuevas como ecuaciones?
-function _secuenciable(eqs, cols){
-  const sabidas = new Set(), quedan = eqs.slice();
-  const nuevas = es=>{ const s = new Set(); es.forEach(e=>cols.forEach(j=>{ if(Math.abs(e.coef[j]) > EPS_PLAN && !sabidas.has(j)) s.add(j); })); return [...s]; };
-  let guard = 0;
-  while(quedan.length && guard++ < 50){
-    let hecho = false;
-    for(let k=1;k<=3 && !hecho;k++){
-      const idx = [];
-      const prueba = (ini, prof)=>{
-        if(hecho) return;
-        if(prof === k){
-          const g = idx.map(i=>quedan[i]), U = nuevas(g);
-          if(U.length === k && _rango(g.map(e=>e.coef), U) === k){
-            U.forEach(j=>sabidas.add(j));
-            idx.slice().sort((a,b)=>b-a).forEach(i=>quedan.splice(i, 1));
-            hecho = true;
+// ── El plan, DCL por DCL (2026-10-25, corrección del profesor: «si analizas el
+// DCL general empleas solo sus ecuaciones; después, cada miembro con las
+// suyas»). Antes el paso del marco entero mezclaba ecuaciones de un lado de un
+// pasador, que son en realidad las de otro DCL.
+// Primero el marco entero (ΣFx, ΣFy, ΣM respecto del apoyo con más
+// reacciones). Después, uno a uno, los miembros (y los pasadores generales,
+// que son su propio DCL): en cada vuelta el que más incógnitas deja resueltas,
+// con su ΣM respecto del punto que más ayuda. Cada ecuación lleva su número, y
+// tras cada DCL se despeja lo que ya se puede con TODO lo escrito hasta ahí,
+// en grupos de una, dos o tres ecuaciones («De (3) y (5): …»). Lo que no sale
+// así se resuelve al final como sistema (raro).
+function planMarco(r){
+  const nU = r.unk.length, pool = [], pasos = [];
+  const sabidas = new Set();
+  let num = 0;
+  const incDe = (eq, S)=>{ const u = []; eq.coef.forEach((v, j)=>{ if(Math.abs(v) > EPS_PLAN && !S.has(j)) u.push(j); }); return u; };
+  // Despeja con las ecuaciones `eqs` lo que se pueda, en grupos de 1 a 3.
+  const despejar = (eqs, S)=>{
+    const grupos = [];
+    for(let vuelta = 0; vuelta < 200; vuelta++){
+      let hallado = null;
+      for(let k = 1; k <= 3 && !hallado; k++){
+        const vivas = eqs.filter(eq=>{ const n = incDe(eq, S).length; return n >= 1 && n <= k; });
+        const idx = [];
+        const prueba = ini=>{
+          if(hallado) return;
+          if(idx.length === k){
+            const g = idx.map(i=>vivas[i]), U = [...new Set([].concat(...g.map(eq=>incDe(eq, S))))];
+            if(U.length === k && _rango(g.map(eq=>eq.coef), U) === k) hallado = {eqs:g, U};
+            return;
           }
-          return;
-        }
-        for(let i=ini;i<quedan.length && !hecho;i++){ idx.push(i); prueba(i+1, prof+1); idx.pop(); }
-      };
-      prueba(0, 0);
+          for(let i = ini; i < vivas.length && !hallado; i++){ idx.push(i); prueba(i + 1); idx.pop(); }
+        };
+        prueba(0);
+      }
+      if(!hallado) break;
+      hallado.U.forEach(j=>S.add(j));
+      grupos.push({refs:hallado.eqs.map(eq=>eq.num), U:hallado.U});
     }
-    if(!hecho){
-      // Lo que queda sin incógnitas nuevas son comprobaciones.
-      if(quedan.every(e=>!nuevas([e]).length)) return true;
-      return false;
-    }
-  }
-  return cols.every(j=>sabidas.has(j));
-}
-
-// ── 2. Desmembrado: el orden de los cuerpos y pasadores ──
-function planPasadoresMarco(r, conocidas){
-  const sabidas = new Set(conocidas || []);
-  const nU = r.unk.length;
-  const grupos = [];
-  r.cuerpos.forEach(c=>grupos.push({tipo:'cuerpo', k:c.k, nombre:c.nombre}));
-  r.pines.forEach(p=>{ if(p.general) grupos.push({tipo:'pin', p, nombre:p.n.nombre}); });
-  const dentroDe = g => g.tipo === 'cuerpo' ? (d=>d.cuerpo === g.k) : (d=>d.pin === g.p.i);
-  const incogDe = (g, eqs)=>{
-    const s = new Set();
-    eqs.forEach(eq=>eq.coef.forEach((v, j)=>{ if(Math.abs(v) > EPS_PLAN && !sabidas.has(j)) s.add(j); }));
-    return [...s];
+    return grupos;
   };
-  const pasos = [], hechos = new Set();
-  let guard = 0;
-  while(sabidas.size < nU && guard++ < 200){
+  const conNumeros = eqs=>eqs.map(eq=>Object.assign(eq, {num:++num}));
+  // 1 · El marco entero
+  const cuenta = {};
+  r.inc.forEach(u=>{ if(u.tipo === 'V' || (u.tipo === 'M' && u.ang === undefined)) return; cuenta[u.n.id] = (cuenta[u.n.id] || 0) + 1; });
+  let O = null, mx = 0;
+  nodos.forEach(n=>{ if((cuenta[n.id] || 0) > mx){ mx = cuenta[n.id]; O = n; } });
+  if(!O) O = {x:0, y:0, nombre:'O', id:null};
+  const todo = ()=>true;
+  const eqG = conNumeros([
+    _ecuacionSobre(r, todo, 'x'), _ecuacionSobre(r, todo, 'y'),
+    Object.assign(_ecuacionSobre(r, todo, 'm', O), {punto:O})
+  ]);
+  eqG.forEach(eq=>pool.push(eq));
+  pasos.push({grupo:{tipo:'global', nombre:'marco completo'}, eqs:eqG, punto:O, sabidasAntes:new Set(sabidas),
+              despejes:despejar(pool, sabidas)});
+  // 2 · Los miembros y los pasadores generales
+  const grupos = r.cuerpos.map(c=>({tipo:'cuerpo', k:c.k, nombre:c.nombre}))
+    .concat(r.pines.filter(p=>p.general).map(p=>({tipo:'pin', p, nombre:p.n.nombre})));
+  const dentroDe = g=>g.tipo === 'cuerpo' ? (d=>d.cuerpo === g.k) : (d=>d.pin === g.p.i);
+  // Las ecuaciones de un grupo, con su ΣM respecto de P (un cuerpo) o sin ella (un pasador).
+  const ecuacionesDe = (g, P)=>{
+    const dentro = dentroDe(g);
+    const fx = _ecuacionSobre(r, dentro, 'x'), fy = _ecuacionSobre(r, dentro, 'y');
+    if(g.tipo !== 'cuerpo') return [fx, fy];
+    return [Object.assign(_ecuacionSobre(r, dentro, 'm', P), {punto:P}), fx, fy];
+  };
+  const hechos = new Set();
+  for(let vuelta = 0; vuelta < grupos.length && sabidas.size < nU; vuelta++){
     let mejor = null;
     grupos.forEach((g, gi)=>{
       if(hechos.has(gi)) return;
       const dentro = dentroDe(g);
-      // Ecuaciones provisionales para contar incógnitas
-      const base = g.tipo === 'cuerpo'
-        ? [_ecuacionSobre(r, dentro, 'x'), _ecuacionSobre(r, dentro, 'y'), _ecuacionSobre(r, dentro, 'm', {x:0, y:0})]
-        : [_ecuacionSobre(r, dentro, 'x'), _ecuacionSobre(r, dentro, 'y')];
-      const U = incogDe(g, base);
-      if(!U.length){ hechos.add(gi); return; }
-      if(U.length > base.length) return;
-      if(_rango(base.map(e=>e.coef), U) < U.length) return;
-      if(!mejor || U.length < mejor.U.length) mejor = {g, gi, U, dentro};
+      // Incógnitas del grupo aún sin despejar, y por qué nudo pasa cada una.
+      const porNudo = {}, U = new Set();
+      r.unk.forEach((q, j)=>{
+        if(sabidas.has(j)) return;
+        q.apl.forEach(a=>{ if(a.dest && dentro(a.dest)){ U.add(j); porNudo[a.n.id] = (porNudo[a.n.id] || 0) + 1; } });
+      });
+      if(!U.size){ hechos.add(gi); return; }
+      const puntos = g.tipo === 'cuerpo' ? r.cuerpos[g.k].nudos.map(id=>nodo(id)) : [null];
+      puntos.forEach(P=>{
+        const eqs = ecuacionesDe(g, P), S = new Set(sabidas);
+        const n = despejar(pool.concat(eqs), S).reduce((s, d)=>s + d.U.length, 0);
+        const pasan = P ? (porNudo[P.id] || 0) : 0;
+        const mejora = !mejor || n > mejor.n
+          || (n === mejor.n && (U.size < mejor.u || (U.size === mejor.u && mejor.gi === gi && pasan > mejor.pasan)));
+        if(mejora) mejor = {g, gi, P, n, u:U.size, pasan};
+      });
     });
     if(!mejor) break;
-    const g = mejor.g;
-    let eqs;
-    if(g.tipo === 'cuerpo'){
-      // ΣM respecto del nudo del cuerpo por el que pasan más incógnitas.
-      const porNudo = {};
-      mejor.U.forEach(j=>r.unk[j].apl.forEach(a=>{
-        if(a.dest && mejor.dentro(a.dest)) porNudo[a.n.id] = (porNudo[a.n.id] || 0) + 1;
-      }));
-      let P = null, m = -1;
-      Object.keys(porNudo).forEach(id=>{ if(porNudo[id] > m){ m = porNudo[id]; P = nodo(+id); } });
-      eqs = [Object.assign(_ecuacionSobre(r, mejor.dentro, 'm', P || {x:0, y:0}), {punto:P}),
-             _ecuacionSobre(r, mejor.dentro, 'x'), _ecuacionSobre(r, mejor.dentro, 'y')];
-    } else eqs = [_ecuacionSobre(r, mejor.dentro, 'x'), _ecuacionSobre(r, mejor.dentro, 'y')];
-    pasos.push({grupo:g, eqs, U:mejor.U, sabidasAntes:new Set(sabidas)});
-    mejor.U.forEach(j=>sabidas.add(j));
     hechos.add(mejor.gi);
+    const antes = new Set(sabidas);
+    const eqs = conNumeros(ecuacionesDe(mejor.g, mejor.P));
+    eqs.forEach(eq=>pool.push(eq));
+    pasos.push({grupo:mejor.g, eqs, punto:mejor.P, sabidasAntes:antes, despejes:despejar(pool, sabidas)});
   }
   const resto = [];
-  for(let j=0;j<nU;j++) if(!sabidas.has(j)) resto.push(j);
-  return {pasos, resto};
+  for(let j = 0; j < nU; j++) if(!sabidas.has(j)) resto.push(j);
+  const refsResto = resto.length ? pool.filter(eq=>incDe(eq, sabidas).length).map(eq=>eq.num) : [];
+  return {pasos, resto, refsResto, punto:O};
 }
+// «(3)», «(3) y (5)», «(1), (2) y (3)»
+function refsEcuaciones(ns){
+  const t = ns.map(n=>'(' + n + ')');
+  return t.length > 1 ? t.slice(0, -1).join(', ') + ' y ' + t[t.length - 1] : (t[0] || '');
+}
+// ¿Esta ecuación ya no tiene incógnitas? Entonces es una comprobación.
+function ecuacionSinIncognitas(eq, conocidas){ return !eq.coef.some((v, j)=>Math.abs(v) > EPS_PLAN && !conocidas.has(j)); }
 
 // ── Escritura de una ecuación: incógnitas con su coeficiente, lo ya conocido
 // y las cargas como números. `conocidas`: Set de índices ya resueltos. ──

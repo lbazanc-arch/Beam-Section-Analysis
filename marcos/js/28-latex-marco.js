@@ -10,8 +10,9 @@
 // ═══════════════════════════════════════════════════════════
 
 // DCL de un cuerpo en TikZ. `conocidas`: Set de índices de r.unk ya resueltos
-// (null: todos). Devuelve el cuerpo de un tikzpicture.
-function tikzDCLCuerpoTex(R, k, conocidas){
+// (null: todos). Con `P` (el punto de momentos de su paso) se acotan los brazos
+// desde P; sin él, la geometría en cadenas. Devuelve el cuerpo de un tikzpicture.
+function tikzDCLCuerpoTex(R, k, conocidas, P){
   const c = R.cuerpos[k];
   const sabe = j => !conocidas || conocidas.has(j);
   const ejes = c.tramos.map(t=>{ const g = geoTramo(t); return ejeTramo(g, g.arco ? 32 : 1); });
@@ -45,13 +46,14 @@ function tikzDCLCuerpoTex(R, k, conocidas){
       const dd = z.g.arco ? dirRepartidaArco(cg, z.g, s) : dirCarga(cg, z.g);
       pts.push({x:Q.x, y:Q.y, dx:dd.x, dy:dd.y, w:wRepartidaEn(cg, z, s)});
     }
-    reps.push({cg, pts});
+    reps.push({cg, pts, res:accionesDeCarga(cg)[0]});
   });
   // Escala
   let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
   const mete = (x,y)=>{ x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); };
   ejes.forEach(e=>e.forEach(q=>mete(q.x, q.y)));
   punt.forEach(p=>mete(p.x, p.y));
+  reps.forEach(q=>q.pts.forEach(p=>mete(p.x, p.y)));
   const s = Math.min(7/Math.max(x1 - x0, 1e-6), 6/Math.max(y1 - y0, 1e-6), 2.2);
   const X = x=>(x - x0)*s, Y = y=>(y - y0)*s, F = v=>v.toFixed(3);
   tzReiniciar();
@@ -73,6 +75,14 @@ function tikzDCLCuerpoTex(R, k, conocidas){
     valores.push({nom, val:dec(Math.abs(w0),'fuerza') + (Math.abs(w1 - w0) > 1e-9 ? '\\to' + dec(Math.abs(w1),'fuerza') : '') + '\\,\\text{' + escLatex(uDist()) + '}'});
     const m = cola[6], pm = q.pts[6];
     pend.push({x:m.x - pm.dx*0.18*sg, y:m.y - pm.dy*0.18*sg, txt:'$' + nom + '$', opts:'font=\\tiny, color=bsaDist!70!black', dir:[-pm.dx*sg, -pm.dy*sg]});
+    // Con brazos, su resultante a trazos: es la fuerza cuyo brazo se acota.
+    const rr = q.res, Fr = rr ? Math.hypot(rr.fx, rr.fy) : 0;
+    if(P && Fr > 1e-12){
+      const ex = rr.fx/Fr, ey = rr.fy/Fr, x = X(rr.x), y = Y(rr.y);
+      out += '\\draw[-{Latex[length=2mm]}, color=bsaDist!60!black, dashed, line width=.9pt] (' + F(x - ex*1.1) + ',' + F(y - ey*1.1)
+           + ') -- (' + F(x - ex*0.08) + ',' + F(y - ey*0.08) + ');\n';
+      tzOcuparTrazo(x - ex*1.1, y - ey*1.1, x - ex*0.08, y - ey*0.08, 0.06);
+    }
   });
   // el cuerpo
   ejes.forEach(e=>{
@@ -111,6 +121,13 @@ function tikzDCLCuerpoTex(R, k, conocidas){
       candidatos:[{x:x+e, y:y+e}, {x:x-e, y:y+e}, {x:x+e, y:y-e}, {x:x-e, y:y-e}, {x:x+2*e, y:y}, {x:x-2*e, y:y}]});
   });
   pend.forEach(q=>{ out += q.candidatos ? tzTextoEn(q.candidatos, q.txt, q.opts, q.dir[0], q.dir[1]) : tzTexto(q.x, q.y, q.txt, q.opts, q.dir[0], q.dir[1]); });
+  // Con punto de momentos: los brazos desde él, en horizontal y en vertical.
+  if(P){
+    const fs = punt.filter(p=>Math.hypot(p.fx, p.fy) > 1e-12).map(p=>({x:p.x, y:p.y, fx:p.fx, fy:p.fy}));
+    reps.forEach(q=>{ if(q.res && Math.hypot(q.res.fx, q.res.fy) > 1e-12) fs.push({x:q.res.x, y:q.res.y, fx:q.res.fx, fy:q.res.fy}); });
+    const b = tzBrazosDesde(P, fs, X, Y);
+    return out + b.tikz + leyendaFigFI(valores, b.filas);
+  }
   // Cotas: los nudos y los puntos de las fuerzas, en horizontal (abajo) y en vertical (a la derecha).
   const xs = nds.map(n=>n.x).concat(punt.filter(p=>Math.hypot(p.fx, p.fy) > 1e-12).map(p=>p.x));
   const ys = nds.map(n=>n.y).concat(punt.filter(p=>Math.hypot(p.fx, p.fy) > 1e-12).map(p=>p.y));
@@ -120,19 +137,34 @@ function tikzDCLCuerpoTex(R, k, conocidas){
   return out + leyendaFigFI(valores);
 }
 
-// Una ecuación del plan (26-) en filas de align*: como mucho tres términos por
-// fila (las de un lado de un pasador llevan muchas reacciones y se salían).
+// Una ecuación del plan (26-) en filas de align*.
 function _filaEcTex(R, eq, conocidas){
   const {ts, cte, esM} = terminosEcuacion(R, eq, conocidas);
   const piezas = ts.map(t=>({neg:t.neg, tex:t.tex}));
   if(Math.abs(cte) > 5e-10*Math.max(1, Math.abs(cte))) piezas.push({neg:cte < 0, tex:dec(Math.abs(cte), esM ? 'momento' : 'fuerza')});
+  return _filaPiezasTex(eq, piezas, '');
+}
+// Una ecuación sin incógnitas (todo ya se conoce): cada término con su número,
+// y la marca de que cierra.
+function _filaComprobacionTex(R, eq){
+  const esM = (eq.e === 'm'), piezas = [];
+  eq.coef.forEach((v, j)=>{
+    const t = v*R.unk[j].valor;
+    if(Math.abs(v) > EPS_PLAN && Math.abs(t) > 5e-10) piezas.push({neg:t < 0, tex:dec(Math.abs(t), esM ? 'momento' : 'fuerza')});
+  });
+  if(Math.abs(eq.cte) > 5e-10) piezas.push({neg:eq.cte < 0, tex:dec(Math.abs(eq.cte), esM ? 'momento' : 'fuerza')});
+  return _filaPiezasTex(eq, piezas, '\\quad\\checkmark');
+}
+// Como mucho tres términos por fila (con muchas incógnitas se salía del papel);
+// el número de la ecuación, al final, para citarla al despejar.
+function _filaPiezasTex(eq, piezas, cola){
   let s = cabeceraEcuacion(eq).replace(' = 0', '') + ' = 0:\\quad & ';
-  if(!piezas.length) return s + '0 = 0';
+  if(!piezas.length) s += '0';
   piezas.forEach((q, i)=>{
     if(i && i % 3 === 0) s += ' \\\\\n &\\qquad ';
     s += (i ? (q.neg ? ' - ' : ' + ') : (q.neg ? '-' : '')) + q.tex;
   });
-  return s + ' = 0';
+  return s + ' = 0' + cola + (eq.num ? ' \\tag{' + eq.num + '}' : '');
 }
 function _valorTex(q){
   const esM = q.tipo === 'reac' && q.u.tipo === 'M' && q.u.ang === undefined;
@@ -142,6 +174,22 @@ function _valorTex(q){
 function _valoresTex(qs){
   const filas = [];
   for(let i=0;i<qs.length;i+=3) filas.push(qs.slice(i, i+3).map(_valorTex).join(',\\qquad '));
+  return '\\begin{gather*}\n' + filas.join(' \\\\\n') + '\n\\end{gather*}\n';
+}
+// Las ecuaciones de un DCL, numeradas.
+function _ecuacionesPasoTex(R, ps){
+  const filas = ps.eqs.map(eq=>ecuacionSinIncognitas(eq, ps.sabidasAntes) ? _filaComprobacionTex(R, eq) : _filaEcTex(R, eq, ps.sabidasAntes));
+  return '\\begin{align*}\n' + filas.join(' \\\\[6pt]\n') + '\n\\end{align*}\n';
+}
+// Lo que se despeja tras este DCL, citando las ecuaciones de las que sale.
+function _despejesTex(R, despejes){
+  if(!despejes.length) return '';
+  const filas = [];
+  despejes.forEach(d=>{
+    const de = '\\text{De ' + refsEcuaciones(d.refs) + ':}';
+    const vals = d.U.map(j=>_valorTex(R.unk[j])).join(',\\qquad ');
+    if(d.U.length > 2) filas.push(de, vals); else filas.push(de + '\\quad ' + vals);
+  });
   return '\\begin{gather*}\n' + filas.join(' \\\\\n') + '\n\\end{gather*}\n';
 }
 
@@ -157,44 +205,36 @@ function gieTex(){
     + '\\\\\n$v_i$: ' + (g.vi.length ? lst(g.vi) : '0') + '\\\\\n$v_e$: ' + lst(g.ve) + '\\par}\n';
 }
 
-// ── Paso 1: reacciones con el marco entero ──
-function pasoReaccionesMarcoTex(R, figCaption){
-  const pr = planReaccionesMarco(R);
-  let out = '\\begin{center}\\bsaEncajar{\\begin{tikzpicture}[scale=1]\n' + tikzViga(true) + '\\end{tikzpicture}}\\end{center}\n';
-  out += figCaption('DCL del marco completo.');
-  if(!pr.completo) out += '\\noindent Con el marco entero no bastan: las reacciones salen del desmembrado.\\par\n';
-  // La de un lado de un pasador lleva antes, en su fila, qué miembros son ese lado.
-  const filas = pr.filas.map(fl=>(fl.titulo === 'lado' ? '&\\text{Lado ' + escLatex(fl.nombreLado) + ':} \\\\\n' : '') + _filaEcTex(R, fl, null));
-  out += '\\begin{align*}\n' + filas.join(' \\\\[6pt]\n') + '\n\\end{align*}\n';
-  if(pr.completo) out += _valoresTex(R.unk.filter(q=>q.tipo === 'reac'));
-  return {tex:out, completo:pr.completo};
-}
-
-// ── Paso 2: desmembrado ──
-function desmembradoTex(R, completo, figCaption){
-  const pp = planPasadoresMarco(R, completo ? R.inc.map((u, j)=>j) : []);
-  if(!pp.pasos.length && !pp.resto.length) return '\\noindent No hay pasadores entre miembros.\\par\n';
-  let out = '';
-  pp.pasos.forEach(ps=>{
+// ── Pasos 1 y 2: un DCL detrás de otro, cada uno con SUS ecuaciones (26-,
+// planMarco). El del marco entero, con sus brazos acotados desde el punto de
+// momentos; después cada miembro, con lo que se busca a trazos y sus brazos
+// desde SU punto de momentos. ──
+function desarrolloMarcoTex(R, figCaption){
+  const pl = planMarco(R), g0 = pl.pasos[0];
+  let glob = '\\begin{center}\\bsaEncajar{\\begin{tikzpicture}[scale=1]\n' + tikzViga(true, {origen:g0.punto})
+    + '\\end{tikzpicture}}\\end{center}\n';
+  glob += figCaption('DCL del marco completo. Brazos desde ' + escLatex(g0.punto.nombre) + ', en ' + escLatex(unitLen) + '.');
+  glob += _ecuacionesPasoTex(R, g0) + _despejesTex(R, g0.despejes);
+  let des = '';
+  pl.pasos.slice(1).forEach(ps=>{
     const g = ps.grupo;
     // El título y su DCL en una minipage: el título no queda solo al pie de la página.
     const tit = '\\subpaso{' + (g.tipo === 'cuerpo' ? 'Miembro ' : 'Pasador ') + escLatex(g.nombre) + '}\n';
     if(g.tipo === 'cuerpo'){
-      out += '\\par\\noindent\\begin{minipage}{\\linewidth}\n' + tit
-        + '\\begin{center}\\bsaEncajar{\\begin{tikzpicture}\n' + tikzDCLCuerpoTex(R, g.k, ps.sabidasAntes) + '\\end{tikzpicture}}\\end{center}\n\\end{minipage}\n';
-      out += figCaption('DCL del miembro ' + escLatex(g.nombre) + ': lo que se busca, a trazos en su sentido supuesto.');
-    } else out += tit;
-    const conU = eq=>eq.coef.some((v, j)=>ps.U.indexOf(j) >= 0 && Math.abs(v) > EPS_PLAN);
-    const filas = ps.eqs.filter(conU).map(eq=>_filaEcTex(R, eq, ps.sabidasAntes))
-      .concat(ps.eqs.filter(eq=>!conU(eq)).map(eq=>_filaEcTex(R, eq, ps.sabidasAntes) + '\\quad\\checkmark'));
-    out += '\\begin{align*}\n' + filas.join(' \\\\[6pt]\n') + '\n\\end{align*}\n';
-    out += _valoresTex(ps.U.map(j=>R.unk[j]));
+      des += '\\par\\noindent\\begin{minipage}{\\linewidth}\n' + tit
+        + '\\begin{center}\\bsaEncajar{\\begin{tikzpicture}\n' + tikzDCLCuerpoTex(R, g.k, ps.sabidasAntes, ps.punto)
+        + '\\end{tikzpicture}}\\end{center}\n\\end{minipage}\n';
+      des += figCaption('DCL del miembro ' + escLatex(g.nombre) + ': lo que se busca, a trazos en su sentido supuesto. Brazos desde '
+        + escLatex(ps.punto.nombre) + ', en ' + escLatex(unitLen) + '.');
+    } else des += tit;
+    des += _ecuacionesPasoTex(R, ps) + _despejesTex(R, ps.despejes);
   });
-  if(pp.resto.length){
-    out += '\\noindent Las que quedan salen del sistema completo de ecuaciones del desmembrado:\n';
-    out += _valoresTex(pp.resto.map(j=>R.unk[j]));
+  if(pl.resto.length){
+    des += '\\noindent Las que quedan salen del sistema de las ecuaciones ' + refsEcuaciones(pl.refsResto) + ':\n';
+    des += _valoresTex(pl.resto.map(j=>R.unk[j]));
   }
-  return out;
+  if(pl.pasos.length === 1 && !pl.resto.length) des += '\\noindent El marco entero basta: no hay fuerzas entre miembros que hallar.\\par\n';
+  return {global:glob, desmembrado:des, plan:pl};
 }
 
 // ── Paso 3: DCL final de cada miembro elegido ──
@@ -206,4 +246,56 @@ function dclFinalesTex(R, figCaption){
     out += figCaption('DCL del miembro ' + escLatex(c.nombre) + ' con sus fuerzas en sentido real. Cotas en ' + escLatex(unitLen) + '.');
   });
   return out;
+}
+
+// Brazos desde el punto de momentos OR, como en el DCL del marco entero
+// (tikzViga, 17-): solo en horizontal y en vertical, cada brazo en su nivel,
+// del más corto al más largo; si alguno no cabe en su cota, por nombre ($d_1$…)
+// con su valor en la leyenda «Brazos». `fs`: fuerzas {x, y, fx, fy} en el mundo.
+function tzBrazosDesde(OR, fs, X, Y){
+  const F = v=>v.toFixed(3), uLb = escLatex(unitLen);
+  const uniq = vs=>[...new Set(vs.map(v=>+v.toFixed(4)))];
+  const xsB = uniq(fs.filter(f=>Math.abs(f.fy) > 1e-9 && Math.abs(f.x - OR.x) > 1e-6).map(f=>f.x)).sort((a, b)=>Math.abs(a - OR.x) - Math.abs(b - OR.x));
+  const ysB = uniq(fs.filter(f=>Math.abs(f.fx) > 1e-9 && Math.abs(f.y - OR.y) > 1e-6).map(f=>f.y)).sort((a, b)=>Math.abs(a - OR.y) - Math.abs(b - OR.y));
+  const filas = [];
+  if(!xsB.length && !ysB.length) return {tikz:'', filas};
+  const x0 = X(OR.x), y0 = Y(OR.y);
+  const etq = (v, ult)=>dec(v,'len') + (ult ? '\\,' + uLb : '');
+  const conLeyenda =
+    xsB.some((xv, i)=>tzAncho(etq(Math.abs(xv - OR.x), i === xsB.length - 1), 'font=\\scriptsize') + 0.15 > Math.abs(X(xv) - x0))
+    || ysB.some(yv=>tzAncho(etq(Math.abs(yv - OR.y), true), 'font=\\scriptsize') + 0.15 > Math.abs(Y(yv) - y0));
+  const nombre = val=>{ const k = filas.length + 1; filas.push({nom:'d_{' + k + '}', val:dec(val,'len') + '\\,\\text{' + uLb + '}'}); return '$d_{' + k + '}$'; };
+  const ext = tzExtension();
+  let out = '';
+  // Horizontales: debajo de todo lo dibujado, una por nivel.
+  const base = ext.y0 - 0.45;
+  // Las líneas de referencia arrancan por debajo de todo lo dibujado, como en
+  // el DCL del marco entero: desde el punto cruzarían flechas y rótulos.
+  if(xsB.length) out += '\\draw[black!45, line width=.35pt, dashed] (' + F(x0) + ',' + F(ext.y0 - 0.05) + ') -- ('
+    + F(x0) + ',' + F(base - (xsB.length - 1)*0.40 - 0.15) + ');\n';
+  xsB.forEach((xv, i)=>{
+    const yy = base - i*0.40, x1 = X(xv);
+    out += '\\draw[black!45, line width=.35pt, dashed] (' + F(x1) + ',' + F(ext.y0 - 0.05) + ') -- (' + F(x1) + ',' + F(yy - 0.12) + ');\n';
+    out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] (' + F(x0) + ',' + F(yy) + ') -- (' + F(x1) + ',' + F(yy) + ');\n';
+    tzOcuparTrazo(x0, yy, x1, yy, 0.05);
+    if(conLeyenda){
+      const nom = nombre(Math.abs(xv - OR.x)), w = tzAncho(nom, 'font=\\scriptsize');
+      const xm = (w + 0.10 <= Math.abs(x1 - x0)) ? (x0 + x1)/2 : Math.max(x0, x1) + w/2 + 0.12;
+      out += tzTextoFijo(xm, yy, nom, 'font=\\scriptsize, color=black!75');
+    } else out += tzTextoFijo((x0 + x1)/2, yy, etq(Math.abs(xv - OR.x), i === xsB.length - 1), 'font=\\scriptsize, color=black!75');
+  });
+  // Verticales: a la derecha de todo, una por columna.
+  const xDer = tzExtension().x1, baseX = xDer + 0.45;
+  ysB.forEach((yv, i)=>{
+    const xx = baseX + i*0.42, y1 = Y(yv);
+    out += '\\draw[black!45, line width=.35pt, dashed] (' + F(x0 + 0.12) + ',' + F(y0) + ') -- (' + F(xx + 0.12) + ',' + F(y0) + ');\n';
+    out += '\\draw[black!45, line width=.35pt, dashed] (' + F(xDer + 0.05) + ',' + F(y1) + ') -- (' + F(xx + 0.12) + ',' + F(y1) + ');\n';
+    out += '\\draw[black!70, line width=.5pt, {Latex[length=1.3mm]}-{Latex[length=1.3mm]}] (' + F(xx) + ',' + F(y0) + ') -- (' + F(xx) + ',' + F(y1) + ');\n';
+    const txt = conLeyenda ? nombre(Math.abs(yv - OR.y)) : etq(Math.abs(yv - OR.y), true);
+    const w = tzAncho(txt, 'font=\\scriptsize');
+    const ym = (w + 0.10 <= Math.abs(y1 - y0)) ? (y0 + y1)/2 : Math.max(y0, y1) + w/2 + 0.12;
+    tzOcupar(xx - 0.16, ym - w/2, xx + 0.16, ym + w/2);
+    out += '\\node[rotate=90, font=\\scriptsize, color=black!75, fill=white, inner sep=1pt] at (' + F(xx) + ',' + F(ym) + ') {' + txt + '};\n';
+  });
+  return {tikz:out, filas};
 }

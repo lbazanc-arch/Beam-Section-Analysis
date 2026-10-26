@@ -688,22 +688,6 @@ function desarrolloArcoTex(R, grupos, gg, figCaption){
     pares.push(['\\circlearrowleft\\!+\\ \\sum M_{S} = 0:\\quad & M = -\\textstyle\\sum M_O + R\\left(\\sum F_y\\cos\\alpha - \\sum F_x\\operatorname{sen}\\alpha\\right)',
                 '& M(\\theta) = ' + _leyArcoTex(su.fM, 'momento') + '\\ \\text{' + uM + '}']);
     out += _ecuaciones(pares);
-    // Valores en los extremos y donde M es extremo o se anula.
-    const puntos = [{s:su.sa, nota:''}, {s:su.sb, nota:''}];
-    extremosSub(su, 'M').forEach(s=>{ if(s > su.sa + 1e-6 && s < su.sb - 1e-6) puntos.push({s, nota:'$M$ extremo'}); });
-    cerosSub(su, 'M').forEach(s=>{ if(s > su.sa + 1e-6 && s < su.sb - 1e-6) puntos.push({s, nota:'$M = 0$'}); });
-    puntos.sort((p, q)=>p.s - q.s);
-    const hayN = !subNulo(su, 'N'), hayNota = puntos.some(p=>p.nota);
-    out += tablaCaption('Valores de la ley en los extremos del intervalo' + (hayNota ? ' y en sus puntos singulares' : '') + '.');
-    out += '{\\footnotesize\\begin{center}\\begin{tabular}{r' + (hayN ? 'r' : '') + 'rr' + (hayNota ? 'l' : '') + '}\n\\hline\n'
-      + '$\\theta$ [$^{\\circ}$] & ' + (hayN ? '$N$ [' + uF + '] & ' : '') + '$V$ [' + uF + '] & $M$ [' + uM + ']'
-      + (hayNota ? ' & ' : '') + ' \\\\\n\\hline\n';
-    puntos.forEach(p=>{
-      out += dec(p.s/ar.R*180/Math.PI,'ang') + ' & ' + (hayN ? dec(valorSub(su,'N',p.s),'fuerza') + ' & ' : '')
-        + dec(valorSub(su,'V',p.s),'fuerza') + ' & ' + dec(valorSub(su,'M',p.s),'momento')
-        + (hayNota ? ' & {\\scriptsize\\color{bsaMuted}' + p.nota + '}' : '') + ' \\\\\n';
-    });
-    out += '\\hline\n\\end{tabular}\\end{center}}\n';
     out += '\\vspace{3pt}\\noindent{\\color{bsaMuted}\\rule{0.35\\linewidth}{.3pt}}\\\\[3pt]\n';
   });
   return out;

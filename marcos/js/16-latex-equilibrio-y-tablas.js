@@ -801,32 +801,8 @@ function desarrolloCorte(R, grupos, gg, seg, sub, figCaption){
   // La caja verde con N(x), V(x), M(x) repetía la segunda línea de cada
   // ecuación: se quitó (2026-10-11, directriz del profesor).
 
-  // ── Valores en los extremos y en los puntos singulares ──
-  // Iban en una frase corrida de tres líneas; en tabla se comparan de un
-  // vistazo y se leen igual que la tabla de secciones notables del tramo.
-  const cerosV = raicesEn(gV, a, b).filter(x=>x > a + 1e-6 && x < b - 1e-6);
-  const cerosM = raicesEn(gM, a, b).filter(x=>x > a + 1e-6 && x < b - 1e-6);
-  const hayNn = gN.some(v=>Math.abs(v) > 5e-9);
-  const puntos = [{x:a, nota:''}]
-    .concat(cerosV.map(x=>({x, nota:'$V = 0$'})))
-    .concat(cerosM.map(x=>({x, nota:'$M = 0$'})))
-    .concat([{x:b, nota:''}])
-    .sort((p,q)=>p.x - q.x);
-  const hayNota = puntos.some(p=>p.nota);
-  out += tablaCaption('Valores de la ley en los extremos del intervalo'
-    + (hayNota ? ' y en sus puntos singulares' : '') + '.');
-  out += '{\\footnotesize\\begin{center}\\begin{tabular}{r' + (hayNn?'r':'') + 'rr'
-    + (hayNota ? 'l' : '') + '}\n\\hline\n'
-    + '$' + sb + '$ [' + uL + '] & ' + (hayNn ? '$N$ [' + uF + '] & ' : '')
-    + '$V$ [' + uF + '] & $M$ [' + uM + ']'
-    + (hayNota ? ' & ' : '') + ' \\\\\n\\hline\n';
-  puntos.forEach(p=>{
-    out += dec(p.x,'len') + ' & '
-      + (hayNn ? dec(polyVal(gN,p.x),'fuerza') + ' & ' : '')
-      + dec(polyVal(gV,p.x),'fuerza') + ' & ' + dec(polyVal(gM,p.x),'momento')
-      + (hayNota ? ' & {\\scriptsize\\color{bsaMuted}' + p.nota + '}' : '') + ' \\\\\n';
-  });
-  out += '\\hline\n\\end{tabular}\\end{center}}\n';
+  // Marcos (2026-10-25, directriz del profesor): sin tabla de valores en
+  // los extremos del intervalo; los dan la ley y el diagrama.
   return out;
 }
 

@@ -649,12 +649,6 @@ function renderMetodoAreas(r){
       h += '<div class="ar-bloque"><div class="ar-tit">' + _arTitHtml(m, b) + '</div>'
         + b.filas.map(f=>'<div class="eq-row"><div class="eq-body">' + kx(f.replace(/&/g, '')) + '</div></div>').join('') + '</div>';
     });
-    const celda = (vv, dt) => vv.length > 1 ? dec(vv[0], dt) + ' → ' + dec(vv[1], dt) : dec(vv[0], dt);
-    h += '<table class="tabla"><thead><tr><th>Punto</th><th class="r">' + gg.simbolo + ' [' + unitLen + ']</th>'
-      + m.MAGS.map(mg=>'<th class="r">' + mg + ' [' + (mg === 'M' ? uMom() : unitFor) + ']</th>').join('') + '</tr></thead><tbody>'
-      + _arTablaFilas(m, celda).map(fl=>'<tr><td><b>' + escaparHTML(fl.nom) + '</b></td><td class="r">' + fl.x + '</td>'
-          + fl.cel.map(c=>'<td class="r">' + c + '</td>').join('') + '</tr>').join('')
-      + '</tbody></table>';
   });
   return h;
 }
@@ -798,13 +792,5 @@ function areasTex(R, grupos, gg, figCaption){
     out += '\\par\\noindent\\begin{minipage}{\\linewidth}\n{\\bfseries\\color{bsaAcc2}' + tit + '}\n'
       + '\\begin{align*}\n' + b.filas.join(' \\\\[3pt]\n') + '\n\\end{align*}\n\\end{minipage}\n';
   });
-  // Valores en los puntos notables (R4: los resultados, en tabla).
-  const celda = (vv, dt) => '$' + (vv.length > 1 ? dec(vv[0], dt) + ' \\rightarrow ' + dec(vv[1], dt) : dec(vv[0], dt)) + '$';
-  const filas = _arTablaFilas(m, celda);
-  out += '\\par\\medskip\n' + tablaCaption('Tramo ' + escLatex(gg.recorrido) + ': valores en los puntos notables.');
-  out += '{\\footnotesize\\begin{center}\\begin{tabular}{lr' + 'r'.repeat(m.MAGS.length) + '}\n\\hline\n'
-    + 'Punto & $' + m.sb + '$ [' + uL + '] & ' + m.MAGS.map(mg=>'$' + mg + '$ [' + (mg === 'M' ? uM : uF) + ']').join(' & ') + ' \\\\\n\\hline\n'
-    + filas.map(fl=>escLatex(fl.nom) + ' & ' + fl.x + ' & ' + fl.cel.join(' & ') + ' \\\\\n').join('')
-    + '\\hline\n\\end{tabular}\\end{center}}\n';
   return out;
 }

@@ -765,11 +765,12 @@ function construirLatex(){
     tex += figCaption('Sentidos positivos de $N$, $V$ y $M$.');
   }
 
-  // ══ 2. Paso 1: reacciones ══
-  tex += '\\seccion{2. Paso 1 --- Reacciones (todo el marco)}\n';
-  // Marcos (28-): el marco entero y, si hace falta, un lado de un pasador.
-  const _pr = pasoReaccionesMarcoTex(R, figCaption);
-  tex += _pr.tex;
+  // ══ Marcos (28-): un DCL detrás de otro, cada uno con SUS ecuaciones ══
+  const _dm = desarrolloMarcoTex(R, figCaption);
+  tex += '\\seccion{2. Paso 1 --- DCL del marco completo}\n';
+  tex += _dm.global;
+  tex += '\\seccion{3. Paso 2 --- Desmembrado: DCL de cada miembro}\n';
+  tex += _dm.desmembrado;
   // Cada reacción con su nombre completo ($R_{yD}$, $R_{xD}$, $R_A$, $M_D$) y
   // el sentido real con un icono, no con una frase: se lee de un vistazo.
   tex += tablaCaption('Reacciones en los apoyos, con su sentido real.');
@@ -802,9 +803,6 @@ function construirLatex(){
   // Una cuerda comprimida o un tope traccionado, en rojo (22-).
   tex += avisosVinculosTex(R);
 
-  // ══ Marcos (28-): desmembrado y DCL de los miembros elegidos ══
-  tex += '\\seccion{3. Paso 2 --- Desmembrado: fuerzas en los pasadores}\n';
-  tex += desmembradoTex(R, _pr.completo, figCaption);
   tex += '\\seccion{4. Paso 3 --- DCL de los miembros}\n';
   tex += dclFinalesTex(R, figCaption);
   // Sin fuerzas internas (20-, «Miembros de la solución»): el informe acaba aquí.
@@ -858,7 +856,6 @@ function construirLatex(){
         tex += '\\vspace{3pt}\\noindent{\\color{bsaMuted}\\rule{0.35\\linewidth}{.3pt}}\\\\[3pt]\n';
       });
     });
-    tex += tablaSingulares(R, gg);
     tex += textoRama(R, grupos, gg, 'fin');
   });
   }
