@@ -46,7 +46,7 @@ function tikzDCLCuerpoTex(R, k, conocidas, P){
       const dd = z.g.arco ? dirRepartidaArco(cg, z.g, s) : dirCarga(cg, z.g);
       pts.push({x:Q.x, y:Q.y, dx:dd.x, dy:dd.y, w:wRepartidaEn(cg, z, s)});
     }
-    reps.push({cg, pts, res:accionesDeCarga(cg)[0]});
+    reps.push({cg, pts, acs:accionesDeCarga(cg)});
   });
   // Escala
   let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
@@ -76,13 +76,15 @@ function tikzDCLCuerpoTex(R, k, conocidas, P){
     const m = cola[6], pm = q.pts[6];
     pend.push({x:m.x - pm.dx*0.18*sg, y:m.y - pm.dy*0.18*sg, txt:'$' + nom + '$', opts:'font=\\tiny, color=bsaDist!70!black', dir:[-pm.dx*sg, -pm.dy*sg]});
     // Con brazos, su resultante a trazos: es la fuerza cuyo brazo se acota.
-    const rr = q.res, Fr = rr ? Math.hypot(rr.fx, rr.fy) : 0;
-    if(P && Fr > 1e-12){
+    (P ? q.acs : []).forEach(rr=>{
+    const Fr = Math.hypot(rr.fx, rr.fy);
+    if(Fr > 1e-12){
       const ex = rr.fx/Fr, ey = rr.fy/Fr, x = X(rr.x), y = Y(rr.y);
       out += '\\draw[-{Latex[length=2mm]}, color=bsaDist!60!black, dashed, line width=.9pt] (' + F(x - ex*1.1) + ',' + F(y - ey*1.1)
            + ') -- (' + F(x - ex*0.08) + ',' + F(y - ey*0.08) + ');\n';
       tzOcuparTrazo(x - ex*1.1, y - ey*1.1, x - ex*0.08, y - ey*0.08, 0.06);
     }
+    });
   });
   // el cuerpo
   ejes.forEach(e=>{
@@ -124,7 +126,7 @@ function tikzDCLCuerpoTex(R, k, conocidas, P){
   // Con punto de momentos: los brazos desde él, en horizontal y en vertical.
   if(P){
     const fs = punt.filter(p=>Math.hypot(p.fx, p.fy) > 1e-12).map(p=>({x:p.x, y:p.y, fx:p.fx, fy:p.fy}));
-    reps.forEach(q=>{ if(q.res && Math.hypot(q.res.fx, q.res.fy) > 1e-12) fs.push({x:q.res.x, y:q.res.y, fx:q.res.fx, fy:q.res.fy}); });
+    reps.forEach(q=>q.acs.forEach(a=>{ if(Math.hypot(a.fx, a.fy) > 1e-12) fs.push({x:a.x, y:a.y, fx:a.fx, fy:a.fy}); }));
     const b = tzBrazosDesde(P, fs, X, Y);
     return out + b.tikz + leyendaFigFI(valores, b.filas);
   }
@@ -147,6 +149,9 @@ function _filaEcTex(R, eq, conocidas){
 // Una ecuación sin incógnitas (todo ya se conoce): cada término con su número,
 // y la marca de que cierra.
 function _filaComprobacionTex(R, eq){
+  // ΣM: por componentes, con todo conocido (26-).
+  if(eq.e === 'm' && eq.dentro)
+    return _filaPiezasTex(eq, terminosEcuacion(R, eq, new Set(R.unk.map((q, j)=>j))).ts, '\\quad\\checkmark');
   const esM = (eq.e === 'm'), piezas = [];
   eq.coef.forEach((v, j)=>{
     const t = v*R.unk[j].valor;

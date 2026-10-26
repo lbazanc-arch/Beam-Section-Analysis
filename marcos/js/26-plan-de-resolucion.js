@@ -42,7 +42,7 @@ function _ecuacionSobre(r, dentro, e, P, dir){
   r.acc.forEach(a=>{ const d = r.destinoAccion(a); if(d && dentro(d)) cte += aporte(a, a.fx, a.fy, a.m); });
   const esc = Math.max(1, ...coef.map(Math.abs));
   coef.forEach((v, j)=>{ if(Math.abs(v) < 1e-12*esc) coef[j] = 0; });
-  return {coef, cte, e, P, dir};
+  return {coef, cte, e, P, dir, dentro};
 }
 // ── El plan, DCL por DCL (2026-10-25, corrección del profesor: «si analizas el
 // DCL general empleas solo sus ecuaciones; después, cada miembro con las
@@ -161,7 +161,58 @@ function _numCoefF(c){
   if(Math.abs(a - Math.round(a)) < 1e-9) return Math.round(a) === 1 ? '' : String(Math.round(a));
   return a.toFixed(4);
 }
+// ΣM por componentes (2026-10-25, directriz del profesor): cada fuerza, F_y por
+// su brazo horizontal y F_x por el vertical desde el punto de momentos, que son
+// las cotas de su DCL; lo conocido y las cargas como «F × d»; una incógnita
+// inclinada, con su coseno director delante. Antes salía un coeficiente ya
+// multiplicado («6.00 F_B») que la figura no enseñaba.
+function _terminosMomento(r, eq, conocidas){
+  const P = eq.P, ts = [];
+  const f4 = v=>(Math.round(v*10000)/10000).toFixed(4), brazo = d=>dec(Math.abs(d),'len');
+  // Por incógnita, lo de cada punto junto: en el marco entero, la fuerza de un
+  // pasador sobre un miembro y la opuesta sobre el otro se anulan.
+  const partes = (lista, out)=>lista.forEach(a=>{
+    const dx = a.x - P.x, dy = a.y - P.y, k = a.x.toFixed(9) + ',' + a.y.toFixed(9);
+    const mete = (clave, v, c, d)=>{ const z = out[k + clave] = out[k + clave] || {v:0, c:0, d, par:clave === 'm'}; z.v += v; z.c += c; };
+    if(Math.abs(a.fy*dx) > 1e-12) mete('y', a.fy*dx, a.fy, dx);
+    if(Math.abs(a.fx*dy) > 1e-12) mete('x', -a.fx*dy, a.fx, dy);
+    if(Math.abs(a.m || 0) > 1e-12) mete('m', a.m, 0, 0);
+  });
+  let suma = 0, sumaInc = new Array(r.unk.length).fill(0);
+  r.unk.forEach((q, j)=>{
+    const out = {};
+    partes(q.apl.filter(a=>a.dest && eq.dentro(a.dest)), out);
+    const sabe = conocidas && conocidas.has(j);
+    Object.values(out).forEach(pt=>{
+      if(Math.abs(pt.v) < 1e-9) return;
+      if(sabe){
+        const val = pt.v*q.valor;
+        suma += val;
+        if(Math.abs(val) > 5e-10) ts.push({neg:val < 0, tex:pt.par ? dec(Math.abs(val),'momento') : dec(Math.abs(pt.c*q.valor),'fuerza') + '\\times' + brazo(pt.d)});
+      } else {
+        sumaInc[j] += pt.v;
+        ts.push({neg:pt.v < 0, j, tex:pt.par ? simboloIncognita(q)
+          : (Math.abs(Math.abs(pt.c) - 1) < 1e-9 ? '' : f4(Math.abs(pt.c)) + '\\times') + brazo(pt.d) + '\\,' + simboloIncognita(q)});
+      }
+    });
+  });
+  const out = {};
+  partes(r.acc.filter(a=>{ const d = r.destinoAccion(a); return d && eq.dentro(d); }), out);
+  Object.values(out).forEach(pt=>{
+    if(Math.abs(pt.v) < 1e-9) return;
+    suma += pt.v;
+    ts.push({neg:pt.v < 0, tex:pt.par ? dec(Math.abs(pt.v),'momento') : dec(Math.abs(pt.c),'fuerza') + '\\times' + brazo(pt.d)});
+  });
+  // Autocontrol: lo escrito tiene que sumar lo mismo que la ecuación del plan.
+  let cteRef = eq.cte;
+  eq.coef.forEach((v, j)=>{ if(conocidas && conocidas.has(j)) cteRef += v*r.unk[j].valor; });
+  const esc = Math.max(1, Math.abs(cteRef), ...eq.coef.map(Math.abs));
+  if(Math.abs(suma - cteRef) > 1e-6*esc || eq.coef.some((v, j)=>!(conocidas && conocidas.has(j)) && Math.abs(v - sumaInc[j]) > 1e-6*esc))
+    console.warn('Marcos: la ΣM por componentes no reproduce la ecuación', {suma, cteRef});
+  return ts;
+}
 function terminosEcuacion(r, eq, conocidas){
+  if(eq.e === 'm' && eq.dentro) return {ts:_terminosMomento(r, eq, conocidas), cte:0, esM:true};
   const esM = (eq.e === 'm');
   const ts = [];
   let cteConocida = 0;

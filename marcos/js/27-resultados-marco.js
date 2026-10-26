@@ -173,6 +173,10 @@ function _ecuacionesPasoHtml(r, ps){
   }).join('') + '</div>';
 }
 function _comprobacionTex(r, eq){
+  if(eq.e === 'm' && eq.dentro){
+    const ts = terminosEcuacion(r, eq, new Set(r.unk.map((q, j)=>j))).ts;
+    return (ts.map((t, i)=>(i ? (t.neg ? ' - ' : ' + ') : (t.neg ? '-' : '')) + t.tex).join('') || '0') + ' = 0\\quad\\checkmark';
+  }
   const esM = (eq.e === 'm');
   let s = '';
   const pon = t=>{ if(Math.abs(t) > 5e-10) s += (s ? (t < 0 ? ' - ' : ' + ') : (t < 0 ? '-' : '')) + dec(Math.abs(t), esM ? 'mom' : 'f'); };
@@ -366,7 +370,7 @@ function svgDCLCuerpo(r, k, opts){
     const P = opts.P, xp = SX(P.x), yp = SY(P.y);
     sv += '<circle cx="'+F1(xp)+'" cy="'+F1(yp)+'" r="8.5" fill="none" stroke="#b45309" stroke-width="1.6" stroke-dasharray="3,2"/>';
     const fs = punt.filter(p=>Math.hypot(p.a.fx, p.a.fy) > 1e-12).map(p=>({x:p.a.x, y:p.a.y, fx:p.a.fx, fy:p.a.fy}));
-    reps.forEach(q=>{ if(q.res && Math.hypot(q.res.fx, q.res.fy) > 1e-12) fs.push({x:q.res.x, y:q.res.y, fx:q.res.fx, fy:q.res.fy}); });
+    reps.forEach(q=>accionesDeCarga(q.cg).forEach(a=>{ if(Math.hypot(a.fx, a.fy) > 1e-12) fs.push({x:a.x, y:a.y, fx:a.fx, fy:a.fy}); }));
     cot = cotasBrazosSVG(P, fs, SX, SY, F1, texto, ext);
   } else cot = cotasCorteSVG(ptsCota, cotX, cotY, SX, SY, F1, texto, ext);
   sv += cot.s;
