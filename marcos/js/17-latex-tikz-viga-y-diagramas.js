@@ -775,7 +775,7 @@ function construirLatex(){
   tex += tablaCaption('Reacciones en los apoyos, con su sentido real.');
   tex += '\\resultado{\\small\\centering\n'
     + '\\begin{tabular}{@{}crc@{}}\n\\hline\n'
-    + '\\textbf{Reacción} & \\textbf{Valor} & \\textbf{Sentido real} \\\\\n\\hline\n';
+    + '\\textbf{Reacción} & \\textbf{Módulo} & \\textbf{Sentido real} \\\\\n\\hline\n';
   R.inc.forEach((u,j)=>{
     const esMom = (u.tipo === 'M' && u.ang === undefined);
     const v = R.val[j];
@@ -795,7 +795,7 @@ function construirLatex(){
       if(agT.grados >= 4) dirR = ' {\\footnotesize(a ' + dec(agT.grados,'ang') + '$^{\\circ}$ de la ' + (agT.desdeV ? 'vertical' : 'horizontal') + ')}';
     }
     tex += '$' + simbReaccion(u) + '$' + dirR + ' & $'
-      + dec(v, esMom?'momento':'fuerza') + '$\\,' + escLatex(esMom?unidadMomento():unitFor)
+      + dec(Math.abs(v), esMom?'momento':'fuerza') + '$\\,' + escLatex(esMom?unidadMomento():unitFor)
       + ' & ' + iconoReaccion(u, v) + ' \\\\\n';
   });
   tex += '\\hline\n\\end{tabular}\\par}\n';

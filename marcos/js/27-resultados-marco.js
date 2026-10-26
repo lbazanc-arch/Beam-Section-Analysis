@@ -110,17 +110,38 @@ function renderResultadosMarco(r){
     + (metodo7 === 'ecuaciones' ? renderMetodoEcuaciones(r) : renderMetodoAreas(r)) + '</div>';
 
   // 6 · Resumen
+  // Cada valor extremo con DÓNDE ocurre (distancia desde el primer nudo del
+  // tramo); el momento, el mayor positivo y el mayor negativo por separado,
+  // que son los dos que se buscan al diseñar.
   h += '<div class="res-section"><div class="res-title"><div class="num">6</div>Resumen de fuerzas internas por tramo</div>'
-    + '<table class="tabla"><thead><tr><th>Tramo</th><th>Miembro</th><th class="r">Longitud</th>'
-    + '<th class="r">N máx</th><th class="r">V máx</th><th class="r">M máx</th></tr></thead><tbody>';
+    + '<div class="hint-sm" style="margin-bottom:6px">Valores extremos de cada tramo y dónde ocurren, medidos desde su primer nudo. '
+    + 'N y V en ' + unitFor + ', M en ' + uMom() + '.</div>'
+    + '<div class="tabla-desliza"><table class="tabla tabla-resumen"><thead><tr><th>Tramo</th><th class="r">L (' + unitLen + ')</th>'
+    + '<th class="r">N extremo</th><th class="r">V extremo</th><th class="r">M máximo (+)</th><th class="r">M mínimo (−)</th></tr></thead><tbody>';
   r.internas.forEach(t=>{
     if(!tramoEnSolucion(t)) return;
-    const mx = arr=>arr.reduce((m, p)=>Math.abs(p) > Math.abs(m) ? p : m, 0);
-    h += '<tr><td><b>' + t.nombre + '</b></td><td>' + r.cuerpos[t.cuerpo].nombre + '</td><td class="r">' + nl(t.L) + ' ' + unitLen + '</td>'
-      + '<td class="r">' + f(mx(t.puntos.map(p=>p.N))) + '</td><td class="r">' + f(mx(t.puntos.map(p=>p.V))) + '</td>'
-      + '<td class="r">' + fm(mx(t.puntos.map(p=>p.M))) + '</td></tr>';
+    // Con las leyes exactas de cada subtramo (05-): sus extremos y los puntos
+    // donde se anula la derivada; el muestreo de `puntos` va un poco dentro.
+    const celda = (clave, cual, fmt)=>{
+      const cand = [];
+      t.subs.forEach(su=>[su.sa, su.sb].concat(extremosSub(su, clave)).forEach(s=>cand.push({s, v:valorSub(su, clave, s)})));
+      if(!cand.length) return '<td class="r">—</td>';
+      const vs = cand.map(q=>q.v), tol = 1e-7*Math.max(1, ...vs.map(Math.abs));
+      let el = null;
+      cand.forEach(q=>{
+        if(cual === 'abs' ? (!el || Math.abs(q.v) > Math.abs(el.v) + tol) : (cual === 'max' ? q.v > (el ? el.v + tol : tol) : q.v < (el ? el.v - tol : -tol))) el = q;
+      });
+      // Lo que con los decimales elegidos se escribe 0.00 es un cero (ruido del ajuste).
+      if(!el || Math.abs(el.v) <= tol || !parseFloat(fmt(el.v))) return '<td class="r">—</td>';
+      const cte = Math.max(...vs) - Math.min(...vs) <= tol;
+      return '<td class="r"><b>' + fmt(el.v) + '</b><span class="pos-ext">'
+        + (cte ? 'constante' : (el.s < 1e-6*t.L ? 'en ' + t.desde.nombre : (el.s > t.L*(1 - 1e-6) ? 'en ' + t.hasta.nombre
+           : 'a ' + nl(el.s) + ' ' + unitLen + ' de ' + t.desde.nombre))) + '</span></td>';
+    };
+    h += '<tr><td><b>' + t.nombre + '</b><span class="pos-ext">' + r.cuerpos[t.cuerpo].nombre + '</span></td><td class="r">' + nl(t.L) + '</td>'
+      + celda('N', 'abs', f) + celda('V', 'abs', f) + celda('M', 'max', fm) + celda('M', 'min', fm) + '</tr>';
   });
-  h += '</tbody></table></div>';
+  h += '</tbody></table></div></div>';
 
   // 7 · Diagramas
   const grupos = gruposSolucion(r);
@@ -141,15 +162,16 @@ function renderResultadosMarco(r){
 
 // Reacciones con su valor y su sentido real.
 function tablaReaccionesMarco(r){
+  // El módulo y el sentido real: el signo de la ecuación ya está en el paso.
   let h = '<table class="tabla" style="margin-top:8px"><thead><tr><th>Nudo</th><th>Apoyo</th><th>Componente</th>'
-    + '<th class="r">Valor</th><th>Unidad</th><th>Sentido</th></tr></thead><tbody>';
+    + '<th class="r">Módulo</th><th>Sentido real</th></tr></thead><tbody>';
   r.inc.forEach((u, j)=>{
     const v = r.val[j];
     if(u.tipo === 'V'){
       const T = VIN_TIPOS[u.vin.tipo], tr = trabajoVinculo(u, v);
       const donde = u.n2 ? u.n.nombre + '–' + u.n2.nombre : u.n.nombre;
       h += '<tr><td><b>' + donde + '</b></td><td>' + T.nom + '</td><td>' + kx(nombreVinculoTex(u.vin)) + '</td>'
-        + '<td class="r"><b>' + dec(Math.abs(v),'f') + '</b></td><td>' + unitFor + '</td>'
+        + '<td class="r"><b>' + dec(Math.abs(v),'f') + '</b> ' + unitFor + '</td>'
         + '<td style="color:' + (tr.ok ? '#15803d' : '#c0392b') + ';font-weight:700">' + tr.txt + (tr.ok ? ' ✓' : ' ✗') + '</td></tr>';
       return;
     }
@@ -161,7 +183,7 @@ function tablaReaccionesMarco(r){
       sent = flechaSentido(v*Math.cos(u.ang), v*Math.sin(u.ang));
     } else { comp = 'Vertical R<sub>y</sub>'; sent = flechaSentido(0, v); }
     h += '<tr><td><b>' + u.n.nombre + '</b></td><td>' + NOMBRE_APOYO[u.n.apoyo] + '</td><td>' + comp + '</td>'
-      + '<td class="r"><b>' + (u.tipo === 'M' ? dec(v,'mom') : dec(v,'f')) + '</b></td><td>' + (u.tipo === 'M' ? uMom() : unitFor) + '</td>'
+      + '<td class="r"><b>' + (u.tipo === 'M' ? dec(Math.abs(v),'mom') : dec(Math.abs(v),'f')) + '</b> ' + (u.tipo === 'M' ? uMom() : unitFor) + '</td>'
       + '<td style="font-size:15px">' + (Math.abs(v) < 5e-10 ? '—' : sent) + '</td></tr>';
   });
   return h + '</tbody></table>';
